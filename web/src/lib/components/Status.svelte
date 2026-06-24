@@ -7,6 +7,7 @@
   import QuoteCard from './QuoteCard.svelte';
   import StatusMedia from './StatusMedia.svelte';
   import StatusPoll from './StatusPoll.svelte';
+  import PreviewCard from './PreviewCard.svelte';
   import Twemoji from './Twemoji.svelte';
   import { renderEmojis } from '$lib/emoji';
   import { renderMfm } from '$lib/mfm';
@@ -231,6 +232,11 @@
 
     {#if status.poll}
       <StatusPoll poll={status.poll} />
+    {/if}
+
+    <!-- リンクプレビュー。画像や引用があるときは出さない（二重に飾らない）。 -->
+    {#if status.card && status.media_attachments.length === 0 && !status.quote}
+      <PreviewCard card={status.card} />
     {/if}
 
     <StatusActions {status} {canReply} {onreply} {onquote} {onupdate} {ondelete} />

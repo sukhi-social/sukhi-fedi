@@ -261,6 +261,20 @@ defmodule SukhiFedi.Web.Router do
     CollectionController.following(conn, [])
   end
 
+  # FEP-bebd follow invite, dereferenced as an InviteCode object.
+  get "/users/:name/invites/:code" do
+    CollectionController.invite(conn, [])
+  end
+
+  # FEP-4ccd pending collections — owner-only (session cookie), 401 otherwise.
+  get "/users/:name/pendingFollowers" do
+    CollectionController.pending_followers(conn, [])
+  end
+
+  get "/users/:name/pendingFollowing" do
+    CollectionController.pending_following(conn, [])
+  end
+
   get "/users/:name/outbox" do
     CollectionController.outbox(conn, [])
   end
@@ -273,6 +287,11 @@ defmodule SukhiFedi.Web.Router do
     else
       NoteController.show(conn, [])
     end
+  end
+
+  # FEP-7458 replies collection for a note.
+  get "/users/:name/notes/:note_id/replies" do
+    NoteController.replies(conn, [])
   end
 
   # FEP-044f: a quote authorization we granted, dereferenced by the

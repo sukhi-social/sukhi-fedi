@@ -83,7 +83,7 @@ defmodule SukhiApi.Views.MastodonStatus do
       mentions: [],
       tags: render_tags(note),
       emojis: Map.get(note, :emojis) || [],
-      card: nil,
+      card: render_card(Map.get(ctx, :card)),
       poll: render_poll(note),
       pinned: Map.get(viewer, :pinned, false),
       bookmarked: Map.get(viewer, :bookmarked, false),
@@ -102,7 +102,13 @@ defmodule SukhiApi.Views.MastodonStatus do
   from the supplied maps (each keyed by note id).
   """
   @spec render_list([map()], map(), map(), map()) :: [map()]
-  def render_list(notes, counts_by_id \\ %{}, viewer_by_id \\ %{}, reactions_by_id \\ %{})
+  def render_list(
+        notes,
+        counts_by_id \\ %{},
+        viewer_by_id \\ %{},
+        reactions_by_id \\ %{},
+        cards_by_id \\ %{}
+      )
       when is_list(notes) do
     Enum.map(notes, fn n ->
       # For a boost wrapper, key the context off the boosted note's id so the
@@ -112,7 +118,8 @@ defmodule SukhiApi.Views.MastodonStatus do
       render(n, %{
         counts: Map.get(counts_by_id, key, %{}),
         viewer: Map.get(viewer_by_id, key, %{}),
-        reactions: Map.get(reactions_by_id, key, [])
+        reactions: Map.get(reactions_by_id, key, []),
+        card: Map.get(cards_by_id, key)
       })
     end)
   end
@@ -185,6 +192,29 @@ defmodule SukhiApi.Views.MastodonStatus do
 
   # `poll_view` is the `Polls.get_with_results/2` map the gateway attaches
   # in `Notes.with_refs/2`. nil (no poll) renders as the spec's `poll: null`.
+  # FEP-8967 link preview card. The hydration layer hands us the stored
+  # card (or nil) in `ctx.card`; we shape it to Mastodon's card entity.
+  defp render_card(nil), do: nil
+
+  defp render_card(%{} = c) do
+    %{
+      url: c.url,
+      title: c.title || "",
+      description: c.description || "",
+      type: c.type || "link",
+      image: Map.get(c, :image),
+      provider_name: c.provider_name || "",
+      provider_url: "",
+      author_name: "",
+      author_url: "",
+      html: "",
+      width: 0,
+      height: 0,
+      embed_url: "",
+      blurhash: nil
+    }
+  end
+
   defp render_poll(note) do
     case Map.get(note, :poll_view) do
       %{poll: _} = view -> MastodonPoll.render(view)

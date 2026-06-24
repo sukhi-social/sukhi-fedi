@@ -150,6 +150,10 @@ export const ko: Dict = {
   'settings.fieldAdd': '항목 더하기',
   'settings.fieldRemove': '지우기',
   'settings.locked': '팔로우를 승인한 뒤에 받기 (잠금)',
+  'settings.discoverable': '쉽게 발견되도록 하기 (추천·목록에 표시)',
+  'settings.indexable': '글이 전문 검색에 잡히도록 하기',
+  'settings.searchConsentHint':
+    '둘 다 처음에는 "안 함". 직접 켰을 때에만, 그 뜻이 바깥 서버에도 전해집니다.',
   'settings.saving': '저장하고 있어요…',
   'settings.save': '저장',
   'settings.saved': '저장했어요.',
@@ -528,6 +532,18 @@ export const ko: Dict = {
 
   // ── 북마크 ───────────────────────────────────────────
   'bookmarks.title': '북마크',
+  'requests.title': '팔로우 요청',
+  'requests.empty': '지금 기다리는 사람은 없어요.',
+  'requests.approve': '맞이하기',
+  'requests.reject': '조용히 거절하기',
+  'requests.failed': '잘 되지 않았어요. 다시 시도해 주세요.',
+  'invites.heading': '초대 링크',
+  'invites.hint': '잠금을 걸어 두어도, "이 사람만은" 싶은 상대에게. 링크를 건네면 기다리지 않고 맞이할 수 있어요.',
+  'invites.create': '초대 링크 만들기',
+  'invites.copy': '복사',
+  'invites.copied': '복사했어요',
+  'invites.revoke': '취소',
+  'invites.empty': '아직 초대 링크가 없어요.',
   'bookmarks.empty': '아직 책갈피를 끼우지 않았어요.',
 
   // ── OAuth 콜백 ───────────────────────────────────────

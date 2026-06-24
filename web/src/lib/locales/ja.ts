@@ -147,6 +147,10 @@ export const ja = {
   'settings.fieldAdd': '項目を足す',
   'settings.fieldRemove': '消す',
   'settings.locked': 'フォローを、承認してから受ける（鍵）',
+  'settings.discoverable': '見つけてもらいやすくする（おすすめや一覧に出る）',
+  'settings.indexable': '投稿を全文検索で見つけられるようにする',
+  'settings.searchConsentHint':
+    'どちらも、はじめは「しない」。あなたが選んだときだけ、その気持ちが外のサーバにも伝わります。',
   'settings.saving': '保存しています…',
   'settings.save': '保存',
   'settings.saved': '保存しました。',
@@ -525,6 +529,19 @@ export const ja = {
 
   // ── ブックマーク ─────────────────────────────────────
   'bookmarks.title': 'ブックマーク',
+  'requests.title': 'フォローのお願い',
+  'requests.empty': 'いま、待っている人はいません。',
+  'requests.approve': '迎える',
+  'requests.reject': 'そっと、お断りする',
+  'requests.failed': 'うまくいきませんでした。もういちど試してね。',
+  'invites.heading': '招待リンク',
+  'invites.hint':
+    '鍵をかけていても、「この子だけは」と思う相手に。リンクを渡すと、待たずに迎えられます。',
+  'invites.create': '招待リンクを作る',
+  'invites.copy': 'コピー',
+  'invites.copied': 'コピーしました',
+  'invites.revoke': '取り消す',
+  'invites.empty': 'まだ招待リンクはありません。',
   'bookmarks.empty': 'まだ、しおりは、はさんでいません。',
 
   // ── OAuth コールバック ───────────────────────────────

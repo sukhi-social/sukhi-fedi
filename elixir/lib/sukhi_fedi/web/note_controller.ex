@@ -13,6 +13,7 @@ defmodule SukhiFedi.Web.NoteController do
 
   import Plug.Conn
   alias SukhiFedi.AP.{ActorJson, MediaSerialize}
+  alias SukhiFedi.Notes.Replies
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.{Account, Note}
 
@@ -55,6 +56,34 @@ defmodule SukhiFedi.Web.NoteController do
     end
   end
 
+  # FEP-7458 replies collection for a public note. Same resolution as
+  # `show/1`; the items are the public replies pointing back at this note.
+  def replies(conn, _opts) do
+    username = conn.path_params["name"]
+    note_id_raw = conn.path_params["note_id"]
+    actor_uri = ActorJson.actor_uri(username)
+
+    with {note_id, ""} <- Integer.parse(note_id_raw || ""),
+         %Account{id: aid} <- SukhiFedi.Accounts.by_local_username(username),
+         %Note{} = note <- Repo.get(Note, note_id),
+         true <- note.account_id == aid,
+         true <- note.visibility == "public" do
+      note_uri = "#{actor_uri}/notes/#{note.id}"
+      parent_ap_ids = Enum.uniq([note_uri | List.wrap(note.ap_id)])
+      items = Replies.public_reply_uris(parent_ap_ids)
+
+      send_json(conn, 200, %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => "#{note_uri}/replies",
+        "type" => "OrderedCollection",
+        "totalItems" => length(items),
+        "orderedItems" => items
+      })
+    else
+      _ -> send_json(conn, 404, %{error: "not found"})
+    end
+  end
+
   defp note_to_ap(%Note{} = n, actor_uri) do
     %{
       "@context" => @context,
@@ -65,6 +94,8 @@ defmodule SukhiFedi.Web.NoteController do
       "published" => DateTime.to_iso8601(n.created_at),
       "to" => [@public_ns],
       "cc" => ["#{actor_uri}/followers"],
+      # FEP-7458: where the thread under this note can be discovered.
+      "replies" => "#{actor_uri}/notes/#{n.id}/replies",
       # We let anyone quote our public posts with automatic approval.
       "interactionPolicy" => @quote_policy
     }

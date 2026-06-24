@@ -16,7 +16,7 @@ config :os_mon, disk_space_check_interval: 1
 
 config :sukhi_fedi, Oban,
   repo: SukhiFedi.Repo,
-  queues: [monitor: 5, inbound_archive: 10, outbound_archive: 10, publish: 5],
+  queues: [monitor: 5, inbound_archive: 10, outbound_archive: 10, publish: 5, preview: 3],
   plugins: [
     # NodeInfo monitor poll every 10 minutes. PollCoordinator enumerates
     # due MonitoredInstances and enqueues one PollWorker per instance.

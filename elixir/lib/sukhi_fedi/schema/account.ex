@@ -35,6 +35,13 @@ defmodule SukhiFedi.Schema.Account do
     # `manuallyApprovesFollowers`). For remote rows this mirrors the
     # value from the upstream actor JSON.
     field :locked, :boolean, default: false
+    # Search-indexing consent (FEP-5feb), federated as Mastodon's
+    # `toot:discoverable` / `toot:indexable`. Both default to false —
+    # consent is given, not assumed. `discoverable` gates discovery
+    # surfaces (directories, suggestions); `indexable` gates full-text
+    # search/indexing of this actor's posts.
+    field :discoverable, :boolean, default: false
+    field :indexable, :boolean, default: false
     field :suspended_at, :utc_datetime
     field :suspended_by_id, :id
     field :suspension_reason, :string
@@ -119,7 +126,17 @@ defmodule SukhiFedi.Schema.Account do
     attrs = normalize_credentials_attrs(attrs)
 
     account
-    |> cast(attrs, [:display_name, :summary, :fields, :avatar_url, :banner_url, :is_bot, :locked])
+    |> cast(attrs, [
+      :display_name,
+      :summary,
+      :fields,
+      :avatar_url,
+      :banner_url,
+      :is_bot,
+      :locked,
+      :discoverable,
+      :indexable
+    ])
     |> update_change(:summary, &SukhiFedi.HTML.sanitize/1)
     |> update_change(:fields, &cast_fields/1)
     |> validate_length(:display_name, max: 100)

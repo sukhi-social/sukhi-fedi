@@ -68,6 +68,10 @@ defmodule SukhiFedi.Addons.Media do
     description = Map.get(attrs, "description") || Map.get(attrs, :description)
 
     type = type_for(content_type)
+    # Drop Exif/metadata (GPS, capture time, device) from images before
+    # anything touches storage — privacy shouldn't depend on the uploader
+    # remembering to strip it. Non-images pass through untouched.
+    file_bytes = maybe_scrub(type, file_bytes)
     ext = Path.extname(filename)
     key = "#{account_id}/#{:crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)}#{ext}"
 
@@ -139,6 +143,9 @@ defmodule SukhiFedi.Addons.Media do
   defp type_for("video/" <> _), do: "video"
   defp type_for("audio/" <> _), do: "audio"
   defp type_for(_), do: "unknown"
+
+  defp maybe_scrub("image", bytes), do: SukhiFedi.Addons.Media.Scrub.scrub(bytes)
+  defp maybe_scrub(_type, bytes), do: bytes
 
   # ── reads ────────────────────────────────────────────────────────────────
 

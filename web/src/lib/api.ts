@@ -27,6 +27,8 @@ export type Account = {
   note?: string;
   locked?: boolean;
   bot?: boolean;
+  discoverable?: boolean;
+  indexable?: boolean;
   created_at?: string;
   followers_count?: number;
   following_count?: number;
@@ -93,6 +95,18 @@ export type Status = {
   bookmarked?: boolean;
   pinned?: boolean;
   poll?: Poll | null;
+  card?: PreviewCard | null;
+};
+
+// FEP-8967 link preview card. A small subset of Mastodon's card entity —
+// what the web actually renders under a post.
+export type PreviewCard = {
+  url: string;
+  title: string;
+  description: string;
+  type: string;
+  image?: string | null;
+  provider_name: string;
 };
 
 // A status carries protected media when it has a CW (spoiler_text) or is
@@ -502,6 +516,11 @@ export type CredentialsUpdate = {
   avatar?: File | null;
   header?: File | null;
   locked?: boolean;
+  // Search-indexing consent (FEP-5feb). `discoverable` lets this account
+  // surface in discovery places; `indexable` lets full-text search reach
+  // its posts. Both default off — the server only flips them when asked.
+  discoverable?: boolean;
+  indexable?: boolean;
   // Profile fields, sent as one JSON-encoded part. The server sanitizes
   // and caps them; an empty array clears the rows.
   fields?: { name: string; value: string }[];
@@ -512,11 +531,60 @@ export async function updateCredentials(input: CredentialsUpdate): Promise<Accou
   if (input.display_name !== undefined) fd.set('display_name', input.display_name);
   if (input.note !== undefined) fd.set('note', input.note);
   if (input.locked !== undefined) fd.set('locked', input.locked ? 'true' : 'false');
+  if (input.discoverable !== undefined)
+    fd.set('discoverable', input.discoverable ? 'true' : 'false');
+  if (input.indexable !== undefined) fd.set('indexable', input.indexable ? 'true' : 'false');
   if (input.fields !== undefined) fd.set('fields', JSON.stringify(input.fields));
   if (input.avatar) fd.set('avatar', input.avatar);
   if (input.header) fd.set('header', input.header);
 
   return json(await req('PATCH', '/api/v1/accounts/update_credentials', 'update', { form: fd }));
+}
+
+// ── follow requests (locked-account inbound approval) ────────────────
+// A locked account holds inbound follows until the owner decides. The
+// list is the accounts waiting; authorize/reject answer one of them.
+
+export async function getFollowRequests(): Promise<Account[]> {
+  return json(await req('GET', '/api/v1/follow_requests', 'follow_requests'));
+}
+
+export async function authorizeFollowRequest(id: string): Promise<Relationship> {
+  return json(
+    await req(
+      'POST',
+      `/api/v1/follow_requests/${encodeURIComponent(id)}/authorize`,
+      'fr_authorize'
+    )
+  );
+}
+
+export async function rejectFollowRequest(id: string): Promise<Relationship> {
+  return json(
+    await req('POST', `/api/v1/follow_requests/${encodeURIComponent(id)}/reject`, 'fr_reject')
+  );
+}
+
+// ── follow invites (FEP-bebd) ────────────────────────────────────────
+// A locked account mints codes that let a holder skip the approval queue.
+// The shareable link is built from the code against this origin.
+
+export type FollowInvite = { code: string };
+
+export async function getFollowInvites(): Promise<FollowInvite[]> {
+  return json(await req('GET', '/api/v1/follow_invites', 'follow_invites_list'));
+}
+
+export async function createFollowInvite(): Promise<FollowInvite> {
+  return json(await req('POST', '/api/v1/follow_invites', 'follow_invite_create'));
+}
+
+export async function deleteFollowInvite(code: string): Promise<void> {
+  await req(
+    'DELETE',
+    `/api/v1/follow_invites/${encodeURIComponent(code)}`,
+    'follow_invite_delete'
+  );
 }
 
 // ── account migration (Move + alsoKnownAs) ───────────────────────────

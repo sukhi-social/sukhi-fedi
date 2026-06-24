@@ -27,7 +27,12 @@ defmodule SukhiDelivery.AP.ActorJson do
         "https://w3id.org/security/data-integrity/v1",
         %{
           "featured" => %{"@id" => "toot:featured", "@type" => "@id"},
-          "toot" => "http://joinmastodon.org/ns#"
+          "discoverable" => "toot:discoverable",
+          "indexable" => "toot:indexable",
+          "toot" => "http://joinmastodon.org/ns#",
+          "pending" => "https://purl.archive.org/socialweb/pending#",
+          "pendingFollowers" => %{"@id" => "pending:pendingFollowers", "@type" => "@id"},
+          "pendingFollowing" => %{"@id" => "pending:pendingFollowing", "@type" => "@id"}
         }
       ],
       "id" => actor_uri,
@@ -41,6 +46,10 @@ defmodule SukhiDelivery.AP.ActorJson do
       "following" => "#{actor_uri}/following",
       "featured" => "#{actor_uri}/featured",
       "manuallyApprovesFollowers" => account.locked || false,
+      # FEP-5feb search-indexing consent. Always emitted (false is a
+      # meaningful "no"), so a remote never has to guess our default.
+      "discoverable" => account.discoverable || false,
+      "indexable" => account.indexable || false,
       "endpoints" => %{"sharedInbox" => "https://#{domain}/inbox"},
       "publicKey" => %{
         "id" => "#{actor_uri}#main-key",
@@ -54,7 +63,19 @@ defmodule SukhiDelivery.AP.ActorJson do
     |> maybe_put_fields(account.fields)
     |> maybe_put_also_known_as(account.aliases)
     |> maybe_put_moved_to(account.moved_to_uri)
+    |> maybe_put_pending_collections(account, actor_uri)
   end
+
+  # FEP-4ccd: a locked actor advertises where its pending follow requests
+  # live (owner-only collections; here we only publish the URIs). Unlocked
+  # actors auto-accept, so they never hold pending followers — bare actor.
+  defp maybe_put_pending_collections(map, %Account{locked: true}, actor_uri) do
+    map
+    |> Map.put("pendingFollowers", "#{actor_uri}/pendingFollowers")
+    |> Map.put("pendingFollowing", "#{actor_uri}/pendingFollowing")
+  end
+
+  defp maybe_put_pending_collections(map, _account, _actor_uri), do: map
 
   # Profile fields ride as AP `attachment` PropertyValue rows — the shape
   # Mastodon and Misskey/Sharkey both render — so a remote viewer sees the

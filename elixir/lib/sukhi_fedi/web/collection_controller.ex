@@ -10,7 +10,8 @@ defmodule SukhiFedi.Web.CollectionController do
   import Ecto.Query
   alias SukhiFedi.{Repo, Social}
   alias SukhiFedi.AP.{ActorJson, MediaSerialize}
-  alias SukhiFedi.Schema.Note
+  alias SukhiFedi.Schema.{Account, Note}
+  alias SukhiFedi.Web.Auth.SessionCookie
 
   def followers(conn, _opts) do
     username = conn.path_params["name"]
@@ -35,6 +36,85 @@ defmodule SukhiFedi.Web.CollectionController do
       |> send_resp(200, JSON.encode!(collection))
     else
       not_found(conn)
+    end
+  end
+
+  # FEP-4ccd pending collections. Private by spec: only the account owner
+  # may see who has asked to follow them, or whom they've asked to follow.
+  # Gated on the first-party session cookie — anyone else gets 401, never a
+  # list. Both are OrderedCollections of minimal Follow activities.
+  def pending_followers(conn, _opts) do
+    with_owned_account(conn, fn account, actor_uri ->
+      items =
+        account.id
+        |> Social.list_pending_follower_uris()
+        |> Enum.map(fn follower -> follow_activity(follower, actor_uri) end)
+
+      pending_collection(conn, "#{actor_uri}/pendingFollowers", items)
+    end)
+  end
+
+  def pending_following(conn, _opts) do
+    with_owned_account(conn, fn _account, actor_uri ->
+      items =
+        actor_uri
+        |> Social.list_pending_followee_uris()
+        |> Enum.map(fn followee -> follow_activity(actor_uri, followee) end)
+
+      pending_collection(conn, "#{actor_uri}/pendingFollowing", items)
+    end)
+  end
+
+  defp with_owned_account(conn, fun) do
+    username = conn.path_params["name"]
+
+    case SessionCookie.account(conn) do
+      %Account{username: ^username} = account ->
+        fun.(account, ActorJson.actor_uri(username))
+
+      _ ->
+        conn
+        |> put_resp_content_type("application/activity+json")
+        |> send_resp(401, JSON.encode!(%{"error" => "owner_only"}))
+    end
+  end
+
+  defp follow_activity(actor, object) do
+    %{"type" => "Follow", "actor" => actor, "object" => object}
+  end
+
+  defp pending_collection(conn, id, items) do
+    collection = %{
+      "@context" => [
+        "https://www.w3.org/ns/activitystreams",
+        "https://purl.archive.org/socialweb/pending/1"
+      ],
+      "id" => id,
+      "type" => "OrderedCollection",
+      "totalItems" => length(items),
+      "orderedItems" => items
+    }
+
+    conn
+    |> put_resp_content_type("application/activity+json")
+    |> send_resp(200, JSON.encode!(collection))
+  end
+
+  # FEP-bebd: dereference a follow invite as an `InviteCode` object. Public
+  # — holding the (unguessable) code is the capability; the invited party's
+  # server fetches this to show and echo it back as a Follow `instrument`.
+  def invite(conn, _opts) do
+    username = conn.path_params["name"]
+    code = conn.path_params["code"]
+
+    case SukhiFedi.FollowInvites.get(username, code) do
+      {:ok, invite} ->
+        conn
+        |> put_resp_content_type("application/activity+json")
+        |> send_resp(200, JSON.encode!(SukhiFedi.FollowInvites.invite_object(invite, username)))
+
+      _ ->
+        not_found(conn)
     end
   end
 

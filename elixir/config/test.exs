@@ -27,6 +27,11 @@ config :sukhi_fedi, SukhiFedi.Repo,
 
 config :sukhi_fedi, Oban, testing: :inline
 
+# Link-preview generation fetches arbitrary URLs over the network; keep it
+# off in tests so note creation stays hermetic. Exercised directly in
+# `SukhiFedi.PreviewCardsTest` instead.
+config :sukhi_fedi, link_previews: false
+
 # Don't auto-sample host metrics in tests — the Sampler would write to the
 # Repo outside any test's sandbox checkout. `nil` makes it start as :ignore;
 # `SukhiFedi.Metrics.record/0` is still exercised directly in metrics_test.

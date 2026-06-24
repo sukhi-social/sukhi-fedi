@@ -128,6 +128,7 @@ defmodule SukhiFedi.Notes.Create do
       |> case do
         {:ok, %{note: note}} ->
           maybe_request_quote(note)
+          maybe_enqueue_preview(note)
           {:ok, Repo.preload(note, [:account, :media]) |> Read.with_refs()}
 
         {:error, :note, %Ecto.Changeset{} = cs, _} ->
@@ -198,6 +199,22 @@ defmodule SukhiFedi.Notes.Create do
   end
 
   defp maybe_request_quote(_), do: :ok
+
+  # FEP-8967: if the post carries an external link, fetch a preview card
+  # for it in the background. Off in tests; a no-op when there's no link.
+  defp maybe_enqueue_preview(%Note{id: id, content: content}) do
+    with true <- SukhiFedi.PreviewCards.enabled?(),
+         url when is_binary(url) <-
+           SukhiFedi.PreviewCards.first_link(content, SukhiFedi.Config.domain!()) do
+      %{note_id: id, url: url}
+      |> SukhiFedi.PreviewCards.Worker.new()
+      |> then(&Oban.insert(SukhiFedi.Oban, &1))
+    end
+
+    :ok
+  end
+
+  defp maybe_enqueue_preview(_), do: :ok
 
   defp quoted_author_inbox(quote_ap_id) do
     case Repo.get_by(Note, ap_id: quote_ap_id) do

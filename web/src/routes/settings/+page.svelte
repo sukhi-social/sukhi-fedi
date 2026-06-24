@@ -26,6 +26,9 @@
   let displayName = $state('');
   let note = $state('');
   let locked = $state(false);
+  // 検索インデックスへの同意(FEP-5feb)。どちらも、はじめは「しない」。
+  let discoverable = $state(false);
+  let indexable = $state(false);
   // プロフィールのひとこと欄。本人が選んで置く、静かな key/value の行。
   // 連合するので、どの画面でも同じものが見える。最大 4 行。
   const MAX_FIELDS = 4;
@@ -90,6 +93,8 @@
       // 自分が前に入れた素のテキストに近づけるだけで、サーバが正本。
       note = stripTags(me.note ?? '');
       locked = !!me.locked;
+      discoverable = !!me.discoverable;
+      indexable = !!me.indexable;
       // 値は HTML で返ってくる(リンクを含むことがある)。編集はテキストで
       // 扱いたいので、note と同じ最小処理でタグを落とす。サーバが正本。
       fields = (me.fields ?? []).map((f) => ({ name: stripTags(f.name), value: stripTags(f.value) }));
@@ -217,6 +222,8 @@
         display_name: displayName,
         note,
         locked,
+        discoverable,
+        indexable,
         fields: fields
           .map((f) => ({ name: f.name.trim(), value: f.value.trim() }))
           .filter((f) => f.name !== ''),
@@ -327,6 +334,17 @@
       <span>{$t('settings.locked')}</span>
     </label>
 
+    <label class="stack-tight">
+      <input type="checkbox" bind:checked={discoverable} />
+      <span>{$t('settings.discoverable')}</span>
+    </label>
+
+    <label class="stack-tight">
+      <input type="checkbox" bind:checked={indexable} />
+      <span>{$t('settings.indexable')}</span>
+    </label>
+    <p class="muted">{$t('settings.searchConsentHint')}</p>
+
     <div style="display: flex; gap: var(--space-3); align-items: center;">
       <button type="submit" class="btn px-6 py-2" disabled={saving}>
         {saving ? $t('settings.saving') : $t('settings.save')}
@@ -345,6 +363,7 @@
     <a class="chip" href="/settings/password">{$t('settings.changePassword')}</a>
     <a class="chip" href="/settings/security">{$t('settings.security')}</a>
     <a class="chip" href="/settings/migration">{$t('settings.migration')}</a>
+    <a class="chip" href="/requests">{$t('requests.title')}</a>
     <a class="chip" href="/settings/cleanup">{$t('settings.cleanup')}</a>
   </p>
 

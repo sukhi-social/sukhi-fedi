@@ -34,6 +34,11 @@ defmodule SukhiDelivery.Schema.Account do
     # Mirrors AP `manuallyApprovesFollowers` / Mastodon `locked`.
     # ActorJson.build_person/1 reads it when fanning out Update(Actor).
     field :locked, :boolean, default: false
+    # Search-indexing consent (FEP-5feb / Mastodon `toot:discoverable`
+    # / `toot:indexable`). ActorJson.build_person/1 reads both to emit
+    # the consent flags, mirroring the gateway.
+    field :discoverable, :boolean, default: false
+    field :indexable, :boolean, default: false
     # Account migration (gateway-side migration). ActorJson.build_person/1
     # reads these to emit AP `alsoKnownAs` / `movedTo` on outbound actor
     # JSON, mirroring the gateway.

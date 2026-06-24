@@ -108,6 +108,38 @@ defmodule SukhiFedi.Social do
     |> Repo.all()
   end
 
+  @doc """
+  Actor URIs whose Follow of `account_id` is still pending — the inbound
+  side of FEP-4ccd's pendingFollowers (a locked account's unanswered
+  follow requests). Just the URIs; the caller wraps each in a minimal
+  Follow activity.
+  """
+  def list_pending_follower_uris(account_id) do
+    from(f in Follow,
+      where: f.followee_id == ^account_id and f.state == "pending",
+      select: f.follower_uri
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Canonical actor URIs that `follower_uri` has asked to follow but which
+  haven't sent an Accept yet — the outbound side (FEP-4ccd
+  pendingFollowing).
+  """
+  def list_pending_followee_uris(follower_uri) do
+    local_prefix = "https://#{SukhiFedi.Config.domain!()}/users/"
+
+    from(f in Follow,
+      join: a in Account,
+      on: a.id == f.followee_id,
+      where: f.follower_uri == ^follower_uri and f.state == "pending",
+      select: %{domain: a.domain, username: a.username, actor_uri: a.actor_uri}
+    )
+    |> Repo.all()
+    |> Enum.map(&canonical_actor_uri(&1, local_prefix))
+  end
+
   # ── follow / unfollow ────────────────────────────────────────────────────
 
   @doc """

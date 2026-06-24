@@ -25,6 +25,14 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
        scope: "write:accounts"},
       {:get, "/api/v1/accounts/lookup", &lookup/1},
       {:get, "/api/v1/accounts/relationships", &relationships/1, scope: "read:follows"},
+      {:get, "/api/v1/follow_requests", &follow_requests/1, scope: "read:follows"},
+      {:post, "/api/v1/follow_requests/:id/authorize", &authorize_follow_request/1,
+       scope: "write:follows"},
+      {:post, "/api/v1/follow_requests/:id/reject", &reject_follow_request/1,
+       scope: "write:follows"},
+      {:get, "/api/v1/follow_invites", &list_follow_invites/1, scope: "read:follows"},
+      {:post, "/api/v1/follow_invites", &create_follow_invite/1, scope: "write:follows"},
+      {:delete, "/api/v1/follow_invites/:code", &delete_follow_invite/1, scope: "write:follows"},
       {:post, "/api/v1/accounts/:id/note", &note/1, scope: "write:accounts"},
       {:get, "/api/v1/accounts/:id", &show/1},
       {:get, "/api/v1/accounts/:id/statuses", &statuses/1},
@@ -181,9 +189,10 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
   end
 
   # multipart の場合は avatar/header を先に Media pipeline に通して
-  # URL を取り、それを attrs に詰める。テキスト 3 項目(display_name,
-  # note, locked)は fields からそのまま渡す。SPA は常に multipart で
-  # 来るが、JSON / urlencoded も Mastodon 互換のため受け付ける。
+  # URL を取り、それを attrs に詰める。テキスト項目(display_name,
+  # note, locked, bot, discoverable, indexable)は fields からそのまま
+  # 渡す。SPA は常に multipart で来るが、JSON / urlencoded も Mastodon
+  # 互換のため受け付ける。
   defp decode_update_attrs(req, account_id) do
     headers = req[:headers] || []
     ct = content_type(headers)
@@ -213,7 +222,7 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
              {:ok, banner_url} <- maybe_upload(files["header"], account_id) do
           attrs =
             fields
-            |> Map.take(["display_name", "note", "locked", "bot"])
+            |> Map.take(["display_name", "note", "locked", "bot", "discoverable", "indexable"])
             |> maybe_put("avatar_url", avatar_url)
             |> maybe_put("banner_url", banner_url)
             |> maybe_put("fields", decode_fields(fields["fields"]))
@@ -487,6 +496,115 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
         end
     end
   end
+
+  # ── follow requests (locked-account inbound approval, FEP-bebd kin) ───────
+
+  @doc "Mastodon `GET /api/v1/follow_requests`: accounts waiting for approval."
+  def follow_requests(req) do
+    case req[:assigns][:current_account] do
+      nil ->
+        ok(403, %{error: "this endpoint requires a user-bound token"})
+
+      %{id: vid} ->
+        case GatewayRpc.call(SukhiFedi.AP.Instructions.Follows, :list_requests, [vid]) do
+          {:ok, rows} when is_list(rows) ->
+            ok(200, rows |> Enum.map(&request_account/1) |> Enum.reject(&is_nil/1))
+
+          {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
+          {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+          _ -> ok(500, %{error: "internal_error"})
+        end
+    end
+  end
+
+  @doc "Mastodon `POST /api/v1/follow_requests/:id/authorize`."
+  def authorize_follow_request(req), do: act_on_request(req, :authorize)
+
+  @doc "Mastodon `POST /api/v1/follow_requests/:id/reject`."
+  def reject_follow_request(req), do: act_on_request(req, :reject)
+
+  defp act_on_request(req, action) do
+    id = req[:path_params]["id"]
+    viewer = req[:assigns][:current_account]
+
+    with %{id: vid} <- viewer,
+         {:ok, int_id} <- parse_int(id),
+         {:ok, {:ok, _uri}} <-
+           GatewayRpc.call(SukhiFedi.AP.Instructions.Follows, action, [vid, int_id]) do
+      ok(200, relationship_after(viewer, int_id))
+    else
+      nil -> ok(403, %{error: "this endpoint requires a user-bound token"})
+      {:error, :bad_int} -> ok(400, %{error: "invalid_id"})
+      {:ok, {:error, :not_found}} -> ok(404, %{error: "follow_request_not_found"})
+      {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
+      {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+      _ -> ok(500, %{error: "internal_error"})
+    end
+  end
+
+  # A request row carries the hydrated follower account; render it. A row
+  # whose follower we never ingested has no stable id to act on, so it's
+  # dropped here (rare — a follower is ingested when its Follow notifies us).
+  defp request_account(%{account: %{id: _} = a}), do: MastodonAccount.render(a, %{})
+  defp request_account(_), do: nil
+
+  defp relationship_after(viewer, account_id) do
+    case GatewayRpc.call(SukhiFedi.Social, :list_relationships, [viewer, [account_id]]) do
+      {:ok, [rel | _]} -> MastodonRelationship.render(rel)
+      _ -> %{}
+    end
+  end
+
+  # ── follow invites (FEP-bebd) ─────────────────────────────────────────────
+  # sukhi-specific: a locked account mints invite codes to skip its own
+  # approval queue. The SPA turns a `code` into a shareable link from origin.
+
+  def list_follow_invites(req) do
+    with_owner(req, fn vid ->
+      case GatewayRpc.call(SukhiFedi.FollowInvites, :list, [vid]) do
+        {:ok, invites} when is_list(invites) ->
+          ok(200, Enum.map(invites, fn i -> %{code: i.code} end))
+
+        other ->
+          gateway_error(other)
+      end
+    end)
+  end
+
+  def create_follow_invite(req) do
+    with_owner(req, fn vid ->
+      case GatewayRpc.call(SukhiFedi.FollowInvites, :mint, [vid]) do
+        {:ok, {:ok, invite}} -> ok(200, %{code: invite.code})
+        other -> gateway_error(other)
+      end
+    end)
+  end
+
+  def delete_follow_invite(req) do
+    code = req[:path_params]["code"]
+
+    with_owner(req, fn vid ->
+      case GatewayRpc.call(SukhiFedi.FollowInvites, :revoke, [vid, code]) do
+        {:ok, {:ok, _}} -> ok(200, %{})
+        {:ok, {:error, :not_found}} -> ok(404, %{error: "invite_not_found"})
+        other -> gateway_error(other)
+      end
+    end)
+  end
+
+  defp with_owner(req, fun) do
+    case req[:assigns][:current_account] do
+      %{id: vid} -> fun.(vid)
+      _ -> ok(403, %{error: "this endpoint requires a user-bound token"})
+    end
+  end
+
+  defp gateway_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
+
+  defp gateway_error({:error, {:badrpc, r}}),
+    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+
+  defp gateway_error(_), do: ok(500, %{error: "internal_error"})
 
   # Mastodon allows id[]=1&id[]=2 or id=1,2,3. We must decode the raw
   # query string ourselves: `URI.decode_query` folds repeated keys into

@@ -55,6 +55,12 @@ defmodule SukhiApi.StatusHydration do
         _ -> %{}
       end
 
-    MastodonStatus.render_list(notes, counts, viewer_flags, reactions)
+    cards =
+      case GatewayRpc.call(SukhiFedi.PreviewCards, :for_notes, [note_ids]) do
+        {:ok, m} when is_map(m) -> m
+        _ -> %{}
+      end
+
+    MastodonStatus.render_list(notes, counts, viewer_flags, reactions, cards)
   end
 end
