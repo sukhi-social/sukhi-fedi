@@ -410,6 +410,12 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  # フォロー承認 + 招待リンク (locked アカウントの待ち合い室)。web 側だけ
+  # 足してここを忘れると、直リンク / リロードだけ 404 になる(lists と同型)。
+  get "/requests" do
+    serve_spa(conn)
+  end
+
   # lists の一覧 (`/lists`) と個別リスト (`/lists/:id`)。web 側だけ足して
   # ここを足し忘れると、アプリ内クリックは SvelteKit が捌くのに直リンク /
   # リロードだけ 404 になる。
