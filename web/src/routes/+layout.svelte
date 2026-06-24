@@ -3,6 +3,7 @@
   import AppNav from '$lib/components/AppNav.svelte';
   import EmailNudge from '$lib/components/EmailNudge.svelte';
   import UpdateBanner from '$lib/components/UpdateBanner.svelte';
+  import AnnouncementsBanner from '$lib/components/AnnouncementsBanner.svelte';
   import { devAutoLogin } from '$lib/auth';
   import type { Snippet } from 'svelte';
 
@@ -19,5 +20,6 @@
   {@render children?.()}
 </main>
 
+<AnnouncementsBanner />
 <EmailNudge />
 <UpdateBanner />

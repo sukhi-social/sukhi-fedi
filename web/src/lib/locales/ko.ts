@@ -135,6 +135,10 @@ export const ko: Dict = {
   'update.reload': '다시 읽기',
   'update.later': '나중에',
 
+  // ── 공지 ─────────────────────────────────────────────
+  'announce.label': '공지',
+  'announce.dismiss': '알겠어요',
+
   // ── 설정 ─────────────────────────────────────────────
   'settings.title': '설정',
   'settings.displayName': '표시 이름',

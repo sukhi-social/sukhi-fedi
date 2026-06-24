@@ -1,0 +1,138 @@
+<h1>Announcements</h1>
+<p class="muted" style="margin-top: -8px;">箱の中の人に、クライアント上でそっと見せるおしらせ。連合には流れません。時刻はあなたの端末の時間で表示・入力できます。</p>
+
+<div class="panel" style="margin-bottom: 20px;">
+  <form method="post" action="/admin/announcements" class="ann-form" style="display: grid; gap: 10px;">
+    <label>
+      <div class="muted" style="font-size: 12px;">本文（HTML可。1行でも、段落でも）</div>
+      <textarea name="content" rows="3" required placeholder="例: 6/30 の夜、すこしの間メンテナンスをします。" style="width: 100%;"></textarea>
+    </label>
+    <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
+      <label style="min-width: 190px;">
+        <div class="muted" style="font-size: 12px;">表示の開始（任意）</div>
+        <input type="datetime-local" class="dt-local" data-target="starts_at" style="width: 100%;" />
+        <input type="hidden" name="starts_at" />
+      </label>
+      <label style="min-width: 190px;">
+        <div class="muted" style="font-size: 12px;">表示の終了（任意）</div>
+        <input type="datetime-local" class="dt-local" data-target="ends_at" style="width: 100%;" />
+        <input type="hidden" name="ends_at" />
+      </label>
+      <label style="display: flex; gap: 6px; align-items: center;">
+        <input type="checkbox" name="published" checked />
+        <span>すぐ公開する</span>
+      </label>
+      <button type="submit">おしらせを出す</button>
+    </div>
+  </form>
+</div>
+
+<div class="panel" style="padding: 0;">
+<table>
+  <thead>
+    <tr>
+      <th>状態</th>
+      <th>本文</th>
+      <th>表示期間</th>
+      <th>公開</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+<%= if announcements == [] do %>
+    <tr><td colspan="5" class="muted" style="text-align: center; padding: 24px;">まだ、ありません。</td></tr>
+<% else %>
+<%= for a <- announcements do %>
+    <tr>
+      <td>
+<%= if a.published do %><span class="pill ok">公開</span><% else %><span class="pill">下書き</span><% end %>
+      </td>
+      <td style="max-width: 360px;">
+        <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><%= h(String.slice(to_string(a.content), 0, 120)) %></div>
+        <details style="margin-top: 6px;">
+          <summary class="muted" style="font-size: 12px; cursor: pointer;">書きなおす</summary>
+          <form method="post" action="/admin/announcements/<%= a.id %>/edit" class="ann-form" style="display: grid; gap: 8px; margin-top: 8px;">
+            <textarea name="content" rows="3" required style="width: 100%;"><%= h(a.content) %></textarea>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+              <label style="min-width: 180px;">
+                <div class="muted" style="font-size: 12px;">開始</div>
+                <input type="datetime-local" class="dt-local" data-target="starts_at" data-utc="<%= if a.starts_at, do: h(DateTime.to_iso8601(a.starts_at)), else: "" %>" style="width: 100%;" />
+                <input type="hidden" name="starts_at" />
+              </label>
+              <label style="min-width: 180px;">
+                <div class="muted" style="font-size: 12px;">終了</div>
+                <input type="datetime-local" class="dt-local" data-target="ends_at" data-utc="<%= if a.ends_at, do: h(DateTime.to_iso8601(a.ends_at)), else: "" %>" style="width: 100%;" />
+                <input type="hidden" name="ends_at" />
+              </label>
+            </div>
+            <div><button type="submit">保存</button></div>
+          </form>
+        </details>
+      </td>
+      <td class="muted" style="font-size: 12px;">
+<%= if a.starts_at || a.ends_at do %>
+        <%= if a.starts_at do %><span class="utc-time" data-utc="<%= h(DateTime.to_iso8601(a.starts_at)) %>"></span><% else %>—<% end %><br><%= if a.ends_at do %><span class="utc-time" data-utc="<%= h(DateTime.to_iso8601(a.ends_at)) %>"></span><% else %>—<% end %>
+<% else %>
+        <span>いつも</span>
+<% end %>
+      </td>
+      <td class="muted" style="font-size: 12px;">
+<%= if a.published_at do %><span class="utc-time" data-utc="<%= h(DateTime.to_iso8601(a.published_at)) %>"></span><% else %>—<% end %>
+      </td>
+      <td style="white-space: nowrap;">
+<%= if a.published do %>
+        <form method="post" action="/admin/announcements/<%= a.id %>/unpublish" style="display: inline;"><button type="submit">下書きに戻す</button></form>
+<% else %>
+        <form method="post" action="/admin/announcements/<%= a.id %>/publish" style="display: inline;"><button type="submit">公開する</button></form>
+<% end %>
+        <form method="post" action="/admin/announcements/<%= a.id %>/delete" style="display: inline;" onsubmit="return confirm('このおしらせを消しますか？');"><button type="submit" class="danger">消す</button></form>
+      </td>
+    </tr>
+<% end %>
+<% end %>
+  </tbody>
+</table>
+</div>
+
+<script>
+// 時刻はサーバ上では UTC。ここで「あなたの端末の時間」に橋渡しする。
+// - 表示: data-utc(ISO) を、その端末のロケールでそのまま読める文字に。
+// - 入力: datetime-local は端末のローカル壁時計なので、送信の直前に
+//   UTC の ISO へ変換して隣の hidden に入れて送る(サーバは UTC として保存)。
+// - 編集の初期値: 保存済み UTC を、ローカル壁時計の文字列に戻して置く。
+(function () {
+  function pad(n) { return String(n).padStart(2, '0'); }
+  // Date -> "YYYY-MM-DDTHH:MM"(ローカル)。datetime-local の value 形式。
+  function toLocalInput(d) {
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+      'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  // 表示用 span をローカル表記に。
+  document.querySelectorAll('span.utc-time').forEach(function (el) {
+    var iso = el.dataset.utc;
+    if (!iso) return;
+    var d = new Date(iso);
+    el.textContent = isNaN(d) ? iso : d.toLocaleString();
+  });
+
+  // 編集フォームの datetime-local を、保存済み UTC からローカル初期値に。
+  document.querySelectorAll('input.dt-local[data-utc]').forEach(function (el) {
+    var iso = el.dataset.utc;
+    if (!iso) return;
+    var d = new Date(iso);
+    if (!isNaN(d)) el.value = toLocalInput(d);
+  });
+
+  // 送信の直前に、ローカル入力 -> UTC ISO を隣の hidden へ。
+  document.querySelectorAll('form.ann-form').forEach(function (form) {
+    form.addEventListener('submit', function () {
+      form.querySelectorAll('input.dt-local').forEach(function (el) {
+        var hidden = form.querySelector('input[type=hidden][name="' + el.dataset.target + '"]');
+        if (!hidden) return;
+        hidden.value = el.value ? new Date(el.value).toISOString() : '';
+      });
+    });
+  });
+})();
+</script>

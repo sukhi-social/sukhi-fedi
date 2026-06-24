@@ -71,6 +71,7 @@
       <a href="/admin/users"<%= if String.starts_with?(current_path, "/admin/users"), do: " class=\"active\"" %>>Users</a>
       <a href="/admin/reports"<%= if String.starts_with?(current_path, "/admin/reports"), do: " class=\"active\"" %>>Reports</a>
       <a href="/admin/invite_codes"<%= if String.starts_with?(current_path, "/admin/invite_codes"), do: " class=\"active\"" %>>Invites</a>
+      <a href="/admin/announcements"<%= if String.starts_with?(current_path, "/admin/announcements"), do: " class=\"active\"" %>>Announcements</a>
       <a href="/admin/instance_blocks"<%= if String.starts_with?(current_path, "/admin/instance_blocks"), do: " class=\"active\"" %>>Federation</a>
       <a href="/admin/bubble_instances"<%= if String.starts_with?(current_path, "/admin/bubble_instances"), do: " class=\"active\"" %>>Bubble</a>
       <a href="/admin/system"<%= if String.starts_with?(current_path, "/admin/system"), do: " class=\"active\"" %>>System</a>

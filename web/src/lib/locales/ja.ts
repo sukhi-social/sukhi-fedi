@@ -132,6 +132,10 @@ export const ja = {
   'update.reload': '読み込みなおす',
   'update.later': 'あとで',
 
+  // ── おしらせ ─────────────────────────────────────────
+  'announce.label': 'おしらせ',
+  'announce.dismiss': 'わかりました',
+
   // ── 設定 ─────────────────────────────────────────────
   'settings.title': '設定',
   'settings.displayName': '表示名',

@@ -13,10 +13,10 @@ defmodule SukhiFedi.Web.Admin.Router do
 
   use Plug.Router
 
-  alias SukhiFedi.Web.Admin.{Auth, BubbleInstancesController, DashboardController,
-                              InstanceBlocksController, InviteCodesController,
-                              LoginController, ReportsController, SystemController,
-                              UsersController}
+  alias SukhiFedi.Web.Admin.{AnnouncementsController, Auth, BubbleInstancesController,
+                              DashboardController, InstanceBlocksController,
+                              InviteCodesController, LoginController, ReportsController,
+                              SystemController, UsersController}
 
   plug :put_secret_key_base
 
@@ -89,6 +89,30 @@ defmodule SukhiFedi.Web.Admin.Router do
 
   post "/invite_codes" do
     Auth.with_admin(conn, &InviteCodesController.create/1)
+  end
+
+  get "/announcements" do
+    Auth.with_admin(conn, &AnnouncementsController.index/1)
+  end
+
+  post "/announcements" do
+    Auth.with_admin(conn, &AnnouncementsController.create/1)
+  end
+
+  post "/announcements/:id/publish" do
+    Auth.with_admin(conn, &AnnouncementsController.publish(&1, id))
+  end
+
+  post "/announcements/:id/unpublish" do
+    Auth.with_admin(conn, &AnnouncementsController.unpublish(&1, id))
+  end
+
+  post "/announcements/:id/edit" do
+    Auth.with_admin(conn, &AnnouncementsController.edit(&1, id))
+  end
+
+  post "/announcements/:id/delete" do
+    Auth.with_admin(conn, &AnnouncementsController.delete(&1, id))
   end
 
   get "/system" do

@@ -587,6 +587,28 @@ export async function deleteFollowInvite(code: string): Promise<void> {
   );
 }
 
+// ── announcements (server notices) ───────────────────────────────────
+// Local-only notices the admin pins for everyone on the box. `read` is
+// whether this account has dismissed it; dismissing is what makes a
+// notice go quiet for good.
+
+export type Announcement = {
+  id: string;
+  content: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  published_at: string | null;
+  read: boolean;
+};
+
+export async function getAnnouncements(): Promise<Announcement[]> {
+  return json(await req('GET', '/api/v1/announcements', 'announcements'));
+}
+
+export async function dismissAnnouncement(id: string): Promise<void> {
+  await req('POST', `/api/v1/announcements/${encodeURIComponent(id)}/dismiss`, 'announcement_dismiss');
+}
+
 // ── account migration (Move + alsoKnownAs) ───────────────────────────
 
 export type AccountMigration = {

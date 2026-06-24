@@ -17,7 +17,7 @@ defmodule SukhiApi.Capabilities.Admin do
   use SukhiApi.Capability, addon: :moderation
 
   alias SukhiApi.{AdminAuth, GatewayRpc, OffsetPagination}
-  alias SukhiApi.Views.{AdminAccount, AdminDomainBlock, AdminReport}
+  alias SukhiApi.Views.{AdminAccount, AdminDomainBlock, AdminReport, MastodonAnnouncement}
 
   @impl true
   def routes do
@@ -39,6 +39,12 @@ defmodule SukhiApi.Capabilities.Admin do
       {:get, "/api/admin/domain_blocks", &list_domain_blocks/1, scope: "admin:read"},
       {:post, "/api/admin/domain_blocks", &create_domain_block/1, scope: "admin:write"},
       {:delete, "/api/admin/domain_blocks", &delete_domain_block/1, scope: "admin:write"},
+
+      # announcements
+      {:get, "/api/admin/announcements", &list_announcements/1, scope: "admin:read"},
+      {:post, "/api/admin/announcements", &create_announcement/1, scope: "admin:write"},
+      {:put, "/api/admin/announcements/:id", &update_announcement/1, scope: "admin:write"},
+      {:delete, "/api/admin/announcements/:id", &delete_announcement/1, scope: "admin:write"},
 
       # dashboard
       {:get, "/api/admin/stats", &stats/1, scope: "admin:read"}
@@ -255,6 +261,72 @@ defmodule SukhiApi.Capabilities.Admin do
       {:error, :forbidden} -> ok(403, %{error: "admin_required"})
     end
   end
+
+  # ── announcements ────────────────────────────────────────────────────────
+
+  def list_announcements(req) do
+    with {:ok, _admin} <- AdminAuth.require_admin(req) do
+      case GatewayRpc.call(SukhiFedi.Announcements, :list_all, []) do
+        {:ok, list} when is_list(list) -> ok(200, MastodonAnnouncement.render_list(list))
+        other -> rpc_error(other)
+      end
+    else
+      {:error, :forbidden} -> ok(403, %{error: "admin_required"})
+    end
+  end
+
+  def create_announcement(req) do
+    with {:ok, _admin} <- AdminAuth.require_admin(req) do
+      # New announcements go live by default — an admin writing one
+      # usually means it now. Pass `"published": false` to keep a draft.
+      attrs = Map.put_new(announcement_attrs(decode_body(req)), "published", true)
+
+      case GatewayRpc.call(SukhiFedi.Announcements, :create, [attrs]) do
+        {:ok, {:ok, ann}} -> ok(200, MastodonAnnouncement.render(ann))
+        {:ok, {:error, %{} = cs}} -> ok(422, %{error: "validation_failed", details: cs_errors(cs)})
+        other -> rpc_error(other)
+      end
+    else
+      {:error, :forbidden} -> ok(403, %{error: "admin_required"})
+    end
+  end
+
+  def update_announcement(req) do
+    with {:ok, _admin} <- AdminAuth.require_admin(req) do
+      attrs = announcement_attrs(decode_body(req))
+
+      case GatewayRpc.call(SukhiFedi.Announcements, :update, [req[:path_params]["id"], attrs]) do
+        {:ok, {:ok, ann}} -> ok(200, MastodonAnnouncement.render(ann))
+        {:ok, {:error, :not_found}} -> ok(404, %{error: "announcement_not_found"})
+        {:ok, {:error, %{} = cs}} -> ok(422, %{error: "validation_failed", details: cs_errors(cs)})
+        other -> rpc_error(other)
+      end
+    else
+      {:error, :forbidden} -> ok(403, %{error: "admin_required"})
+    end
+  end
+
+  def delete_announcement(req) do
+    with {:ok, _admin} <- AdminAuth.require_admin(req) do
+      case GatewayRpc.call(SukhiFedi.Announcements, :delete, [req[:path_params]["id"]]) do
+        {:ok, {:ok, _}} -> ok(200, %{})
+        {:ok, {:error, :not_found}} -> ok(404, %{error: "announcement_not_found"})
+        other -> rpc_error(other)
+      end
+    else
+      {:error, :forbidden} -> ok(403, %{error: "admin_required"})
+    end
+  end
+
+  # Keep only the fields an announcement understands; the context's
+  # changeset casts the ISO datetime strings and booleans. We don't
+  # default missing keys so an update touches only what was sent.
+  defp announcement_attrs(body) do
+    Map.take(body, ["content", "published", "all_day", "starts_at", "ends_at", "published_at"])
+  end
+
+  defp cs_errors(%{errors: errors}), do: Map.new(errors, fn {k, {msg, _}} -> {k, msg} end)
+  defp cs_errors(_), do: %{}
 
   # ── stats ────────────────────────────────────────────────────────────────
 
