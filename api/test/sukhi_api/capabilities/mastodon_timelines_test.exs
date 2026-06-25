@@ -113,8 +113,8 @@ defmodule SukhiApi.Capabilities.MastodonTimelinesTest do
     end
   end
 
-  describe "GET /api/v1/timelines/public" do
-    test "public — unauthenticated, returns Status array" do
+  describe "GET /api/v1/timelines/public?local=true (local tab)" do
+    test "local — unauthenticated, returns Status array" do
       Application.put_env(:sukhi_api, :fake_timelines, %{
         public: [note(2), note(1)]
       })
@@ -123,6 +123,7 @@ defmodule SukhiApi.Capabilities.MastodonTimelinesTest do
         Router.handle(%{
           method: "GET",
           path: "/api/v1/timelines/public",
+          query: "local=true",
           headers: []
         })
 
@@ -139,6 +140,7 @@ defmodule SukhiApi.Capabilities.MastodonTimelinesTest do
         Router.handle(%{
           method: "GET",
           path: "/api/v1/timelines/public",
+          query: "local=true",
           headers: []
         })
 
@@ -154,10 +156,59 @@ defmodule SukhiApi.Capabilities.MastodonTimelinesTest do
         Router.handle(%{
           method: "GET",
           path: "/api/v1/timelines/public",
+          query: "local=true",
           headers: []
         })
 
       assert resp.status == 503
+    end
+  end
+
+  describe "GET /api/v1/timelines/public (federated tab → ご近所 guide)" do
+    test "no local param → a single guide post, no gateway call" do
+      # No fake_timelines configured: the guide must not touch the gateway.
+      Application.delete_env(:sukhi_api, :fake_timelines)
+
+      {:ok, resp} =
+        Router.handle(%{
+          method: "GET",
+          path: "/api/v1/timelines/public",
+          headers: []
+        })
+
+      assert resp.status == 200
+      body = JSON.decode!(resp.body)
+      assert length(body) == 1
+      status = hd(body)
+      assert status["content"] =~ "ご近所"
+      assert status["visibility"] == "public"
+    end
+
+    test "Korean reader (Accept-Language) → the guide speaks Korean" do
+      {:ok, resp} =
+        Router.handle(%{
+          method: "GET",
+          path: "/api/v1/timelines/public",
+          headers: [{"accept-language", "ko-KR,ko;q=0.9"}]
+        })
+
+      assert resp.status == 200
+      status = resp.body |> JSON.decode!() |> hd()
+      assert status["content"] =~ "이웃"
+      refute status["content"] =~ "ご近所"
+    end
+
+    test "paginating (max_id) → empty page so the guide doesn't repeat" do
+      {:ok, resp} =
+        Router.handle(%{
+          method: "GET",
+          path: "/api/v1/timelines/public",
+          query: "max_id=9007199254740991",
+          headers: []
+        })
+
+      assert resp.status == 200
+      assert JSON.decode!(resp.body) == []
     end
   end
 
