@@ -323,7 +323,7 @@ accessories:
   # rustfs container は UID 10001 で動くので、kamal が rocky で作った
   # bind-mount dir のままでは書けない。
   rustfs:
-    image: rustfs/rustfs:1.0.0-beta.5
+    image: rustfs/rustfs:1.0.0-beta.8
     host: 217.142.242.103
     env:
       clear:
