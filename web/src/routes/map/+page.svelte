@@ -96,8 +96,8 @@
     <text class="line-name build" x="356" y="188">{$t('map.express')}</text>
     <text class="line-name build" x="530" y="66">{$t('map.lineFed')}</text>
 
-    <!-- WT 直通線(試運転中): あなた → karutte(x64) → WireGuard 専用線 → WT ホーム -->
-    <path class="track wt" d="M 100 166 V 480 H 578 Q 600 480 600 458 V 428" />
+    <!-- WT 新幹線(試運転中): あなた → karutte(x64) → WireGuard 専用線 → WT ホーム -->
+    <path id="p-wt" class="track wt" d="M 100 166 V 480 H 578 Q 600 480 600 458 V 428" />
     <path class="hair" d="M 322 486 H 560" />
     <text class="line-name ink" x="150" y="470">{$t('map.lineWt')}</text>
     <text class="chip-trial" x="440" y="470">{$t('map.statusTrial')}</text>
@@ -190,7 +190,14 @@
       <g class="train build">
         <path d="M -5 0 L -9.5 -4.5 L -7.5 0 L -9.5 4.5 Z" />
         <path d="M -6.5 -3 H 1 Q 9 0 1 3 H -6.5 Z" />
-        <circle class="rkt-window" cx="-1.5" cy="0" r="1.3" />
+        <circle class="window" cx="-1.5" cy="0" r="1.3" />
+        {@render ride(path, dur, count, i)}
+      </g>
+    {/snippet}
+    {#snippet shinkansen(path: string, dur: number, count: number, i: number)}
+      <g class="train ink">
+        <path d="M -12 -3.5 H 2 Q 9 -3 12.5 0 Q 9 3 2 3.5 H -12 Q -13.5 0 -12 -3.5 Z" />
+        <rect class="window" x="0" y="-2.2" width="7" height="1.7" rx="0.85" />
         {@render ride(path, dur, count, i)}
       </g>
     {/snippet}
@@ -212,6 +219,9 @@
       {@render boxcar('build', '#p-fedout-rail', 10, fedOutTrains, i)}
       {@render rocket('#p-route-out', 14, fedOutTrains, i)}
     {/each}
+    <!-- WT 新幹線の試運転列車。これだけは実流量ではなく「試運転中」という
+         状態を描く一本(開業したら実数につなぎ替える) -->
+    {@render shinkansen('#p-wt', 48, 1, 0)}
   </svg>
 </section>
 
@@ -421,10 +431,13 @@
   .train.build {
     fill: var(--color-build);
   }
+  .train.ink {
+    fill: var(--color-text);
+  }
   .train .wheel {
     fill: var(--color-text);
   }
-  .train .rkt-window {
+  .train .window {
     fill: var(--color-surface);
   }
   .train-dot {
