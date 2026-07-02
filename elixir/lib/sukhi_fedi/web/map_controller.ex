@@ -9,6 +9,8 @@ defmodule SukhiFedi.Web.MapController do
       （OUTBOX / OUTBOX_DLQ / DOMAIN_EVENTS）
     * この 1 日に生まれた note の数（ローカル / リモート別）
     * この 1 日に連合へ届けた便の数（delivery_receipts の delivered）
+    * 宇宙図の星（`SukhiFedi.MapPeers` の allow-list に載る domain と、
+      そこからこの 1 日に届いた note の数）— 管理人が選んだ星だけ
 
   1 日基準なのは、しずかな星でも「この星の一日」が見えるように。
   宛先・本文・アカウントは含まれないので認証なしで開けてよく、
@@ -22,6 +24,7 @@ defmodule SukhiFedi.Web.MapController do
   import Ecto.Query
   import Plug.Conn
 
+  alias SukhiFedi.MapPeers
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Note
 
@@ -59,8 +62,30 @@ defmodule SukhiFedi.Web.MapController do
       at: DateTime.utc_now() |> DateTime.to_iso8601(),
       streams: Map.new(@streams, fn {key, name} -> {key, stream_state(name)} end),
       notes_24h: recent_notes(since),
-      deliveries_24h: recent_deliveries(since)
+      deliveries_24h: recent_deliveries(since),
+      peers: peers(since)
     }
+  end
+
+  # 宇宙図の星。allow-list の domain だけ、この 1 日に届いた note 数を添えて。
+  # リストに無い星は数字ごと出さない(ホワイトリスト式)。
+  defp peers(since) do
+    domains = MapPeers.domains()
+
+    counts =
+      if domains == [] do
+        %{}
+      else
+        from(n in Note,
+          where: n.created_at > ^since and n.domain in ^domains,
+          group_by: n.domain,
+          select: {n.domain, count(n.id)}
+        )
+        |> Repo.all()
+        |> Map.new()
+      end
+
+    Enum.map(domains, fn d -> %{domain: d, notes_24h: Map.get(counts, d, 0)} end)
   end
 
   # stream が無い / NATS に届かないときは nil のまま返す（ページ側は

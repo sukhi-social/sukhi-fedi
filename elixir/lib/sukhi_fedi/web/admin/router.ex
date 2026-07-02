@@ -15,8 +15,8 @@ defmodule SukhiFedi.Web.Admin.Router do
 
   alias SukhiFedi.Web.Admin.{AnnouncementsController, Auth, BubbleInstancesController,
                               DashboardController, InstanceBlocksController,
-                              InviteCodesController, LoginController, ReportsController,
-                              SystemController, UsersController}
+                              InviteCodesController, LoginController, MapPeersController,
+                              ReportsController, SystemController, UsersController}
 
   plug :put_secret_key_base
 
@@ -145,6 +145,18 @@ defmodule SukhiFedi.Web.Admin.Router do
 
   post "/bubble_instances/:domain/remove" do
     Auth.with_admin(conn, &BubbleInstancesController.remove(&1, domain))
+  end
+
+  get "/map_peers" do
+    Auth.with_admin(conn, &MapPeersController.index/1)
+  end
+
+  post "/map_peers" do
+    Auth.with_admin(conn, &MapPeersController.create/1)
+  end
+
+  post "/map_peers/:domain/remove" do
+    Auth.with_admin(conn, &MapPeersController.remove(&1, domain))
   end
 
   match _ do

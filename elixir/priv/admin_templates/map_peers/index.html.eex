@@ -1,0 +1,71 @@
+<h1>Universe map (連合の宇宙図)</h1>
+
+<p class="muted" style="margin-top: 0;">
+  Instances listed here appear by name on the public railway-map page
+  (<code>/map</code>), as stars in the federation universe chart.
+  Allow-list only: an empty list shows an empty sky. Independent of the
+  bubble — being a neighbour does not put a host on the public map.
+</p>
+
+<div class="panel" style="margin-bottom: 16px;">
+  <h2 style="margin-top: 0;">Add a host</h2>
+  <form method="post" action="/admin/map_peers" style="display: flex; gap: 8px;">
+    <input type="text" name="domain" required placeholder="e.g. misskey.io" autocapitalize="none" style="flex: 1;">
+    <button type="submit">Add</button>
+  </form>
+</div>
+
+<div class="panel" style="margin-bottom: 16px;">
+  <h2 style="margin-top: 0;">Find a host you already federate with</h2>
+  <form method="get" action="/admin/map_peers" style="display: flex; gap: 8px;">
+    <input type="text" name="q" value="<%= h(q) %>" placeholder="search known hosts…" autocapitalize="none" style="flex: 1;">
+    <button type="submit">Search</button>
+  </form>
+
+<%= if searched do %>
+<%= if suggestions == [] do %>
+  <p class="muted" style="margin-bottom: 0;">No known hosts match “<%= h(q) %>” (or they are already on the map).</p>
+<% else %>
+  <ul style="list-style: none; padding: 0; margin: 12px 0 0;">
+<%= for domain <- suggestions do %>
+    <li style="display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid var(--border);">
+      <span style="flex: 1;"><%= h(domain) %></span>
+      <form method="post" action="/admin/map_peers" style="display: inline;">
+        <input type="hidden" name="domain" value="<%= h(domain) %>">
+        <button type="submit">Add</button>
+      </form>
+    </li>
+<% end %>
+  </ul>
+<% end %>
+<% end %>
+</div>
+
+<div class="panel" style="padding: 0;">
+<table>
+  <thead>
+    <tr>
+      <th>Domain</th>
+      <th>Added</th>
+      <th style="width: 1%;"></th>
+    </tr>
+  </thead>
+  <tbody>
+<%= if current == [] do %>
+    <tr><td colspan="3" class="muted" style="text-align: center; padding: 24px;">No hosts on the map yet — the public sky is empty.</td></tr>
+<% else %>
+<%= for p <- current do %>
+    <tr>
+      <td><strong><%= h(p.domain) %></strong></td>
+      <td class="muted"><%= h(NaiveDateTime.to_iso8601(p.inserted_at)) %></td>
+      <td>
+        <form method="post" action="/admin/map_peers/<%= URI.encode(p.domain) %>/remove" style="display: inline;">
+          <button type="submit">Remove</button>
+        </form>
+      </td>
+    </tr>
+<% end %>
+<% end %>
+  </tbody>
+</table>
+</div>

@@ -74,6 +74,7 @@
       <a href="/admin/announcements"<%= if String.starts_with?(current_path, "/admin/announcements"), do: " class=\"active\"" %>>Announcements</a>
       <a href="/admin/instance_blocks"<%= if String.starts_with?(current_path, "/admin/instance_blocks"), do: " class=\"active\"" %>>Federation</a>
       <a href="/admin/bubble_instances"<%= if String.starts_with?(current_path, "/admin/bubble_instances"), do: " class=\"active\"" %>>Bubble</a>
+      <a href="/admin/map_peers"<%= if String.starts_with?(current_path, "/admin/map_peers"), do: " class=\"active\"" %>>Universe map</a>
       <a href="/admin/system"<%= if String.starts_with?(current_path, "/admin/system"), do: " class=\"active\"" %>>System</a>
     </nav>
     <span class="muted"><%= h(admin.username) %></span>

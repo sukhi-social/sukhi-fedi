@@ -13,6 +13,7 @@
     streams: { outbox: StreamState; outbox_dlq: StreamState; events: StreamState };
     notes_24h: { local: number; remote: number };
     deliveries_24h: number;
+    peers: { domain: string; notes_24h: number }[];
   };
 
   let sample = $state<MapSample | null>(null);
@@ -56,6 +57,35 @@
   let asOf = $derived(
     sample ? new Date(Date.parse(sample.at)).toLocaleTimeString($locale) : null
   );
+
+  // ── 連合の宇宙図 ──
+  // 星の位置は domain のハッシュから決める=いつ見ても同じ空。
+  // 載るのは管理人が allow-list に入れた星だけ(サーバ側で絞り済み)。
+  let peers = $derived(sample?.peers ?? []);
+
+  function starHash(s: string): number {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h;
+  }
+
+  function starPos(domain: string): { x: number; y: number } {
+    const h = starHash(domain);
+    const a = ((h % 360) * Math.PI) / 180;
+    const r = 105 + ((h >>> 9) % 145);
+    const x = Math.min(880, Math.max(80, 480 + Math.cos(a) * r * 1.5));
+    const y = Math.min(370, Math.max(60, 215 + Math.sin(a) * r * 0.72));
+    return { x: Math.round(x), y: Math.round(y) };
+  }
+
+  // 星の大きさは、この1日にとどいた便りの桁で
+  const starSize = (n: number) => (n <= 0 ? 3 : Math.min(9, 4.5 + Math.floor(Math.log10(n)) * 1.5));
+
+  // 四つ角のきらめき(古い星図の星)
+  function starPath(s: number): string {
+    const k = s * 0.2;
+    return `M 0 ${-s} Q ${k} ${-k} ${s} 0 Q ${k} ${k} 0 ${s} Q ${-k} ${k} ${-s} 0 Q ${-k} ${-k} 0 ${-s} Z`;
+  }
 </script>
 
 <svelte:head>
@@ -337,6 +367,34 @@
   </ul>
 </section>
 
+<!-- 連合の宇宙図。管理人が選んだ星だけが名前つきで載る(ホワイトリスト式)。
+     まだ一つも選ばれていなければ、章ごと出さない -->
+{#if peers.length > 0}
+  <section class="section">
+    <h2>{$t('map.universeTitle')}</h2>
+    <div class="map-scroll">
+      <svg viewBox="0 0 960 430" role="img" aria-label={$t('map.universeTitle')}>
+        {#each peers as p (p.domain)}
+          {@const pos = starPos(p.domain)}
+          <path class="lane" d="M 480 215 L {pos.x} {pos.y}" />
+        {/each}
+        <circle class="port-ring" cx="480" cy="215" r="13" />
+        <circle class="station" cx="480" cy="215" r="6" />
+        <text class="lbl" x="480" y="244" text-anchor="middle">sukhi</text>
+        {#each peers as p (p.domain)}
+          {@const pos = starPos(p.domain)}
+          {@const s = starSize(p.notes_24h)}
+          <g class="peer" class:lit={p.notes_24h > 0} transform="translate({pos.x} {pos.y})">
+            <path d={starPath(s)} />
+          </g>
+          <text class="lbl-sub" x={pos.x} y={pos.y + s + 14} text-anchor="middle">{p.domain}</text>
+        {/each}
+      </svg>
+    </div>
+    <p class="prose-small numbers-note">{$t('map.universeNote')}</p>
+  </section>
+{/if}
+
 <section class="section measure">
   <h2>{$t('map.aboutTitle')}</h2>
   <p class="prose-small">{$t('map.aboutFront')}</p>
@@ -417,6 +475,22 @@
 
   .star {
     fill: var(--color-border-strong);
+  }
+
+  /* ── 連合の宇宙図 ── */
+  /* sukhi と星を結ぶ、うすい航路 */
+  .lane {
+    fill: none;
+    stroke: var(--color-border);
+    stroke-width: 1;
+    stroke-dasharray: 1 6;
+    stroke-linecap: round;
+  }
+  .peer path {
+    fill: var(--color-border-strong);
+  }
+  .peer.lit path {
+    fill: var(--color-text);
   }
 
   .station {

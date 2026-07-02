@@ -26,9 +26,15 @@ defmodule SukhiFedi.Web.MapControllerTest do
   test "returns the counter shape without authentication" do
     body = show()
 
-    assert %{"at" => at, "streams" => streams, "notes_24h" => notes, "deliveries_24h" => deliveries} =
-             body
+    assert %{
+             "at" => at,
+             "streams" => streams,
+             "notes_24h" => notes,
+             "deliveries_24h" => deliveries,
+             "peers" => peers
+           } = body
 
+    assert is_list(peers)
     assert {:ok, _, _} = DateTime.from_iso8601(at)
 
     # stream ごとに nil（NATS 不在＝運転見合わせ）か {seq, held}。
@@ -96,6 +102,38 @@ defmodule SukhiFedi.Web.MapControllerTest do
     assert body["notes_24h"]["local"] == body_before["notes_24h"]["local"] + 1
     assert body["notes_24h"]["remote"] == body_before["notes_24h"]["remote"] + 1
     assert body["deliveries_24h"] == body_before["deliveries_24h"] + 1
+  end
+
+  test "lists only allow-listed peers, with their day's note count" do
+    body_before = show()
+    refute Enum.any?(body_before["peers"], &(&1["domain"] == "starry.example"))
+    :persistent_term.erase({MapController, :cache})
+
+    remote =
+      Repo.insert!(%Account{
+        username: "map_star",
+        display_name: "s",
+        summary: "",
+        domain: "starry.example",
+        actor_uri: "https://starry.example/users/map_star",
+        inbox_url: "https://starry.example/users/map_star/inbox"
+      })
+
+    Repo.insert!(%Note{
+      account_id: remote.id,
+      content: "twinkle",
+      visibility: "public",
+      ap_id: "https://starry.example/notes/map-star-1",
+      domain: "starry.example"
+    })
+
+    # 星はリストに載せて、はじめて地図に出る
+    local = Repo.insert!(%Account{username: "map_admin", display_name: "a", summary: ""})
+    {:ok, _} = SukhiFedi.MapPeers.add("starry.example", local.id)
+
+    body = show()
+    star = Enum.find(body["peers"], &(&1["domain"] == "starry.example"))
+    assert %{"notes_24h" => 1} = star
   end
 
   test "serves the second call within the window from cache" do

@@ -91,6 +91,9 @@ export const ko: Dict = {
   'map.boardWt': 'karutte 를 지나는 고속 직통 노선. 지금 시운전 열차가 오가고 있어요.',
   'map.boardEvents': '새 게시물 알림, 지난 하루 동안 {n} 대.',
   'map.boardError': '안내판 숫자를 지금은 가져오지 못했어요. 선로 모양은 그대로예요.',
+  'map.universeTitle': '연합 우주도',
+  'map.universeNote':
+    '이름이 실린 것은 이 별의 관리인이 「보여줘도 좋아」 하고 고른 이웃 별들뿐이에요. 별의 크기는 지난 하루 동안 도착한 소식의 수예요.',
   'map.aboutTitle': '각 노선 이야기',
   'map.aboutFront':
     '정문선은 브라우저에서 오는 HTTPS 예요. 내 편은 Cloudflare 라는 우주항에 내려서 Anubis 라는 검문소를 지나요. 검문소가 막는 건 로봇 떼뿐이고, 사람은 그대로 지나갈 수 있어요.',

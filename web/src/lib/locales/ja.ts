@@ -88,6 +88,9 @@ export const ja = {
   'map.boardWt': 'karutte 経由の高速直通ルート。いま、試運転の列車が行ったり来たりしています。',
   'map.boardEvents': '新しい投稿のお知らせ、この1日で {n} 本。',
   'map.boardError': '案内板の数字が、いま、取れませんでした。線路の形は、そのままです。',
+  'map.universeTitle': '連合の宇宙図',
+  'map.universeNote':
+    '名前が載っているのは、この星の管理人が「見せてよい」と選んだ、おとなりの星だけです。星の大きさは、この1日にとどいた便りの数。',
   'map.aboutTitle': 'それぞれの線のこと',
   'map.aboutFront':
     'おもて口線は、ブラウザからの HTTPS です。あなたの便は、Cloudflare という宇宙港に着いて、Anubis という検問所をぬけます。検問所が止めるのは、ロボットの大群だけ。人は、そのまま通れます。',
