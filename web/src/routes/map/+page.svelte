@@ -59,23 +59,14 @@
   );
 
   // ── 連合の宇宙図 ──
-  // 星の位置は domain のハッシュから決める=いつ見ても同じ空。
-  // 載るのは管理人が allow-list に入れた星だけ(サーバ側で絞り済み)。
+  // 星の位置は domain のハッシュが種=いつ見ても同じ空。載るのは管理人が
+  // allow-list に入れた星だけ(サーバ側で絞り済み)。
   let peers = $derived(sample?.peers ?? []);
 
   function starHash(s: string): number {
     let h = 5381;
     for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
     return h;
-  }
-
-  function starPos(domain: string): { x: number; y: number } {
-    const h = starHash(domain);
-    const a = ((h % 360) * Math.PI) / 180;
-    const r = 105 + ((h >>> 9) % 145);
-    const x = Math.min(880, Math.max(80, 480 + Math.cos(a) * r * 1.5));
-    const y = Math.min(370, Math.max(60, 215 + Math.sin(a) * r * 0.72));
-    return { x: Math.round(x), y: Math.round(y) };
   }
 
   // 星の大きさは、この1日にとどいた便りの桁で
@@ -86,6 +77,34 @@
     const k = s * 0.2;
     return `M 0 ${-s} Q ${k} ${-k} ${s} 0 Q ${k} ${k} 0 ${s} Q ${-k} ${k} ${-s} 0 Q ${-k} ${-k} 0 ${-s} Z`;
   }
+
+  // ラベルどうしが重ならないように、一つずつ置く。ぶつかったら、その星の
+  // ハッシュ由来の角度から螺旋に外へ逃がす。順序も種も入力だけで決まる
+  // ので、同じ星ぞろえなら空はいつも同じ形。
+  type PlacedStar = { domain: string; notes: number; x: number; y: number };
+  let starChart = $derived.by((): PlacedStar[] => {
+    const placed: (PlacedStar & { w: number })[] = [];
+    for (const p of peers) {
+      const h = starHash(p.domain);
+      let a = ((h % 360) * Math.PI) / 180;
+      let r = 105 + ((h >>> 9) % 145);
+      const w = p.domain.length * 6.6 + 16;
+      let x = 480;
+      let y = 215;
+      for (let attempt = 0; attempt < 48; attempt++) {
+        x = Math.round(Math.min(880, Math.max(80, 480 + Math.cos(a) * r * 1.5)));
+        y = Math.round(Math.min(370, Math.max(60, 215 + Math.sin(a) * r * 0.72)));
+        const collides =
+          (Math.abs(480 - x) < w / 2 + 44 && Math.abs(215 - y) < 48) ||
+          placed.some((q) => Math.abs(q.x - x) < (q.w + w) / 2 && Math.abs(q.y - y) < 32);
+        if (!collides) break;
+        a += 0.55;
+        r += 13;
+      }
+      placed.push({ domain: p.domain, notes: p.notes_24h, x, y, w });
+    }
+    return placed;
+  });
 </script>
 
 <svelte:head>
@@ -374,20 +393,53 @@
     <h2>{$t('map.universeTitle')}</h2>
     <div class="map-scroll">
       <svg viewBox="0 0 960 430" role="img" aria-label={$t('map.universeTitle')}>
-        {#each peers as p (p.domain)}
-          {@const pos = starPos(p.domain)}
-          <path class="lane" d="M 480 215 L {pos.x} {pos.y}" />
+        {#each starChart as star (star.domain)}
+          <path id="lane-{star.domain}" class="lane" d="M 480 215 L {star.x} {star.y}" />
         {/each}
         <circle class="port-ring" cx="480" cy="215" r="13" />
         <circle class="station" cx="480" cy="215" r="6" />
         <text class="lbl" x="480" y="244" text-anchor="middle">sukhi</text>
-        {#each peers as p (p.domain)}
-          {@const pos = starPos(p.domain)}
-          {@const s = starSize(p.notes_24h)}
-          <g class="peer" class:lit={p.notes_24h > 0} transform="translate({pos.x} {pos.y})">
+        {#each starChart as star (star.domain)}
+          {@const s = starSize(star.notes)}
+          <g class="peer" class:lit={star.notes > 0} transform="translate({star.x} {star.y})">
             <path d={starPath(s)} />
           </g>
-          <text class="lbl-sub" x={pos.x} y={pos.y + s + 14} text-anchor="middle">{p.domain}</text>
+          <text class="lbl-sub" x={star.x} y={star.y + s + 14} text-anchor="middle">{star.domain}</text>
+        {/each}
+        <!-- 便りのあった星からは、ロケットが sukhi へ飛んでくる(航路は
+             星→sukhi 向きに逆走)。速さと発車時刻はハッシュ由来で星ごとに
+             すこしずつ違う -->
+        {#each starChart.filter((s) => s.notes > 0) as star (star.domain)}
+          {@const h = starHash(star.domain)}
+          <g class="train build">
+            <path d="M -5 0 L -9.5 -4.5 L -7.5 0 L -9.5 4.5 Z" />
+            <path d="M -6.5 -3 H 1 Q 9 0 1 3 H -6.5 Z" />
+            <circle class="window" cx="-1.5" cy="0" r="1.3" />
+            {#if reducedMotion}
+              <animateMotion
+                dur="1s"
+                fill="freeze"
+                rotate="auto"
+                calcMode="linear"
+                keyPoints="0.6;0.6"
+                keyTimes="0;1"
+              >
+                <mpath href="#lane-{star.domain}" />
+              </animateMotion>
+            {:else}
+              <animateMotion
+                dur="{20 + (h % 9)}s"
+                begin="-{h % 17}s"
+                repeatCount="indefinite"
+                rotate="auto"
+                keyPoints="1;0"
+                keyTimes="0;1"
+                calcMode="linear"
+              >
+                <mpath href="#lane-{star.domain}" />
+              </animateMotion>
+            {/if}
+          </g>
         {/each}
       </svg>
     </div>

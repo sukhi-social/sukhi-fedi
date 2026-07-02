@@ -8,7 +8,6 @@ defmodule SukhiFedi.Web.Admin.MapPeersController do
 
   import Plug.Conn
 
-  alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.MapPeers
   alias SukhiFedi.Web.Admin.Render
 
@@ -17,18 +16,17 @@ defmodule SukhiFedi.Web.Admin.MapPeersController do
     current = MapPeers.list()
     current_domains = MapSet.new(current, & &1.domain)
 
+    # 検索しなくても、通信数の多い順に既知 host を並べておく。
+    # もう地図に載っているものは候補から落とす。
     suggestions =
-      case q do
-        nil -> []
-        _ -> Enum.reject(Moderation.known_domains(q, limit: 50), &MapSet.member?(current_domains, &1))
-      end
+      MapPeers.known_hosts(query: q, limit: 50)
+      |> Enum.reject(&MapSet.member?(current_domains, &1.domain))
 
     Render.send_page(conn, "map_peers/index.html.eex",
       page_title: "Universe map",
       current: current,
       suggestions: suggestions,
-      q: q || "",
-      searched: not is_nil(q)
+      q: q || ""
     )
   end
 

@@ -16,28 +16,30 @@
 </div>
 
 <div class="panel" style="margin-bottom: 16px;">
-  <h2 style="margin-top: 0;">Find a host you already federate with</h2>
+  <h2 style="margin-top: 0;">Known hosts, busiest first</h2>
+  <p class="muted" style="margin-top: 0;">
+    Hosts you already federate with, sorted by traffic (notes received and stored).
+  </p>
   <form method="get" action="/admin/map_peers" style="display: flex; gap: 8px;">
-    <input type="text" name="q" value="<%= h(q) %>" placeholder="search known hosts…" autocapitalize="none" style="flex: 1;">
-    <button type="submit">Search</button>
+    <input type="text" name="q" value="<%= h(q) %>" placeholder="filter known hosts…" autocapitalize="none" style="flex: 1;">
+    <button type="submit">Filter</button>
   </form>
 
-<%= if searched do %>
 <%= if suggestions == [] do %>
-  <p class="muted" style="margin-bottom: 0;">No known hosts match “<%= h(q) %>” (or they are already on the map).</p>
+  <p class="muted" style="margin-bottom: 0;">No known hosts<%= if q != "", do: " match “#{h(q)}”" %> (or they are already on the map).</p>
 <% else %>
   <ul style="list-style: none; padding: 0; margin: 12px 0 0;">
-<%= for domain <- suggestions do %>
+<%= for s <- suggestions do %>
     <li style="display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid var(--border);">
-      <span style="flex: 1;"><%= h(domain) %></span>
+      <span style="flex: 1;"><%= h(s.domain) %></span>
+      <span class="muted"><%= s.notes %> notes</span>
       <form method="post" action="/admin/map_peers" style="display: inline;">
-        <input type="hidden" name="domain" value="<%= h(domain) %>">
+        <input type="hidden" name="domain" value="<%= h(s.domain) %>">
         <button type="submit">Add</button>
       </form>
     </li>
 <% end %>
   </ul>
-<% end %>
 <% end %>
 </div>
 

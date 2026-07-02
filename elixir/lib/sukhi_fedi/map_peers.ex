@@ -12,7 +12,7 @@ defmodule SukhiFedi.MapPeers do
   import Ecto.Query
 
   alias SukhiFedi.Repo
-  alias SukhiFedi.Schema.MapPeer
+  alias SukhiFedi.Schema.{MapPeer, Note}
 
   @spec list() :: [%MapPeer{}]
   def list do
@@ -36,5 +36,37 @@ defmodule SukhiFedi.MapPeers do
       nil -> {:error, :not_found}
       peer -> Repo.delete(peer)
     end
+  end
+
+  @doc """
+  もう連合している host を、通信数（そこから届いて保存された note の数）の
+  多い順で返す。admin の「どの星を地図に載せるか」選びの下敷き。
+  `query` は domain の部分一致（大文字小文字は見ない）。
+  """
+  @spec known_hosts(keyword()) :: [%{domain: String.t(), notes: non_neg_integer()}]
+  def known_hosts(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    query = Keyword.get(opts, :query)
+
+    base =
+      from n in Note,
+        where: not is_nil(n.domain),
+        group_by: n.domain,
+        select: %{domain: n.domain, notes: count(n.id)},
+        order_by: [desc: count(n.id), asc: n.domain],
+        limit: ^limit
+
+    case query && String.trim(query) do
+      q when q in [nil, ""] -> base
+      q -> from n in base, where: ilike(n.domain, ^("%" <> escape_like(q) <> "%"))
+    end
+    |> Repo.all()
+  end
+
+  defp escape_like(s) do
+    s
+    |> String.replace("\\", "\\\\")
+    |> String.replace("%", "\\%")
+    |> String.replace("_", "\\_")
   end
 end
