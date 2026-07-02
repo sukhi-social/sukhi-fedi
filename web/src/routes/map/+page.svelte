@@ -87,21 +87,14 @@
 
     <!-- 連合線(ActivityPub): 出は delivery から急行で発着場へ、そこから航路。
          入りは宇宙港(Cloudflare)に着いて、おもて口線で gateway へ -->
-    <path class="track build" d="M 779 336 H 842" />
-    <path class="route" d="M 854 328 Q 888 246 879 132" />
-    <path class="route" d="M 866 112 Q 560 30 283 146" />
+    <path id="p-fedout-rail" class="track build" d="M 779 336 H 842" />
+    <path id="p-route-out" class="route" d="M 854 328 Q 888 246 879 132" />
+    <path id="p-route-in" class="route" d="M 866 112 Q 560 30 283 146" />
     <!-- 貨物急行: 宇宙港に着いた連合の便は、Anubis の検問所に止まらず gateway へ。
          実配線どおり(/inbox 等は Anubis の素通しリスト)。検問所の下を抜ける複線 -->
-    <path class="track build" d="M 290 168 Q 296 172 304 172 H 588 Q 604 172 610 166" />
+    <path id="p-express" class="track build" d="M 290 168 Q 296 172 304 172 H 588 Q 604 172 610 166" />
     <text class="line-name build" x="356" y="188">{$t('map.express')}</text>
     <text class="line-name build" x="530" y="66">{$t('map.lineFed')}</text>
-    <!-- 列車用の通し道(入り: 各駅 → 宇宙港 → 貨物急行(Anubis 通過) → gateway) -->
-    <path
-      id="p-fedin"
-      class="ghost"
-      d="M 868 116 Q 560 34 288 150 Q 281 158 290 168 Q 296 172 304 172 H 588 Q 604 172 612 164"
-    />
-    <path id="p-fedout" class="ghost" d="M 779 336 H 844 Q 854 336 856 326 Q 890 245 880 134" />
 
     <!-- WT 直通線(試運転中): あなた → karutte(x64) → WireGuard 専用線 → WT ホーム -->
     <path class="track wt" d="M 100 166 V 480 H 578 Q 600 480 600 458 V 428" />
@@ -154,20 +147,47 @@
     <text class="lbl" x="305" y="508" text-anchor="middle">{$t('map.karutte')}</text>
     <text class="lbl-sub" x="305" y="523" text-anchor="middle">{$t('map.karutteSub')}</text>
 
-    <!-- 列車。本数は実流量から(prefers-reduced-motion では走らせない) -->
+    <!-- 乗り物。数は実流量から(prefers-reduced-motion では走らせない)。
+         線路の上は車輪つきの貨車、宇宙は小さなロケット。どれもゆったり。 -->
+    {#snippet boxcar(cls: string, path: string, dur: number, count: number, i: number)}
+      <g class="train {cls}">
+        <rect x="-6.5" y="-6.5" width="13" height="9" rx="2" />
+        <circle class="wheel" cx="-3.5" cy="3.6" r="1.5" />
+        <circle class="wheel" cx="3.5" cy="3.6" r="1.5" />
+        <animateMotion
+          dur="{dur}s"
+          begin="{(-i * dur) / count}s"
+          repeatCount="indefinite"
+          rotate="auto"
+        >
+          <mpath href={path} />
+        </animateMotion>
+      </g>
+    {/snippet}
+    {#snippet rocket(path: string, dur: number, count: number, i: number)}
+      <g class="train build">
+        <path d="M -5 0 L -9.5 -4.5 L -7.5 0 L -9.5 4.5 Z" />
+        <path d="M -6.5 -3 H 1 Q 9 0 1 3 H -6.5 Z" />
+        <circle class="rkt-window" cx="-1.5" cy="0" r="1.3" />
+        <animateMotion
+          dur="{dur}s"
+          begin="{(-i * dur) / count}s"
+          repeatCount="indefinite"
+          rotate="auto"
+        >
+          <mpath href={path} />
+        </animateMotion>
+      </g>
+    {/snippet}
     {#if !reducedMotion}
       {#each Array(frontTrains) as _, i (i)}
-        <rect class="train use" x="-8" y="-4.5" width="16" height="9" rx="4.5">
-          <animateMotion dur="8s" begin="{-(i * 8) / frontTrains}s" repeatCount="indefinite" rotate="auto">
-            <mpath href="#p-front" />
-          </animateMotion>
-        </rect>
+        {@render boxcar('use', '#p-front', 16, frontTrains, i)}
       {/each}
       {#each Array(sseTrains) as _, i (i)}
         <circle class="train-dot" r="3.5">
           <animateMotion
-            dur="6s"
-            begin="{-(i * 6) / sseTrains}s"
+            dur="12s"
+            begin="{(-i * 12) / sseTrains}s"
             repeatCount="indefinite"
             keyPoints="1;0"
             keyTimes="0;1"
@@ -177,19 +197,15 @@
           </animateMotion>
         </circle>
       {/each}
+      <!-- 入りの便: ロケットが宇宙港に降りて、貨物急行の貨車に積み替わる -->
       {#each Array(fedInTrains) as _, i (i)}
-        <rect class="train build" x="-8" y="-4.5" width="16" height="9" rx="4.5">
-          <animateMotion dur="16s" begin="{-(i * 16) / fedInTrains}s" repeatCount="indefinite" rotate="auto">
-            <mpath href="#p-fedin" />
-          </animateMotion>
-        </rect>
+        {@render rocket('#p-route-in', 26, fedInTrains, i)}
+        {@render boxcar('build', '#p-express', 14, fedInTrains, i)}
       {/each}
+      <!-- 出る便: delivery から貨車で発着場へ、そこからロケットで宇宙へ -->
       {#each Array(fedOutTrains) as _, i (i)}
-        <rect class="train build" x="-8" y="-4.5" width="16" height="9" rx="4.5">
-          <animateMotion dur="7s" begin="{-(i * 7) / fedOutTrains}s" repeatCount="indefinite" rotate="auto">
-            <mpath href="#p-fedout" />
-          </animateMotion>
-        </rect>
+        {@render boxcar('build', '#p-fedout-rail', 10, fedOutTrains, i)}
+        {@render rocket('#p-route-out', 14, fedOutTrains, i)}
       {/each}
     {/if}
   </svg>
@@ -302,12 +318,6 @@
     stroke-dasharray: 7 6;
   }
 
-  /* 列車の通し道。線としては描かない(表口線に合流する部分の重ね描きを避ける) */
-  .ghost {
-    fill: none;
-    stroke: none;
-  }
-
   .hair {
     fill: none;
     stroke: var(--color-border-strong);
@@ -400,11 +410,18 @@
     font-size: 11px;
   }
 
+  /* 乗り物は <g> ごと塗る(貨車の箱もロケットの胴も fill を継ぐ) */
   .train.use {
     fill: var(--color-use);
   }
   .train.build {
     fill: var(--color-build);
+  }
+  .train .wheel {
+    fill: var(--color-text);
+  }
+  .train .rkt-window {
+    fill: var(--color-surface);
   }
   .train-dot {
     fill: var(--color-text-muted);
