@@ -532,6 +532,12 @@ defmodule SukhiFedi.Web.Router do
       else: send_resp(conn, 404, "")
   end
 
+  # WebTransport の発券口（karutte のエッジへ）。gateway が bearer を検証して署名チケットを
+  # 返すだけ＝プラグインノードに流さない。`/api/v1/*_` forwarder より前に置く。
+  get "/api/wt" do
+    SukhiFedi.Web.WtController.wt(conn, [])
+  end
+
   match "/api/v1/*_" do
     SukhiFedi.Web.PluginPlug.call(conn, SukhiFedi.Web.PluginPlug.init([]))
   end

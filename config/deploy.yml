@@ -226,6 +226,10 @@ accessories:
         # analysis). Unset → the route 404s. The Metrics.Sampler accrues
         # rows regardless; this only gates the read side.
         - METRICS_TOKEN
+        # Ed25519 private key (base64 of the 32-byte seed) that signs the
+        # WebTransport entry tickets served by GET /api/wt. karutte (the WT
+        # edge) verifies with the matching public key. Unset → /api/wt 503s.
+        - WT_TICKET_KEY
     options:
       # `elixir` hostname is still required: gateway's BEAM is
       # `gateway@elixir`. Other containers reach it via the

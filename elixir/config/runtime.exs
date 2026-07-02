@@ -15,6 +15,12 @@ end
 # to offline analysis. Generate with `openssl rand -hex 32`.
 config :sukhi_fedi, :metrics_token, System.get_env("METRICS_TOKEN")
 
+# WebTransport のエッジ（karutte, webtransport.f3liz.casa）。`WT_TICKET_KEY` は入場チケットを
+# 署名する Ed25519 の秘密鍵（生 32 バイト seed の base64）。公開鍵は karutte の `:ticket_pubkey`
+# に置く。未設定なら `/api/wt` は 503（発券しない）。
+config :sukhi_fedi, :wt_ticket_key, System.get_env("WT_TICKET_KEY")
+config :sukhi_fedi, :wt_endpoint, System.get_env("WT_ENDPOINT", "https://webtransport.f3liz.casa/wt")
+
 # Server-rendered HTML preview for logged-out visitors and crawlers
 # (SukhiFedi.Web.PublicPreviewController). The SPA is JS-only, so without
 # this a shared `/@alice` or note link unfurls as an empty shell.
