@@ -21,7 +21,9 @@ defmodule SukhiFedi.Web.MediaProxyController do
   割り切り。足りなくなったら send_chunked への置き換えを考える。
 
   URL の拡張子が `.avif` / `.webp` のときは、返す前に `MediaTranscode`
-  がその形式に encode し直す(転送量を軽くする層。失敗したら原本のまま)。
+  が encode し直す(転送量を軽くする層。失敗したら原本のまま)。WebP は
+  その場、AVIF は裏で焼けるまで WebP でつなぐ ─ 詳しくはあちらの
+  moduledoc。
   """
 
   import Plug.Conn
@@ -41,10 +43,15 @@ defmodule SukhiFedi.Web.MediaProxyController do
   @media_cache "public, max-age=2592000"
   @profile_cache "public, max-age=86400"
 
+  # MediaTranscode が :retry(AVIF がまだ裏で焼けていない等の間に合わせ)を
+  # 返したとき用。長く持たせると間に合わせの bytes が CF にピン留めされて、
+  # その URL が二度と AVIF にならない。
+  @retry_cache "public, max-age=60"
+
   def media(conn, id_str) do
     with {:ok, id, target} <- parse_id(id_str),
          %Media{remote_url: url} when is_binary(url) <- Repo.get(Media, id) do
-      fetch(conn, url, @media_cache, target, @max_redirects)
+      fetch(conn, url, @media_cache, variant(target, :media, id, url), @max_redirects)
     else
       _ -> send_resp(conn, 404, "")
     end
@@ -59,11 +66,17 @@ defmodule SukhiFedi.Web.MediaProxyController do
     with {:ok, id, target} <- parse_id(id_str),
          %Account{domain: domain} = account when is_binary(domain) <- Repo.get(Account, id),
          url when is_binary(url) <- Map.get(account, field) do
-      fetch(conn, url, @profile_cache, target, @max_redirects)
+      fetch(conn, url, @profile_cache, variant(target, field, id, url), @max_redirects)
     else
       _ -> send_resp(conn, 404, "")
     end
   end
+
+  # MediaTranscode に渡す「何形式で、どの画像か」。鍵に URL のハッシュを
+  # 混ぜるのは、avatar / banner が actor 更新で別の画像になったとき、
+  # 古い AVIF を掴まないため。
+  defp variant(nil, _kind, _id, _url), do: nil
+  defp variant(target, kind, id, url), do: {target, {kind, id, :erlang.phash2(url)}}
 
   # id には飾りの拡張子が付いてくる("6.webp" 等)。Cloudflare は既定で
   # 拡張子を見てキャッシュ対象を決めるので、拡張子なしの URL は origin が
@@ -82,19 +95,19 @@ defmodule SukhiFedi.Web.MediaProxyController do
     end
   end
 
-  defp fetch(conn, _url, _cache_control, _target, 0), do: send_resp(conn, 502, "")
+  defp fetch(conn, _url, _cache_control, _variant, 0), do: send_resp(conn, 502, "")
 
-  defp fetch(conn, url, cache_control, target, hops_left) do
+  defp fetch(conn, url, cache_control, variant, hops_left) do
     if UrlGuard.safe?(url) do
       case request(url) do
         {:ok, %Req.Response{status: 200, body: body} = resp} when is_binary(body) ->
-          serve(conn, resp, cache_control, target)
+          serve(conn, resp, cache_control, variant)
 
         {:ok, %Req.Response{status: status} = resp} when status in [301, 302, 303, 307, 308] ->
           case Req.Response.get_header(resp, "location") do
             [location | _] ->
               next = URI.merge(url, location) |> URI.to_string()
-              fetch(conn, next, cache_control, target, hops_left - 1)
+              fetch(conn, next, cache_control, variant, hops_left - 1)
 
             _ ->
               send_resp(conn, 502, "")
@@ -134,12 +147,15 @@ defmodule SukhiFedi.Web.MediaProxyController do
     end
   end
 
-  defp serve(conn, %Req.Response{body: body} = resp, cache_control, target) do
+  defp serve(conn, %Req.Response{body: body} = resp, cache_control, variant) do
     ct = resp |> Req.Response.get_header("content-type") |> List.first()
 
     if media_type?(ct) do
-      # 変換できないものは受け取ったままの {body, ct} が返る。
-      {body, ct} = MediaTranscode.maybe(body, ct, target)
+      # 変換できないものは受け取ったままの {body, ct} が返る。:retry は
+      # 「AVIF がまだ焼けていない」等の間に合わせなので、短く持たせて
+      # 問い直してもらう。
+      {body, ct, mode} = MediaTranscode.maybe(body, ct, variant)
+      cache_control = if mode == :retry, do: @retry_cache, else: cache_control
 
       conn
       |> put_resp_content_type(ct)

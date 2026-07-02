@@ -15,7 +15,9 @@ defmodule SukhiFedi.Cache.Ets do
     :actor_remote,
     :nodeinfo,
     # signing-key / actor documents fetched by SukhiFedi.Fedi.Fetcher
-    :fedi_documents
+    :fedi_documents,
+    # 裏で encode した AVIF (Web.MediaTranscode.Worker が置く)
+    :media_variants
   ]
   @sweep_interval_ms 60_000
 
