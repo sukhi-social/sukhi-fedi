@@ -59,6 +59,7 @@ export const ja = {
   'map.dock': '貨物発着場',
   'map.express': '貨物急行',
   'map.lightRail': '軽電鉄',
+  'map.freightTerminal': '貨物船ターミナル',
   'map.sukhi': 'sukhi 中央',
   'map.karutte': 'karutte',
   'map.karutteSub': 'x64 の箱',
@@ -91,7 +92,7 @@ export const ja = {
   'map.aboutFront':
     'おもて口線は、ブラウザからの HTTPS です。あなたの便は、Cloudflare という宇宙港に着いて、Anubis という検問所をぬけます。検問所が止めるのは、ロボットの大群だけ。人は、そのまま通れます。',
   'map.aboutFed':
-    '連合線は、ActivityPub の便です。あなたの投稿は、操車場（NATS の OUTBOX）で行き先ごとに仕立てられて、delivery ホームから急行で貨物発着場へ。そこから、連合宇宙をわたって、世界じゅうの駅へ飛びます。よその駅からの便は、Cloudflare 宇宙港に着くと、貨物急行で gateway へ——Anubis の検問所には止まりません（連合の便は素通しです）。届かなかった列車は、側線（DLQ）で 30 日待って、もう一度走ることができます。',
+    '連合線は、ActivityPub の便です。あなたの投稿は、操車場（NATS の OUTBOX）で行き先ごとに仕立てられて、delivery ホームから急行で貨物発着場へ。そこから、連合宇宙をわたって、世界じゅうの駅へ飛びます。よその駅からの貨物船は、Cloudflare 宇宙港の貨物船ターミナルに着いて、貨物急行で gateway へ——Anubis の検問所には止まりません（連合の便は素通しです）。届かなかった列車は、側線（DLQ）で 30 日待って、もう一度走ることができます。',
   'map.aboutWt':
     'WT 新幹線は、WebTransport（HTTP/3）です。止まる駅がすくなく、専用の線路をまっすぐ走る、いちばん速い線。行きも帰りも、おなじ線を同時に走れます（duplex）。Cloudflare のトンネルは UDP の列車を運べないので、karutte という駅（べつの箱）を経由して、WireGuard の専用線で sukhi に入ります。切符は sukhi が発行して（Ed25519 の署名）、karutte が検札します。いまは、試運転の列車が走っているところです。',
   'map.aboutEvents':

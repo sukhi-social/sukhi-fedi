@@ -82,15 +82,17 @@
     <path id="p-lightrail" class="track-light" d="M 612 152 Q 606 144 594 144 H 118 Q 108 144 103 152" />
     <text class="line-name muted" x="152" y="136">{$t('map.lightRail')}</text>
 
-    <!-- 進行方向の矢羽。うすく、軽く。WT だけは duplex なので両向き -->
-    <path class="dir use" d="M 201 155 L 209 160 L 201 165" />
-    <path class="dir muted" d="M 364 139 L 356 144 L 364 149" />
-    <path class="dir build" d="M 496 167 L 504 172 L 496 177" />
-    <path class="dir build" d="M 806 331 L 814 336 L 806 341" />
-    <path class="dir build" d="M 872 243 L 877 234 L 882 243" />
-    <path class="dir build" d="M 572 74 L 562 80 L 572 86" />
-    <path class="dir ink" d="M 244 475 L 236 480 L 244 485" />
-    <path class="dir ink" d="M 252 475 L 260 480 L 252 485" />
+    <!-- 進行方向の矢羽。線には乗せず、始点のわき・進行方向の右側に添える
+         (この地図は右側通行——東行きから見て対向線が左手にある配置)。
+         WT だけは duplex なので両向きの一対 -->
+    <path class="dir use" d="M 126 165.5 L 134 169 L 126 172.5" />
+    <path class="dir muted" d="M 552 133.5 L 544 137 L 552 140.5" />
+    <path class="dir build" d="M 326 177.5 L 334 181 L 326 184.5" />
+    <path class="dir build" d="M 796 341.5 L 804 345 L 796 348.5" />
+    <path class="dir build" d="M 863 320 L 868 311 L 873 320" />
+    <path class="dir build" d="M 843 90 L 834 95 L 843 100" />
+    <path class="dir ink" d="M 234 463 L 226 468 L 234 473" />
+    <path class="dir ink" d="M 242 463 L 250 468 L 242 473" />
 
     <!-- 島のきわ。ここから先は連合宇宙(星は飾りだけれど、宇宙はほんとう) -->
     <path class="frontier" d="M 852 78 V 138 M 852 182 V 445" />
@@ -104,11 +106,15 @@
          入りは宇宙港(Cloudflare)に着いて、おもて口線で gateway へ -->
     <path id="p-fedout-rail" class="track build" d="M 779 336 H 842" />
     <path id="p-route-out" class="route" d="M 854 328 Q 888 246 879 132" />
-    <path id="p-route-in" class="route" d="M 866 112 Q 560 30 283 146" />
+    <!-- 入りの航路は、旅客の丸(宇宙港)ではなく貨物船ターミナルに降りる -->
+    <path id="p-route-in" class="route" d="M 866 112 Q 560 30 300 160" />
     <!-- 貨物急行: 宇宙港に着いた連合の便は、Anubis の検問所に止まらず gateway へ。
          実配線どおり(/inbox 等は Anubis の素通しリスト)。検問所の下を抜ける複線 -->
     <path id="p-express" class="track build" d="M 290 168 Q 296 172 304 172 H 588 Q 604 172 610 166" />
-    <text class="line-name build" x="356" y="188">{$t('map.express')}</text>
+    <text class="line-name build" x="430" y="188">{$t('map.express')}</text>
+    <!-- 宇宙港の貨物船ターミナル。旅客の丸のとなり、貨物急行の始点 -->
+    <rect class="dock" x="296" y="164" width="14" height="14" rx="2" />
+    <text class="lbl-sub" x="303" y="196" text-anchor="middle">{$t('map.freightTerminal')}</text>
     <text class="line-name build" x="530" y="66">{$t('map.lineFed')}</text>
 
     <!-- WT 新幹線(試運転中): あなた → karutte(x64) → WireGuard 専用線 → WT ホーム -->
