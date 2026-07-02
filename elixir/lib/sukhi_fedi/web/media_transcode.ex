@@ -10,9 +10,13 @@ defmodule SukhiFedi.Web.MediaTranscode do
 
     * **WebP は先(その場)** — encode が速いので、リクエストの中で
       作ってすぐ返す。
-    * **AVIF は後(裏)** — 重いので `Worker` が一枚ずつ裏で encode して
-      `Cache.Ets` に置く。出来上がるまでの `.avif` リクエストには
-      とりあえず WebP を返す。
+    * **AVIF は後(裏)** — 重いので `Worker` が一枚ずつ裏で encode する。
+      出来上がるまでの `.avif` リクエストには とりあえず WebP を返す。
+
+  焼き上がりの置き場は二層。`Store`(rustfs / S3)が本体で、一週間は
+  置く ─ デプロイのたびに BEAM は再起動するので、メモリだけだと
+  そのたび焼き直しになる。`Cache.Ets` の :media_variants は熱い層で、
+  :retry の問い直し(60 秒)の間に edge が続けて来るぶんを受けるだけ。
 
   返り値の三つ目がその含み: `:final` は決着(CF に長く持たせてよい)、
   `:retry` は「今はこれで、また聞いて」(controller が短い cache-control
@@ -46,6 +50,10 @@ defmodule SukhiFedi.Web.MediaTranscode do
   # 値で、これ以上は decode バッファだけで数十 MB 食うので変換しない。
   @max_pixels 3840 * 2160
 
+  # 熱い層(ETS)の持ち時間。:retry の 60 秒を余裕をもって覆えれば足りる
+  # ─ 長い記憶は Store の仕事。
+  @hot_ttl 600
+
   # リクエストの中で同時に走る encode の数。cache miss が束で来たとき
   # (cold cache の 4 枚投稿など)にメモリを守る弁で、席が埋まっていたら
   # 変換せず原本を `:retry` で流すだけ。Worker の AVIF は直列(1 枚ずつ)
@@ -76,8 +84,8 @@ defmodule SukhiFedi.Web.MediaTranscode do
     end
   end
 
-  # WebP は速いので、その場で作って決着。
-  defp convert(body, ct, :webp, _key), do: webp_now(body, ct, :final)
+  # WebP は速いので、その場で(無ければ作って)決着。
+  defp convert(body, ct, :webp, key), do: webp_or_original(body, ct, :final, key)
 
   defp convert(body, ct, :avif, key) do
     case SukhiFedi.Cache.Ets.get(:media_variants, key) do
@@ -87,10 +95,22 @@ defmodule SukhiFedi.Web.MediaTranscode do
       # 裏で試して駄目だった(作れない or 縮まない)ことが分かっている。
       # AVIF はもう待たず、WebP で決着させる。
       {:ok, :reject} ->
-        webp_now(body, ct, :final)
+        webp_or_original(body, ct, :final, key)
 
       other ->
-        avif_not_ready(body, ct, key, other)
+        from_store_or_bake(body, ct, key, other)
+    end
+  end
+
+  defp from_store_or_bake(body, ct, key, cache_state) do
+    case __MODULE__.Store.get(key, :avif) do
+      {:ok, bytes} ->
+        # :retry の窓で edge が続けて来るぶんは熱い層で受ける。
+        SukhiFedi.Cache.Ets.put(:media_variants, key, {:avif, bytes}, @hot_ttl)
+        {bytes, @output_ct[:avif], :final}
+
+      :miss ->
+        avif_not_ready(body, ct, key, cache_state)
     end
   end
 
@@ -99,7 +119,7 @@ defmodule SukhiFedi.Web.MediaTranscode do
     if convertible_image?(body) do
       # :pending(誰かがもう頼んだ)なら重ねて頼まない。
       if cache_state == :miss, do: __MODULE__.Worker.request(key, body)
-      webp_now(body, ct, :retry)
+      webp_or_original(body, ct, :retry, key)
     else
       # アニメーション・4K 超え・壊れた bytes は裏に回しても結果は
       # 同じ。原本で決着。
@@ -107,22 +127,33 @@ defmodule SukhiFedi.Web.MediaTranscode do
     end
   end
 
-  # その場の WebP encode。成功と決定的な失敗は flag のまま、席が
-  # 埋まっていたときだけは一時的な話なので常に :retry で返す。
-  defp webp_now(body, ct, flag) do
-    case acquire() do
-      {:ok, ref} ->
-        try do
-          case transcode(body, :webp) do
-            {:ok, out} -> {out, @output_ct[:webp], flag}
-            :error -> {body, ct, flag}
-          end
-        after
-          :atomics.sub(ref, 1, 1)
-        end
+  # WebP を Store から、無ければその場で encode して返す(焼けたら裏で
+  # Store へ)。成功と決定的な失敗は flag のまま、席が埋まっていたとき
+  # だけは一時的な話なので常に :retry で返す。
+  defp webp_or_original(body, ct, flag, key) do
+    case __MODULE__.Store.get(key, :webp) do
+      {:ok, bytes} ->
+        {bytes, @output_ct[:webp], flag}
 
-      :busy ->
-        {body, ct, :retry}
+      :miss ->
+        case acquire() do
+          {:ok, ref} ->
+            try do
+              case transcode(body, :webp) do
+                {:ok, out} ->
+                  __MODULE__.Worker.persist(key, :webp, out)
+                  {out, @output_ct[:webp], flag}
+
+                :error ->
+                  {body, ct, flag}
+              end
+            after
+              :atomics.sub(ref, 1, 1)
+            end
+
+          :busy ->
+            {body, ct, :retry}
+        end
     end
   end
 
@@ -196,27 +227,126 @@ defmodule SukhiFedi.Web.MediaTranscode do
     end
   end
 
+  defmodule Store do
+    @moduledoc """
+    焼いた変換結果の置き場(rustfs / S3、`variants/` prefix)。ここが
+    「一週間は置く」の本体 ─ BEAM はデプロイのたびに再起動するので、
+    メモリだけだと再起動ごとに全部焼き直しになる。一週間より古いものは
+    `prune/0`(Worker が定期で呼ぶ)が消す ─ また見られたら焼き直せば
+    いいだけのものなので、置きっぱなしにはしない。
+
+    S3 が無い env では静かに :miss / no-op(変換はその場の encode に
+    倒れるだけで、正しさは変わらない)。
+    """
+
+    require Logger
+
+    @prefix "variants/"
+    @keep_days 7
+
+    @spec get(term(), :avif | :webp) :: {:ok, binary()} | :miss
+    def get(key, fmt) do
+      with true <- enabled?(),
+           {:ok, %{body: body}} <-
+             ExAws.S3.get_object(bucket(), object_key(key, fmt)) |> ExAws.request() do
+        {:ok, body}
+      else
+        _ -> :miss
+      end
+    end
+
+    @spec put(term(), :avif | :webp, binary()) :: :ok
+    def put(key, fmt, bytes) do
+      if enabled?() do
+        case ExAws.S3.put_object(bucket(), object_key(key, fmt), bytes) |> ExAws.request() do
+          {:ok, _} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning(
+              "media_transcode: s3 put failed key=#{object_key(key, fmt)} reason=#{inspect(reason)}"
+            )
+        end
+      end
+
+      :ok
+    end
+
+    @doc "一週間より古い変換結果を消す。必要になればまた焼く。"
+    @spec prune() :: :ok
+    def prune do
+      if enabled?(), do: prune_page(nil)
+      :ok
+    end
+
+    defp prune_page(token) do
+      opts = [prefix: @prefix] ++ if token, do: [continuation_token: token], else: []
+
+      case ExAws.S3.list_objects_v2(bucket(), opts) |> ExAws.request() do
+        {:ok, %{body: body}} ->
+          cutoff = DateTime.add(DateTime.utc_now(), -@keep_days, :day)
+
+          for %{key: key, last_modified: lm} <- Map.get(body, :contents) || [],
+              # prefix で絞って聞いているが、消す直前にももう一度確かめる
+              # ─ ここで間違えると本物のメディアが消えるので。
+              String.starts_with?(key, @prefix),
+              older_than?(lm, cutoff) do
+            ExAws.S3.delete_object(bucket(), key) |> ExAws.request()
+          end
+
+          case body do
+            %{is_truncated: "true", next_continuation_token: t} when is_binary(t) and t != "" ->
+              prune_page(t)
+
+            _ ->
+              :ok
+          end
+
+        {:error, reason} ->
+          Logger.warning("media_transcode: s3 prune list failed reason=#{inspect(reason)}")
+          :ok
+      end
+    end
+
+    defp older_than?(last_modified, cutoff) when is_binary(last_modified) do
+      case DateTime.from_iso8601(last_modified) do
+        {:ok, dt, _} -> DateTime.compare(dt, cutoff) == :lt
+        _ -> false
+      end
+    end
+
+    defp older_than?(_, _), do: false
+
+    defp object_key({kind, id, hash}, fmt), do: "#{@prefix}#{kind}-#{id}-#{hash}.#{fmt}"
+
+    defp enabled?, do: Application.get_env(:sukhi_fedi, :s3, [])[:enabled] == true
+    defp bucket, do: Application.get_env(:sukhi_fedi, :s3, [])[:bucket] || "media"
+  end
+
   defmodule Worker do
     @moduledoc """
-    AVIF の裏 encode。GenServer の mailbox がそのまま待ち行列で、
-    一枚ずつ順番に encode して `Cache.Ets` の `:media_variants` に置く。
-    直列なのが弁を兼ねる(1 コアの箱で AVIF を並べて走らせない)。
+    AVIF の裏 encode と、焼き上がりの持ち運び。GenServer の mailbox が
+    そのまま待ち行列で、一枚ずつ順番に encode して `Store`(一週間)と
+    `Cache.Ets` の `:media_variants`(熱い層)に置く。直列なのが弁を
+    兼ねる(1 コアの箱で AVIF を並べて走らせない)。
 
-    結果の寿命は短くていい ─ `:retry` の cache-control(60 秒)で CF が
-    問い直しに来るまで持てば足りるので、AVIF は 10 分。`:reject`
-    (作れない/縮まない)は決定的なので長め。`:pending` は「もう頼んだ」
-    の印で、途中で落ちても TTL が外れて次のリクエストが頼み直す。
+    `:reject`(作れない/縮まない)は決定的なので ETS に長めに覚える。
+    `:pending` は「もう頼んだ」の印で、途中で落ちても TTL が外れて次の
+    リクエストが頼み直す。Store の掃除(一週間より古い変換結果の削除)も
+    ここが定期でやる。
     """
 
     use GenServer
 
     alias SukhiFedi.Cache.Ets
     alias SukhiFedi.Web.MediaTranscode
+    alias SukhiFedi.Web.MediaTranscode.Store
 
     @table :media_variants
     @pending_ttl 120
-    @avif_ttl 600
+    @hot_ttl 600
     @reject_ttl 3600
+    @prune_interval_ms :timer.hours(6)
 
     def start_link(_opts) do
       GenServer.start_link(__MODULE__, [], name: __MODULE__)
@@ -228,12 +358,20 @@ defmodule SukhiFedi.Web.MediaTranscode do
       GenServer.cast(__MODULE__, {:encode, key, body})
     end
 
+    @doc "焼けた bytes の Store 書き込みをリクエストの外に逃がす。"
+    def persist(key, fmt, bytes) do
+      GenServer.cast(__MODULE__, {:persist, key, fmt, bytes})
+    end
+
     @doc false
     # テスト用: 頼んだ分が全部処理されるのを待つ。
     def drain, do: GenServer.call(__MODULE__, :drain, 30_000)
 
     @impl true
-    def init(_), do: {:ok, nil}
+    def init(_) do
+      schedule_prune()
+      {:ok, nil}
+    end
 
     @impl true
     def handle_cast({:encode, key, body}, state) do
@@ -248,15 +386,35 @@ defmodule SukhiFedi.Web.MediaTranscode do
 
         _ ->
           case MediaTranscode.transcode(body, :avif) do
-            {:ok, bytes} -> Ets.put(@table, key, {:avif, bytes}, @avif_ttl)
-            :error -> Ets.put(@table, key, :reject, @reject_ttl)
+            {:ok, bytes} ->
+              Store.put(key, :avif, bytes)
+              Ets.put(@table, key, {:avif, bytes}, @hot_ttl)
+
+            :error ->
+              Ets.put(@table, key, :reject, @reject_ttl)
           end
       end
 
       {:noreply, state}
     end
 
+    def handle_cast({:persist, key, fmt, bytes}, state) do
+      Store.put(key, fmt, bytes)
+      {:noreply, state}
+    end
+
+    @impl true
+    def handle_info(:prune, state) do
+      Store.prune()
+      schedule_prune()
+      {:noreply, state}
+    end
+
     @impl true
     def handle_call(:drain, _from, state), do: {:reply, :ok, state}
+
+    defp schedule_prune do
+      Process.send_after(self(), :prune, @prune_interval_ms)
+    end
   end
 end
