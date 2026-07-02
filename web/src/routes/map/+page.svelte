@@ -147,21 +147,43 @@
     <text class="lbl" x="305" y="508" text-anchor="middle">{$t('map.karutte')}</text>
     <text class="lbl-sub" x="305" y="523" text-anchor="middle">{$t('map.karutteSub')}</text>
 
-    <!-- 乗り物。数は実流量から(prefers-reduced-motion では走らせない)。
-         線路の上は車輪つきの貨車、宇宙は小さなロケット。どれもゆったり。 -->
-    {#snippet boxcar(cls: string, path: string, dur: number, count: number, i: number)}
-      <g class="train {cls}">
-        <rect x="-6.5" y="-6.5" width="13" height="9" rx="2" />
-        <circle class="wheel" cx="-3.5" cy="3.6" r="1.5" />
-        <circle class="wheel" cx="3.5" cy="3.6" r="1.5" />
+    <!-- 乗り物。数は実流量から。線路の上は車輪つきの貨車、宇宙は小さな
+         ロケット。どれもゆったり。動きを減らす設定のときは、隠すのでは
+         なく、道すじの途中に静かに停めて見せる(keyPoints を同値にピン留め
+         した SMIL は、位置決めだけして動かない)。 -->
+    {#snippet ride(path: string, dur: number, count: number, i: number, reverse = false)}
+      {#if reducedMotion}
+        {@const p = (i + (reverse ? 0.6 : 1)) / (count + 1)}
+        <animateMotion
+          dur="1s"
+          fill="freeze"
+          rotate="auto"
+          calcMode="linear"
+          keyPoints="{p};{p}"
+          keyTimes="0;1"
+        >
+          <mpath href={path} />
+        </animateMotion>
+      {:else}
         <animateMotion
           dur="{dur}s"
           begin="{(-i * dur) / count}s"
           repeatCount="indefinite"
           rotate="auto"
+          keyPoints={reverse ? '1;0' : '0;1'}
+          keyTimes="0;1"
+          calcMode="linear"
         >
           <mpath href={path} />
         </animateMotion>
+      {/if}
+    {/snippet}
+    {#snippet boxcar(cls: string, path: string, dur: number, count: number, i: number)}
+      <g class="train {cls}">
+        <rect x="-6.5" y="-6.5" width="13" height="9" rx="2" />
+        <circle class="wheel" cx="-3.5" cy="3.6" r="1.5" />
+        <circle class="wheel" cx="3.5" cy="3.6" r="1.5" />
+        {@render ride(path, dur, count, i)}
       </g>
     {/snippet}
     {#snippet rocket(path: string, dur: number, count: number, i: number)}
@@ -169,45 +191,27 @@
         <path d="M -5 0 L -9.5 -4.5 L -7.5 0 L -9.5 4.5 Z" />
         <path d="M -6.5 -3 H 1 Q 9 0 1 3 H -6.5 Z" />
         <circle class="rkt-window" cx="-1.5" cy="0" r="1.3" />
-        <animateMotion
-          dur="{dur}s"
-          begin="{(-i * dur) / count}s"
-          repeatCount="indefinite"
-          rotate="auto"
-        >
-          <mpath href={path} />
-        </animateMotion>
+        {@render ride(path, dur, count, i)}
       </g>
     {/snippet}
-    {#if !reducedMotion}
-      {#each Array(frontTrains) as _, i (i)}
-        {@render boxcar('use', '#p-front', 16, frontTrains, i)}
-      {/each}
-      {#each Array(sseTrains) as _, i (i)}
-        <circle class="train-dot" r="3.5">
-          <animateMotion
-            dur="12s"
-            begin="{(-i * 12) / sseTrains}s"
-            repeatCount="indefinite"
-            keyPoints="1;0"
-            keyTimes="0;1"
-            calcMode="linear"
-          >
-            <mpath href="#p-front" />
-          </animateMotion>
-        </circle>
-      {/each}
-      <!-- 入りの便: ロケットが宇宙港に降りて、貨物急行の貨車に積み替わる -->
-      {#each Array(fedInTrains) as _, i (i)}
-        {@render rocket('#p-route-in', 26, fedInTrains, i)}
-        {@render boxcar('build', '#p-express', 14, fedInTrains, i)}
-      {/each}
-      <!-- 出る便: delivery から貨車で発着場へ、そこからロケットで宇宙へ -->
-      {#each Array(fedOutTrains) as _, i (i)}
-        {@render boxcar('build', '#p-fedout-rail', 10, fedOutTrains, i)}
-        {@render rocket('#p-route-out', 14, fedOutTrains, i)}
-      {/each}
-    {/if}
+    {#each Array(frontTrains) as _, i (i)}
+      {@render boxcar('use', '#p-front', 16, frontTrains, i)}
+    {/each}
+    {#each Array(sseTrains) as _, i (i)}
+      <circle class="train-dot" r="3.5">
+        {@render ride('#p-front', 12, sseTrains, i, true)}
+      </circle>
+    {/each}
+    <!-- 入りの便: ロケットが宇宙港に降りて、貨物急行の貨車に積み替わる -->
+    {#each Array(fedInTrains) as _, i (i)}
+      {@render rocket('#p-route-in', 26, fedInTrains, i)}
+      {@render boxcar('build', '#p-express', 14, fedInTrains, i)}
+    {/each}
+    <!-- 出る便: delivery から貨車で発着場へ、そこからロケットで宇宙へ -->
+    {#each Array(fedOutTrains) as _, i (i)}
+      {@render boxcar('build', '#p-fedout-rail', 10, fedOutTrains, i)}
+      {@render rocket('#p-route-out', 14, fedOutTrains, i)}
+    {/each}
   </svg>
 </section>
 
