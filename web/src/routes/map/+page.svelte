@@ -82,6 +82,16 @@
     <path id="p-lightrail" class="track-light" d="M 612 152 Q 606 144 594 144 H 118 Q 108 144 103 152" />
     <text class="line-name muted" x="152" y="136">{$t('map.lightRail')}</text>
 
+    <!-- 進行方向の矢羽。うすく、軽く。WT だけは duplex なので両向き -->
+    <path class="dir use" d="M 201 155 L 209 160 L 201 165" />
+    <path class="dir muted" d="M 364 139 L 356 144 L 364 149" />
+    <path class="dir build" d="M 496 167 L 504 172 L 496 177" />
+    <path class="dir build" d="M 806 331 L 814 336 L 806 341" />
+    <path class="dir build" d="M 872 243 L 877 234 L 882 243" />
+    <path class="dir build" d="M 572 74 L 562 80 L 572 86" />
+    <path class="dir ink" d="M 244 475 L 236 480 L 244 485" />
+    <path class="dir ink" d="M 252 475 L 260 480 L 252 485" />
+
     <!-- 島のきわ。ここから先は連合宇宙(星は飾りだけれど、宇宙はほんとう) -->
     <path class="frontier" d="M 852 78 V 138 M 852 182 V 445" />
     <circle class="star" cx="925" cy="80" r="2" />
@@ -226,26 +236,27 @@
         {@render ride(path, dur, count, i)}
       </g>
     {/snippet}
-    <!-- あなた→gateway はことばの電車、gateway→あなた は帰り専用の軽電鉄 -->
+    <!-- あなた→gateway はことばの電車、gateway→あなた は帰り専用の軽電鉄。
+         在来線はどれもゆっくり。新幹線だけが、くらべて速い(ほぼ倍速) -->
     {#each Array(frontTrains) as _, i (i)}
-      {@render densha('#p-front', 16, frontTrains, i)}
+      {@render densha('#p-front', 28, frontTrains, i)}
     {/each}
     {#each Array(sseTrains) as _, i (i)}
-      {@render tram('#p-lightrail', 20, sseTrains, i)}
+      {@render tram('#p-lightrail', 30, sseTrains, i)}
     {/each}
     <!-- 入りの便: ロケットが宇宙港に降りて、貨物急行の貨車に積み替わる -->
     {#each Array(fedInTrains) as _, i (i)}
-      {@render rocket('#p-route-in', 26, fedInTrains, i)}
-      {@render boxcar('build', '#p-express', 14, fedInTrains, i)}
+      {@render rocket('#p-route-in', 40, fedInTrains, i)}
+      {@render boxcar('build', '#p-express', 24, fedInTrains, i)}
     {/each}
     <!-- 出る便: delivery から貨車で発着場へ、そこからロケットで宇宙へ -->
     {#each Array(fedOutTrains) as _, i (i)}
-      {@render boxcar('build', '#p-fedout-rail', 10, fedOutTrains, i)}
-      {@render rocket('#p-route-out', 14, fedOutTrains, i)}
+      {@render boxcar('build', '#p-fedout-rail', 18, fedOutTrains, i)}
+      {@render rocket('#p-route-out', 22, fedOutTrains, i)}
     {/each}
     <!-- WT 新幹線の試運転列車。これだけは実流量ではなく「試運転中」という
          状態を描く一本(開業したら実数につなぎ替える)。duplex なので往復 -->
-    {@render shinkansen('#p-wt', 90, 1, 0)}
+    {@render shinkansen('#p-wt', 44, 1, 0)}
   </svg>
 </section>
 
@@ -413,6 +424,27 @@
     stroke: var(--color-text);
     stroke-width: 3;
     stroke-linecap: round;
+  }
+
+  /* 進行方向の矢羽。線の色をうすめて、そっと */
+  .dir {
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.5;
+  }
+  .dir.use {
+    stroke: var(--color-use);
+  }
+  .dir.build {
+    stroke: var(--color-build);
+  }
+  .dir.muted {
+    stroke: var(--color-text-muted);
+  }
+  .dir.ink {
+    stroke: var(--color-text);
   }
 
   .dock {
