@@ -538,6 +538,12 @@ defmodule SukhiFedi.Web.Router do
     SukhiFedi.Web.WtController.wt(conn, [])
   end
 
+  # 路線図ページ（SPA `/map`）の公開の数字口。粗い累積カウンタだけなので
+  # 認証なし。gateway が NATS/Postgres を直接持つのでここで完結する。
+  get "/api/map" do
+    SukhiFedi.Web.MapController.show(conn, [])
+  end
+
   match "/api/v1/*_" do
     SukhiFedi.Web.PluginPlug.call(conn, SukhiFedi.Web.PluginPlug.init([]))
   end

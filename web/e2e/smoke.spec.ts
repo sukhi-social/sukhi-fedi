@@ -64,6 +64,23 @@ test.describe('cross-browser smoke — the SPA boots and runs', () => {
     errors.assertClean();
   });
 
+  test('railway map draws its tracks even with no backend', async ({ page }) => {
+    const errors = watchForJsErrors(page);
+
+    await page.goto('/');
+    await page.locator('a[href="/map"]').first().click();
+    await expect(page).toHaveURL(/\/map$/);
+
+    // The SVG map is static — it must render even when /api/map is
+    // unreachable (the board then says it couldn't fetch the numbers).
+    // (Playwright reports stroke-only <path> elements as hidden, so we
+    // assert on the map itself and the departure board instead.)
+    await expect(page.getByRole('img')).toBeVisible();
+    await expect(page.locator('.board-list li')).toHaveCount(4);
+
+    errors.assertClean();
+  });
+
   test('login method switch toggles the inputs (client reactivity)', async ({ page }) => {
     const errors = watchForJsErrors(page);
 

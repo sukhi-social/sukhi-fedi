@@ -42,6 +42,7 @@
 <section class="section">
   <p class="prose-small">
     {$t('landing.about')}
+    <a href="/map">{$t('landing.mapLink')}</a>
   </p>
 </section>
 
