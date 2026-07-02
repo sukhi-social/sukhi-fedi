@@ -94,7 +94,7 @@
     <rect class="station-box" x="560" y="110" width="280" height="330" rx="8" />
     <text class="lbl lbl-bold" x="576" y="136">{$t('map.sukhi')}</text>
 
-    <!-- おもて口線(HTTPS): あなた → Cloudflare → Anubis 改札 → gateway -->
+    <!-- おもて口線(HTTPS): あなた → Cloudflare 宇宙港 → Anubis 検問所 → gateway -->
     <path id="p-front" class="track use" d="M 100 160 H 612" />
     <text class="line-name use" x="150" y="149">{$t('map.lineFront')}</text>
 
@@ -111,12 +111,16 @@
     <path class="track build" d="M 779 336 H 842" />
     <path class="route" d="M 854 328 Q 888 246 879 132" />
     <path class="route" d="M 866 112 Q 560 30 283 146" />
+    <!-- 貨物急行: 宇宙港に着いた連合の便は、Anubis の検問所に止まらず gateway へ。
+         実配線どおり(/inbox 等は Anubis の素通しリスト)。検問所の下を抜ける複線 -->
+    <path class="track build" d="M 290 168 Q 296 172 304 172 H 588 Q 604 172 610 166" />
+    <text class="line-name build" x="356" y="188">{$t('map.express')}</text>
     <text class="line-name build" x="530" y="66">{$t('map.lineFed')}</text>
-    <!-- 列車用の通し道(入り: 各駅 → 宇宙港で表口線に合流 → gateway) -->
+    <!-- 列車用の通し道(入り: 各駅 → 宇宙港 → 貨物急行(Anubis 通過) → gateway) -->
     <path
       id="p-fedin"
       class="ghost"
-      d="M 868 116 Q 560 34 288 150 Q 280 160 292 160 H 612"
+      d="M 868 116 Q 560 34 288 150 Q 281 158 290 168 Q 296 172 304 172 H 588 Q 604 172 612 164"
     />
     <path id="p-fedout" class="ghost" d="M 779 336 H 844 Q 854 336 856 326 Q 890 245 880 134" />
 
@@ -150,7 +154,9 @@
     <circle class="port-ring" cx="280" cy="160" r="12" />
     <circle class="station" cx="280" cy="160" r="6" />
     <text class="lbl" x="280" y="136" text-anchor="middle">{$t('map.port')}</text>
-    <circle class="station" cx="450" cy="160" r="6" />
+    <!-- 検問所は駅(丸)ではなく、おもて口線をまたぐ関所のバー。
+         下の貨物急行には届かない=連合の便は検問を受けない -->
+    <path class="checkpoint" d="M 450 151 V 169" />
     <text class="lbl" x="450" y="140" text-anchor="middle">{$t('map.anubis')}</text>
     <circle class="station" cx="620" cy="160" r="6" />
     <text class="lbl" x="634" y="164">gateway</text>
@@ -364,6 +370,14 @@
     fill: none;
     stroke: var(--color-border-strong);
     stroke-width: 1.5;
+  }
+
+  /* 検問所のバー(駅ではないので丸にしない) */
+  .checkpoint {
+    fill: none;
+    stroke: var(--color-text);
+    stroke-width: 3;
+    stroke-linecap: round;
   }
 
   .dock {
