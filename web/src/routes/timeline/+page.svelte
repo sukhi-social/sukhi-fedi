@@ -9,6 +9,7 @@
   import Composer from '$lib/components/Composer.svelte';
   import TimelineFilter from '$lib/components/TimelineFilter.svelte';
   import { t, locale } from '$lib/i18n';
+  import { startTimelineStream } from '$lib/webtransport';
 
   // フィードのいちばん下のフッター用。ja は素の /terms /privacy、ko は
   // ?lang=ko を付ける。signup と同じ作りだが、こちらは signup=true を付け
@@ -75,6 +76,10 @@
   let pendingTag = $state('');
 
   let items = $state<Status[]>([]);
+  // WebTransport の live 新着はここに溜め、「新着 N 件」で明示的に見せる（calm-UX。
+  // 勝手に頭へ差し込まない）。home のときだけ ── karutte が押す feed は local+user＝
+  // まさにホームの構成なので、それを live で受ける。
+  let incoming = $state<Status[]>([]);
   let nextMaxId = $state<string | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
@@ -105,6 +110,27 @@
     void load(true);
     return () => retry?.stop();
   });
+
+  // home のとき、WebTransport で live 新着を受ける。kind が変わると張り直す
+  // （home 以外では止める）。届いた status は incoming に溜めるだけ（reveal で出す）。
+  $effect(() => {
+    if (kind !== 'home' || !isLoggedIn()) return;
+    incoming = [];
+    const stop = startTimelineStream((s) => {
+      const st = s as Status;
+      if (!st || !st.id) return;
+      if (items.some((it) => it.id === st.id) || incoming.some((it) => it.id === st.id)) return;
+      incoming = [st, ...incoming];
+    });
+    return stop;
+  });
+
+  // 溜まった新着を頭へ出す。
+  function revealIncoming() {
+    items = [...incoming, ...items];
+    incoming = [];
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   // いまのタブ・フィルターでの 1 ページ取得。load と先読みで共有する。
   function fetchPage(maxId: string | null) {
@@ -309,6 +335,12 @@
         {$t('timeline.emptyGeneric')}
       {/if}
     </p>
+  {/if}
+
+  {#if kind === 'home' && incoming.length > 0}
+    <button type="button" class="btn new-posts px-4 py-2" onclick={revealIncoming}>
+      {$t('timeline.newPosts')}（{incoming.length}）
+    </button>
   {/if}
 
   {#each items as s (s.id)}

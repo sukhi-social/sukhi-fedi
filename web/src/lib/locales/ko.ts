@@ -50,6 +50,53 @@ export const ko: Dict = {
   'landing.enterDesc': '이미 살고 있는 분은, 어서 오세요. 이쪽에서 들어오세요.',
   'landing.about':
     'sukhi-fedi 는 연합 우주라는, 전 세계의 서버가 느슨하게 이어진 네트워크 속의 작은 별이에요. Mastodon 이나 Misskey 사람들과도 이어져 있어요. 여기서 계정을 만들면, 멀리 있는 사람의 말에 귀를 기울이거나 가까이 있는 사람과 이야기할 수 있어요.',
+  'landing.mapLink': '이 별의 노선도 보기',
+
+  // ── 노선도 ───────────────────────────────────────────
+  'map.title': '이 별의 노선도',
+  'map.tagline':
+    'sukhi 안에서 말들이 어떻게 달리고 있는지. 역도 선로도 비유지만, 전부 정말로 있는 것들이에요. 숫자도 진짜예요.',
+  'map.you': '나',
+  'map.anubis': 'Anubis 개찰구',
+  'map.sukhi': 'sukhi 중앙',
+  'map.karutte': 'karutte',
+  'map.karutteSub': 'x64 상자',
+  'map.fediverse': '연합의 여러 역',
+  'map.fediverseSub': 'Mastodon・Misskey・그 외',
+  'map.yard': 'NATS 조차장',
+  'map.siding': 'DLQ 측선',
+  'map.wgTrunk': 'WireGuard 전용선',
+  'map.wtPlatform': 'WT 승강장',
+  'map.lineFront': '정문선',
+  'map.lineFed': '연합선',
+  'map.lineWt': 'WT 직통선',
+  'map.lineEvents': '장내 방송',
+  'map.statusRunning': '운행 중',
+  'map.statusSuspended': '운행 보류',
+  'map.statusTrial': '시운전 중',
+  'map.measuring': '재는 중…',
+  'map.boardTitle': '운행 상황',
+  'map.boardAsOf': '{time} 현재',
+  'map.boardFront': '나와 sukhi 를 잇는 정문이에요. 이 노선도도 이 선을 타고 왔어요.',
+  'map.boardFrontTrains': '말의 열차, 최근 5분 동안 {n} 대.',
+  'map.boardFedOut': '연합행, 지금 분당 {n} 대.',
+  'map.boardFedIn': 'sukhi행, 최근 5분 동안 {n} 대.',
+  'map.boardSidingEmpty': '측선은 비어 있어요. 좋은 일이에요.',
+  'map.boardSidingHeld': '측선에 {n} 량이 서 있어요. 목적지에 닿지 못한 열차예요.',
+  'map.boardWt': 'karutte 를 지나는 직통 노선. 지금 선로를 놓는 중이에요.',
+  'map.boardEvents': '새 소식 알림, 지금 분당 {n} 대.',
+  'map.boardError': '안내판 숫자를 지금은 가져오지 못했어요. 선로 모양은 그대로예요.',
+  'map.aboutTitle': '각 노선 이야기',
+  'map.aboutFront':
+    '정문선은 브라우저에서 오는 HTTPS 예요. Cloudflare 를 지나 Anubis 라는 개찰구를 통과해요. 개찰구가 막는 건 로봇 떼뿐이고, 사람은 그대로 지나갈 수 있어요.',
+  'map.aboutFed':
+    '연합선은 ActivityPub 편이에요. 내 게시물은 조차장(NATS 의 OUTBOX)에서 목적지별로 편성되어, delivery 승강장에서 전 세계의 역으로 출발해요. 닿지 못한 열차는 측선(DLQ)에서 30일을 기다렸다가 다시 달릴 수 있어요.',
+  'map.aboutWt':
+    'WT 직통선은 WebTransport(HTTP/3)예요. Cloudflare 터널은 UDP 열차를 나를 수 없어서, karutte 라는 역(다른 상자)을 지나 WireGuard 전용선으로 sukhi 에 들어와요. 차표는 sukhi 가 발행하고(Ed25519 서명), karutte 가 검표해요. 지금은 시운전 중이에요.',
+  'map.aboutEvents':
+    '장내 방송은 새 게시물이나 알림 소식이에요. 조차장의 DOMAIN_EVENTS 에서 SSE 를 타고 나에게까지 흘러와요.',
+  'map.aboutNumbers':
+    '이 지도의 숫자는 5초마다 갱신되는 대략적인 수뿐이에요. 누구의 어떤 말인지는 여기에 실리지 않아요.',
 
   // ── 쓰는 곳 ──────────────────────────────────────────
   'compose.visPublic': '모두에게',
@@ -430,6 +477,7 @@ export const ko: Dict = {
   'timeline.tabPublic': '모두',
   'timeline.tabBubble': '이웃',
   'timeline.tabTag': '태그',
+  'timeline.newPosts': '새 글',
   'timeline.filter': '필터',
   'timeline.onlyMedia': '이미지·미디어만',
   'timeline.viewMode': '보기 방식',

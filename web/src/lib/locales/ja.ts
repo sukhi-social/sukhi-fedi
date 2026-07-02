@@ -47,6 +47,53 @@ export const ja = {
   'landing.enterDesc': 'もう住んでいる人は、おかえりなさい。こちらからどうぞ。',
   'landing.about':
     'sukhi-fedi は、連合宇宙という、世界じゅうのサーバがゆるくつながったネットワークの中の、小さなお星さまです。Mastodon や Misskey の人たちともつながっています。ここでアカウントを作れば、遠くの人の言葉に耳をすませたり、近くの人と話したりできます。',
+  'landing.mapLink': 'この星の、路線図をみる',
+
+  // ── 路線図 ───────────────────────────────────────────
+  'map.title': 'この星の、路線図',
+  'map.tagline':
+    'sukhi の中を、ことばがどう走っているか。駅も線路も、たとえですが、ぜんぶ、ほんとうにあるものです。数字も、ほんものです。',
+  'map.you': 'あなた',
+  'map.anubis': 'Anubis 改札',
+  'map.sukhi': 'sukhi 中央',
+  'map.karutte': 'karutte',
+  'map.karutteSub': 'x64 の箱',
+  'map.fediverse': '連合の各駅',
+  'map.fediverseSub': 'Mastodon・Misskey・ほか',
+  'map.yard': 'NATS 操車場',
+  'map.siding': 'DLQ 側線',
+  'map.wgTrunk': 'WireGuard 専用線',
+  'map.wtPlatform': 'WT ホーム',
+  'map.lineFront': 'おもて口線',
+  'map.lineFed': '連合線',
+  'map.lineWt': 'WT 直通線',
+  'map.lineEvents': '場内放送',
+  'map.statusRunning': '運行中',
+  'map.statusSuspended': '運転見合わせ',
+  'map.statusTrial': '試運転中',
+  'map.measuring': 'はかっています…',
+  'map.boardTitle': '運行のようす',
+  'map.boardAsOf': '{time} 現在',
+  'map.boardFront': 'あなたと sukhi をつなぐ、表玄関。この路線図も、この線で届きました。',
+  'map.boardFrontTrains': 'ことばの列車、直近5分で {n} 本。',
+  'map.boardFedOut': '連合ゆき、いま {n} 本/分。',
+  'map.boardFedIn': 'sukhi ゆき、直近5分で {n} 本。',
+  'map.boardSidingEmpty': '側線は、からっぽです。よいことです。',
+  'map.boardSidingHeld': '側線に {n} 両、とまっています。行き先に、届いていない列車です。',
+  'map.boardWt': 'karutte 経由の直通ルート。いま、線路を敷いているところです。',
+  'map.boardEvents': '新しい出来事のお知らせ、いま {n} 本/分。',
+  'map.boardError': '案内板の数字が、いま、取れませんでした。線路の形は、そのままです。',
+  'map.aboutTitle': 'それぞれの線のこと',
+  'map.aboutFront':
+    'おもて口線は、ブラウザからの HTTPS です。Cloudflare を通って、Anubis という改札をぬけます。改札が止めるのは、ロボットの大群だけ。人は、そのまま通れます。',
+  'map.aboutFed':
+    '連合線は、ActivityPub の便です。あなたの投稿は、操車場（NATS の OUTBOX）で行き先ごとに仕立てられて、delivery ホームから、世界じゅうの駅へ発車します。届かなかった列車は、側線（DLQ）で 30 日待って、もう一度走ることができます。',
+  'map.aboutWt':
+    'WT 直通線は、WebTransport（HTTP/3）です。Cloudflare のトンネルは UDP の列車を運べないので、karutte という駅（べつの箱）を経由して、WireGuard の専用線で sukhi に入ります。切符は sukhi が発行して（Ed25519 の署名）、karutte が検札します。いまは、試運転中です。',
+  'map.aboutEvents':
+    '場内放送は、新しい投稿や通知のお知らせです。操車場の DOMAIN_EVENTS から、SSE にのって、あなたのところまで流れてきます。',
+  'map.aboutNumbers':
+    'この地図の数字は、5 秒ごとの、粗い数だけです。だれの、どんな言葉かは、ここには載りません。',
 
   // ── 書くところ ───────────────────────────────────────
   'compose.visPublic': 'みんなに',
@@ -427,6 +474,7 @@ export const ja = {
   'timeline.tabPublic': 'みんな',
   'timeline.tabBubble': 'ご近所',
   'timeline.tabTag': 'タグ',
+  'timeline.newPosts': '新着',
   'timeline.filter': 'フィルター',
   'timeline.onlyMedia': '画像・メディアのみ',
   'timeline.viewMode': '見せ方',
