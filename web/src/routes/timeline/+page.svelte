@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { fetchTimeline, type Status, type TimelineKind } from '$lib/api';
+  import { warmAvatars } from '$lib/avatarWarm';
   import { isLoggedIn, clearToken } from '$lib/auth';
   import { autoRetry, isConnectivityError } from '$lib/connection';
   import { composeRequest } from '$lib/compose';
@@ -121,6 +122,8 @@
       if (!st || !st.id) return;
       if (items.some((it) => it.id === st.id) || incoming.some((it) => it.id === st.id)) return;
       incoming = [st, ...incoming];
+      // 溜めている間に顔を温めておく ── reveal のとき揃って出る。
+      void warmAvatars([st], 10_000);
     });
     return stop;
   });
@@ -157,6 +160,10 @@
 
     try {
       const page = await fetchPage(reset ? null : nextMaxId);
+      // 頭から出すときは、載る顔を 1 秒だけ待って一緒に現れるようにする。
+      // 間に合わなければそのまま出す(低帯域で文字まで遅らせない ──
+      // 顔は lazy で追いつく)。
+      if (reset) await warmAvatars(page.items, 1000);
       items = reset ? page.items : [...items, ...page.items];
       // 0 件が返ったら、Link が次を匂わせていても終わり扱いにする。
       nextMaxId = page.items.length === 0 ? null : page.nextMaxId;
@@ -196,6 +203,9 @@
         prefetched = null;
       } else {
         prefetched = { items: page.items, nextMaxId: page.nextMaxId };
+        // 本文と一緒に顔も温めておく ── 「もっと読む」を押した瞬間、
+        // 揃って差し込まれる。急ぎではないので予算は長め。
+        void warmAvatars(page.items, 10_000);
       }
     } catch {
       if (cursor === nextMaxId) prefetched = null;
