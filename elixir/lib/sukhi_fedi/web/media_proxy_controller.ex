@@ -19,6 +19,9 @@ defmodule SukhiFedi.Web.MediaProxyController do
   本文は丸ごとメモリに置く(streaming しない)。`@max_bytes` がその
   上限で、edge cache が効く前提なら同時に並ぶ本数は少ない、という
   割り切り。足りなくなったら send_chunked への置き換えを考える。
+
+  URL の拡張子が `.avif` / `.webp` のときは、返す前に `MediaTranscode`
+  がその形式に encode し直す(転送量を軽くする層。失敗したら原本のまま)。
   """
 
   import Plug.Conn
@@ -27,6 +30,7 @@ defmodule SukhiFedi.Web.MediaProxyController do
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
   alias SukhiFedi.Schema.Media
+  alias SukhiFedi.Web.MediaTranscode
 
   @max_bytes 50 * 1024 * 1024
   @timeout_ms 20_000
@@ -38,9 +42,9 @@ defmodule SukhiFedi.Web.MediaProxyController do
   @profile_cache "public, max-age=86400"
 
   def media(conn, id_str) do
-    with {:ok, id} <- parse_id(id_str),
+    with {:ok, id, target} <- parse_id(id_str),
          %Media{remote_url: url} when is_binary(url) <- Repo.get(Media, id) do
-      fetch(conn, url, @media_cache, @max_redirects)
+      fetch(conn, url, @media_cache, target, @max_redirects)
     else
       _ -> send_resp(conn, 404, "")
     end
@@ -52,10 +56,10 @@ defmodule SukhiFedi.Web.MediaProxyController do
   # リモートアカウント(domain あり)の画像だけ。ローカルの avatar は
   # /uploads/ 直なのでここへは来ない(来ても 404 でいい)。
   defp profile_image(conn, id_str, field) do
-    with {:ok, id} <- parse_id(id_str),
+    with {:ok, id, target} <- parse_id(id_str),
          %Account{domain: domain} = account when is_binary(domain) <- Repo.get(Account, id),
          url when is_binary(url) <- Map.get(account, field) do
-      fetch(conn, url, @profile_cache, @max_redirects)
+      fetch(conn, url, @profile_cache, target, @max_redirects)
     else
       _ -> send_resp(conn, 404, "")
     end
@@ -64,28 +68,33 @@ defmodule SukhiFedi.Web.MediaProxyController do
   # id には飾りの拡張子が付いてくる("6.webp" 等)。Cloudflare は既定で
   # 拡張子を見てキャッシュ対象を決めるので、拡張子なしの URL は origin が
   # cache-control を付けても edge に乗らない(DYNAMIC のまま)。api 側の
-  # view が元 URL の拡張子をくっつけ、こちらは剥がして無視する。
+  # view が元 URL の拡張子をくっつけ、こちらは基本は剥がして無視する ─
+  # ただし `.avif` / `.webp` だけは「この形式に変換して」の合図として
+  # 読む(SPA が付け替えてくる。MediaTranscode の moduledoc を参照)。
+  # 変換は URL 単位なので CF の cache key ともそのまま噛み合う。
   defp parse_id(id_str) do
     case Integer.parse(id_str) do
-      {id, ""} -> {:ok, id}
-      {id, "." <> _ext} -> {:ok, id}
+      {id, ""} -> {:ok, id, nil}
+      {id, ".avif"} -> {:ok, id, :avif}
+      {id, ".webp"} -> {:ok, id, :webp}
+      {id, "." <> _ext} -> {:ok, id, nil}
       _ -> :error
     end
   end
 
-  defp fetch(conn, _url, _cache_control, 0), do: send_resp(conn, 502, "")
+  defp fetch(conn, _url, _cache_control, _target, 0), do: send_resp(conn, 502, "")
 
-  defp fetch(conn, url, cache_control, hops_left) do
+  defp fetch(conn, url, cache_control, target, hops_left) do
     if UrlGuard.safe?(url) do
       case request(url) do
         {:ok, %Req.Response{status: 200, body: body} = resp} when is_binary(body) ->
-          serve(conn, resp, cache_control)
+          serve(conn, resp, cache_control, target)
 
         {:ok, %Req.Response{status: status} = resp} when status in [301, 302, 303, 307, 308] ->
           case Req.Response.get_header(resp, "location") do
             [location | _] ->
               next = URI.merge(url, location) |> URI.to_string()
-              fetch(conn, next, cache_control, hops_left - 1)
+              fetch(conn, next, cache_control, target, hops_left - 1)
 
             _ ->
               send_resp(conn, 502, "")
@@ -125,10 +134,13 @@ defmodule SukhiFedi.Web.MediaProxyController do
     end
   end
 
-  defp serve(conn, %Req.Response{body: body} = resp, cache_control) do
+  defp serve(conn, %Req.Response{body: body} = resp, cache_control, target) do
     ct = resp |> Req.Response.get_header("content-type") |> List.first()
 
     if media_type?(ct) do
+      # 変換できないものは受け取ったままの {body, ct} が返る。
+      {body, ct} = MediaTranscode.maybe(body, ct, target)
+
       conn
       |> put_resp_content_type(ct)
       |> put_resp_header("cache-control", cache_control)

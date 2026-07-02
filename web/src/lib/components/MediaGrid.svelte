@@ -1,5 +1,6 @@
 <script lang="ts">
   import { statusMediaProtected, type Status } from '$lib/api';
+  import { proxyVariants } from '$lib/proxyImage';
   import { t } from '$lib/i18n';
 
   // プロフィールの「写真」表示。メディアを持つ投稿を、サムネの壁にして
@@ -21,13 +22,20 @@
 
 <ul class="media-grid">
   {#each tiles as tile (tile.status.id)}
+    {@const v = proxyVariants(tile.src)}
     <li>
       <a
         class="media-grid-tile"
         class:covered={statusMediaProtected(tile.status)}
         href={`/@${tile.status.account.acct}/${tile.status.id}`}
       >
-        <img src={tile.src} alt={tile.alt} loading="lazy" />
+        <picture>
+          {#if v}
+            <source srcset={v.avif} type="image/avif" />
+            <source srcset={v.webp} type="image/webp" />
+          {/if}
+          <img src={tile.src} alt={tile.alt} loading="lazy" />
+        </picture>
         {#if statusMediaProtected(tile.status)}
           <span class="media-grid-cover">{$t('status.tapToShow')}</span>
         {/if}

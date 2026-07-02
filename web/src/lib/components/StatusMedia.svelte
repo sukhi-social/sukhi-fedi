@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { MediaAttachment } from '$lib/api';
   import { browser } from '$app/environment';
+  import { proxyVariants } from '$lib/proxyImage';
   import { t } from '$lib/i18n';
 
   // 動きを控えめにしたい人の合図。base.css の view-transition と同じ
@@ -35,13 +36,22 @@
   {/if}
   {#each attachments as m (m.id)}
     {#if m.type === 'image'}
+      {@const v = proxyVariants(m.preview_url || m.url)}
       <button
         type="button"
         class="media-zoom"
         onclick={() => (lightbox = m.url)}
         aria-label={m.description || $t('status.imageZoom')}
       >
-        <img src={m.preview_url || m.url} alt={m.description || ''} loading="lazy" />
+        <!-- リモート画像はプロキシに avif/webp 変換を頼む。ライトボックスも
+             同じ URL を使うので、二枚目の転送は起きない。 -->
+        <picture>
+          {#if v}
+            <source srcset={v.avif} type="image/avif" />
+            <source srcset={v.webp} type="image/webp" />
+          {/if}
+          <img src={m.preview_url || m.url} alt={m.description || ''} loading="lazy" />
+        </picture>
       </button>
     {:else if m.type === 'video' || m.type === 'gifv'}
       <!-- gifv は無音ループ動画。ふつうの動画は controls を出す。動きを
@@ -71,6 +81,7 @@
 
 {#if lightbox}
   <!-- 画像の拡大。背景全面がボタンなので、どこを押しても/Escで閉じる。 -->
+  {@const v = proxyVariants(lightbox)}
   <button
     type="button"
     class="lightbox"
@@ -78,7 +89,13 @@
     onclick={() => (lightbox = null)}
     onkeydown={(e) => e.key === 'Escape' && (lightbox = null)}
   >
-    <img src={lightbox} alt="" />
+    <picture>
+      {#if v}
+        <source srcset={v.avif} type="image/avif" />
+        <source srcset={v.webp} type="image/webp" />
+      {/if}
+      <img src={lightbox} alt="" />
+    </picture>
   </button>
 {/if}
 

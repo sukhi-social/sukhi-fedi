@@ -77,6 +77,12 @@ defmodule SukhiFedi.MixProject do
       # format, so an archived original stays decodable long-term.
       {:ezstd, "~> 1.0"},
 
+      # libvips (NIF) — remote media proxy の WebP / AVIF 変換レイヤー
+      # (Web.MediaTranscode)。precompiled の NIF + libvips が hex /
+      # GitHub releases から落ちてくるので、alpine(musl) の build /
+      # runtime に追加パッケージは要らない(libstdc++ は既にある)。
+      {:vix, "~> 0.40"},
+
       # Lightweight observability: telemetry + PromEx (Prometheus).
       # Distributed tracing is intentionally omitted — use structured
       # Logger messages and Prometheus histograms instead.

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { isDefaultAvatar, avatarInitial, avatarColor } from '$lib/avatar';
+  import { proxyVariants } from '$lib/proxyImage';
 
   // class はサイズを決める既存のクラス(avatar / avatar-sm / avatar-lg /
   // nav-avatar / quote-avatar)をそのまま受け取る。頭文字のときも同じ
@@ -30,7 +31,16 @@
     aria-hidden="true">{initial}</span
   >
 {:else}
-  <img class={klass} {src} {alt} loading="lazy" />
+  <!-- リモートアバター(/proxy/avatar/)はプロキシに avif/webp 変換を頼む。
+       ローカルや直 URL は v が null になって、素の img のまま。 -->
+  {@const v = proxyVariants(src)}
+  <picture>
+    {#if v}
+      <source srcset={v.avif} type="image/avif" />
+      <source srcset={v.webp} type="image/webp" />
+    {/if}
+    <img class={klass} {src} {alt} loading="lazy" />
+  </picture>
 {/if}
 
 <style>

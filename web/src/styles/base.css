@@ -74,6 +74,13 @@ svg {
   max-width: 100%;
 }
 
+/* <picture> はフォーマット選び(avif/webp/原本)のためだけの包みで、
+   レイアウトには居ないことにする ─ 中の img が今までどおり flex や
+   grid の子として振る舞う。 */
+picture {
+  display: contents;
+}
+
 h1,
 h2,
 h3 {

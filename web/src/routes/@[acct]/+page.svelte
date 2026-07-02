@@ -18,6 +18,7 @@
   } from '$lib/api';
   import { isLoggedIn, clearToken } from '$lib/auth';
   import { createPager } from '$lib/pager.svelte';
+  import { proxyVariants } from '$lib/proxyImage';
   import StatusCard from '$lib/components/Status.svelte';
   import Avatar from '$lib/components/Avatar.svelte';
   import FollowButton from '$lib/components/FollowButton.svelte';
@@ -249,7 +250,14 @@
 {:else if account}
   <header class="profile-head">
     {#if account.header}
-      <img class="profile-header" src={account.header} alt="" loading="lazy" />
+      {@const v = proxyVariants(account.header)}
+      <picture>
+        {#if v}
+          <source srcset={v.avif} type="image/avif" />
+          <source srcset={v.webp} type="image/webp" />
+        {/if}
+        <img class="profile-header" src={account.header} alt="" loading="lazy" />
+      </picture>
     {/if}
     <div class="profile-id">
       <Avatar class="avatar avatar-lg" src={account.avatar} name={account.display_name || account.username} />
