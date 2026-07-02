@@ -56,6 +56,25 @@ defmodule SukhiFedi.Streaming do
     :ok
   end
 
+  @doc """
+  Publish a freshly-created post to the `stream.new_post` NATS subject. The
+  gateway's own `NatsListener` consumes it and fans out to the `:local` /
+  `:home` streaming feeds (SSE/WS) *and* to the per-feed NATS subjects that the
+  WebTransport edge (karutte) subscribes to.
+
+  `object` is the already-rendered Mastodon Status (the api owns the views, so
+  it renders and hands it here); `actor_id` is the author's AP actor URI
+  (`https://<domain>/users/<username>`). Best-effort — a dropped stream frame
+  must never fail the write that produced the post.
+  """
+  @spec publish_new_post(map(), String.t()) :: :ok
+  def publish_new_post(object, actor_id) when is_binary(actor_id) do
+    Gnat.pub(:gnat, "stream.new_post", JSON.encode!(%{object: object, actor_id: actor_id}))
+    :ok
+  rescue
+    _ -> :ok
+  end
+
   defp render_and_push(account_id, notif) do
     notif = Repo.preload(notif, [:from_account, note: [:account, :media, :tags]])
 

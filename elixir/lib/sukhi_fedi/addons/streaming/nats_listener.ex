@@ -31,29 +31,40 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
 
     if local_actor?(actor_id) do
       Registry.broadcast(:local, event)
+      # WebTransport エッジ(karutte)は別ノードで in-process Registry を見られないので、
+      # 共有 feed も NATS subject に出す。karutte が stream.local を sub して全接続へ。
+      nats_pub("stream.local", object)
     end
 
-    broadcast_to_followers(actor_id, event)
+    broadcast_to_followers(actor_id, event, object)
   end
 
-  defp broadcast_to_followers(actor_id, event) do
+  defp broadcast_to_followers(actor_id, event, object) do
     case extract_account_id(actor_id) do
       {:ok, account_id} ->
-        followers = get_follower_account_ids(account_id)
-
-        # NOTE(circles): no `stream.new_post` producer drives this path yet
-        # (see TODO.md). Whoever adds one must exclude followers who placed
-        # this author in an *exclusive* circle — skip `follower_id` where
-        # `account_id in SukhiFedi.Lists.excluded_account_ids(follower_id)`.
-        # Otherwise circle members' posts would leak into the home stream,
-        # bypassing the `Timelines.home/2` filter.
-        Enum.each(followers, fn follower_id ->
+        # exclusive circle にこの著者を入れているフォロワーは home に出さない
+        # （Timelines.home/2 のフィルタと揃える）。circle 越しの投稿が home stream に
+        # 漏れないように。
+        get_follower_account_ids(account_id)
+        |> Enum.reject(fn follower_id ->
+          account_id in SukhiFedi.Lists.excluded_account_ids(follower_id)
+        end)
+        |> Enum.each(fn follower_id ->
           Registry.broadcast(:home, event, follower_id)
+          # karutte 用: 本人の user feed（チケットの sub = account_id）へ。
+          nats_pub("stream.user.#{follower_id}", object)
         end)
 
       _ ->
         :ok
     end
+  end
+
+  # karutte が受ける per-feed subject へ。best-effort（NATS が無くても投稿は落とさない）。
+  defp nats_pub(subject, object) do
+    Gnat.pub(:gnat, subject, JSON.encode!(object))
+  rescue
+    _ -> :ok
   end
 
   defp local_actor?(actor_id) do

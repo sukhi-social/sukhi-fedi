@@ -56,7 +56,9 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
     case GatewayRpc.call(SukhiFedi.Notes, :create_status, [v, attrs]) do
       {:ok, {:ok, note}} ->
         maybe_stream_dm(note)
-        ok(200, StatusHydration.one(note, v))
+        rendered = StatusHydration.one(note, v)
+        maybe_stream_new_post(note, rendered, v)
+        ok(200, rendered)
 
       {:ok, {:error, {:validation, errors}}} ->
         ok(422, %{error: "validation_failed", details: errors})
@@ -112,6 +114,21 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
   end
 
   defp maybe_stream_dm(_), do: :ok
+
+  # Public な新規投稿を streaming に流す（local timeline + フォロワーの home）。views は
+  # この node にあるので、レスポンス用にレンダ済みの status をそのまま gateway の
+  # Streaming.publish_new_post へ渡す（→ stream.new_post → NatsListener が SSE/WS と
+  # WebTransport エッジ karutte の両方へ fanout）。best-effort・レスポンス経路の外。
+  # public のみ＝可視性ゲート不要（public は local/home どちらにも出てよい）。unlisted /
+  # followers-only / direct の live 配信は後回し（DM は maybe_stream_dm）。
+  defp maybe_stream_new_post(%{visibility: "public"}, rendered, %{username: username})
+       when is_map(rendered) and is_binary(username) do
+    actor_id = "https://#{SukhiApi.Config.domain!()}/users/#{username}"
+    Task.start(fn -> GatewayRpc.call(SukhiFedi.Streaming, :publish_new_post, [rendered, actor_id]) end)
+    :ok
+  end
+
+  defp maybe_stream_new_post(_note, _rendered, _v), do: :ok
 
   defp decode_status_attrs(req) do
     headers = req[:headers] || []
