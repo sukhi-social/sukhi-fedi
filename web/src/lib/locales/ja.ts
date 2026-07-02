@@ -81,7 +81,7 @@ export const ja = {
   'map.boardSidingEmpty': '側線は、からっぽです。よいことです。',
   'map.boardSidingHeld': '側線に {n} 両、とまっています。行き先に、届いていない列車です。',
   'map.boardWt': 'karutte 経由の直通ルート。いま、線路を敷いているところです。',
-  'map.boardEvents': '新しい出来事のお知らせ、いま {n} 本/分。',
+  'map.boardEvents': '新しい投稿のお知らせ、直近5分で {n} 本。',
   'map.boardError': '案内板の数字が、いま、取れませんでした。線路の形は、そのままです。',
   'map.aboutTitle': 'それぞれの線のこと',
   'map.aboutFront':

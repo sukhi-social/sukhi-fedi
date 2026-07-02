@@ -17,10 +17,9 @@
   let sample = $state<MapSample | null>(null);
   let failed = $state(false);
   let outboxPerMin = $state<number | null>(null);
-  let eventsPerMin = $state<number | null>(null);
   let reducedMotion = $state(false);
 
-  let prev: { atMs: number; outboxSeq: number | null; eventsSeq: number | null } | null = null;
+  let prev: { atMs: number; outboxSeq: number | null } | null = null;
 
   async function poll() {
     try {
@@ -33,18 +32,11 @@
       if (prev && atMs > prev.atMs) {
         const dtMin = (atMs - prev.atMs) / 60_000;
         const oSeq = body.streams.outbox?.seq ?? null;
-        const eSeq = body.streams.events?.seq ?? null;
         if (oSeq != null && prev.outboxSeq != null)
           outboxPerMin = Math.max(0, (oSeq - prev.outboxSeq) / dtMin);
-        if (eSeq != null && prev.eventsSeq != null)
-          eventsPerMin = Math.max(0, (eSeq - prev.eventsSeq) / dtMin);
       }
       if (!prev || atMs > prev.atMs) {
-        prev = {
-          atMs,
-          outboxSeq: body.streams.outbox?.seq ?? null,
-          eventsSeq: body.streams.events?.seq ?? null
-        };
+        prev = { atMs, outboxSeq: body.streams.outbox?.seq ?? null };
       }
       sample = body;
       failed = false;
@@ -71,11 +63,14 @@
   let frontTrains = $derived(sample ? trains(sample.notes_5m.local, 3) : 0);
   let fedInTrains = $derived(sample ? trains(sample.notes_5m.remote) : 0);
   let fedOutTrains = $derived(outboxPerMin != null ? trains(outboxPerMin * 5) : 0);
-  let sseTrains = $derived(eventsPerMin != null ? trains(eventsPerMin * 5, 3) : 0);
+  // 場内放送の中身は「新しい投稿のお知らせ」そのもの。実配線は plain NATS の
+  // stream.new_post(JetStream に載らず数を刻まない)なので、放送される中身
+  // =直近5分の note 数で数える。
+  let newPosts5m = $derived(sample ? sample.notes_5m.local + sample.notes_5m.remote : null);
+  let sseTrains = $derived(newPosts5m != null ? trains(newPosts5m, 3) : 0);
   let dlqHeld = $derived(sample?.streams.outbox_dlq?.held ?? null);
 
   let fedRunning = $derived(sample != null && sample.streams.outbox != null);
-  let eventsRunning = $derived(sample != null && sample.streams.events != null);
 
   const perMin = (r: number) => Math.round(r * 10) / 10;
 
@@ -253,14 +248,14 @@
       <span class="status">
         {sample == null
           ? $t('map.measuring')
-          : eventsRunning
+          : fedRunning
             ? $t('map.statusRunning')
             : $t('map.statusSuspended')}
       </span>
       <p>
-        {eventsPerMin == null
+        {newPosts5m == null
           ? $t('map.measuring')
-          : $t('map.boardEvents', { n: perMin(eventsPerMin) })}
+          : $t('map.boardEvents', { n: newPosts5m })}
       </p>
     </li>
   </ul>

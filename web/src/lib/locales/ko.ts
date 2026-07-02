@@ -84,7 +84,7 @@ export const ko: Dict = {
   'map.boardSidingEmpty': '측선은 비어 있어요. 좋은 일이에요.',
   'map.boardSidingHeld': '측선에 {n} 량이 서 있어요. 목적지에 닿지 못한 열차예요.',
   'map.boardWt': 'karutte 를 지나는 직통 노선. 지금 선로를 놓는 중이에요.',
-  'map.boardEvents': '새 소식 알림, 지금 분당 {n} 대.',
+  'map.boardEvents': '새 게시물 알림, 최근 5분 동안 {n} 대.',
   'map.boardError': '안내판 숫자를 지금은 가져오지 못했어요. 선로 모양은 그대로예요.',
   'map.aboutTitle': '각 노선 이야기',
   'map.aboutFront':
