@@ -50,6 +50,11 @@ defmodule SukhiFedi.WtRelayTelemetry do
     end
   rescue
     _ -> schedule_resubscribe(state)
+  catch
+    # :gnat がプロセスごと居ないとき、Gnat.sub は例外でなく exit(noproc)
+    # ─ rescue では受からない。ここで受けないと 2 秒ごとの再試行が
+    # crash 連発になり、supervisor の max_restarts で app ごと落ちる。
+    :exit, _ -> schedule_resubscribe(state)
   end
 
   defp schedule_resubscribe(state) do
