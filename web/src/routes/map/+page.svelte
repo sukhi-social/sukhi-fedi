@@ -78,6 +78,18 @@
     return `M 0 ${-s} Q ${k} ${-k} ${s} 0 Q ${k} ${k} 0 ${s} Q ${-k} ${k} ${-s} 0 Q ${-k} ${-k} 0 ${-s} Z`;
   }
 
+  // 宇宙の svg は最初のポーリング応答後に生まれる。あとから挿入された
+  // <svg> の SMIL は Chromium で始動しないことがある(時計は進むのに絵が
+  // 凍る)ので、現れたら時計をこつんと触って気づかせる。
+  let uniSvg = $state<SVGSVGElement | null>(null);
+  $effect(() => {
+    if (!uniSvg) return;
+    const svg = uniSvg;
+    // マウント直後だと SMIL の登録前で空振りするので、一拍おいてから
+    const t = setTimeout(() => svg.setCurrentTime(svg.getCurrentTime()), 120);
+    return () => clearTimeout(t);
+  });
+
   // ラベルどうしが重ならないように、一つずつ置く。ぶつかったら、その星の
   // ハッシュ由来の角度から螺旋に外へ逃がす。順序も種も入力だけで決まる
   // ので、同じ星ぞろえなら空はいつも同じ形。
@@ -392,9 +404,11 @@
   <section class="section">
     <h2>{$t('map.universeTitle')}</h2>
     <div class="map-scroll">
-      <svg viewBox="0 0 960 430" role="img" aria-label={$t('map.universeTitle')}>
+      <svg bind:this={uniSvg} viewBox="0 0 960 430" role="img" aria-label={$t('map.universeTitle')}>
+        <!-- 航路は星→sukhi 向きに描く。rotate=auto は path の向きで機首を
+             決めるので、keyPoints の逆走だと後ろ向き飛行になってしまう -->
         {#each starChart as star (star.domain)}
-          <path id="lane-{star.domain}" class="lane" d="M 480 215 L {star.x} {star.y}" />
+          <path id="lane-{star.domain}" class="lane" d="M {star.x} {star.y} L 480 215" />
         {/each}
         <circle class="port-ring" cx="480" cy="215" r="13" />
         <circle class="station" cx="480" cy="215" r="6" />
@@ -432,7 +446,7 @@
                 begin="-{h % 17}s"
                 repeatCount="indefinite"
                 rotate="auto"
-                keyPoints="1;0"
+                keyPoints="0;1"
                 keyTimes="0;1"
                 calcMode="linear"
               >
