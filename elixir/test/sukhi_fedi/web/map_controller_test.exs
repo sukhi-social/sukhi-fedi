@@ -26,7 +26,9 @@ defmodule SukhiFedi.Web.MapControllerTest do
   test "returns the counter shape without authentication" do
     body = show()
 
-    assert %{"at" => at, "streams" => streams, "notes_5m" => notes} = body
+    assert %{"at" => at, "streams" => streams, "notes_24h" => notes, "deliveries_24h" => deliveries} =
+             body
+
     assert {:ok, _, _} = DateTime.from_iso8601(at)
 
     # stream ごとに nil（NATS 不在＝運転見合わせ）か {seq, held}。
@@ -39,9 +41,10 @@ defmodule SukhiFedi.Web.MapControllerTest do
 
     assert %{"local" => local, "remote" => remote} = notes
     assert is_integer(local) and is_integer(remote)
+    assert is_integer(deliveries)
   end
 
-  test "counts recent notes split by locality" do
+  test "counts the day's notes split by locality, and delivered receipts" do
     body_before = show()
     :persistent_term.erase({MapController, :cache})
 
@@ -67,10 +70,32 @@ defmodule SukhiFedi.Web.MapControllerTest do
       domain: "remote.example"
     })
 
+    # delivery_receipts は delivery アプリの表なので schemaless で植える。
+    now = NaiveDateTime.utc_now()
+
+    Repo.insert_all("delivery_receipts", [
+      %{
+        activity_id: "https://sukhi.test/activities/map-1",
+        inbox_url: "https://remote.example/inbox",
+        status: "delivered",
+        delivered_at: now,
+        inserted_at: now
+      },
+      # failed は数えない
+      %{
+        activity_id: "https://sukhi.test/activities/map-2",
+        inbox_url: "https://remote.example/inbox",
+        status: "failed",
+        delivered_at: now,
+        inserted_at: now
+      }
+    ])
+
     body = show()
 
-    assert body["notes_5m"]["local"] == body_before["notes_5m"]["local"] + 1
-    assert body["notes_5m"]["remote"] == body_before["notes_5m"]["remote"] + 1
+    assert body["notes_24h"]["local"] == body_before["notes_24h"]["local"] + 1
+    assert body["notes_24h"]["remote"] == body_before["notes_24h"]["remote"] + 1
+    assert body["deliveries_24h"] == body_before["deliveries_24h"] + 1
   end
 
   test "serves the second call within the window from cache" do

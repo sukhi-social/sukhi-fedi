@@ -3,14 +3,15 @@ defmodule SukhiFedi.Web.MapController do
   @moduledoc """
   `GET /api/map` — 路線図ページ（SPA `/map`）が列車を走らせるための公開の数字口。
 
-  返すのは粗い累積カウンタと現在時刻だけ:
+  返すのは粗い数と現在時刻だけ:
 
     * JetStream 各 stream の `last_seq`（累積通し番号）と滞留数
       （OUTBOX / OUTBOX_DLQ / DOMAIN_EVENTS）
-    * 直近 5 分に生まれた note の数（ローカル / リモート別）
+    * この 1 日に生まれた note の数（ローカル / リモート別）
+    * この 1 日に連合へ届けた便の数（delivery_receipts の delivered）
 
-  流量の計算はしない。ページ側が 2 回のポーリングの差分から出す＝サーバは
-  無状態でいられる。宛先・本文・アカウントは含まれないので認証なしで開けてよく、
+  1 日基準なのは、しずかな星でも「この星の一日」が見えるように。
+  宛先・本文・アカウントは含まれないので認証なしで開けてよく、
   `/api/*` は Anubis も素通し。無認証の口なので、結果を短く（5 秒）持ち回して
   訪問者の数だけ NATS/DB を叩かないようにしている。
 
@@ -26,7 +27,7 @@ defmodule SukhiFedi.Web.MapController do
 
   @streams %{outbox: "OUTBOX", outbox_dlq: "OUTBOX_DLQ", events: "DOMAIN_EVENTS"}
   @cache_ms 5_000
-  @recent_minutes 5
+  @window_hours 24
 
   def show(conn, _opts) do
     conn
@@ -52,10 +53,13 @@ defmodule SukhiFedi.Web.MapController do
   end
 
   defp build do
+    since = DateTime.add(DateTime.utc_now(), -@window_hours * 3600, :second)
+
     %{
       at: DateTime.utc_now() |> DateTime.to_iso8601(),
       streams: Map.new(@streams, fn {key, name} -> {key, stream_state(name)} end),
-      notes_5m: recent_notes()
+      notes_24h: recent_notes(since),
+      deliveries_24h: recent_deliveries(since)
     }
   end
 
@@ -72,9 +76,7 @@ defmodule SukhiFedi.Web.MapController do
     :exit, _ -> nil
   end
 
-  defp recent_notes do
-    since = DateTime.add(DateTime.utc_now(), -@recent_minutes * 60, :second)
-
+  defp recent_notes(since) do
     rows =
       from(n in Note,
         where: n.created_at > ^since,
@@ -85,5 +87,17 @@ defmodule SukhiFedi.Web.MapController do
       |> Map.new()
 
     %{local: Map.get(rows, true, 0), remote: Map.get(rows, false, 0)}
+  end
+
+  # delivery_receipts は delivery アプリの表だが DB は共有。schema を
+  # 持ち込まず schemaless で数だけ見る（列は naive timestamp なので合わせる）。
+  defp recent_deliveries(since) do
+    since_naive = DateTime.to_naive(since)
+
+    from(r in "delivery_receipts",
+      where: r.delivered_at > ^since_naive and r.status == "delivered",
+      select: count(r.id)
+    )
+    |> Repo.one()
   end
 end

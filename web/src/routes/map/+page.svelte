@@ -3,42 +3,27 @@
   import { t, locale } from '$lib/i18n';
 
   // この星の路線図。駅も線路も比喩だけれど、形は docs/ARCHITECTURE.md の
-  // 実配線と一対一に対応させてある。数字は公開の `GET /api/map`(粗い累積
-  // カウンタだけ)を 15 秒ごとに引き、2 回の差分から「いまの流量」を出す。
-  // 列車の本数はその流量から。線路そのものは、数字が取れなくても描ける。
+  // 実配線と一対一に対応させてある。数字は公開の `GET /api/map` から、
+  // この 1 日の数(note と、連合へ届けた便)。1 日基準なのは、しずかな星
+  // でも「この星の一日」が見えるように。線路は、数字が取れなくても描ける。
 
   type StreamState = { seq: number; held: number } | null;
   type MapSample = {
     at: string;
     streams: { outbox: StreamState; outbox_dlq: StreamState; events: StreamState };
-    notes_5m: { local: number; remote: number };
+    notes_24h: { local: number; remote: number };
+    deliveries_24h: number;
   };
 
   let sample = $state<MapSample | null>(null);
   let failed = $state(false);
-  let outboxPerMin = $state<number | null>(null);
   let reducedMotion = $state(false);
-
-  let prev: { atMs: number; outboxSeq: number | null } | null = null;
 
   async function poll() {
     try {
       const res = await fetch('/api/map');
       if (!res.ok) throw new Error(String(res.status));
-      const body: MapSample = await res.json();
-      const atMs = Date.parse(body.at);
-      // サーバは 5 秒キャッシュを返すことがある。同じ瞬間の答えなら
-      // 差分は取れない(dt=0)ので、そのときは前回のまま。
-      if (prev && atMs > prev.atMs) {
-        const dtMin = (atMs - prev.atMs) / 60_000;
-        const oSeq = body.streams.outbox?.seq ?? null;
-        if (oSeq != null && prev.outboxSeq != null)
-          outboxPerMin = Math.max(0, (oSeq - prev.outboxSeq) / dtMin);
-      }
-      if (!prev || atMs > prev.atMs) {
-        prev = { atMs, outboxSeq: body.streams.outbox?.seq ?? null };
-      }
-      sample = body;
+      sample = await res.json();
       failed = false;
     } catch {
       failed = true;
@@ -48,31 +33,25 @@
   onMount(() => {
     reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     poll();
-    // キャッシュ窓(5秒)を越えた 2 回目で最初の差分が取れる。以後は 15 秒ごと。
-    const second = setTimeout(poll, 7_000);
-    const iv = setInterval(poll, 15_000);
-    return () => {
-      clearTimeout(second);
-      clearInterval(iv);
-    };
+    const iv = setInterval(poll, 30_000);
+    return () => clearInterval(iv);
   });
 
-  // 流量 → 列車の本数。すこしでも流れていれば 1 本は走らせる。
-  const trains = (n: number, max = 4) => Math.max(0, Math.min(max, Math.ceil(n)));
+  // 1 日の数 → 列車の本数。桁でゆっくり増える(1-9→1, 10-99→2, 100-999→3, …)。
+  const trains = (n: number, max = 4) =>
+    n <= 0 ? 0 : Math.min(max, Math.floor(Math.log10(n)) + 1);
 
-  let frontTrains = $derived(sample ? trains(sample.notes_5m.local, 3) : 0);
-  let fedInTrains = $derived(sample ? trains(sample.notes_5m.remote) : 0);
-  let fedOutTrains = $derived(outboxPerMin != null ? trains(outboxPerMin * 5) : 0);
+  let frontTrains = $derived(sample ? trains(sample.notes_24h.local, 3) : 0);
+  let fedInTrains = $derived(sample ? trains(sample.notes_24h.remote) : 0);
+  let fedOutTrains = $derived(sample ? trains(sample.deliveries_24h) : 0);
   // 場内放送の中身は「新しい投稿のお知らせ」そのもの。実配線は plain NATS の
   // stream.new_post(JetStream に載らず数を刻まない)なので、放送される中身
-  // =直近5分の note 数で数える。
-  let newPosts5m = $derived(sample ? sample.notes_5m.local + sample.notes_5m.remote : null);
-  let sseTrains = $derived(newPosts5m != null ? trains(newPosts5m, 3) : 0);
+  // =この 1 日の note 数で数える。
+  let newPosts24h = $derived(sample ? sample.notes_24h.local + sample.notes_24h.remote : null);
+  let sseTrains = $derived(newPosts24h != null ? trains(newPosts24h, 3) : 0);
   let dlqHeld = $derived(sample?.streams.outbox_dlq?.held ?? null);
 
   let fedRunning = $derived(sample != null && sample.streams.outbox != null);
-
-  const perMin = (r: number) => Math.round(r * 10) / 10;
 
   let asOf = $derived(
     sample ? new Date(Date.parse(sample.at)).toLocaleTimeString($locale) : null
@@ -231,7 +210,7 @@
       <span class="status">{$t('map.statusRunning')}</span>
       <p>
         {$t('map.boardFront')}
-        {#if sample}{$t('map.boardFrontTrains', { n: sample.notes_5m.local })}{/if}
+        {#if sample}{$t('map.boardFrontTrains', { n: sample.notes_24h.local })}{/if}
       </p>
     </li>
     <li>
@@ -244,10 +223,10 @@
             : $t('map.statusSuspended')}
       </span>
       <p>
-        {outboxPerMin == null
+        {sample == null
           ? $t('map.measuring')
-          : $t('map.boardFedOut', { n: perMin(outboxPerMin) })}
-        {#if sample}{$t('map.boardFedIn', { n: sample.notes_5m.remote })}{/if}
+          : $t('map.boardFedOut', { n: sample.deliveries_24h })}
+        {#if sample}{$t('map.boardFedIn', { n: sample.notes_24h.remote })}{/if}
         {#if dlqHeld != null}
           {#if dlqHeld > 0}
             <span class="held">{$t('map.boardSidingHeld', { n: dlqHeld })}</span>
@@ -272,9 +251,9 @@
             : $t('map.statusSuspended')}
       </span>
       <p>
-        {newPosts5m == null
+        {newPosts24h == null
           ? $t('map.measuring')
-          : $t('map.boardEvents', { n: newPosts5m })}
+          : $t('map.boardEvents', { n: newPosts24h })}
       </p>
     </li>
   </ul>
