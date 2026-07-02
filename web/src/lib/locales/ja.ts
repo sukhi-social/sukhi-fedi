@@ -55,6 +55,8 @@ export const ja = {
     'sukhi の中を、ことばがどう走っているか。駅も線路も、たとえですが、ぜんぶ、ほんとうにあるものです。数字も、ほんものです。',
   'map.you': 'あなた',
   'map.anubis': 'Anubis 改札',
+  'map.port': 'Cloudflare 宇宙港',
+  'map.dock': '貨物発着場',
   'map.sukhi': 'sukhi 中央',
   'map.karutte': 'karutte',
   'map.karutteSub': 'x64 の箱',
@@ -85,9 +87,9 @@ export const ja = {
   'map.boardError': '案内板の数字が、いま、取れませんでした。線路の形は、そのままです。',
   'map.aboutTitle': 'それぞれの線のこと',
   'map.aboutFront':
-    'おもて口線は、ブラウザからの HTTPS です。Cloudflare を通って、Anubis という改札をぬけます。改札が止めるのは、ロボットの大群だけ。人は、そのまま通れます。',
+    'おもて口線は、ブラウザからの HTTPS です。あなたの便は、Cloudflare という宇宙港に着いて、Anubis という改札をぬけます。改札が止めるのは、ロボットの大群だけ。人は、そのまま通れます。',
   'map.aboutFed':
-    '連合線は、ActivityPub の便です。あなたの投稿は、操車場（NATS の OUTBOX）で行き先ごとに仕立てられて、delivery ホームから、世界じゅうの駅へ発車します。届かなかった列車は、側線（DLQ）で 30 日待って、もう一度走ることができます。',
+    '連合線は、ActivityPub の便です。あなたの投稿は、操車場（NATS の OUTBOX）で行き先ごとに仕立てられて、delivery ホームから急行で貨物発着場へ。そこから、連合宇宙をわたって、世界じゅうの駅へ飛びます。よその駅からの便は、Cloudflare 宇宙港に着いてから、おもて口線で sukhi に入ります。届かなかった列車は、側線（DLQ）で 30 日待って、もう一度走ることができます。',
   'map.aboutWt':
     'WT 直通線は、WebTransport（HTTP/3）です。Cloudflare のトンネルは UDP の列車を運べないので、karutte という駅（べつの箱）を経由して、WireGuard の専用線で sukhi に入ります。切符は sukhi が発行して（Ed25519 の署名）、karutte が検札します。いまは、試運転中です。',
   'map.aboutEvents':

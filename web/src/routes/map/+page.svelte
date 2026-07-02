@@ -98,17 +98,27 @@
     <path id="p-front" class="track use" d="M 100 160 H 612" />
     <text class="line-name use" x="150" y="149">{$t('map.lineFront')}</text>
 
-    <!-- 連合線(ActivityPub): 入りは表口へ、出は delivery から -->
-    <path class="track build" d="M 890 328 V 82 Q 890 70 878 70 H 308 Q 280 70 280 98 V 150" />
-    <path class="track build" d="M 779 336 H 880" />
-    <text class="line-name build" x="560" y="60">{$t('map.lineFed')}</text>
-    <!-- 列車用の通し道(入り: 各駅 → Cloudflare で表口線に合流 → gateway) -->
+    <!-- 島のきわ。ここから先は連合宇宙(星は飾りだけれど、宇宙はほんとう) -->
+    <path class="frontier" d="M 852 78 V 138 M 852 182 V 445" />
+    <circle class="star" cx="925" cy="80" r="2" />
+    <circle class="star" cx="945" cy="235" r="1.6" />
+    <circle class="star" cx="935" cy="170" r="1.4" />
+    <circle class="star" cx="900" cy="440" r="2" />
+    <circle class="star" cx="940" cy="390" r="1.5" />
+
+    <!-- 連合線(ActivityPub): 出は delivery から急行で発着場へ、そこから航路。
+         入りは宇宙港(Cloudflare)に着いて、おもて口線で gateway へ -->
+    <path class="track build" d="M 779 336 H 842" />
+    <path class="route" d="M 854 328 Q 888 246 879 132" />
+    <path class="route" d="M 866 112 Q 560 30 283 146" />
+    <text class="line-name build" x="530" y="66">{$t('map.lineFed')}</text>
+    <!-- 列車用の通し道(入り: 各駅 → 宇宙港で表口線に合流 → gateway) -->
     <path
       id="p-fedin"
       class="ghost"
-      d="M 890 328 V 82 Q 890 70 878 70 H 308 Q 280 70 280 98 V 150 Q 280 160 292 160 H 612"
+      d="M 868 116 Q 560 34 288 150 Q 280 160 292 160 H 612"
     />
-    <path id="p-fedout" class="ghost" d="M 779 336 H 880" />
+    <path id="p-fedout" class="ghost" d="M 779 336 H 844 Q 854 336 856 326 Q 890 245 880 134" />
 
     <!-- WT 直通線(試運転中): あなた → karutte(x64) → WireGuard 専用線 → WT ホーム -->
     <path class="track wt" d="M 100 166 V 480 H 578 Q 600 480 600 458 V 428" />
@@ -137,8 +147,9 @@
     <!-- 駅たち -->
     <circle class="station terminus" cx="100" cy="160" r="8" />
     <text class="lbl" x="100" y="138" text-anchor="middle">{$t('map.you')}</text>
+    <circle class="port-ring" cx="280" cy="160" r="12" />
     <circle class="station" cx="280" cy="160" r="6" />
-    <text class="lbl" x="280" y="140" text-anchor="middle">Cloudflare</text>
+    <text class="lbl" x="280" y="136" text-anchor="middle">{$t('map.port')}</text>
     <circle class="station" cx="450" cy="160" r="6" />
     <text class="lbl" x="450" y="140" text-anchor="middle">{$t('map.anubis')}</text>
     <circle class="station" cx="620" cy="160" r="6" />
@@ -149,9 +160,11 @@
     <text class="lbl" x="772" y="358" text-anchor="middle">delivery</text>
     <circle class="station sm" cx="600" cy="420" r="5" />
     <text class="lbl" x="614" y="424">{$t('map.wtPlatform')}</text>
-    <circle class="station terminus" cx="890" cy="340" r="8" />
-    <text class="lbl" x="890" y="370" text-anchor="middle">{$t('map.fediverse')}</text>
-    <text class="lbl-sub" x="890" y="386" text-anchor="middle">{$t('map.fediverseSub')}</text>
+    <rect class="dock" x="844" y="330" width="12" height="12" rx="2" />
+    <text class="lbl-sub" x="838" y="318" text-anchor="end">{$t('map.dock')}</text>
+    <circle class="station terminus" cx="880" cy="120" r="8" />
+    <text class="lbl" x="880" y="152" text-anchor="middle">{$t('map.fediverse')}</text>
+    <text class="lbl-sub" x="880" y="168" text-anchor="middle">{$t('map.fediverseSub')}</text>
     <circle class="station" cx="305" cy="480" r="6" />
     <text class="lbl" x="305" y="508" text-anchor="middle">{$t('map.karutte')}</text>
     <text class="lbl-sub" x="305" y="523" text-anchor="middle">{$t('map.karutteSub')}</text>
@@ -320,7 +333,40 @@
     stroke-width: 2.5;
   }
 
+  /* 航路。線路ではなく、宇宙をわたる便の道すじ */
+  .route {
+    fill: none;
+    stroke: var(--color-build);
+    stroke-width: 2.5;
+    stroke-dasharray: 1 7;
+    stroke-linecap: round;
+  }
+
+  /* 島のきわ(連合宇宙とのさかいめ) */
+  .frontier {
+    fill: none;
+    stroke: var(--color-border-strong);
+    stroke-width: 1;
+    stroke-dasharray: 2 8;
+  }
+
+  .star {
+    fill: var(--color-border-strong);
+  }
+
   .station {
+    fill: var(--color-surface);
+    stroke: var(--color-text);
+    stroke-width: 2.5;
+  }
+
+  .port-ring {
+    fill: none;
+    stroke: var(--color-border-strong);
+    stroke-width: 1.5;
+  }
+
+  .dock {
     fill: var(--color-surface);
     stroke: var(--color-text);
     stroke-width: 2.5;
