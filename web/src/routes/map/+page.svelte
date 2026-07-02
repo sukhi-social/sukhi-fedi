@@ -75,7 +75,12 @@
 
     <!-- おもて口線(HTTPS): あなた → Cloudflare 宇宙港 → Anubis 検問所 → gateway -->
     <path id="p-front" class="track use" d="M 100 160 H 612" />
-    <text class="line-name use" x="150" y="149">{$t('map.lineFront')}</text>
+    <text class="line-name use" x="150" y="182">{$t('map.lineFront')}</text>
+
+    <!-- 場内放送の軽電鉄(SSE): gateway → あなた の専用ライン。行きの線とは
+         別に、サーバから押し流す長生きのストリームが一本あるのは実配線どおり -->
+    <path id="p-lightrail" class="track-light" d="M 612 152 Q 606 144 594 144 H 118 Q 108 144 103 152" />
+    <text class="line-name muted" x="152" y="136">{$t('map.lightRail')}</text>
 
     <!-- 島のきわ。ここから先は連合宇宙(星は飾りだけれど、宇宙はほんとう) -->
     <path class="frontier" d="M 852 78 V 138 M 852 182 V 445" />
@@ -151,9 +156,9 @@
          ロケット。どれもゆったり。動きを減らす設定のときは、隠すのでは
          なく、道すじの途中に静かに停めて見せる(keyPoints を同値にピン留め
          した SMIL は、位置決めだけして動かない)。 -->
-    {#snippet ride(path: string, dur: number, count: number, i: number, reverse = false)}
+    {#snippet ride(path: string, dur: number, count: number, i: number, shuttle = false)}
       {#if reducedMotion}
-        {@const p = (i + (reverse ? 0.6 : 1)) / (count + 1)}
+        {@const p = (i + 1) / (count + 1)}
         <animateMotion
           dur="1s"
           fill="freeze"
@@ -170,8 +175,8 @@
           begin="{(-i * dur) / count}s"
           repeatCount="indefinite"
           rotate="auto"
-          keyPoints={reverse ? '1;0' : '0;1'}
-          keyTimes="0;1"
+          keyPoints={shuttle ? '0;1;0' : '0;1'}
+          keyTimes={shuttle ? '0;0.5;1' : '0;1'}
           calcMode="linear"
         >
           <mpath href={path} />
@@ -194,20 +199,39 @@
         {@render ride(path, dur, count, i)}
       </g>
     {/snippet}
+    <!-- 新幹線は両頭(実物どおり)。WT は duplex なので往復運転が正確 -->
     {#snippet shinkansen(path: string, dur: number, count: number, i: number)}
       <g class="train ink">
-        <path d="M -12 -3.5 H 2 Q 9 -3 12.5 0 Q 9 3 2 3.5 H -12 Q -13.5 0 -12 -3.5 Z" />
-        <rect class="window" x="0" y="-2.2" width="7" height="1.7" rx="0.85" />
+        <path d="M -12.5 0 Q -9 -3.5 -2 -3.5 H 2 Q 9 -3.5 12.5 0 Q 9 3.5 2 3.5 H -2 Q -9 3.5 -12.5 0 Z" />
+        <rect class="window" x="-3.5" y="-2.2" width="7" height="1.7" rx="0.85" />
+        {@render ride(path, dur, count, i, true)}
+      </g>
+    {/snippet}
+    {#snippet densha(path: string, dur: number, count: number, i: number)}
+      <g class="train use">
+        <rect x="-7" y="-6.5" width="14" height="9" rx="2.5" />
+        <rect class="window" x="-4.6" y="-4.6" width="3.6" height="2.6" rx="0.9" />
+        <rect class="window" x="1" y="-4.6" width="3.6" height="2.6" rx="0.9" />
+        <circle class="wheel" cx="-3.8" cy="3.6" r="1.5" />
+        <circle class="wheel" cx="3.8" cy="3.6" r="1.5" />
         {@render ride(path, dur, count, i)}
       </g>
     {/snippet}
+    {#snippet tram(path: string, dur: number, count: number, i: number)}
+      <g class="train lr">
+        <rect x="-5" y="-5" width="10" height="7" rx="2" />
+        <rect class="window" x="-1.6" y="-3.2" width="3" height="2" rx="0.8" />
+        <circle class="wheel" cx="-2.6" cy="3.2" r="1.2" />
+        <circle class="wheel" cx="2.6" cy="3.2" r="1.2" />
+        {@render ride(path, dur, count, i)}
+      </g>
+    {/snippet}
+    <!-- あなた→gateway はことばの電車、gateway→あなた は帰り専用の軽電鉄 -->
     {#each Array(frontTrains) as _, i (i)}
-      {@render boxcar('use', '#p-front', 16, frontTrains, i)}
+      {@render densha('#p-front', 16, frontTrains, i)}
     {/each}
     {#each Array(sseTrains) as _, i (i)}
-      <circle class="train-dot" r="3.5">
-        {@render ride('#p-front', 12, sseTrains, i, true)}
-      </circle>
+      {@render tram('#p-lightrail', 20, sseTrains, i)}
     {/each}
     <!-- 入りの便: ロケットが宇宙港に降りて、貨物急行の貨車に積み替わる -->
     {#each Array(fedInTrains) as _, i (i)}
@@ -220,8 +244,8 @@
       {@render rocket('#p-route-out', 14, fedOutTrains, i)}
     {/each}
     <!-- WT 新幹線の試運転列車。これだけは実流量ではなく「試運転中」という
-         状態を描く一本(開業したら実数につなぎ替える) -->
-    {@render shinkansen('#p-wt', 48, 1, 0)}
+         状態を描く一本(開業したら実数につなぎ替える)。duplex なので往復 -->
+    {@render shinkansen('#p-wt', 90, 1, 0)}
   </svg>
 </section>
 
@@ -332,6 +356,14 @@
     stroke-dasharray: 7 6;
   }
 
+  /* 帰り専用の軽電鉄(SSE)。ほそく、しずかな線 */
+  .track-light {
+    fill: none;
+    stroke: var(--color-text-muted);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
   .hair {
     fill: none;
     stroke: var(--color-border-strong);
@@ -419,6 +451,10 @@
   .line-name.ink {
     fill: var(--color-text);
   }
+  .line-name.muted {
+    fill: var(--color-text-muted);
+    font-weight: 400;
+  }
   .chip-trial {
     fill: var(--color-text-muted);
     font-size: 11px;
@@ -434,14 +470,14 @@
   .train.ink {
     fill: var(--color-text);
   }
+  .train.lr {
+    fill: var(--color-text-muted);
+  }
   .train .wheel {
     fill: var(--color-text);
   }
   .train .window {
     fill: var(--color-surface);
-  }
-  .train-dot {
-    fill: var(--color-text-muted);
   }
   .held-car {
     fill: var(--color-danger);

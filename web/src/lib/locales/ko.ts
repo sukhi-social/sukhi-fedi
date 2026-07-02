@@ -61,6 +61,7 @@ export const ko: Dict = {
   'map.port': 'Cloudflare 우주항',
   'map.dock': '화물 발착장',
   'map.express': '화물 급행',
+  'map.lightRail': '경전철',
   'map.sukhi': 'sukhi 중앙',
   'map.karutte': 'karutte',
   'map.karutteSub': 'x64 상자',
@@ -86,7 +87,7 @@ export const ko: Dict = {
   'map.boardFedIn': 'sukhi행, 지난 하루 동안 {n} 대.',
   'map.boardSidingEmpty': '측선은 비어 있어요. 좋은 일이에요.',
   'map.boardSidingHeld': '측선에 {n} 량이 서 있어요. 목적지에 닿지 못한 열차예요.',
-  'map.boardWt': 'karutte 를 지나는 고속 직통 노선. 지금 시운전 열차가 달리고 있어요.',
+  'map.boardWt': 'karutte 를 지나는 고속 직통 노선. 지금 시운전 열차가 오가고 있어요.',
   'map.boardEvents': '새 게시물 알림, 지난 하루 동안 {n} 대.',
   'map.boardError': '안내판 숫자를 지금은 가져오지 못했어요. 선로 모양은 그대로예요.',
   'map.aboutTitle': '각 노선 이야기',
@@ -95,9 +96,9 @@ export const ko: Dict = {
   'map.aboutFed':
     '연합선은 ActivityPub 편이에요. 내 게시물은 조차장(NATS 의 OUTBOX)에서 목적지별로 편성되어, delivery 승강장에서 급행으로 화물 발착장까지 달려요. 거기서 연합 우주를 건너 전 세계의 역으로 날아가요. 다른 역에서 온 편은 Cloudflare 우주항에 내리면 화물 급행을 타고 gateway 로 가요. Anubis 검문소에는 서지 않아요(연합 편은 그대로 통과해요). 닿지 못한 열차는 측선(DLQ)에서 30일을 기다렸다가 다시 달릴 수 있어요.',
   'map.aboutWt':
-    'WT 고속선은 WebTransport(HTTP/3)예요. 서는 역이 적고 전용 선로를 곧장 달리는, 가장 빠른 선이에요. Cloudflare 터널은 UDP 열차를 나를 수 없어서, karutte 라는 역(다른 상자)을 지나 WireGuard 전용선으로 sukhi 에 들어와요. 차표는 sukhi 가 발행하고(Ed25519 서명), karutte 가 검표해요. 지금은 시운전 열차가 달리고 있어요.',
+    'WT 고속선은 WebTransport(HTTP/3)예요. 서는 역이 적고 전용 선로를 곧장 달리는, 가장 빠른 선이에요. 가는 편도 오는 편도 같은 선을 동시에 달릴 수 있어요(duplex). Cloudflare 터널은 UDP 열차를 나를 수 없어서, karutte 라는 역(다른 상자)을 지나 WireGuard 전용선으로 sukhi 에 들어와요. 차표는 sukhi 가 발행하고(Ed25519 서명), karutte 가 검표해요. 지금은 시운전 열차가 달리고 있어요.',
   'map.aboutEvents':
-    '장내 방송은 새 게시물이나 알림 소식이에요. 조차장(NATS)에서 SSE 를 타고 나에게까지 흘러와요.',
+    '장내 방송은 새 게시물이나 알림 소식이에요. 조차장(NATS)에서 SSE 를 타고, 돌아오는 길 전용 경전철로 나에게까지 흘러와요.',
   'map.aboutNumbers':
     '이 지도의 숫자는 5초마다 갱신되는 대략적인 수뿐이에요. 누구의 어떤 말인지는 여기에 실리지 않아요.',
 
