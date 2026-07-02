@@ -91,7 +91,7 @@ export const ja = {
   'map.aboutWt':
     'WT 直通線は、WebTransport（HTTP/3）です。Cloudflare のトンネルは UDP の列車を運べないので、karutte という駅（べつの箱）を経由して、WireGuard の専用線で sukhi に入ります。切符は sukhi が発行して（Ed25519 の署名）、karutte が検札します。いまは、試運転中です。',
   'map.aboutEvents':
-    '場内放送は、新しい投稿や通知のお知らせです。操車場の DOMAIN_EVENTS から、SSE にのって、あなたのところまで流れてきます。',
+    '場内放送は、新しい投稿や通知のお知らせです。操車場（NATS）から、SSE にのって、あなたのところまで流れてきます。',
   'map.aboutNumbers':
     'この地図の数字は、5 秒ごとの、粗い数だけです。だれの、どんな言葉かは、ここには載りません。',
 

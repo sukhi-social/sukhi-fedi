@@ -94,7 +94,7 @@ export const ko: Dict = {
   'map.aboutWt':
     'WT 직통선은 WebTransport(HTTP/3)예요. Cloudflare 터널은 UDP 열차를 나를 수 없어서, karutte 라는 역(다른 상자)을 지나 WireGuard 전용선으로 sukhi 에 들어와요. 차표는 sukhi 가 발행하고(Ed25519 서명), karutte 가 검표해요. 지금은 시운전 중이에요.',
   'map.aboutEvents':
-    '장내 방송은 새 게시물이나 알림 소식이에요. 조차장의 DOMAIN_EVENTS 에서 SSE 를 타고 나에게까지 흘러와요.',
+    '장내 방송은 새 게시물이나 알림 소식이에요. 조차장(NATS)에서 SSE 를 타고 나에게까지 흘러와요.',
   'map.aboutNumbers':
     '이 지도의 숫자는 5초마다 갱신되는 대략적인 수뿐이에요. 누구의 어떤 말인지는 여기에 실리지 않아요.',
 
