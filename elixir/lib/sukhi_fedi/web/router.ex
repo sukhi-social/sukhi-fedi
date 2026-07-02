@@ -434,6 +434,11 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  # 路線図(公開ページ)。数字は GET /api/map から。
+  get "/map" do
+    serve_spa(conn)
+  end
+
   # PoW で守られる「通り道」。Anubis がこの path だけを challenge する。
   # 中身は SPA shell ─ JS で intent / next を読んで分岐する。
   get "/check" do
