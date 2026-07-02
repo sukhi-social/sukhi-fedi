@@ -31,6 +31,9 @@ async function run(ac: AbortController, onStatus: OnStatus): Promise<void> {
     const t = loadToken();
     if (!t) break;
 
+    let wt: WebTransport | null = null;
+    let onAbort: (() => void) | null = null;
+
     try {
       // 発券: sukhi が Ed25519 署名した短命チケット＋接続先を返す。
       const res = await fetch('/api/wt', {
@@ -40,16 +43,31 @@ async function run(ac: AbortController, onStatus: OnStatus): Promise<void> {
       if (res.status === 401) break;
       if (!res.ok) throw new Error(`wt_${res.status}`);
       const { endpoint, ticket } = await res.json();
+      if (ac.signal.aborted) break;
 
-      const wt = new WebTransport(`${endpoint}?ticket=${encodeURIComponent(ticket)}`);
-      ac.signal.addEventListener('abort', () => safeClose(wt), { once: true });
-      await wt.ready;
+      wt = new WebTransport(`${endpoint}?ticket=${encodeURIComponent(ticket)}`);
+      const conn = wt;
+      // ready / closed は誰かが必ず握っておく。握らないと、接続中に close() された
+      // とき（ページ遷移で cleanup が走る等）に "Uncaught (in promise)
+      // WebTransportError: close() called on WebTransport while connecting" になる。
+      // await 側でも拾うが、closed は誰も待たないので no-op で握る。
+      conn.ready.catch(() => {});
+      conn.closed.catch(() => {});
+      // 離脱時は接続中でも即閉じる（上の catch がその拒否を無害化する）。
+      onAbort = () => safeClose(conn);
+      ac.signal.addEventListener('abort', onAbort, { once: true });
+
+      await conn.ready;
+      if (ac.signal.aborted) break;
       // つながった。待ちを最短に戻す。
       backoff = BASE_BACKOFF;
 
-      await readStreams(wt, onStatus, ac.signal);
+      await readStreams(conn, onStatus, ac.signal);
     } catch {
       // 切れたら下でひと呼吸おいて繋ぎ直す。
+    } finally {
+      if (onAbort) ac.signal.removeEventListener('abort', onAbort);
+      if (wt) safeClose(wt);
     }
 
     if (ac.signal.aborted) break;
