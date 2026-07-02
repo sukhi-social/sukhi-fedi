@@ -212,7 +212,8 @@
     <!-- 駅たち -->
     <circle class="station terminus" cx="100" cy="160" r="8" />
     <text class="lbl" x="100" y="138" text-anchor="middle">{$t('map.you')}</text>
-    <circle class="port-ring" cx="280" cy="160" r="12" />
+    <!-- 宇宙港の敷地。旅客の丸から貨物船ターミナルまで、ひとつの枠で包む -->
+    <rect class="port-ring" x="268" y="148" width="24" height="60" rx="12" />
     <circle class="station" cx="280" cy="160" r="6" />
     <text class="lbl" x="280" y="120" text-anchor="middle">{$t('map.port')}</text>
     <!-- 検問所は駅(丸)ではなく、おもて口線をまたぐ関所のバー。
