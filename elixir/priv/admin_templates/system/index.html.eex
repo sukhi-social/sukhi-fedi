@@ -7,5 +7,5 @@
 </p>
 
 <div hx-get="/admin/system/sample" hx-trigger="every 2s" hx-swap="innerHTML">
-<%= SukhiFedi.Web.Admin.Render.render_template("system/sample.html.eex", metrics: metrics) %>
+<%= SukhiFedi.Web.Admin.Render.render_template("system/sample.html.eex", metrics: metrics, wt_relay: wt_relay) %>
 </div>

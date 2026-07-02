@@ -11,17 +11,21 @@ defmodule SukhiFedi.Web.Admin.SystemController do
   a timer, not per request.
   """
 
-  alias SukhiFedi.SystemMetrics
+  alias SukhiFedi.{SystemMetrics, WtRelayTelemetry}
   alias SukhiFedi.Web.Admin.Render
 
   def index(conn) do
     Render.send_page(conn, "system/index.html.eex",
       page_title: "System",
-      metrics: SystemMetrics.snapshot()
+      metrics: SystemMetrics.snapshot(),
+      wt_relay: WtRelayTelemetry.snapshot()
     )
   end
 
   def sample(conn) do
-    Render.send_fragment(conn, "system/sample.html.eex", metrics: SystemMetrics.snapshot())
+    Render.send_fragment(conn, "system/sample.html.eex",
+      metrics: SystemMetrics.snapshot(),
+      wt_relay: WtRelayTelemetry.snapshot()
+    )
   end
 end

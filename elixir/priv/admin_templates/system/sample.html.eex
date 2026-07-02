@@ -62,3 +62,42 @@
   </tbody>
 </table>
 </div>
+
+<h2>WebTransport edge — L4 (wt-relay, x64)</h2>
+<p class="muted">
+  udp/443 を暗号の手前で数えた値。別の箱の relay が 5&thinsp;s ごとに NATS で送ります。
+  packets/s と new-flows/s の比が大きいほど正規の接続、1 に近いほど scan / spoof の型です。
+</p>
+<%
+  fmt = fn v -> if is_number(v), do: :erlang.float_to_binary(v * 1.0, decimals: 1), else: "—" end
+  find = fn table -> wt_relay && Enum.find(wt_relay.routes, fn r -> r["table"] == table end) end
+  raw = find.("raw")
+  mangle = find.("mangle")
+  age = wt_relay && wt_relay.received_at && System.system_time(:second) - wt_relay.received_at
+%>
+<%= if wt_relay do %>
+<div class="grid-cards">
+  <div class="card">
+    <div class="label">Packets/s (raw)</div>
+    <div class="n"><%= fmt.(raw && raw["pps"]) %></div>
+    <div class="muted"><%= fmt.(raw && raw["bps"] && raw["bps"] / 1024) %> KiB/s</div>
+  </div>
+  <div class="card">
+    <div class="label">New flows/s</div>
+    <div class="n"><%= fmt.(mangle && mangle["pps"]) %></div>
+    <div class="muted">mangle · conntrack NEW</div>
+  </div>
+  <div class="card">
+    <div class="label">conntrack</div>
+    <div class="n"><%= wt_relay.conntrack || "—" %></div>
+    <div class="muted">同時 UDP フロー総数</div>
+  </div>
+  <div class="card">
+    <div class="label">最終報告</div>
+    <div class="n"><%= if age, do: "#{age}", else: "—" %><span style="font-size: 14px;"> s 前</span></div>
+    <div class="muted">古いままなら relay 停止／NATS 断</div>
+  </div>
+</div>
+<% else %>
+<p class="muted">relay からの報告がまだありません（relay 停止・NATS 未到達・addon 無効のいずれか）。</p>
+<% end %>

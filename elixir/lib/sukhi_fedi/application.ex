@@ -31,7 +31,12 @@ defmodule SukhiFedi.Application do
       # Records one host-resource row per interval into metric_samples so
       # the series accrues for offline analysis. :ignore (no-op) unless
       # :metrics sample_interval_ms is set — the test env leaves it off.
-      SukhiFedi.Metrics.Sampler
+      SukhiFedi.Metrics.Sampler,
+      # Holds the latest L4 telemetry snapshot the WebTransport edge relay
+      # (wt-relay, x64) publishes over NATS, for the /admin/system page. After
+      # the Gnat connection above; subscribes lazily and retries if NATS isn't
+      # up yet, so it never blocks boot.
+      SukhiFedi.WtRelayTelemetry
     ]
 
     children = core_children ++ SukhiFedi.Addon.Registry.children()
