@@ -82,17 +82,17 @@
     <path id="p-lightrail" class="track-light" d="M 612 152 Q 606 144 594 144 H 118 Q 108 144 103 152" />
     <text class="line-name muted" x="152" y="136">{$t('map.lightRail')}</text>
 
-    <!-- 進行方向の矢羽。線には乗せず、始点のわき・進行方向の右側に添える
-         (この地図は右側通行——東行きから見て対向線が左手にある配置)。
+    <!-- 進行方向の矢印。塗りの小さな三角を、線には乗せず、始点のわき・
+         進行方向の右側に(この地図は右側通行——対向線が左手にある配置)。
          WT だけは duplex なので両向きの一対 -->
-    <path class="dir use" d="M 126 165.5 L 134 169 L 126 172.5" />
-    <path class="dir muted" d="M 552 133.5 L 544 137 L 552 140.5" />
-    <path class="dir build" d="M 326 177.5 L 334 181 L 326 184.5" />
-    <path class="dir build" d="M 796 341.5 L 804 345 L 796 348.5" />
-    <path class="dir build" d="M 863 320 L 868 311 L 873 320" />
-    <path class="dir build" d="M 843 90 L 834 95 L 843 100" />
-    <path class="dir ink" d="M 234 463 L 226 468 L 234 473" />
-    <path class="dir ink" d="M 242 463 L 250 468 L 242 473" />
+    <path class="dir use" d="M 126 164.5 L 134 169 L 126 173.5 Z" />
+    <path class="dir muted" d="M 552 132.5 L 544 137 L 552 141.5 Z" />
+    <path class="dir build" d="M 326 176.5 L 334 181 L 326 185.5 Z" />
+    <path class="dir build" d="M 796 340.5 L 804 345 L 796 349.5 Z" />
+    <path class="dir build" d="M 863.5 320 L 868 311 L 872.5 320 Z" />
+    <path class="dir build" d="M 840 84.5 L 831 89 L 840 93.5 Z" />
+    <path class="dir ink" d="M 234 463.5 L 226 468 L 234 472.5 Z" />
+    <path class="dir ink" d="M 242 463.5 L 250 468 L 242 472.5 Z" />
 
     <!-- 島のきわ。ここから先は連合宇宙(星は飾りだけれど、宇宙はほんとう) -->
     <path class="frontier" d="M 852 78 V 138 M 852 182 V 445" />
@@ -106,16 +106,23 @@
          入りは宇宙港(Cloudflare)に着いて、おもて口線で gateway へ -->
     <path id="p-fedout-rail" class="track build" d="M 779 336 H 842" />
     <path id="p-route-out" class="route" d="M 854 328 Q 888 246 879 132" />
-    <!-- 入りの航路は、旅客の丸(宇宙港)ではなく貨物船ターミナルに降りる -->
-    <path id="p-route-in" class="route" d="M 866 112 Q 560 30 300 160" />
+    <!-- 入りの航路は、旅客の丸(宇宙港)ではなく貨物船ターミナルに降りる。
+         港の上空を越えて、左まわりに四分円で降下して、ターミナルの左舷へ -->
+    <path id="p-route-in" class="route" d="M 866 112 Q 560 20 300 100 Q 238 112 236 152 Q 234 190 271 196" />
     <!-- 貨物急行: 宇宙港に着いた連合の便は、Anubis の検問所に止まらず gateway へ。
          実配線どおり(/inbox 等は Anubis の素通しリスト)。検問所の下を抜ける複線 -->
-    <path id="p-express" class="track build" d="M 290 168 Q 296 172 304 172 H 588 Q 604 172 610 166" />
+    <!-- 宇宙港のすぐ下に貨物船ターミナル。線形は 宇宙港-(下)->ターミナル
+         -(上右へ丸く)->gateway -->
+    <path class="track build" d="M 280 174 V 189" />
+    <path
+      id="p-express"
+      class="track build"
+      d="M 287 196 Q 310 196 314 184 Q 317 172 336 172 H 588 Q 604 172 610 166"
+    />
     <text class="line-name build" x="430" y="188">{$t('map.express')}</text>
-    <!-- 宇宙港の貨物船ターミナル。旅客の丸のとなり、貨物急行の始点 -->
-    <rect class="dock" x="296" y="164" width="14" height="14" rx="2" />
-    <text class="lbl-sub" x="303" y="196" text-anchor="middle">{$t('map.freightTerminal')}</text>
-    <text class="line-name build" x="530" y="66">{$t('map.lineFed')}</text>
+    <rect class="dock" x="273" y="190" width="14" height="14" rx="2" />
+    <text class="lbl-sub" x="280" y="218" text-anchor="middle">{$t('map.freightTerminal')}</text>
+    <text class="line-name build" x="600" y="56">{$t('map.lineFed')}</text>
 
     <!-- WT 新幹線(試運転中): あなた → karutte(x64) → WireGuard 専用線 → WT ホーム -->
     <path id="p-wt" class="track wt" d="M 100 166 V 480 H 578 Q 600 480 600 458 V 428" />
@@ -146,7 +153,7 @@
     <text class="lbl" x="100" y="138" text-anchor="middle">{$t('map.you')}</text>
     <circle class="port-ring" cx="280" cy="160" r="12" />
     <circle class="station" cx="280" cy="160" r="6" />
-    <text class="lbl" x="280" y="136" text-anchor="middle">{$t('map.port')}</text>
+    <text class="lbl" x="280" y="120" text-anchor="middle">{$t('map.port')}</text>
     <!-- 検問所は駅(丸)ではなく、おもて口線をまたぐ関所のバー。
          下の貨物急行には届かない=連合の便は検問を受けない -->
     <path class="checkpoint" d="M 450 151 V 169" />
@@ -432,25 +439,22 @@
     stroke-linecap: round;
   }
 
-  /* 進行方向の矢羽。線の色をうすめて、そっと */
+  /* 進行方向の矢印。塗りの三角で、線の色のまま、はっきりと */
   .dir {
-    fill: none;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    opacity: 0.5;
+    stroke: none;
+    opacity: 0.85;
   }
   .dir.use {
-    stroke: var(--color-use);
+    fill: var(--color-use);
   }
   .dir.build {
-    stroke: var(--color-build);
+    fill: var(--color-build);
   }
   .dir.muted {
-    stroke: var(--color-text-muted);
+    fill: var(--color-text-muted);
   }
   .dir.ink {
-    stroke: var(--color-text);
+    fill: var(--color-text);
   }
 
   .dock {
