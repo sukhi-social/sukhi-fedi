@@ -149,7 +149,10 @@
 {#if loggedIn}
   <header class="app-nav">
     <div class="wrap app-nav-row">
-      <a class="app-nav-name" href="/timeline">sukhi-fedi</a>
+      <a class="app-nav-name" href="/timeline">
+        <img class="app-nav-mark" src="/favicon.png" alt="" width="64" height="64" />
+        sukhi-fedi
+      </a>
       <nav class="nav-top" aria-label={$t('nav.label')}>
         {#each flowTop as item (item.key)}{@render flowLink(item)}{/each}
 
