@@ -461,6 +461,20 @@ defmodule SukhiFedi.Web.Router do
     serve_static(conn, ["favicon.ico"])
   end
 
+  # Site icon — handwritten 好 (くろ lives inside it). Also the
+  # /api/v2/instance thumbnail.
+  get "/favicon.png" do
+    serve_static(conn, ["favicon.png"])
+  end
+
+  get "/apple-touch-icon.png" do
+    serve_static(conn, ["apple-touch-icon.png"])
+  end
+
+  get "/icon-512.png" do
+    serve_static(conn, ["icon-512.png"])
+  end
+
   get "/api/nodeinfo" do
     if nodeinfo_monitor_enabled?(),
       do: ViewerController.nodeinfo_lookup(conn, []),
