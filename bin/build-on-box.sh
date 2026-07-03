@@ -32,6 +32,7 @@ build_one() {
   local name="$1" ctx file
   case "$name" in
     gateway)        ctx="."             file="elixir/Dockerfile"        ;;
+    combined)       ctx="."             file="combined/Dockerfile"      ;;
     delivery)       ctx="delivery"      file="delivery/Dockerfile"      ;;
     api)            ctx="."             file="api/Dockerfile"           ;;
     bun)            ctx="bun"           file="bun/Dockerfile"           ;;
