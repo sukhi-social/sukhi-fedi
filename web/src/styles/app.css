@@ -139,8 +139,10 @@ main.wrap {
 }
 
 /* 名前の左の印(手書きの「好」)。行は baseline 揃えなので flex にせず、
-   インライン画像を少し沈めて文字と目線を合わせる。角丸は画像に焼き込み済み。 */
+   インライン画像を少し沈めて文字と目線を合わせる。角丸は画像に焼き込み済み。
+   base.css のリセットが img を block にするので、ここだけ inline に戻す。 */
 .app-nav-mark {
+  display: inline-block;
   width: 1.25em;
   height: 1.25em;
   vertical-align: -0.3em;
