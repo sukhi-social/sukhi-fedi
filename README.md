@@ -4,8 +4,10 @@ Federated SNS server. Mastodon/Misskey API compatible.
 Elixir gateway + Elixir delivery node + distributed-Erlang api plugin,
 coordinated by PostgreSQL + NATS JetStream. ActivityPub translation
 (JSON-LD, HTTP Signatures) runs natively in Elixir (`SukhiFedi.Fedi`); the
-original Bun/Fedify NATS Micro worker is retired in production (v0.3.0) and
-kept only for the dev stack and golden fixtures.
+original Bun/Fedify NATS Micro worker is retired (v0.3.0) — no compose stack
+starts it anymore; it's kept behind a `disabled` profile as a rollback path
+and as the oracle for golden fixtures. A SvelteKit SPA (`web/`)
+ships bundled — built to static files and served by the gateway.
 
 ## 📖 Documentation
 
@@ -15,6 +17,10 @@ document and the code. Read it first.
 
 - [`docs/ADDONS.md`](docs/ADDONS.md) — addon ABI contract (how to pick,
   write, or distribute feature addons)
+- [`web/README.md`](web/README.md) — the bundled SvelteKit SPA (dev server,
+  build, e2e)
+- [`docs/anubis.md`](docs/anubis.md) — the proof-of-work bot gate that sits
+  in front of the gateway
 - [`TODO.md`](TODO.md) — punch list of work deferred from the
   Mastodon-API MVP push; pick anything off it
 - [`SETUP.md`](SETUP.md) — self-host deployment with docker compose + Watchtower
@@ -22,12 +28,17 @@ document and the code. Read it first.
 ## Quick start
 
 ```bash
-# Full dev stack (Postgres, NATS w/ JetStream, gateway, delivery, bun, api)
+# Full dev stack (Postgres, NATS w/ JetStream, gateway, delivery, api, anubis)
 docker-compose up -d
 # → Gateway         http://localhost:4000
+# → Anubis gate     http://localhost:8080  (PoW gate → gateway)
 # → Gateway metrics http://localhost:4000/metrics  (scrape externally)
 # → Delivery metrics http://localhost:4001/metrics (scrape externally)
 ```
+
+The SPA is served by the gateway from `elixir/priv/static`. For frontend work,
+run the Vite dev server separately (`cd web && npm run dev` → http://localhost:5173,
+proxies API calls to the gateway).
 
 ## Running tests
 
@@ -44,6 +55,10 @@ cd bun && bun test
 # Type check (bun-agnostic via tsc)
 cd bun && bun run check
 
+# Web SPA — type check and end-to-end
+cd web && npm run check
+cd web && npm run test:e2e   # Playwright
+
 # Integration tests (needs docker-compose.test.yml stack)
 docker-compose -f docker-compose.test.yml up -d
 cd elixir && mix test --only integration
@@ -53,11 +68,14 @@ cd elixir && mix test --only integration
 
 | Layer      | Responsibility                                                           |
 | ---------- | ------------------------------------------------------------------------ |
-| Gateway    | HTTP ingress (Mastodon/Misskey API, inbox, WebFinger, NodeInfo), outbox writes |
+| Gateway    | HTTP ingress (inbox, WebFinger, NodeInfo, OAuth/session), Outbox write side, routes `/api/*` → API |
+| API        | REST plugin node (`:sukhi_api` BEAM app); Mastodon/Misskey client APIs, `:rpc`-invoked from the gateway, capabilities auto-register |
 | Delivery   | Outbox.Relay, Oban delivery & federation queues, outbound inbox POSTs    |
-| Bun        | NATS Micro service (JSON-LD build, HTTP Signature, verify) — **retired in prod** (v0.3.0), now served natively by `SukhiFedi.Fedi`; dev stack & golden fixtures only |
+| Web        | SvelteKit SSG SPA (`web/`); built to static files, served by the gateway from `priv/static` |
+| Bun        | NATS Micro service (JSON-LD build, HTTP Signature, verify) — **retired** (v0.3.0), now served natively by `SukhiFedi.Fedi`; no compose stack starts it (`disabled` profile), kept for rollback & golden fixtures |
 | PostgreSQL | System of record; shared `outbox` / `delivery_receipts` / `oban_jobs`    |
 | NATS       | JetStream `OUTBOX` + `DOMAIN_EVENTS`; Micro service `fedify`             |
+| Anubis     | Proof-of-work bot gate in front of the gateway; challenges HTML navigation, allow-lists federation/API/static |
 | PromEx     | Prometheus metrics at `/metrics` (gateway :4000, delivery :4001)         |
 
 See §2 of `ARCHITECTURE.md` for the responsibility split rationale.
