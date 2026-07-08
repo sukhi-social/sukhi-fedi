@@ -10,7 +10,7 @@ set -euo pipefail
 USERNAME="${1:-shiro_mudita}"
 DISPLAY_NAME="${2:-$USERNAME}"
 SCOPES="read write follow"
-HOST="${DEPLOY_HOST:-rocky@217.142.242.103}"
+HOST="rocky@${DEPLOY_HOST:?set DEPLOY_HOST to the box ip/hostname}"
 CONTAINER="${DEPLOY_CONTAINER:-sukhi-fedi-gateway}"
 OUTPUT_FILE="${HOME}/.sukhi-fedi-${USERNAME}-credentials"
 

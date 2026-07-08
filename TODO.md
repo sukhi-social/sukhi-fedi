@@ -40,9 +40,6 @@ files are complementary: TODO is "do this", OPEN_QUESTIONS is
       は相手 outbox を fetch しない (Mastodon 標準ではある)。
       UX として「フォローしたのに静か」が痒い。意図的後回し。
       ([memory: sukhi-fedi-follow-backfill](../.claude/projects/-Users-nyanrus--shiro/memory/sukhi-fedi-follow-backfill.md))
-- [ ] **`config/deploy.yml` の IP ハードコード × 6.**
-      `217.142.242.103` が 6 箇所。YAML anchor (`&primary` +
-      `*primary`) で 1 か所に。
 - [ ] **`MEDIA_DIR` 残骸.** `lib/.../web/router.ex:117-120` の
       コメントと `media.ex` の moduledoc がまだ `MEDIA_DIR
       (default priv/static/uploads)` を語っている。rustfs 移行で

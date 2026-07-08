@@ -14,7 +14,8 @@ test-pglite:
 test-e2e:
 	cd web && npx playwright test $(ARGS)
 
-DEPLOY_HOST ?= 217.142.242.103
+# export DEPLOY_HOST=<box ip or hostname> before the deploy targets.
+DEPLOY_HOST ?=
 DEPLOY_USER ?= rocky
 STATIC_DIR  ?= /var/lib/sukhi-fedi/static
 

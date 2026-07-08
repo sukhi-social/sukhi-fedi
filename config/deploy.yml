@@ -30,17 +30,19 @@
 #
 # ── Before first deploy ─────────────────────────────────────────────────────
 # 1. Wait for cloud-init to finish installing Docker on the box:
-#       ssh rocky@217.142.242.103 'docker --version'
+#       ssh rocky@$DEPLOY_HOST 'docker --version'
 #    succeeds → ready.
-# 2. Set the env vars referenced in `.kamal/secrets` in your shell or
-#    in a tool like direnv / 1Password CLI before running deploy.
+# 2. Export DEPLOY_HOST=<box ip or hostname> — this file reads it via ERB
+#    (`<%= ENV["DEPLOY_HOST"] %>`) so the address is never committed. Also
+#    set the env vars referenced in `.kamal/secrets` in your shell or in a
+#    tool like direnv / 1Password CLI before running deploy.
 # 3. No registry PAT needed ─ images are built on the box (bin/build-on-box.sh)
 #    and pushed to the box-local registry (127.0.0.1:5000). Put its basic-auth
 #    pass in `.kamal/secrets` as `REGISTRY_PASSWORD=` (htpasswd user `sukhi`).
 # 4. Generate the Anubis cookie-signing key once and put it in
 #    `.kamal/secrets` as `ANUBIS_ED25519_KEY=`:
 #       openssl rand -hex 32
-# 5. DNS: A record `sukhi.f3liz.casa` → 217.142.242.103.
+# 5. DNS: A record `sukhi.f3liz.casa` → $DEPLOY_HOST.
 # 6. First-time bring-up sequence:
 #       kamal server bootstrap         # Docker on box (no-op if already there)
 #       kamal proxy boot               # kamal-proxy + Let's Encrypt
@@ -115,7 +117,7 @@ ssh:
 servers:
   web:
     hosts:
-      - 217.142.242.103
+      - <%= ENV["DEPLOY_HOST"] %>
     options:
       hostname: anubis
       network-alias: anubis
@@ -182,7 +184,7 @@ accessories:
   # rolling, so the latest semver-tagged release picks up.
   gateway:
     image: 127.0.0.1:5000/sukhi-fedi-gateway:v0
-    host: 217.142.242.103
+    host: <%= ENV["DEPLOY_HOST"] %>
     env:
       clear:
         DB_HOST: sukhi-fedi-postgres
@@ -247,7 +249,7 @@ accessories:
 
   postgres:
     image: postgres:16-alpine
-    host: 217.142.242.103
+    host: <%= ENV["DEPLOY_HOST"] %>
     # Bind to loopback, not 0.0.0.0 — the app containers reach postgres by
     # its kamal network alias, so the host port is only for local ops and
     # must not be internet-reachable. (Docker's publish bypasses firewalld,
@@ -282,7 +284,7 @@ accessories:
 
   nats:
     image: nats:2-alpine
-    host: 217.142.242.103
+    host: <%= ENV["DEPLOY_HOST"] %>
     # Loopback only — NATS is unauthenticated and carries the federation
     # OUTBOX + DOMAIN_EVENTS bus; it must never be internet-reachable. App
     # containers reach it by network alias. (See also: add token/nkey auth
@@ -304,7 +306,7 @@ accessories:
   #   kamal accessory remove nats-bootstrap   # optional cleanup
   nats-bootstrap:
     image: 127.0.0.1:5000/sukhi-fedi-nats-bootstrap:v0
-    host: 217.142.242.103
+    host: <%= ENV["DEPLOY_HOST"] %>
     env:
       clear:
         NATS_URL: nats://sukhi-fedi-nats:4222
@@ -324,7 +326,7 @@ accessories:
   # bind-mount dir のままでは書けない。
   rustfs:
     image: rustfs/rustfs:1.0.0-beta.8
-    host: 217.142.242.103
+    host: <%= ENV["DEPLOY_HOST"] %>
     env:
       clear:
         RUSTFS_VOLUMES: /data
@@ -347,7 +349,7 @@ accessories:
   # Drop this whole block once the native service has burned in.
   bun:
     image: 127.0.0.1:5000/sukhi-fedi-bun:v0
-    host: 217.142.242.103
+    host: <%= ENV["DEPLOY_HOST"] %>
     env:
       clear:
         NATS_URL: nats://sukhi-fedi-nats:4222
@@ -362,7 +364,7 @@ accessories:
   # consistently >0 — change `host:` to a list of multiple hosts.
   delivery:
     image: 127.0.0.1:5000/sukhi-fedi-delivery:v0
-    host: 217.142.242.103
+    host: <%= ENV["DEPLOY_HOST"] %>
     env:
       clear:
         DOMAIN: sukhi.f3liz.casa
@@ -389,7 +391,7 @@ accessories:
   # node name `api@api` resolves from the gateway via `PLUGIN_NODES`.
   api:
     image: 127.0.0.1:5000/sukhi-fedi-api:v0
-    host: 217.142.242.103
+    host: <%= ENV["DEPLOY_HOST"] %>
     env:
       clear:
         RELEASE_DISTRIBUTION: sname

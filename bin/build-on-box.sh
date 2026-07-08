@@ -21,7 +21,7 @@
 # committed なツリーだけ送る（未コミットの変更は乗らない）。
 set -euo pipefail
 
-BOX=rocky@217.142.242.103
+BOX="rocky@${DEPLOY_HOST:?set DEPLOY_HOST to the box ip/hostname}"
 REG=127.0.0.1:5000
 REGUSER=sukhi                       # techo の registry container に相乗り、user は分ける
 SHA=$(git rev-parse HEAD)
