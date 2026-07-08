@@ -15,9 +15,12 @@ follow remote actors, and receive posts from any compatible fediverse
 server.
 
 Design north star: **one Elixir gateway + one Elixir delivery node +
-one stateless Bun worker fleet + one distributed-Erlang plugin node**,
-coordinated by **PostgreSQL (system of record) + NATS (event plane)**.
-Nothing else is a hard dependency.
+one distributed-Erlang plugin node**, coordinated by **PostgreSQL
+(system of record) + NATS (event plane)**. Nothing else is a hard
+dependency. ActivityPub JSON-LD + HTTP-Signature work is served
+in-process by `SukhiFedi.Fedi` over NATS Micro (the `fedify.*.v1`
+subjects); the Bun worker that used to own that slice is retired
+(v0.3.0), kept only for rollback and golden fixtures.
 
 ## 2. Boundary lines
 
@@ -49,7 +52,7 @@ Nothing else is a hard dependency.
                 ┌──────────────┼────────────────┐
                 ▼                               ▼
  ╔══════════════════════════════════╗  ╔═════════════════════════════╗
- ║      Bun — 翻訳家 + 印鑑職人      ║  ║  api — REST plugin node     ║
+ ║  SukhiFedi.Fedi 翻訳家+印鑑職人  ║  ║  api — REST plugin node     ║
  ║  NATS Micro service "fedify"     ║  ║  (:sukhi_api, BEAM node)    ║
  ║    fedify.translate.v1           ║  ║  :rpc-invoked from gateway  ║
  ║    fedify.sign.v1                ║  ║  Mastodon / Misskey APIs    ║
@@ -61,10 +64,18 @@ Nothing else is a hard dependency.
  ╚══════════════════════════════════╝  ╚═════════════════════════════╝
 ```
 
+Since **v0.3.0** the left-bottom box (「翻訳家 + 印鑑職人」) runs **natively in
+Elixir as `SukhiFedi.Fedi`**, in-process on the gateway (and delivery). It
+answers the same `fedify.*.v1` NATS Micro subjects on the same `fedify-workers`
+queue group, so the topology above is unchanged — only the responder moved from
+a Bun sidecar into the BEAM. The Bun worker under `bun/` is retired, kept as a
+rollback path and as the oracle that mints the golden fixtures the native port
+is checked against. Read "Bun" below as "the `fedify` service", now native.
+
 Rules enforced by this split:
 
-1. **Only the gateway speaks HTTP to users.** Bun has no HTTP server; the
-   delivery node speaks HTTP only outbound to remote inboxes.
+1. **Only the gateway speaks HTTP to users.** The `fedify` service has no HTTP
+   server; the delivery node speaks HTTP only outbound to remote inboxes.
 2. **Only the gateway writes to the core schema** (notes, follows,
    outbox row inserts, …). The delivery node reads `outbox`, `accounts`,
    `follows`, `relays` and writes `delivery_receipts` — a narrow,
@@ -77,8 +88,9 @@ Rules enforced by this split:
 4. **Gateway ↔ Delivery is Postgres + NATS.** No distributed Erlang on
    that edge. Distributed Erlang is reserved for the `api/` plugin node,
    which needs synchronous request/reply for Mastodon REST.
-5. **Bun owns JSON-LD + HTTP Signature only.** Fedify's opinionated
-   ActivityPub handling is exactly this slice, so we lean on it there.
+5. **The `fedify` service owns JSON-LD + HTTP Signature only.** That narrow
+   slice is now served natively by `SukhiFedi.Fedi`; the retired Bun port
+   (built on Fedify) is byte-checked against it via golden fixtures.
 6. **Mastodon/Misskey REST runs on the api plugin node**, reached via
    distributed Erlang `:rpc` — no HTTP hop, no JSON-over-NATS envelope.
 
@@ -201,7 +213,9 @@ sukhi-fedi/
 │   ├── mix.exs
 │   └── Dockerfile
 │
-├── bun/                                   # 翻訳家 + 印鑑職人
+├── bun/                                   # 翻訳家 + 印鑑職人 (RETIRED v0.3.0;
+│   │                                         served natively by SukhiFedi.Fedi.
+│   │                                         kept for rollback + golden fixtures)
 │   ├── services/fedify_service.ts         # ★ NATS Micro service (only entrypoint)
 │   ├── handlers/
 │   │   ├── build/{note,follow,accept,announce,actor,dm,collection_op,
@@ -334,10 +348,12 @@ sns.<context>.<aggregate>.<op>[.<variant>]
 | `sns.events.timeline.home.updated` | pub       | timeline-updater (addon)                    | streaming-fanout             |
 | `sns.events.notification.mention`  | pub       | inbox handler                               | streaming-fanout             |
 
-### 4.3 NATS Micro services (Bun-side)
+### 4.3 NATS Micro service (`fedify`)
 
-Service name: `fedify`, version `0.2.0`, queue group `fedify-workers`.
-Multiple Bun replicas auto-share load.
+Service name: `fedify`, queue group `fedify-workers`. Served natively by
+`SukhiFedi.Fedi` in-process on each gateway, so replicas auto-share load; the
+retired Bun worker answered these same endpoints and can be brought back on the
+same queue group for rollback.
 
 | Endpoint              | Request                                                       | Response                                 |
 | --------------------- | ------------------------------------------------------------- | ---------------------------------------- |
@@ -869,8 +885,11 @@ Custom metrics to emit as we build each feature:
 
 ### Dev stack
 ```bash
-docker-compose up -d        # postgres + nats + nats-bootstrap + gateway + bun + api + watchtower
-# http://localhost:4000             — Elixir gateway
+# postgres + nats + nats-bootstrap + gateway + delivery + api (bun is retired,
+# behind the `disabled` profile). See the README quick start for the minimal
+# .env + build-from-source override that makes this reachable on the host.
+docker-compose up --build
+# http://localhost:4000             — Elixir gateway (SPA + Mastodon API)
 # http://localhost:4000/metrics     — PromEx (scrape externally)
 ```
 
@@ -900,14 +919,14 @@ cd bun && bun run check
 
 ## 12. Horizontal scale posture
 
-- Elixir and Bun are designed to be **stateless** — all state lives in
-  Postgres or NATS. `mix release` + `docker compose up --scale
-  gateway=N` adds gateway replicas; identical Bun containers
-  auto-load-balance via the NATS Micro queue group `fedify-workers`.
+- The BEAM nodes are **stateless** — all state lives in Postgres or
+  NATS. `mix release` + `docker compose up --scale gateway=N` adds
+  gateway replicas; the native `fedify.*.v1` service runs in each and
+  auto-load-balances via the NATS Micro queue group `fedify-workers`.
 - `Outbox.Relay`'s `FOR UPDATE SKIP LOCKED` makes running multiple
   relay instances safe — each claims a disjoint batch.
 - ETS caches (WebFinger JRDs, remote actor fetches, imported CryptoKeys
-  on Bun) are **node-local**; misses fall back to Postgres or a remote
+  in the fedify service) are **node-local**; misses fall back to Postgres or a remote
   HTTP fetch, so cache inconsistency across nodes is harmless.
 - Future `SUKHI_ROLE=inbox|api|worker|all` env switch lets a single
   image start with different supervision subtrees, so a node can

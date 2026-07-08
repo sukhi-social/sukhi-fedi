@@ -4,32 +4,27 @@
 
 ## Requirements
 
-| Tool             | Version                        |
-| ---------------- | ------------------------------ |
-| Elixir           | ~> 1.16                        |
-| OTP              | 26+ (bundled with Elixir 1.16) |
-| Bun              | 1.x                            |
-| PostgreSQL       | 16                             |
-| NATS             | 2 (JetStream enabled)          |
-| Docker + Compose | any recent version             |
+| Tool             | Version                              |
+| ---------------- | ------------------------------------ |
+| Elixir           | ~> 1.20                              |
+| OTP              | 27 (bundled with Elixir 1.20)        |
+| PostgreSQL       | 16                                   |
+| NATS             | 2 (JetStream enabled)                |
+| Docker + Compose | any recent version                   |
+| Bun              | 1.x — only for `bun/` fixtures/rollback (retired in prod, v0.3.0) |
 
 ---
 
 ## Quick Start (Docker Compose)
 
-The fastest way to run the full stack locally.
+The fastest way to kick the tires — build the app images from source and run
+the full stack locally, depending on no published images. The exact recipe
+(minimal `.env`, the build-from-source override, the one `docker compose up
+--build`) lives in the [repo README](README.md#quick-start--try-it-locally).
 
-```bash
-docker compose up
-```
-
-Then run migrations:
-
-```bash
-docker compose exec elixir bin/sukhi_fedi eval 'SukhiFedi.Release.migrate()'
-```
-
-The app is available at `http://localhost:4000`.
+Migrations run automatically inside the gateway entrypoint on every boot, and
+the SvelteKit SPA is baked into the gateway image — nothing to run by hand.
+The app is at `http://localhost:4000` (the override publishes the port).
 
 To tear down including volumes:
 
@@ -48,27 +43,36 @@ docker compose down -v
 docker compose up postgres nats
 ```
 
+The base compose doesn't publish these to the host. For `mix` running on the
+host, either add a `ports:` mapping (`5432:5432` / `4222:4222`) via an override,
+or use `docker-compose.test.yml` (which publishes `15432` / `14222`) and point
+`DB_*` / `NATS_*` at those ports.
+
 ### 2. Elixir
 
 ```bash
 cd elixir
 mix deps.get
 mix ecto.create
-mix ecto.migrate
+mix sukhi.migrate       # walks core + enabled addons' migration dirs
 iex -S mix
 ```
 
-### 3. Bun
+Note: the project needs Elixir 1.20; if your shell default is older, prefix
+mix with `mise exec elixir@1.20.0 --`.
 
-```bash
-cd bun
-bun install
-bun run start
-```
+### 3. The `fedify` service
 
-The `fedify` NATS Micro service connects to `nats://localhost:4222`
-by default. It exposes endpoints `fedify.{ping,translate,sign,verify,inbox}.v1`
-on the queue group `fedify-workers` — no HTTP listener.
+There is no separate process to start. The `fedify.{ping,translate,sign,
+verify,inbox}.v1` NATS Micro service — JSON-LD translation and HTTP-Signature
+sign/verify — is served **natively in Elixir by `SukhiFedi.Fedi`**, in-process
+on the gateway, on the queue group `fedify-workers` (no HTTP listener). It
+starts with the gateway above.
+
+The Bun worker under `bun/` that used to answer these subjects is retired
+(v0.3.0); it's kept only for rollback and as the oracle that mints the golden
+fixtures the native port is checked against. To run it (e.g. to regenerate
+fixtures): `cd bun && bun install && bun run start`.
 
 ---
 
@@ -86,15 +90,13 @@ on the queue group `fedify-workers` — no HTTP listener.
 | `NATS_HOST`                   | NATS host                   | `127.0.0.1`             |
 | `NATS_PORT`                   | NATS port                   | `4222`                  |
 | `PORT`                        | HTTP listen port            | `4000`                  |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry collector URL | `http://localhost:4318` |
+| `DOMAIN`                      | Public hostname (no scheme) | `localhost:4000` (dev); **required in prod** |
+| `ERLANG_COOKIE`               | Distributed-Erlang secret; the entrypoint refuses to boot on the dev default | `sukhi_fedi_dev_cookie` (dev only) |
+| `SECRET_KEY_BASE`             | Admin session signing key   | dev default; **required in prod** (`openssl rand -hex 64`) |
+| `ENABLED_ADDONS` / `DISABLE_ADDONS` | Addon selection (all three layers) | `all` / _(empty)_ |
 
-### Bun
-
-| Variable          | Description                                    | Default (dev)           |
-| ----------------- | ---------------------------------------------- | ----------------------- |
-| `NATS_URL`        | NATS broker URL                                | `nats://localhost:4222` |
-| `ENABLED_ADDONS`  | Comma list of enabled addon ids, or `all`      | `all`                   |
-| `DISABLE_ADDONS`  | Comma list of disabled addon ids               | _(empty)_               |
+Observability is OpenTelemetry-free by design (see ARCHITECTURE §9), so there
+is no OTLP endpoint to configure.
 
 ---
 
@@ -185,14 +187,19 @@ Copy this repo (or the `sukhi-fedi-starter` skeleton) to the VM and set
 `.env` with a version pin and any feature toggles:
 
 ```
-SUKHI_REPO_OWNER=nyanrus
-SUKHI_VERSION=v1            # :v1 for rolling minor updates, :v1.2.3 for pinned
+SUKHI_REPO_OWNER=f3liz-casa  # where the published images live
+SUKHI_VERSION=v0             # :v0 rolls with each patch release; pin :v0.1.x to freeze
 DOMAIN=example.tld
-ERLANG_COOKIE=<long random string>
-ENABLED_ADDONS=all          # or a comma list: mastodon_api,streaming,moderation
-ADDON_PRESETS=              # optional bundle: mastodon_compatible,server_version_watcher
+ERLANG_COOKIE=<openssl rand -hex 32>
+SECRET_KEY_BASE=<openssl rand -hex 64>
+ENABLED_ADDONS=all           # or a comma list: mastodon_api,streaming,moderation
+ADDON_PRESETS=               # optional bundle: mastodon_compatible,server_version_watcher
 WATCHTOWER_POLL_INTERVAL=3600
 ```
+
+> The maintainer's own instance (`sukhi.f3liz.casa`) deploys via Kamal from a
+> separate private repo (`sukhi-social/sukhi-deploy`); this section describes
+> the generic docker-compose + Watchtower self-host path.
 
 Then:
 
@@ -207,38 +214,43 @@ boot and subsequent upgrades are symmetric.
 ### Upgrades
 
 Nothing to do. Watchtower polls GHCR every `WATCHTOWER_POLL_INTERVAL`
-seconds, pulls the new image when the `:v1` / `:v1.2` / `:v1.2.3` tag
-you pinned moves, and recreates `gateway` / `api` / `bun` containers.
+seconds, pulls the new image when the `:v0` / `:v0.1` / `:v0.1.2` tag
+you pinned moves, and recreates `gateway` / `api` containers.
 Stateful `postgres` / `nats` containers are left alone.
 
 To force an upgrade immediately:
 
 ```bash
-docker compose pull gateway api bun
-docker compose up -d gateway api bun
+docker compose pull gateway api
+docker compose up -d gateway api
 ```
 
 To pin a specific version (opt out of auto-update):
 
 ```bash
 # in .env
-SUKHI_VERSION=v1.2.3
+SUKHI_VERSION=v0.1.2
 ```
 
 ### Logs
 
 ```bash
 docker compose logs -f gateway
-docker compose logs -f bun api
+docker compose logs -f api
 ```
 
 ---
 
-## Scaling Bun Workers
+## Scaling
 
-NATS Micro queue-groups the Bun fleet on `fedify-workers`, so adding
-replicas is automatic:
+The app nodes are stateless — all state lives in Postgres and NATS — so scale
+by adding gateway replicas:
 
 ```bash
-docker compose up -d --scale bun=3
+docker compose up -d --scale gateway=3
 ```
+
+The native `fedify.*.v1` service runs in-process on each gateway and shares the
+`fedify-workers` NATS Micro queue group, so it scales with the gateways
+automatically. `Outbox.Relay`'s `FOR UPDATE SKIP LOCKED` likewise lets multiple
+delivery instances cooperate, each claiming a disjoint batch.
