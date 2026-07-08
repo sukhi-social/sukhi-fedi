@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Kamal deploy skeleton — a starting point, not a working config.
+#
+# The maintained deploy config for the reference instance lives in a private
+# repo (topology, TLS, secrets). This file only sketches the shape so you can
+# roll your own. For the generic, self-host path prefer the compose stacks at
+# the repo root (docker-compose.yml and friends) — Kamal here is one operator's
+# choice, not a requirement.
+#
+# Copy to config/deploy.yml, fill in your own values, and keep the address out
+# of git: this file reads the host via ERB from $DEPLOY_HOST, and secrets come
+# from .kamal/secrets (gitignored) — the required vars are listed at the bottom.
+
+service: sukhi-fedi
+
+# Kamal's "web role" is whatever the proxy points at. The reference deploy
+# puts Anubis (the PoW gate) there; it forwards to the gateway behind it.
+image: sukhi-fedi-anubis
+builder:
+  arch: arm64
+
+# Box-local registry (built on the box by bin/build-on-box.sh, which stays in
+# the software repo because it ships the source tree there to build).
+registry:
+  server: 127.0.0.1:5000
+  username: sukhi
+  password:
+    - REGISTRY_PASSWORD
+
+ssh:
+  user: rocky
+
+servers:
+  web:
+    hosts:
+      - <%= ENV["DEPLOY_HOST"] %>   # export DEPLOY_HOST=<box ip or hostname>
+    options:
+      hostname: anubis
+
+proxy:
+  ssl:
+    certificate_pem: TLS_CERT
+    private_key_pem: TLS_KEY
+  host: example.com                 # your domain
+  app_port: 8080
+
+# The real config also defines accessories: gateway, delivery, api, postgres,
+# nats, nats-bootstrap, rustfs. Each accessory can move to its own host by
+# changing its `host:` field — that's the "scale by adding servers" axis.
+#
+# Required secrets: REGISTRY_PASSWORD,
+# POSTGRES_PASSWORD, DB_PASS, ERLANG_COOKIE, SECRET_KEY_BASE, RUSTFS_ACCESS_KEY,
+# RUSTFS_SECRET_KEY, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, SMTP_USERNAME,
+# SMTP_PASSWORD, TLS_CERT, TLS_KEY.
