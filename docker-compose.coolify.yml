@@ -128,7 +128,10 @@ services:
         limits:
           memory: 2G
 
+  # Retired in production (v0.3.0) — served natively by SukhiFedi.Fedi in the
+  # gateway. Not started; kept behind the `disabled` profile for rollback.
   bun:
+    profiles: ["disabled"]
     image: ghcr.io/${SUKHI_REPO_OWNER:-nyanrus}/sukhi-fedi-bun:${SUKHI_VERSION:-v0}
     environment:
       NATS_URL: nats://nats:4222

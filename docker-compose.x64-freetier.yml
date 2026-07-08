@@ -115,11 +115,9 @@ services:
         limits:
           memory: 192M
 
+  # Retired (v0.3.0); served natively by SukhiFedi.Fedi. Kept off.
   bun:
-    deploy:
-      resources:
-        limits:
-          memory: 128M
+    profiles: ["disabled"]
 
   api:
     profiles: ["disabled"]

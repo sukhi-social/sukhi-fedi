@@ -89,7 +89,13 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # Retired in production (v0.3.0). The native SukhiFedi.Fedi service inside
+  # the gateway answers all fedify.*.v1 subjects now, so this container is
+  # not started. Kept behind the `disabled` profile as a rollback path and
+  # as the oracle for golden fixtures — bring it back with
+  # `docker-compose --profile disabled up bun` if ever needed.
   bun:
+    profiles: ["disabled"]
     image: ghcr.io/${SUKHI_REPO_OWNER:-nyanrus}/sukhi-fedi-bun:${SUKHI_VERSION:-v1}
     logging: *logging
     environment:

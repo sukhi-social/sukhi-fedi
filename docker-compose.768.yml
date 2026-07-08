@@ -48,9 +48,9 @@
 # Parity caveat: SukhiFedi.Fedi covers core sign/verify/translate (45
 # golden tests green). A few fedify-family interop FEPs are still TODO in
 # the module (FEP-8b32 Ed25519 proofs, FEP-521a Multikey, FEP-044f quote
-# round-trip). If you federate with peers that require those, keep Bun
-# until parity lands — use docker-compose.combined.yml alone (Bun on,
-# its 160 MiB back, so size up to ~1 GB).
+# round-trip). If you federate with peers that require those, bring Bun
+# back for the interim — `docker-compose --profile disabled up bun` — and
+# size up to ~1 GB for its ~160 MiB floor.
 #
 # The api (Mastodon/Misskey REST) node stays disabled to fit the budget.
 

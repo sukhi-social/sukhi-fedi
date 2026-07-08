@@ -98,13 +98,10 @@ services:
   delivery:
     profiles: ["disabled"]
 
+  # Retired (v0.3.0); the combined image answers fedify.*.v1 natively via
+  # SukhiFedi.Fedi. Kept off — matches the base compose.
   bun:
-    # Measured floor ~100 MiB resident; a 120M cap OOM-killed it after
-    # ~10 min of load. Do not set this below 160M.
-    deploy:
-      resources:
-        limits:
-          memory: 192M
+    profiles: ["disabled"]
 
   api:
     environment:
