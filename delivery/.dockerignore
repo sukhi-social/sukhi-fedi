@@ -1,0 +1,4 @@
+# delivery/ is its own build context. deps and _build are rebuilt inside.
+_build
+deps
+.elixir_ls

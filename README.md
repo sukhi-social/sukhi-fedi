@@ -25,20 +25,42 @@ document and the code. Read it first.
   Mastodon-API MVP push; pick anything off it
 - [`SETUP.md`](SETUP.md) — self-host deployment with docker compose + Watchtower
 
-## Quick start
+## Quick start — try it locally
+
+Build the app images from source and run the whole stack on your machine. No
+published images needed — only Postgres and NATS come from upstream bases.
 
 ```bash
-# Full dev stack (Postgres, NATS w/ JetStream, gateway, delivery, api, anubis)
-docker-compose up -d
-# → Gateway         http://localhost:4000
-# → Anubis gate     http://localhost:8080  (PoW gate → gateway)
-# → Gateway metrics http://localhost:4000/metrics  (scrape externally)
-# → Delivery metrics http://localhost:4001/metrics (scrape externally)
+# 1. Minimal env — a local domain and two random secrets. The entrypoint
+#    fail-closes on a missing cookie, and the release reads SECRET_KEY_BASE
+#    at boot, so both must be real values.
+cat > .env <<EOF
+DOMAIN=localhost:4000
+ERLANG_COOKIE=$(openssl rand -hex 32)
+SECRET_KEY_BASE=$(openssl rand -hex 64)
+EOF
+
+# 2. Build-from-source override: builds gateway/delivery/api/nats-bootstrap,
+#    publishes the gateway port, and skips the prod-only anubis/watchtower.
+#    Both .env and docker-compose.override.yml are gitignored.
+cp docker-compose.override.example.yml docker-compose.override.yml
+
+# 3. Build and bring it up. The first build is slow — the SPA plus four
+#    Elixir prod releases.
+docker-compose up --build
 ```
 
-The SPA is served by the gateway from `elixir/priv/static`. For frontend work,
-run the Vite dev server separately (`cd web && npm run dev` → http://localhost:5173,
-proxies API calls to the gateway).
+Then open **http://localhost:4000** — the SvelteKit SPA, and the Mastodon API
+underneath (`/api/v1/instance`, …). Migrations and the NATS streams are created
+automatically on boot, and the SPA is baked into the gateway image, so there's
+nothing else to run.
+
+Federating with other servers needs a public domain + TLS and is out of scope
+for a local trial. For a real self-host deploy — pulling published images, with
+Anubis and Watchtower — see [`SETUP.md`](SETUP.md).
+
+For frontend work, run the Vite dev server separately (`cd web && npm run dev`
+→ http://localhost:5173, proxies API calls to the gateway).
 
 ## Running tests
 

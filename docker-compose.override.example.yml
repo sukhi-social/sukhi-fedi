@@ -1,0 +1,40 @@
+# Local trial override — build the sukhi-fedi app images from source instead
+# of pulling published images. Copy to docker-compose.override.yml (gitignored,
+# auto-loaded by compose), then `docker compose up --build`.
+#
+# Only postgres and nats stay as upstream base images — nothing to build there.
+# anubis (a third-party PoW gate) and watchtower (a prod auto-updater) are
+# skipped for the trial; you hit gateway:4000 directly.
+#
+# The four builds are prod releases and take a while the first time.
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: elixir/Dockerfile
+    ports:
+      - "4000:4000"                                   # reach it from the host
+    environment:
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?set SECRET_KEY_BASE in .env}
+
+  delivery:
+    build:
+      context: delivery
+      dockerfile: delivery/Dockerfile
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+
+  nats-bootstrap:
+    build:
+      context: infra/nats
+      dockerfile: infra/nats/Dockerfile
+
+  # Not needed for a local trial — skip to avoid the third-party pulls.
+  anubis:
+    profiles: ["disabled"]
+  watchtower:
+    profiles: ["disabled"]

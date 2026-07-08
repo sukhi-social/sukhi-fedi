@@ -1,0 +1,29 @@
+# Keep the build context small and secret-free. The Dockerfiles copy source
+# selectively and run `mix deps.get` / `npm run build` inside, so none of the
+# artifacts, deps, or local secrets below are needed in the context.
+
+# VCS & tooling
+.git
+.github
+.claude
+
+# Local env & secrets — never ship these to the build daemon
+.env
+.env.*
+.kamal/secrets
+config/tls
+
+# Build artifacts & fetched deps (rebuilt inside the image)
+**/_build
+**/deps
+**/.elixir_ls
+**/node_modules
+web/build
+web/.svelte-kit
+web/test-results
+web/playwright-report
+
+# Not consumed by any image build
+docs
+analysis
+docker-compose.override.yml
