@@ -16,9 +16,11 @@ Misskey互換のAPIを喋るよ。ローカルにログインして、Noteを投
 
 設計の北極星：
 **案内人（ゲートウェイ）と配達員（delivery ノード）の Elixir ノードが別々 +
-Bun ワーカー群（ステートレス） + 分散Erlang のプラグインノード**、
-それを **PostgreSQL（真実の源）と NATS（イベントの通り道）** で束ねる。
-それ以外は必須依存にしない、って決めてる。
+分散Erlang のプラグインノード**、それを **PostgreSQL（真実の源）と
+NATS（イベントの通り道）** で束ねる。それ以外は必須依存にしない、って決めてる。
+ActivityPub の JSON-LD と HTTP 署名は `SukhiFedi.Fedi` が BEAM の中で
+（`fedify.*.v1` の subject 越しに）まかなう。昔そこを担ってた Bun ワーカーは
+退役（v0.3.0）── ロールバックとゴールデンフィクスチャ用に残してあるだけ。
 
 ## 2. 誰がなにを持ってるの？
 
@@ -50,7 +52,7 @@ Bun ワーカー群（ステートレス） + 分散Erlang のプラグインノ
                 ┌──────────────┼─────────────────┐
                 ▼                                ▼
  ╔══════════════════════════════════╗  ╔═════════════════════════════╗
- ║      Bun — 翻訳家 + 印鑑職人      ║  ║   api — REST プラグインノード ║
+ ║  SukhiFedi.Fedi 翻訳家+印鑑職人  ║  ║   api — REST プラグインノード ║
  ║  NATS Micro サービス "fedify"    ║  ║  （:sukhi_api、BEAMノード） ║
  ║    fedify.translate.v1           ║  ║  ゲートウェイから :rpc で叩く ║
  ║    fedify.sign.v1                ║  ║  Mastodon / Misskey API     ║
@@ -62,10 +64,18 @@ Bun ワーカー群（ステートレス） + 分散Erlang のプラグインノ
  ╚══════════════════════════════════╝  ╚═════════════════════════════╝
 ```
 
+**v0.3.0** から、左下のボックス（「翻訳家 + 印鑑職人」）は **Elixir ネイティブの
+`SukhiFedi.Fedi`** としてゲートウェイ（と delivery）の中で動くよ。同じ
+`fedify.*.v1` を同じ `fedify-workers` キューグループで応答するから、上の図の
+トポロジーは変わらない ── 応答する主が Bun サイドカーから BEAM の中に
+移っただけ。`bun/` の Bun ワーカーは退役、ロールバックと、ネイティブ移植を
+突き合わせるゴールデンフィクスチャの母型として温存。以下で「Bun」って
+書いてあるのは「`fedify` サービス（＝いまはネイティブ）」と読んでね。
+
 この分け方で守ってるお約束:
 
-1. **ユーザー向け HTTP はゲートウェイだけが喋る**。Bun は HTTP サーバーなし、
-   delivery は外向きの inbox POST だけ。
+1. **ユーザー向け HTTP はゲートウェイだけが喋る**。`fedify` サービスは HTTP
+   サーバーなし、delivery は外向きの inbox POST だけ。
 2. **コアスキーマに書き込むのはゲートウェイだけ**（notes, follows, outbox 挿入…）。
    delivery は `outbox / accounts / follows / relays` を読み、
    `delivery_receipts` に書く — 狭くて安定した射影。
@@ -76,7 +86,9 @@ Bun ワーカー群（ステートレス） + 分散Erlang のプラグインノ
 4. **ゲートウェイ ↔ delivery の通信は Postgres と NATS だけ**。この境界に
    分散 Erlang は引かない。分散 Erlang を使うのは `api/` プラグインノードだけ
    — Mastodon REST の同期応答がほしいから。
-5. **Bun は JSON-LD と HTTP 署名だけ担当**。Fedify の得意な領域がちょうどここ。
+5. **`fedify` サービスは JSON-LD と HTTP 署名だけ担当**。その狭い領域を今は
+   `SukhiFedi.Fedi` がネイティブに提供。退役した Bun 版（Fedify製）は
+   ゴールデンフィクスチャでバイト単位に突き合わせて検証してる。
 6. **Mastodon/Misskey REST は api プラグインノードで動く**。ゲートウェイとは
    分散 Erlang の `:rpc` で繋がる — HTTPホップなし、NATSエンベロープなし。
 
@@ -164,7 +176,9 @@ sukhi-fedi/
 │   ├── mix.exs
 │   └── Dockerfile
 │
-├── bun/                                   # 翻訳家 + 印鑑職人
+├── bun/                                   # 翻訳家 + 印鑑職人（退役 v0.3.0。
+│   │                                         SukhiFedi.Fedi がネイティブに提供。
+│   │                                         ロールバック + ゴールデンフィクスチャ用）
 │   ├── services/fedify_service.ts         # ★ NATS Micro サービス本体（唯一のエントリ）
 │   ├── handlers/
 │   │   ├── build/{note,follow,accept,announce,actor,dm,collection_op,
@@ -275,10 +289,12 @@ sns.<コンテキスト>.<集約>.<操作>[.<バリアント>]
 | `sns.events.timeline.home.updated` | pub  | timeline-updater (addon)                     | streaming-fanout                    |
 | `sns.events.notification.mention`  | pub  | inbox ハンドラ                               | streaming-fanout                    |
 
-### 4.3 NATS Micro サービス（Bun側）
+### 4.3 NATS Micro サービス（`fedify`）
 
-サービス名 `fedify`、バージョン `0.2.0`、キューグループ `fedify-workers`。
-Bunのレプリカを増やすとNATS Microが自動でロードバランスしてくれる。
+サービス名 `fedify`、キューグループ `fedify-workers`。各ゲートウェイの中で
+`SukhiFedi.Fedi` がネイティブに応答するから、レプリカを増やせば自動で
+ロードバランス。退役した Bun ワーカーも同じエンドポイントを話すので、
+ロールバック時は同じキューグループに戻せるよ。
 
 | エンドポイント         | リクエスト                                                   | レスポンス                          |
 | ---------------------- | ------------------------------------------------------------ | ----------------------------------- |
@@ -761,8 +777,11 @@ Plugパイプラインを動かしてないので、自前の `SukhiApi.Multipar
 
 ### 開発用スタック
 ```bash
-docker-compose up -d   # postgres + nats + nats-bootstrap + gateway + bun + api + watchtower
-# http://localhost:4000             — Elixir ゲートウェイ
+# postgres + nats + nats-bootstrap + gateway + delivery + api（bun は退役、
+# `disabled` プロファイルの裏）。ホストから届かせる最小の .env と
+# ソースビルドの override は README のクイックスタート参照。
+docker-compose up --build
+# http://localhost:4000             — Elixir ゲートウェイ（SPA + Mastodon API）
 # http://localhost:4000/metrics     — PromEx（外からスクレイプしてね）
 ```
 
@@ -792,14 +811,14 @@ cd bun && bun run check
 
 ## 12. 水平スケールの姿勢
 
-- ElixirもBunも **ステートレス**設計 — 状態は全部PostgresかNATSに。
+- BEAM ノードは **ステートレス**設計 — 状態は全部PostgresかNATSに。
   `mix release` + `docker compose up --scale gateway=N` でゲートウェイ
-  複製が増える。Bunコンテナを複製すると NATS Micro のキューグループ
-  `fedify-workers` で自動ロードバランス。
+  複製が増える。ネイティブの `fedify.*.v1` はその各ノードの中で動いて、
+  NATS Micro のキューグループ `fedify-workers` で自動ロードバランス。
 - `Outbox.Relay` の `FOR UPDATE SKIP LOCKED` のおかげで複数リレーを
   同時に走らせても安全（各自が別のバッチを取る）。
-- ETSキャッシュ（WebFinger JRD、リモートactor fetch、Bunのimport済み
-  CryptoKey）は **ノードローカル**。ミスしたらPostgresかHTTP fetchに
+- ETSキャッシュ（WebFinger JRD、リモートactor fetch、fedify サービスの
+  import済み CryptoKey）は **ノードローカル**。ミスしたらPostgresかHTTP fetchに
   フォールバックするから、ノード間でキャッシュがズレても壊れない。
 - 将来の `SUKHI_ROLE=inbox|api|worker|all` スイッチが入ると、
   同じイメージのまま起動するサブツリーを切り替えられる。例えば
