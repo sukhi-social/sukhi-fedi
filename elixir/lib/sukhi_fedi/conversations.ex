@@ -19,6 +19,7 @@ defmodule SukhiFedi.Conversations do
 
   import Ecto.Query
 
+  alias SukhiFedi.Notes.Read
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.{Account, ConversationParticipant, Note}
 
@@ -36,7 +37,7 @@ defmodule SukhiFedi.Conversations do
       []
     else
       convo_ids = Map.keys(rows)
-      last_notes = last_note_per_conversation(convo_ids, limit, opts)
+      last_notes = last_note_per_conversation(convo_ids, limit, opts, viewer_id)
       other_accounts = other_participants(convo_ids, viewer_id)
 
       Enum.map(last_notes, fn note ->
@@ -100,7 +101,14 @@ defmodule SukhiFedi.Conversations do
 
           %{
             account_id: me.account_id,
-            entry: %{id: me.id, unread: me.unread, accounts: others, last_status: note}
+            entry: %{
+              id: me.id,
+              unread: me.unread,
+              accounts: others,
+              # 参加者ごとに解決する。viewer で変わるのは自分の票の印だけなので、
+              # 一人ぶんを使い回すと、他の人に「その人の票」が見えてしまう。
+              last_status: Read.with_refs(note, me.account_id)
+            }
           }
         end)
     end
@@ -128,10 +136,10 @@ defmodule SukhiFedi.Conversations do
       |> Enum.reject(&(&1.account_id == viewer_id))
       |> Enum.map(& &1.account)
 
-    %{id: cp.id, unread: cp.unread, accounts: others, last_status: note}
+    %{id: cp.id, unread: cp.unread, accounts: others, last_status: Read.with_refs(note, viewer_id)}
   end
 
-  defp last_note_per_conversation(convo_ids, limit, opts) do
+  defp last_note_per_conversation(convo_ids, limit, opts, viewer_id) do
     # Take the newest note per conversation_ap_id, then page by note id.
     sub =
       from n in Note,
@@ -151,6 +159,11 @@ defmodule SukhiFedi.Conversations do
     |> limit(^limit)
     |> Repo.all()
     |> Repo.preload([:account, :media, :tags])
+    # `last_status` は Mastodon の契約では完全な Status。`with_refs/2` を
+    # 通さないと in_reply_to_id / 引用 / 投票が落ちたまま互換クライアントへ
+    # 出ていく(単体の GET /api/v1/statuses/:id は通しているので、同じ note が
+    # 口によって違う形で見える)。viewer は自分の票の印にだけ効く。
+    |> Read.with_refs(viewer_id)
   end
 
   defp latest_note(conversation_ap_id) do

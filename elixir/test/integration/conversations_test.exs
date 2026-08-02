@@ -73,6 +73,31 @@ defmodule SukhiFedi.Integration.ConversationsTest do
       # Per-account id: each side sees a different id for the same thread.
       assert a_convo.id != b_convo.id
     end
+
+    test "last_status carries in_reply_to_id" do
+      alice = create_account!("alice_cv_ir")
+      bob = create_account!("bob_cv_ir")
+
+      {:ok, parent} =
+        Notes.create_status(alice, %{"status" => "@bob_cv_ir hi", "visibility" => "direct"})
+
+      {:ok, reply} =
+        Notes.create_status(bob, %{
+          "status" => "@alice_cv_ir hey",
+          "visibility" => "direct",
+          "in_reply_to_id" => to_string(parent.id)
+        })
+
+      [convo] = Conversations.list(alice.id)
+      assert convo.last_status.id == reply.id
+
+      # Mastodon's Conversation holds a *full* Status. `GET /api/v1/statuses/:id`
+      # fills these through `Read.with_refs/2`; the conversations path used to
+      # skip it, so a client saw the same note with a null `in_reply_to_id`
+      # depending on which endpoint it came from.
+      assert convo.last_status.in_reply_to_id == parent.id
+      assert convo.last_status.in_reply_to_account_id == alice.id
+    end
   end
 
   describe "mark_read/2" do
@@ -126,6 +151,31 @@ defmodule SukhiFedi.Integration.ConversationsTest do
       bob_entry = by_account[bob.id]
       assert bob_entry.unread == true
       assert [%{username: "alice_cv_f"}] = bob_entry.accounts
+    end
+
+    test "every entry's last_status carries in_reply_to_id" do
+      # The streamed `conversation` payload goes to the same Mastodon clients
+      # as the fetched one, so it has to be the same shape.
+      alice = create_account!("alice_cv_fr")
+      bob = create_account!("bob_cv_fr")
+
+      {:ok, parent} =
+        Notes.create_status(alice, %{"status" => "@bob_cv_fr hi", "visibility" => "direct"})
+
+      {:ok, reply} =
+        Notes.create_status(bob, %{
+          "status" => "@alice_cv_fr hey",
+          "visibility" => "direct",
+          "in_reply_to_id" => to_string(parent.id)
+        })
+
+      entries = Conversations.fanout_entries(reply.conversation_ap_id)
+      assert length(entries) == 2
+
+      for %{entry: entry} <- entries do
+        assert entry.last_status.id == reply.id
+        assert entry.last_status.in_reply_to_id == parent.id
+      end
     end
   end
 
