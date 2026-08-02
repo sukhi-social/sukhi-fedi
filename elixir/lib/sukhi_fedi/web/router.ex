@@ -398,6 +398,13 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  # 個別の会話。lists と同型で、ここを足し忘れるとアプリ内クリックは
+  # SvelteKit が捌くのに直リンク / リロードだけ 404 になる。`:id` は viewer の
+  # conversation_participants 行 id(SPA 側が URL から読む)。
+  get "/messages/:id" do
+    serve_spa(conn)
+  end
+
   get "/notifications" do
     serve_spa(conn)
   end
