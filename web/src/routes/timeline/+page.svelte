@@ -5,7 +5,6 @@
   import { warmAvatars } from '$lib/avatarWarm';
   import { isLoggedIn, clearToken } from '$lib/auth';
   import { autoRetry, isConnectivityError } from '$lib/connection';
-  import { composeRequest } from '$lib/compose';
   import StatusCard from '$lib/components/Status.svelte';
   import Composer from '$lib/components/Composer.svelte';
   import TimelineFilter from '$lib/components/TimelineFilter.svelte';
@@ -21,21 +20,6 @@
   let replyTo = $state<Status | null>(null);
   let quoteOf = $state<Status | null>(null);
   let composerOpen = $state(false);
-
-  function openCompose() {
-    replyTo = null;
-    quoteOf = null;
-    composerOpen = true;
-  }
-
-  // ヘッダーの「書く」から。開いたら 0 に戻す(戻さないと、あとで
-  // このページに来直したときにまた開いてしまう)。
-  $effect(() => {
-    if ($composeRequest > 0) {
-      composeRequest.set(0);
-      openCompose();
-    }
-  });
 
   function onReply(s: Status) {
     replyTo = s;

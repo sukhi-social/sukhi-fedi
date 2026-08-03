@@ -405,6 +405,10 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  get "/compose" do
+    serve_spa(conn)
+  end
+
   get "/notifications" do
     serve_spa(conn)
   end

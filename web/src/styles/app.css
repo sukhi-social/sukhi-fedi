@@ -804,6 +804,19 @@ button:disabled {
   min-height: calc(4lh + var(--space-4));
 }
 
+/* 「書く」の面。ほかに何も無い一枚なので、枠で囲わない ── 面そのものが
+   composer なのに、その中でもう一度箱を描くと、輪郭が二重になる。
+   (図解の頁が言う「塗りと枠は片方だけ」の、入れ子版。) */
+.composer.composer-page {
+  border: 0;
+  padding: 0;
+  margin-bottom: var(--space-6);
+}
+
+.composer.composer-page textarea.grows {
+  min-height: calc(8lh + var(--space-4));
+}
+
 .composer-reply {
   display: flex;
   justify-content: space-between;

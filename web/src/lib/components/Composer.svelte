@@ -42,6 +42,10 @@
     //   ・入力が伸びる。長い文を書く場所なので
     //   ・書きかけを、この会話の名前で覚える
     dmConversationId = null,
+    // 「書く」の面に置くとき。ほかに何も無い一枚なので、枠で囲わず、
+    // 入力を大きく取る ── 面そのものが composer なので、面の中でもう一度
+    // 箱を描く必要がない。
+    page = false,
     onposted,
     oncancel
   }: {
@@ -50,6 +54,7 @@
     prefillMention?: boolean;
     prefillRecipients?: string[] | null;
     dmConversationId?: string | null;
+    page?: boolean;
     onposted?: (s: Status) => void;
     oncancel?: () => void;
   } = $props();
@@ -270,6 +275,7 @@
 
 <form
   class="composer"
+  class:composer-page={page}
   onsubmit={(e) => {
     e.preventDefault();
     void submit();
@@ -312,9 +318,9 @@
   <label class="stack-tight">
     <span class="visually-hidden">{$t('compose.bodyLabel')}</span>
     <textarea
-      class:grows={dm}
+      class:grows={dm || page}
       bind:value={text}
-      rows={dm ? 4 : replyTo ? 3 : 4}
+      rows={dm ? 4 : page ? 8 : replyTo ? 3 : 4}
       placeholder={replyTo ? $t('compose.placeholderReply') : $t('compose.placeholderNew')}
     ></textarea>
   </label>

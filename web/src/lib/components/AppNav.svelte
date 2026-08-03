@@ -20,7 +20,6 @@
   import { goto, afterNavigate } from '$app/navigation';
   import { isLoggedIn, signOutServer } from '$lib/auth';
   import Avatar from './Avatar.svelte';
-  import { requestCompose } from '$lib/compose';
   import { currentAccount, type Account } from '$lib/api';
   import {
     directUnseen,
@@ -37,21 +36,21 @@
   type FlowItem = {
     key: TranslationKey;
     icon: IconName;
-  } & ({ href: string } | { action: 'compose' });
+    href: string;
+  };
 
   const home: FlowItem = { href: '/timeline', key: 'nav.home', icon: 'home' };
   const notif: FlowItem = { href: '/notifications', key: 'nav.notifications', icon: 'bell' };
   const messages: FlowItem = { href: '/messages', key: 'nav.messages', icon: 'mail' };
   const search: FlowItem = { href: '/search', key: 'nav.search', icon: 'search' };
-  const compose: FlowItem = { action: 'compose', key: 'nav.compose', icon: 'compose' };
+  // 「書く」は自分の面を持つようになった。前はここだけ action で、
+  // /timeline へ移ってから store で合図し、流れの上に composer を開いて
+  // いた ── いまはただのリンク。
+  const compose: FlowItem = { href: '/compose', key: 'nav.compose', icon: 'compose' };
 
   // 上の帯の流れ(書くを先頭に)。下の帯は親指の並び(書くを中央に)。
   const flowTop: FlowItem[] = [compose, home, notif, messages, search];
   const flowBottom: FlowItem[] = [home, search, compose, notif, messages];
-
-  function hrefOf(item: FlowItem): string | null {
-    return 'href' in item ? item.href : null;
-  }
 
   let loggedIn = $state(false);
   let me = $state<Account | null>(null);
@@ -91,11 +90,6 @@
     return parts.length > 0 ? parts.join(' / ') : null;
   });
 
-  async function doCompose() {
-    if (page.url.pathname !== '/timeline') await goto('/timeline');
-    requestCompose();
-  }
-
   async function signOut() {
     await signOutServer();
     loggedIn = false;
@@ -104,11 +98,11 @@
   }
 </script>
 
-<!-- 流れの一項目。リンク or「書く」ボタン。通知だけ未見の指標を抱える。 -->
+<!-- 流れの一項目。どれもただのリンク(「書く」も /compose を持つように
+     なったので、ここに分岐は無い)。通知だけ未見の指標を抱える。 -->
 {#snippet flowLink(item: FlowItem)}
-  {@const href = hrefOf(item)}
+  {@const href = item.href}
   {@const isNotif = href === '/notifications'}
-  {#if href}
     <a
       class="nav-link nav-flow"
       {href}
@@ -125,12 +119,6 @@
         {/if}
       </span>
     </a>
-  {:else}
-    <button type="button" class="nav-link nav-flow nav-compose" onclick={doCompose}>
-      <NavIcon name={item.icon} />
-      <span class="nav-text"><span class="nav-label">{$t(item.key)}</span></span>
-    </button>
-  {/if}
 {/snippet}
 
 <!-- ドロップダウンの中の一行(行き先リンク)。 -->
