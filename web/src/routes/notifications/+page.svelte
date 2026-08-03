@@ -225,14 +225,24 @@
     gap: var(--space-2);
     margin-bottom: var(--space-2);
   }
+  /* 名前が長いと、この行は「◯◯」+「から返信がきました」で一文になる。
+     名前を折り返させると文が二行に割れて、何が起きたのかが読みにくい。
+     縮むのは名前のほう ── 意味を持っているのは後半なので。 */
   .notif-who {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     text-decoration: none;
     color: inherit;
+    min-width: 0;
+  }
+  .notif-who .display-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .notif-summary {
+    flex: none;
     color: var(--color-text-muted);
     font-size: var(--text-sm);
   }

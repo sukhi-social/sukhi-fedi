@@ -249,7 +249,12 @@
   <p class="loading">{$t('common.loading')}</p>
 {:else if account}
   <header class="profile-head">
-    {#if account.header}
+    <!-- バナーを置いていない人には、サーバが 1×1 の透明 PNG を data URI で
+         返す(Mastodon の慣習で、null にすると他のクライアントが転ぶ)。
+         そのまま出すと、width:100% と max-height:200px で **空の枠が
+         画面の四分の一**を占める。本物のバナーは必ず http(s) の URL なので、
+         data: で始まるものは「無い」と読む。 -->
+    {#if account.header && !account.header.startsWith('data:')}
       {@const v = proxyVariants(account.header)}
       <picture>
         {#if v}
