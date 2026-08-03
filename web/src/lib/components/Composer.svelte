@@ -12,7 +12,10 @@
     loadComposeDraft,
     saveComposeDraft,
     clearComposeDraft,
-    reconcileComposeDraft
+    reconcileComposeDraft,
+    loadDmDraft,
+    saveDmDraft,
+    clearDmDraft
   } from '$lib/compose-draft';
   import { goto } from '$app/navigation';
   import { t } from '$lib/i18n';
@@ -31,6 +34,14 @@
     // 入れると会話が黙って一対一に縮む。全員の acct を渡せばグループの
     // まま返せる。指定があるときは prefillMention より優先する。
     prefillRecipients = null,
+    // DM のスレッドに置くときの会話 id。渡すと DM モードになる:
+    //   ・可視性を direct に固定して、選ぶ口を出さない。いまは replyTo の
+    //     可視性から偶然 direct になっているだけで、人の手で public に
+    //     切り替えられる。DM のスレッドで公開に化けた一通は取り返せない
+    //   ・折りたたみ・注意書き・予約を畳む(DM では使わない)
+    //   ・入力が伸びる。長い文を書く場所なので
+    //   ・書きかけを、この会話の名前で覚える
+    dmConversationId = null,
     onposted,
     oncancel
   }: {
@@ -38,6 +49,7 @@
     quoteOf?: Status | null;
     prefillMention?: boolean;
     prefillRecipients?: string[] | null;
+    dmConversationId?: string | null;
     onposted?: (s: Status) => void;
     oncancel?: () => void;
   } = $props();
@@ -47,10 +59,18 @@
   // 拾う ─ untrack の中なので、あとのユーザ入力では読み直さない。
   const restored = untrack(() => (replyTo || quoteOf ? null : loadComposeDraft()));
 
+  // DM モードかどうか。以下ぜんぶ、この一つの値から決まる。
+  const dm = $derived(!!dmConversationId);
+
+  // DM の書きかけは会話ごとに、この端末だけで覚える(compose-draft.ts)。
+  // 覚えていたものがあれば、宛先の @ より優先して戻す ─ 書きかけには
+  // すでに @ が入っている。
+  const restoredDm = untrack(() => (dmConversationId ? loadDmDraft(dmConversationId) : ''));
+
   // 初期値だけ prop を見たい(あとはユーザが書き換える)ので untrack で
   // 拾う。これがないと state_referenced_locally の warning が出る。
   let text = $state(
-    untrack(() => restored?.text ?? initialMentionText())
+    untrack(() => restoredDm || restored?.text || initialMentionText())
   );
 
   // 返信の頭につける @ 言及。グループの宛先が渡されていればそれを全部、
@@ -67,8 +87,9 @@
   let spoiler = $state(untrack(() => restored?.spoiler ?? ''));
   let useSpoiler = $state(untrack(() => restored?.useSpoiler ?? false));
   let sensitive = $state(untrack(() => restored?.sensitive ?? false));
+  // DM では動かさない。選ぶ口も出さないので、ここが唯一の決まる場所。
   let visibility = $state<Visibility>(
-    untrack(() => restored?.visibility ?? replyTo?.visibility ?? 'public')
+    untrack(() => (dm ? 'direct' : (restored?.visibility ?? replyTo?.visibility ?? 'public')))
   );
   let media = $state<MediaAttachment[]>([]);
   let uploading = $state(false);
@@ -105,6 +126,18 @@
 
   // 書きながら、すこし手が止まったら覚える。トップの新規ノート専用。
   // 中身が空っぽになったら、覚えていたものは消す(空の下書きは残さない)。
+  // DM の書きかけ。会話ごとに、手が止まったら覚える。空になったら消す。
+  // サーバ同期は無いので、上の reconcile とは関わらない。
+  $effect(() => {
+    if (!dmConversationId) return;
+    const body = text;
+    const id = setTimeout(() => {
+      if (body.trim() === '') clearDmDraft(dmConversationId);
+      else saveDmDraft(dmConversationId, body);
+    }, 800);
+    return () => clearTimeout(id);
+  });
+
   $effect(() => {
     if (replyTo) return;
     const snapshot = { text, spoiler, useSpoiler, sensitive, visibility };
@@ -203,6 +236,7 @@
         scheduled_at: scheduledAt
       });
       // 送れた。フォームを空に戻して、覚えていた下書きも消す。
+      if (dmConversationId) clearDmDraft(dmConversationId);
       text = '';
       spoiler = '';
       useSpoiler = false;
@@ -278,8 +312,9 @@
   <label class="stack-tight">
     <span class="visually-hidden">{$t('compose.bodyLabel')}</span>
     <textarea
+      class:grows={dm}
       bind:value={text}
-      rows={replyTo ? 3 : 4}
+      rows={dm ? 4 : replyTo ? 3 : 4}
       placeholder={replyTo ? $t('compose.placeholderReply') : $t('compose.placeholderNew')}
     ></textarea>
   </label>
@@ -320,29 +355,33 @@
       />
     </label>
 
-    <label class="stack-tight">
-      <input type="checkbox" bind:checked={useSpoiler} />
-      <span>{$t('compose.fold')}</span>
-    </label>
+    <!-- DM では、どれも使わない。可視性の select は出さないだけでなく、
+         出してはいけない ─ 手が滑って公開に切り替わった一通は取り返せない。 -->
+    {#if !dm}
+      <label class="stack-tight">
+        <input type="checkbox" bind:checked={useSpoiler} />
+        <span>{$t('compose.fold')}</span>
+      </label>
 
-    <label class="stack-tight">
-      <input type="checkbox" bind:checked={sensitive} />
-      <span>{$t('compose.sensitive')}</span>
-    </label>
+      <label class="stack-tight">
+        <input type="checkbox" bind:checked={sensitive} />
+        <span>{$t('compose.sensitive')}</span>
+      </label>
 
-    <label class="stack-tight">
-      <input type="checkbox" bind:checked={useSchedule} />
-      <span>{$t('compose.schedule')}</span>
-    </label>
+      <label class="stack-tight">
+        <input type="checkbox" bind:checked={useSchedule} />
+        <span>{$t('compose.schedule')}</span>
+      </label>
 
-    <label class="stack-tight">
-      <span class="visually-hidden">{$t('compose.visLabel')}</span>
-      <select bind:value={visibility}>
-        {#each Object.entries(visLabels) as [v, label] (v)}
-          <option value={v}>{label}</option>
-        {/each}
-      </select>
-    </label>
+      <label class="stack-tight">
+        <span class="visually-hidden">{$t('compose.visLabel')}</span>
+        <select bind:value={visibility}>
+          {#each Object.entries(visLabels) as [v, label] (v)}
+            <option value={v}>{label}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
 
     <button type="submit" class="btn px-6 py-2" disabled={!canPost}>
       {posting ? $t('common.sending') : uploading ? $t('compose.uploading') : $t('compose.submit')}

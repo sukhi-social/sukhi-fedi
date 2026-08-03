@@ -798,6 +798,14 @@ button:disabled {
   gap: var(--space-3);
 }
 
+/* DM の入力。長い文を書く場所なので、書いたぶんだけ伸びる。上限は置かない
+   ── 途中でスクロールに切り替わると、書いている場所を見失う。
+   field-sizing が無いブラウザでは rows のまま(4 行)で、壊れはしない。 */
+.composer textarea.grows {
+  field-sizing: content;
+  min-height: calc(4lh + var(--space-4));
+}
+
 .composer-reply {
   display: flex;
   justify-content: space-between;

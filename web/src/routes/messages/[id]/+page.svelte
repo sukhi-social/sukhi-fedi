@@ -3,13 +3,13 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import {
-    getConversations,
-    getContext,
+    getConversationStatuses,
     markConversationRead,
     type Conversation,
     type Status
   } from '$lib/api';
   import { isLoggedIn, clearToken } from '$lib/auth';
+  import { createPager } from '$lib/pager.svelte';
   import { renderEmojis } from '$lib/emoji';
   import { phrase } from '$lib/phrase';
   import StatusCard from '$lib/components/Status.svelte';
@@ -17,47 +17,36 @@
   import { t } from '$lib/i18n';
 
   let convo = $state<Conversation | null>(null);
-  let messages = $state<Status[]>([]);
-  let loading = $state(true);
+  let loading = $state(false);
   let error = $state<string | null>(null);
+  let initial = $state(true);
 
   let id = $derived($page.params.id ?? '');
+
+  // 会話の中身は新しい順で来る。画面は古いものが上、いつもの会話の並び。
+  const pager = createPager<Status>((maxId) => getConversationStatuses(id, { maxId }));
+  let messages = $derived([...pager.items].reverse());
 
   onMount(() => {
     if (!isLoggedIn()) {
       void goto('/');
       return;
     }
-    void load();
+    void load(true);
   });
 
-  async function load() {
+  async function load(reset: boolean) {
+    if (loading) return;
     loading = true;
     error = null;
     try {
-      // 会話そのものを引く API はないので、一覧から自分の行を見つける。
-      // last_status を起点にスレッドの前後をつないで、ひと続きで出す。
-      const list = await getConversations({});
-      const c = list.items.find((x) => x.id === id) ?? null;
-      convo = c;
-
-      const seed = c?.last_status;
-      if (seed) {
-        const ctx = await getContext(seed.id);
-        messages = [...ctx.ancestors, seed, ...ctx.descendants];
-      } else {
-        messages = [];
+      if (reset) {
+        // 会話そのものを引く口は無いが、既読にする口が会話を返す。開いた
+        // ということは読んだということなので、ここで一度で足りる ── 一覧を
+        // 丸ごと引いて自分の行を探す必要も、もう無い。
+        convo = await markConversationRead(id);
       }
-
-      // 開いた時点でそっと既読に。印が同期できなくても表示は止めない。
-      if (c?.unread) {
-        try {
-          await markConversationRead(c.id);
-          convo = { ...c, unread: false };
-        } catch {
-          // 既読の同期失敗はそっとしておく。
-        }
-      }
+      await (reset ? pager.reset() : pager.more());
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       if (msg === 'unauthorized') {
@@ -68,6 +57,7 @@
       error = $t('common.deliverFailedRetry');
     } finally {
       loading = false;
+      initial = false;
     }
   }
 
@@ -84,8 +74,9 @@
   }
 
   function onPosted(s: Status) {
-    // 送れた返事は、その場でスレッドの末尾に足す。
-    messages = [...messages, s];
+    // 送れた返事は、その場でスレッドの末尾に足す。pager は新しい順なので
+    // 頭へ。
+    pager.items = [s, ...pager.items];
   }
 </script>
 
@@ -99,21 +90,30 @@
 <section class="timeline thread">
   {#if error}
     <p class="error">{error}</p>
-  {:else if loading}
+  {:else if initial && loading}
     <p class="loading">{$t('common.loading')}</p>
   {:else if messages.length === 0}
     <p class="prose-small">{$t('messages.threadEmpty')}</p>
   {:else}
+    <!-- 会話は上へ遡るもの。「もっと読む」は上に置く。 -->
+    {#if pager.hasMore && !loading && !pager.revealing}
+      <button class="load-more" onclick={() => load(false)}>{$t('common.loadMore')}</button>
+    {/if}
+    {#if !initial && (loading || pager.revealing)}
+      <p class="loading">{$t('common.loading')}</p>
+    {/if}
+
     {#each messages as s (s.id)}
       <StatusCard status={s} />
     {/each}
   {/if}
 </section>
 
-{#if lastStatus && !loading && !error}
+{#if lastStatus && !initial && !error}
   <Composer
     replyTo={lastStatus}
     prefillRecipients={recipients}
+    dmConversationId={id}
     onposted={onPosted}
   />
 {/if}

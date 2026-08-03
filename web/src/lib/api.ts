@@ -327,6 +327,24 @@ export async function getConversations(
   return page<Conversation>(await req('GET', `/api/v1/conversations?${pageQs(opts, 20)}`, 'conversations'));
 }
 
+// 会話の中身。新しい順、note id でページング。
+//
+// Mastodon には無い口(sukhi の追加)。会話は conversation_ap_id で束ねられて
+// いるので、返信鎖を歩かずに列として読める ── 深さの天井も、深さごとの
+// クエリも無い。鎖から外れた一通(スレッドの外から書かれた DM)も出る。
+export async function getConversationStatuses(
+  id: string,
+  opts: { maxId?: string | null; limit?: number } = {}
+): Promise<Page<Status>> {
+  return page<Status>(
+    await req(
+      'GET',
+      `/api/v1/conversations/${encodeURIComponent(id)}/statuses?${pageQs(opts, 30)}`,
+      'conversation_statuses'
+    )
+  );
+}
+
 export async function markConversationRead(id: string): Promise<Conversation> {
   return json(
     await req('POST', `/api/v1/conversations/${encodeURIComponent(id)}/read`, 'conversation_read', { json: {} })

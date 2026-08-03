@@ -64,6 +64,38 @@ export function clearComposeDraft(): void {
   if (isLoggedIn()) void deleteServerDraft().catch(() => {});
 }
 
+// ── DM の書きかけ ────────────────────────────────────────────────────────
+//
+//   sf.dm_draft.<conversation_id> — 本文だけ
+//
+// DM は全部が返信なので、上の下書き(トップの新規ノート専用)には乗らず、
+// 画面を離れると書きかけが消えていた。会話ごとに、この端末だけで覚える。
+//
+// **サーバとは同期しない。** 上の写しは「アカウントに下書きは一つ」という
+// 前提で組まれていて、会話ごとの書きかけはそこに収まらない。それに、DM の
+// 書きかけを別の端末へ運ぶかどうかは、それ自体が判断で、下書きのついでに
+// 決めることではない。
+//
+// 覚えるのは本文だけ。DM では可視性も注意書きも動かないので、ほかに持つ
+// ものが無い。
+
+const DM_DRAFT_PREFIX = 'sf.dm_draft.';
+
+export function saveDmDraft(conversationId: string, text: string): void {
+  if (!browser) return;
+  localStorage.setItem(DM_DRAFT_PREFIX + conversationId, text);
+}
+
+export function loadDmDraft(conversationId: string): string {
+  if (!browser) return '';
+  return localStorage.getItem(DM_DRAFT_PREFIX + conversationId) ?? '';
+}
+
+export function clearDmDraft(conversationId: string): void {
+  if (!browser) return;
+  localStorage.removeItem(DM_DRAFT_PREFIX + conversationId);
+}
+
 // 開いたときに、ローカルとサーバの下書きを静かに突き合わせる。この
 // 端末のローカルが正本なので、ローカルに中身があればそれを優先し、
 // サーバへ写しを揃える(別端末の古い写しに上書きされない)。ローカル
