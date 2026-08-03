@@ -6,6 +6,10 @@
     <meta name="description" content="しずかな Fediverse のお家。" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- manifest は CSS 変数を読めないので、色はここと manifest の二箇所に
+         綴られる。tokens.css の --color-bg と揃えること。 -->
+    <meta name="theme-color" content="#efeee7" />
     <title>sukhi-fedi</title>
     %sveltekit.head%
   </head>

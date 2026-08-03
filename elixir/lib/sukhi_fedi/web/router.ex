@@ -482,6 +482,16 @@ defmodule SukhiFedi.Web.Router do
     serve_static(conn, ["icon-512.png"])
   end
 
+  get "/manifest.webmanifest" do
+    serve_static(conn, ["manifest.webmanifest"])
+  end
+
+  # scope が `/` になるよう、ルート直下から配る。中身は static/ にある
+  # 手書きの一枚(依存なし)。
+  get "/service-worker.js" do
+    serve_static(conn, ["service-worker.js"])
+  end
+
   get "/api/nodeinfo" do
     if nodeinfo_monitor_enabled?(),
       do: ViewerController.nodeinfo_lookup(conn, []),
@@ -838,6 +848,8 @@ defmodule SukhiFedi.Web.Router do
       ".html" -> "text/html; charset=utf-8"
       ".json" -> "application/json"
       ".map" -> "application/json"
+      # PWA の manifest。octet-stream だと browser が読まずに捨てる。
+      ".webmanifest" -> "application/manifest+json"
       ".woff" -> "font/woff"
       ".woff2" -> "font/woff2"
       ".ttf" -> "font/ttf"

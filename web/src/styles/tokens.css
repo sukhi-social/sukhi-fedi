@@ -9,6 +9,9 @@
    * There is no decorative accent colour on purpose. Colour is functional:
    * the only hues are the two lane colours, and they mean something —
    * which lane (use / build) you are looking at. */
+  /* --color-bg is the one value with more than one spelling: a manifest can't
+   * read CSS variables. Change it here and in static/manifest.webmanifest
+   * (background_color / theme_color) and app.html (<meta name="theme-color">). */
   --color-bg: #efeee7;
   --color-surface: #fbfaf5;
   --color-text: #262521;
