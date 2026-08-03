@@ -198,16 +198,17 @@
     text-decoration: underline;
   }
 
-  /* 名前を出さない行は、アバターぶん字下げして、続きに見えるように。 */
+  /* 字下げはしない。アバターぶん(44px)下げると続きには見えるけれど、
+     そのぶん本文が狭くなる ── スマホでは、その 44px のほうが要る。
+     誰が言ったかは、名前と左の線がもう言っているので、揃えなくても
+     迷わない。 */
   .dm-body {
-    padding-left: calc(36px + var(--space-2));
     overflow-wrap: anywhere;
   }
 
   /* 宛名。本文ではないので、字を小さく薄く ── 見えるけれど、読まなくていい。 */
   .dm-to {
     margin: var(--space-1) 0 0;
-    padding-left: calc(36px + var(--space-2));
     font-size: var(--text-sm);
     color: var(--color-text-muted);
   }
@@ -220,7 +221,6 @@
     align-items: center;
     gap: var(--space-1);
     margin-top: var(--space-1);
-    padding-left: calc(36px + var(--space-2));
   }
 
   .reaction-chip {
@@ -281,7 +281,6 @@
   .dm-media {
     list-style: none;
     margin: var(--space-2) 0 0;
-    padding-left: calc(36px + var(--space-2));
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);

@@ -870,6 +870,15 @@ button:disabled {
     bottom: 3.75rem;
     padding-bottom: var(--space-3);
   }
+
+  /* 返信箱は、画面の端から端まで。.wrap の左右 gutter を負の margin で
+     いったん外に出て、カプセルに幅を返す ── 打つところは広いほうがいい。
+     罫線も端まで通るので、下の帯として素直に見える。 */
+  .composer.composer-dm {
+    max-width: none;
+    margin-inline: calc(var(--space-4) * -1);
+    padding-inline: var(--space-2);
+  }
 }
 
 /* 打っている途中の候補は、入力の**上**に出す。下は画面の縁で、
