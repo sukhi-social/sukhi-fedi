@@ -897,6 +897,13 @@ button:disabled {
   margin: 0;
 }
 
+/* textarea はインライン要素なので、下に行の余り(descender のぶん)が残る。
+   そのぶんだけ入力欄が両脇のボタンより浮いて見えていた。block にして、
+   下端をそろえる。 */
+.composer-line-field textarea {
+  display: block;
+}
+
 /* 絵の印だけのボタン。丸くて、指で押せて、押せないときは薄い。
    語は aria-label と title に残してある(読み上げと hover には届く)。 */
 .icon-btn {
