@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import {
@@ -121,10 +121,13 @@
     }
   }
 
+  // **引き金だけを依存にする。** catchUp の中で読む armed / loading /
+  // pager.items まで依存に乗ると、upsert が effect を呼び戻して止まらなく
+  // なる ── 拾い直しが自分を呼ぶ輪。untrack で切る。
   $effect(() => {
     void $reconnect;
     void $poll;
-    void catchUp();
+    untrack(() => void catchUp());
   });
 </script>
 

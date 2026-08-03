@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import { getConversations, type Conversation } from '$lib/api';
   import { isLoggedIn, clearToken } from '$lib/auth';
@@ -50,13 +50,19 @@
   //
   // 一覧は一発で全部取り直せる(点の状態も、最後のひとことも、いっしょに
   // 更新される)ので、ここは reset で足りる。静かに差し替わるだけ。
+  //
+  // **引き金だけを依存にする。** 中で読む armed / loading / pager.items まで
+  // 依存に乗ると、取り直しが自分を呼び戻して止まらなくなる(実際そうなって、
+  // 一覧が「読んでいます…」から戻らなくなった)。untrack で切る。
   const poll = slowPoll();
   let armed = $state(false);
 
   $effect(() => {
     void $reconnect;
     void $poll;
-    if (armed && !loading) void load(true);
+    untrack(() => {
+      if (armed && !loading) void load(true);
+    });
   });
 
   // 最後に喋ったのが自分かどうか。Conversation の accounts は「自分以外の
