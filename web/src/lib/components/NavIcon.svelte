@@ -16,7 +16,9 @@
     | 'compose'
     | 'logout'
     | 'user'
-    | 'back';
+    | 'back'
+    | 'image'
+    | 'send';
 
   let { name }: { name: IconName } = $props();
 </script>
@@ -34,6 +36,14 @@
 >
   {#if name === 'back'}
     <path d="M14.5 5 8 12l6.5 7" />
+  {:else if name === 'image'}
+    <rect x="3.5" y="5" width="17" height="14" rx="2" />
+    <circle cx="8.5" cy="10" r="1.4" />
+    <path d="M4 17l4.5-4.5L12 16l3-3 5 5" />
+  {:else if name === 'send'}
+    <!-- 紙飛行機。折り目の線を一本入れると、ただの三角に見えない。 -->
+    <path d="M20 4 3.5 11l6.5 2.2L20 4Z" />
+    <path d="M20 4l-7 16-2.9-6.9L20 4Z" />
   {:else if name === 'home'}
     <path d="M3.5 11.5 12 4l8.5 7.5" />
     <path d="M6 10v9.5h12V10" />

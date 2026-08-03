@@ -863,14 +863,6 @@ button:disabled {
     bottom: 3.75rem;
     padding-bottom: var(--space-3);
   }
-
-  /* 指で押すところは、指の大きさに。3px の上下余白では小さすぎた。 */
-  .composer.composer-dm .chip,
-  .composer.composer-dm button[type='submit'] {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-  }
 }
 
 /* 打っている途中の候補は、入力の**上**に出す。下は画面の縁で、
@@ -887,6 +879,47 @@ button:disabled {
   overflow-y: auto;
   /* 自分で伸びるので、つまんで伸ばす取っ手は要らない。 */
   resize: none;
+  /* 基本はひと行。書いたぶんだけ、そこから伸びる。 */
+  min-height: calc(1lh + var(--space-4));
+}
+
+/* 画像・本文・送る を、ひと並びに。左に画像、右に送る ── 本文の両脇に、
+   すること二つ。行が一つ減るぶんは、そのまま会話の見えるところに返る。 */
+.composer-line {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.composer-line-field {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+/* 絵の印だけのボタン。丸くて、指で押せて、押せないときは薄い。
+   語は aria-label と title に残してある(読み上げと hover には届く)。 */
+.icon-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    color 0.1s ease,
+    border-color 0.1s ease;
+}
+
+.icon-btn:hover:not(:disabled) {
+  color: var(--color-text);
+  border-color: var(--color-text);
 }
 
 /* 「書く」の面。ほかに何も無い一枚なので、枠で囲わない ── 面そのものが

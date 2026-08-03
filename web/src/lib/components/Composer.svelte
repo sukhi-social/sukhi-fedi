@@ -23,6 +23,7 @@
   import { applyPick } from '$lib/mention';
   import { createMentions } from '$lib/mention.svelte';
   import Avatar from './Avatar.svelte';
+  import NavIcon from './NavIcon.svelte';
   import QuoteCard from './QuoteCard.svelte';
 
   let {
@@ -345,6 +346,11 @@
     }
   }
 
+  // 送る口の言葉。絵の印にしたぶん、いまどの状態かは title と読み上げが
+  // 引き受ける ── 「送信中…」が見えなくなっただけで、無くなってはいない。
+  const sendLabel = () =>
+    posting ? $t('common.sending') : uploading ? $t('compose.uploading') : $t('compose.submit');
+
   function handleErr(e: unknown, fallback: string): string {
     const msg = e instanceof Error ? e.message : '';
     if (msg === 'unauthorized') {
@@ -399,20 +405,59 @@
     </label>
   {/if}
 
-  <label class="stack-tight">
-    <span class="visually-hidden">{$t('compose.bodyLabel')}</span>
+  <!-- 本文の欄そのものは一つ。DM ではそれを一行の並びに置く。 -->
+  {#snippet bodyField()}
     <textarea
       bind:this={box}
       class:grows={dm || page}
       bind:value={text}
-      rows={dm ? 2 : 3}
+      rows={dm ? 1 : 3}
       placeholder={replyTo ? $t('compose.placeholderReply') : $t('compose.placeholderNew')}
       onkeydown={onMentionKey}
       oninput={lookForMention}
       onclick={lookForMention}
       onblur={() => setTimeout(() => mentions.close(), 120)}
     ></textarea>
-  </label>
+  {/snippet}
+
+  {#if dm}
+    <!-- LINE の並び ── 画像は本文の左、送るは右、本文は基本ひと行。
+         語を絵に置きかえたので、語のほうは aria-label と title に残す。
+         見えなくなっただけで、無くなってはいない。 -->
+    <div class="composer-line">
+      <label class="icon-btn" title={$t('compose.addImage')} aria-label={$t('compose.addImage')}>
+        <NavIcon name="image" />
+        <input
+          bind:this={fileInput}
+          type="file"
+          accept="image/*"
+          multiple
+          onchange={onFiles}
+          style="display: none;"
+        />
+      </label>
+
+      <label class="composer-line-field">
+        <span class="visually-hidden">{$t('compose.bodyLabel')}</span>
+        {@render bodyField()}
+      </label>
+
+      <button
+        type="submit"
+        class="icon-btn"
+        disabled={!canPost}
+        title={sendLabel()}
+        aria-label={sendLabel()}
+      >
+        <NavIcon name="send" />
+      </button>
+    </div>
+  {:else}
+    <label class="stack-tight">
+      <span class="visually-hidden">{$t('compose.bodyLabel')}</span>
+      {@render bodyField()}
+    </label>
+  {/if}
 
   <!-- 打っている途中の @語 の候補。開いていないときは、何も無い。
        選ぶまで本文は変わらない ── 勝手に確定させない。 -->
@@ -486,22 +531,23 @@
     </details>
   {/if}
 
-  <div class="composer-row">
-    <label class="chip">
-      {$t('compose.addImage')}
-      <input
-        bind:this={fileInput}
-        type="file"
-        accept="image/*"
-        multiple
-        onchange={onFiles}
-        style="display: none;"
-      />
-    </label>
+  <!-- DM では、この行そのものが要らない ── 画像も送るも、上の一行に居る。
+       可視性の select は出さないだけでなく、出してはいけない ── 手が滑って
+       公開に切り替わった一通は取り返せない。 -->
+  {#if !dm}
+    <div class="composer-row">
+      <label class="chip">
+        {$t('compose.addImage')}
+        <input
+          bind:this={fileInput}
+          type="file"
+          accept="image/*"
+          multiple
+          onchange={onFiles}
+          style="display: none;"
+        />
+      </label>
 
-    <!-- DM では、どれも使わない。可視性の select は出さないだけでなく、
-         出してはいけない ─ 手が滑って公開に切り替わった一通は取り返せない。 -->
-    {#if !dm}
       <label class="stack-tight">
         <span class="visually-hidden">{$t('compose.visLabel')}</span>
         <select bind:value={visibility}>
@@ -510,12 +556,12 @@
           {/each}
         </select>
       </label>
-    {/if}
 
-    <button type="submit" class="btn px-6 py-2" disabled={!canPost}>
-      {posting ? $t('common.sending') : uploading ? $t('compose.uploading') : $t('compose.submit')}
-    </button>
-  </div>
+      <button type="submit" class="btn px-6 py-2" disabled={!canPost}>
+        {sendLabel()}
+      </button>
+    </div>
+  {/if}
 
   {#if error}
     <p class="error">{error}</p>
