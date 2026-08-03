@@ -540,7 +540,10 @@ export const ja = {
   // ── さがす ───────────────────────────────────────────
   'search.title': 'さがす',
   'search.labelPre': '名前、ID、または ',
-  'search.placeholder': '例: alice / @alice@mastodon.social / #しずか',
+  // すぐ上のラベルが `名前、ID、または @user@host / #tag` と同じことを
+  // 言っている。同じ案内を二回置かない ── しかも入力の中のほうは幅いっぱいで
+  // 切れかけていた。ここは形の見本を一つだけ。
+  'search.placeholder': '例: @alice@mastodon.social',
   'search.searchingRemote': '遠くまで、たずねています…',
   'search.searching': '探しています…',
   'search.submit': 'さがす',

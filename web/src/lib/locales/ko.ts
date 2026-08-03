@@ -539,7 +539,7 @@ export const ko: Dict = {
   // ── 찾기 ─────────────────────────────────────────────
   'search.title': '찾기',
   'search.labelPre': '이름, ID 또는 ',
-  'search.placeholder': '예: alice / @alice@mastodon.social / #고요',
+  'search.placeholder': '예: @alice@mastodon.social',
   'search.searchingRemote': '멀리까지 물어보고 있어요…',
   'search.searching': '찾고 있어요…',
   'search.submit': '찾기',

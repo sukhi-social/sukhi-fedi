@@ -116,13 +116,13 @@
     padding: var(--space-3) 0;
     border-bottom: 1px solid var(--color-border);
   }
+  /* 下線を消さない。この面のリンクは下線で分かる約束(@user@host も時刻も
+     そう)なのに、ここだけ消して hover のときだけ戻していた ── 指で触る
+     画面に hover は無いので、**押せると分かるのが「削除」だけ**になって
+     いた。いちばん目立つ操作が、いちばん戻せない操作だった。 */
   .list-link {
     flex: 1;
-    text-decoration: none;
     color: inherit;
     font-weight: 600;
-  }
-  .list-link:hover {
-    text-decoration: underline;
   }
 </style>
