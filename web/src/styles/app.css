@@ -801,7 +801,8 @@ button:disabled {
    field-sizing が無いブラウザでは rows のまま(4 行)で、壊れはしない。 */
 .composer textarea.grows {
   field-sizing: content;
-  min-height: calc(4lh + var(--space-4));
+  /* 短い一言を続けて投げる場所なので、二行から。長く書けば伸びる。 */
+  min-height: calc(2lh + var(--space-4));
 }
 
 /* 「書く」の面。ほかに何も無い一枚なので、枠で囲わない ── 面そのものが

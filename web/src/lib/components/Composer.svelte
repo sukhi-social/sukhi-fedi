@@ -130,9 +130,19 @@
   }
 
   // 候補が開いているあいだだけ、上下と Enter を借りる。開いていなければ
-  // 何もしない ── ふつうに改行できることのほうが大事。
+  // DM は Enter で送り、それ以外は改行のまま。
+  //
+  // DM を Enter で送るのは、短い一言を続けて投げる場所だから。改行が
+  // 要るときは Shift+Enter ── LINE と同じ約束。**DM 以外では変えない**:
+  // ふつうの投稿は長く書くことがあるので、Enter が送信だと事故になる。
   function onMentionKey(e: KeyboardEvent) {
-    if (!mentions.open) return;
+    if (!mentions.open) {
+      if (dm && e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        if (canPost) void submit();
+      }
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       mentions.move(1);
@@ -370,7 +380,7 @@
       bind:this={box}
       class:grows={dm || page}
       bind:value={text}
-      rows={dm ? 4 : 3}
+      rows={dm ? 2 : 3}
       placeholder={replyTo ? $t('compose.placeholderReply') : $t('compose.placeholderNew')}
       onkeydown={onMentionKey}
       oninput={lookForMention}

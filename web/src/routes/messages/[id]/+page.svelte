@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import {
+    currentAccountId,
     getConversationStatuses,
     markConversationRead,
     type Conversation,
@@ -13,7 +14,7 @@
   import { createPager } from '$lib/pager.svelte';
   import { renderEmojis } from '$lib/emoji';
   import { phrase } from '$lib/phrase';
-  import StatusCard from '$lib/components/Status.svelte';
+  import DmMessage from '$lib/components/DmMessage.svelte';
   import Composer from '$lib/components/Composer.svelte';
   import { t } from '$lib/i18n';
 
@@ -27,6 +28,24 @@
   // 会話の中身は新しい順で来る。画面は古いものが上、いつもの会話の並び。
   const pager = createPager<Status>((maxId) => getConversationStatuses(id, { maxId }));
   let messages = $derived([...pager.items].reverse());
+
+  // 自分の発言を見分けるため。取れなくても表示は止めない(印が消えるだけ)。
+  let meId = $state<string | null>(null);
+  onMount(() => void currentAccountId().then((v) => (meId = v)));
+
+  // 続けて喋ったぶんは、名前を一度だけ。同じ人が、間を置かずに続けたとき
+  // だけ畳む ── 一時間空いたら、それは新しいひと続きなので名前を出す。
+  const GROUP_WINDOW_MS = 60 * 60 * 1000;
+
+  let rows = $derived(
+    messages.map((s, i) => {
+      const prev = messages[i - 1];
+      const sameAuthor = prev?.account.id === s.account.id;
+      const close =
+        prev && new Date(s.created_at).getTime() - new Date(prev.created_at).getTime() < GROUP_WINDOW_MS;
+      return { status: s, mine: !!meId && s.account.id === meId, grouped: !!(sameAuthor && close) };
+    })
+  );
 
   onMount(() => {
     if (!isLoggedIn()) {
@@ -154,8 +173,8 @@
       <p class="loading">{$t('common.loading')}</p>
     {/if}
 
-    {#each messages as s (s.id)}
-      <StatusCard status={s} />
+    {#each rows as r (r.status.id)}
+      <DmMessage status={r.status} mine={r.mine} grouped={r.grouped} />
     {/each}
   {/if}
 </section>
