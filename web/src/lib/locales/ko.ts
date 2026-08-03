@@ -31,7 +31,7 @@ export const ko: Dict = {
   'nav.notifDirect': '나에게 온 새 알림 {n} 건',
   'nav.notifAmbient': '새로운 반응이 있어요',
   'nav.messages': '메시지',
-  'nav.bookmarks': '북마크',
+  'nav.bookmarks': '책갈피',
   'nav.favourites': '즐겨찾기',
   'nav.lists': '리스트',
   'nav.search': '찾기',
@@ -158,8 +158,8 @@ export const ko: Dict = {
   'status.favourite': '즐겨찾기',
   'status.boost': '부스트',
   'status.quote': '인용',
-  'status.bookmarkAdd': '북마크',
-  'status.bookmarkRemove': '북마크 빼기',
+  'status.bookmarkAdd': '책갈피',
+  'status.bookmarkRemove': '책갈피 빼기',
   'status.reply': '답장',
   'status.replyTo': '@{acct} 님에게 답장',
   'status.replyToUnknown': '답장',
@@ -591,8 +591,8 @@ export const ko: Dict = {
   'favourites.title': '즐겨찾기',
   'favourites.empty': '아직 즐겨찾기가 없어요.',
 
-  // ── 북마크 ───────────────────────────────────────────
-  'bookmarks.title': '북마크',
+  // ── 책갈피 ──────────────────────────────────────────
+  'bookmarks.title': '책갈피',
   'requests.title': '팔로우 요청',
   'requests.empty': '지금 기다리는 사람은 없어요.',
   'requests.approve': '맞이하기',

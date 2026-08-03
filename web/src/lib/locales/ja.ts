@@ -28,7 +28,7 @@ export const ja = {
   'nav.notifDirect': 'あなたへの新しい通知が {n} 件',
   'nav.notifAmbient': '新しい反応があります',
   'nav.messages': 'メッセージ',
-  'nav.bookmarks': 'ブックマーク',
+  'nav.bookmarks': 'しおり',
   'nav.favourites': 'お気に入り',
   'nav.lists': 'リスト',
   'nav.search': 'さがす',
@@ -157,8 +157,8 @@ export const ja = {
   'status.favourite': 'お気に入り',
   'status.boost': 'ブースト',
   'status.quote': '引用',
-  'status.bookmarkAdd': 'ブックマーク',
-  'status.bookmarkRemove': 'ブックマークを外す',
+  'status.bookmarkAdd': 'しおり',
+  'status.bookmarkRemove': 'しおりを外す',
   'status.reply': '返信',
   'status.replyTo': '@{acct} への返信',
   'status.replyToUnknown': '返信',
@@ -595,8 +595,8 @@ export const ja = {
   'favourites.title': 'お気に入り',
   'favourites.empty': 'まだ、お気に入りは、ありません。',
 
-  // ── ブックマーク ─────────────────────────────────────
-  'bookmarks.title': 'ブックマーク',
+  // ── しおり ─────────────────────────────────────────
+  'bookmarks.title': 'しおり',
   'requests.title': 'フォローのお願い',
   'requests.empty': 'いま、待っている人はいません。',
   'requests.approve': '迎える',
