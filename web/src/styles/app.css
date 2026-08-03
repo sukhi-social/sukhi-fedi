@@ -287,13 +287,11 @@ main.wrap {
     padding-inline: 0;
   }
 
-  /* 本文が帯の下に隠れないよう、ぶんだけ余白を空ける。 */
+  /* 本文が帯の下に隠れないよう、ぶんだけ余白を空ける。
+     お知らせの類はもう浮いていない(流れの中＝main の先頭)ので、
+     帯の上に持ち上げる特別扱いは要らなくなった。 */
   body.has-bottom-nav main {
     padding-bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
-  }
-  /* メール催促の浮き札も、帯の上に持ち上げる。 */
-  body.has-bottom-nav .email-nudge {
-    bottom: calc(3.75rem + var(--space-4) + env(safe-area-inset-bottom, 0px));
   }
 }
 

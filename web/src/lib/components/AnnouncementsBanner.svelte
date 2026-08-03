@@ -66,11 +66,9 @@
 {/if}
 
 <style>
+  /* 流れの中に置く(EmailNudge と同じ理由)。三つとも同じ bottom と
+     z-index で浮いていたので、二つ出たときは互いに重なっていた。 */
   .announce {
-    position: fixed;
-    left: var(--space-4);
-    right: var(--space-4);
-    bottom: var(--space-4);
     max-width: 24rem;
     margin-inline: auto;
     padding: var(--space-3) var(--space-4);
@@ -78,7 +76,6 @@
     border: 1px solid var(--color-border-strong);
     border-radius: var(--radius);
     font-size: var(--text-sm);
-    z-index: 50;
     display: grid;
     gap: var(--space-2);
   }

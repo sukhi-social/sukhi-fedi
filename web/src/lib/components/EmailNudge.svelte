@@ -198,11 +198,11 @@
 {/if}
 
 <style>
+  /* 流れの中に置く。浮かせない ── 浮かせると、画面の下にあるものを
+     そのぶん覆う。実際、タイムラインの下三分の一と、DM の composer が
+     ずっと隠れていた。ここは催促であって警告ではないので、来たときに
+     一度目に入って、読み進めれば流れて消える、くらいでいい。 */
   .email-nudge {
-    position: fixed;
-    left: var(--space-4);
-    right: var(--space-4);
-    bottom: var(--space-4);
     max-width: 24rem;
     margin-inline: auto;
     padding: var(--space-3) var(--space-4);
@@ -210,7 +210,6 @@
     border: 1px solid var(--color-border-strong);
     border-radius: var(--radius);
     font-size: var(--text-sm);
-    z-index: 50;
     display: grid;
     gap: var(--space-2);
   }

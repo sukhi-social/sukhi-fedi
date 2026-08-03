@@ -48,11 +48,9 @@
 {/if}
 
 <style>
+  /* 流れの中に置く(EmailNudge と同じ理由)。浮かせていたときは、下の
+     タブ帯とも重なっていた ── 持ち上げていたのは .email-nudge だけ。 */
   .update-banner {
-    position: fixed;
-    left: var(--space-4);
-    right: var(--space-4);
-    bottom: var(--space-4);
     max-width: 24rem;
     margin-inline: auto;
     padding: var(--space-3) var(--space-4);
@@ -64,7 +62,6 @@
     align-items: center;
     justify-content: space-between;
     font-size: var(--text-sm);
-    z-index: 50;
   }
 
   .update-banner p {
