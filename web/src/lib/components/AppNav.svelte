@@ -78,13 +78,19 @@
   // 会話の下に理由のない空きができる。
   $effect(() => {
     document.body.classList.toggle('has-bottom-nav', showBottomNav);
+    // 会話の面では、返信箱が画面の底に貼りつく。その下に本文の下余白が
+    // 残ると、返事の下に理由のない空きができる(48px 実測)。
+    document.body.classList.toggle('in-thread', inThread);
   });
 
   onMount(() => {
     sync();
     return () => {
       stopStream();
-      if (typeof document !== 'undefined') document.body.classList.remove('has-bottom-nav');
+      if (typeof document !== 'undefined') {
+        document.body.classList.remove('has-bottom-nav');
+        document.body.classList.remove('in-thread');
+      }
     };
   });
 

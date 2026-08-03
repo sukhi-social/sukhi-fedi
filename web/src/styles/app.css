@@ -19,6 +19,13 @@ main.wrap {
   padding-block: var(--space-6) var(--space-12);
 }
 
+/* 会話の面では、返信箱が画面の底に貼りつく。その下に「底に付かないための
+   余白」が残ると、返事の下に理由のない空きになる ── 底に付くのが正しい
+   ものが、いちばん下にいるので。 */
+body.in-thread main.wrap {
+  padding-bottom: 0;
+}
+
 /* ── 共有の見た目 ──────────────────────────────────────────────────
    ホーム(landing)と各画面で使い回す部品。chip はどの画面にも出るピル、
    hero / section / doors / lane-door はホームの入口、custom-emoji /
@@ -884,11 +891,42 @@ button:disabled {
 }
 
 /* 画像・本文・送る を、ひと並びに。左に画像、右に送る ── 本文の両脇に、
-   すること二つ。行が一つ減るぶんは、そのまま会話の見えるところに返る。 */
+   すること二つ。行が一つ減るぶんは、そのまま会話の見えるところに返る。
+   囲うのはこのカプセル一つだけ。中の本文欄は枠を持たない ── 枠の中に枠を
+   描くと輪郭が二重になる(「塗りと枠は片方だけ」の、入れ子版)。
+   伸びても端は丸いままなので、半径は高さの半分で置く。 */
 .composer-line {
   display: flex;
   align-items: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  padding: 2px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 23px;
+  background: var(--color-surface);
+}
+
+/* 中では、枠も背景も持たない。カプセルが面で、これはその中の文。 */
+.composer-line-field textarea {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  padding-inline: var(--space-2);
+}
+
+.composer-line-field textarea:focus {
+  outline: none;
+}
+
+/* カプセルが focus を受け止める ── 中の一つひとつではなく、この一つが
+   光る。どこを触っているかは、囲いの側で言う。 */
+.composer-line:focus-within {
+  border-color: var(--color-text);
+}
+
+/* 中の印は、丸い縁を持たない。カプセルの中で丸が三つ並ぶと、囲いが
+   どれなのか分からなくなる。 */
+.composer-line .icon-btn {
+  border-color: transparent;
 }
 
 .composer-line-field {
@@ -902,6 +940,13 @@ button:disabled {
    下端をそろえる。 */
 .composer-line-field textarea {
   display: block;
+}
+
+/* カプセルの内側では、いちばん低いところ(1行)がボタンと同じ高さになる
+   ように。上下の余白はカプセルの padding が持つ。 */
+.composer.composer-dm .composer-line textarea.grows {
+  min-height: 40px;
+  padding-block: var(--space-2);
 }
 
 /* 絵の印だけのボタン。丸くて、指で押せて、押せないときは薄い。
