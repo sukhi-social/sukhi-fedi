@@ -870,6 +870,67 @@ button:disabled {
   gap: var(--space-2);
 }
 
+/* ── 投稿カード、手のなかで ──────────────────────────────────────
+   狭い画面だと、長い `@user@host` が時刻を次の行に押し出して、外部リンクの
+   印だけが取り残されていた。名前と時刻は残して、**ハンドルのほうを縮める**
+   ── 誰か・いつ、が一行で読めるほうが、全部読めるより役に立つ。
+   操作の列も、枠つきの丸が六つ並ぶと一件ぶんの縦をひとつ余分に食うので、
+   詰める。押せる大きさ(min-height)は変えない。 */
+@media (max-width: 40rem) {
+  .status {
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+  }
+
+  .status .meta {
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+  }
+
+  /* 名前は縮めない(誰かが分からなくなる)。ただし名前だけで一行を
+     埋めないよう、半分で頭打ちにする。 */
+  .status .meta .display-name {
+    flex: 0 1 auto;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 縮むのはここ。@host が長いほど、先に削られる。 */
+  .status .meta .handle {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 時刻を右端へ寄せるので、中黒は要らなくなる。 */
+  .status .meta .sep {
+    display: none;
+  }
+
+  .status .meta .timestamp,
+  .status .meta .orig {
+    flex: none;
+    margin-left: auto;
+  }
+
+  .status .meta .orig {
+    margin-left: 0;
+  }
+
+  .status-actions {
+    margin-top: var(--space-2);
+    gap: var(--space-1);
+  }
+
+  .status-actions .chip {
+    padding-inline: var(--space-2);
+  }
+}
+
 /* chip の中身(Twemoji アイコン + 数字)を縦の真ん中にそろえる。
    inline の vertical-align: middle だと、アイコンが文字よりすこし
    沈んで見える。min-height は「文字一行ぶん(1.6em) + 上下 padding

@@ -172,8 +172,8 @@
         >{@html renderEmojis(phrase(name), status.account.emojis)}</a
       >
       <CircleBadge accountId={status.account.id} />
-      <a href={`/@${status.account.acct}`}>@{status.account.acct}</a>
-      <span>·</span>
+      <a class="handle" href={`/@${status.account.acct}`}>@{status.account.acct}</a>
+      <span class="sep">·</span>
       <a class="timestamp" href={`/@${status.account.acct}/${status.id}`} title={status.created_at}>{ts}</a>
       {#if isRemote && status.url}
         <!-- リモートの投稿。元のサーバの本物へ、別タブでそっと開く入口。 -->
