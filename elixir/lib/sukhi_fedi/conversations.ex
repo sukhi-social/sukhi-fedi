@@ -55,6 +55,41 @@ defmodule SukhiFedi.Conversations do
   end
 
   @doc """
+  The notes in one conversation, newest first. `conversation_id` is the
+  participant row id from `list/2`, and the lookup is scoped to
+  `viewer_id` — a client can't read someone else's thread.
+
+  A DM thread is a queue on `conversation_ap_id`, so this reads it as one:
+  a single query, no reply-chain walk. Notes that fell off the chain (a DM
+  composed outside the thread, a root whose parent is gone) still belong to
+  the conversation, so they still come back.
+  """
+  @spec statuses(integer(), integer() | String.t(), keyword() | map()) ::
+          {:ok, [Note.t()]} | {:error, :not_found}
+  def statuses(viewer_id, conversation_id, opts \\ []) when is_integer(viewer_id) do
+    opts = normalize(opts)
+    limit = clamp(opts[:limit])
+
+    case viewer_conversation_ap_id(viewer_id, conversation_id) do
+      nil ->
+        {:error, :not_found}
+
+      cid ->
+        notes =
+          from(n in Note, where: n.conversation_ap_id == ^cid)
+          |> maybe_max_id(opts[:max_id])
+          |> maybe_since_id(opts[:since_id])
+          |> order_by([n], desc: n.id)
+          |> limit(^limit)
+          |> Repo.all()
+          |> Repo.preload([:account, :media, :tags])
+          |> Read.with_refs(viewer_id)
+
+        {:ok, notes}
+    end
+  end
+
+  @doc """
   Clear the unread flag on the viewer's conversation. `conversation_id`
   is the participant row id from `list/2`. Scoped to `viewer_id` so a
   client can't mark someone else's row read. Returns the refreshed entry
@@ -115,6 +150,17 @@ defmodule SukhiFedi.Conversations do
   end
 
   # ── internals ──────────────────────────────────────────────────────────
+
+  # The conversation behind one of the viewer's participant rows, or nil.
+  # The `account_id` clause is the authorization — someone else's row simply
+  # doesn't exist from here (CODE_STYLE §5).
+  defp viewer_conversation_ap_id(viewer_id, conversation_id) do
+    Repo.one(
+      from cp in ConversationParticipant,
+        where: cp.id == ^to_int(conversation_id) and cp.account_id == ^viewer_id,
+        select: cp.conversation_ap_id
+    )
+  end
 
   # The viewer's participant rows keyed by conversation: `%{cid => %{id, unread}}`.
   defp viewer_rows(viewer_id) do

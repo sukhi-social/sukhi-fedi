@@ -3,14 +3,21 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
   @moduledoc """
   Mastodon conversations.
 
-      GET   /api/v1/conversations           read:statuses
-      POST  /api/v1/conversations/:id/read  write:conversations
+      GET   /api/v1/conversations               read:statuses
+      GET   /api/v1/conversations/:id/statuses  read:statuses
+      POST  /api/v1/conversations/:id/read      write:conversations
 
   `index` returns one row per conversation the viewer participates in,
   with the most-recent DM Note, the other participants' accounts, and the
   viewer's `unread` flag. `read` clears that flag. The conversation `id`
   is the viewer's participant row id (a plain number), so the `:id` path
   segment maps straight back to the row.
+
+  `statuses` is **not** a Mastodon endpoint — Mastodon has no way to read a
+  conversation's contents, so clients walk the reply chain from
+  `last_status` instead. A DM thread is a queue on `conversation_ap_id`, and
+  reading it as one removes the chain walk (and with it the depth ceiling and
+  the per-depth query). The two endpoints above keep their exact behaviour.
   """
 
   use SukhiApi.Capability, addon: :mastodon_api
@@ -22,6 +29,7 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
   def routes do
     [
       {:get, "/api/v1/conversations", &index/1, scope: "read:statuses"},
+      {:get, "/api/v1/conversations/:id/statuses", &statuses/1, scope: "read:statuses"},
       {:post, "/api/v1/conversations/:id/read", &read/1, scope: "write:conversations"}
     ]
   end
@@ -40,6 +48,30 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
           {:ok, list} when is_list(list) ->
             body = Enum.map(list, &render/1)
             ok(200, body)
+
+          e ->
+            rpc_error(e)
+        end
+    end
+  end
+
+  def statuses(req) do
+    %{current_account: viewer} = req[:assigns]
+    id = req[:path_params]["id"]
+
+    case viewer do
+      nil ->
+        ok(403, %{error: "this endpoint requires a user-bound token"})
+
+      %{} = v ->
+        opts = Pagination.parse_opts(req[:query])
+
+        case GatewayRpc.call(SukhiFedi.Conversations, :statuses, [v.id, id, Map.to_list(opts)]) do
+          {:ok, {:ok, notes}} when is_list(notes) ->
+            ok(200, Enum.map(notes, &MastodonStatus.render/1))
+
+          {:ok, {:error, :not_found}} ->
+            ok(404, %{error: "not_found"})
 
           e ->
             rpc_error(e)

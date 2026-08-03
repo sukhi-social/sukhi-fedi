@@ -100,6 +100,96 @@ defmodule SukhiFedi.Integration.ConversationsTest do
     end
   end
 
+  describe "statuses/3" do
+    test "returns the conversation's notes newest-first, chain or no chain" do
+      alice = create_account!("alice_cv_s")
+      bob = create_account!("bob_cv_s")
+
+      cid = "https://example.test/contexts/statuses"
+      add_participant!(cid, alice.id)
+      add_participant!(cid, bob.id)
+
+      n1 = insert_note!(alice.id, "one", cid)
+      n2 = insert_note!(bob.id, "two", cid)
+      # Never replied to anything — the old getContext walk would miss it,
+      # but it belongs to the conversation, so it comes back.
+      n3 = insert_note!(alice.id, "three", cid)
+
+      [a_convo] = Conversations.list(alice.id)
+      assert {:ok, notes} = Conversations.statuses(alice.id, a_convo.id)
+      assert Enum.map(notes, & &1.id) == [n3.id, n2.id, n1.id]
+    end
+
+    test "pages with max_id and limit" do
+      alice = create_account!("alice_cv_sp")
+      bob = create_account!("bob_cv_sp")
+
+      cid = "https://example.test/contexts/paged"
+      add_participant!(cid, alice.id)
+      add_participant!(cid, bob.id)
+
+      notes = for i <- 1..5, do: insert_note!(alice.id, "m#{i}", cid)
+      [n1, n2, n3, n4, n5] = notes
+
+      [a_convo] = Conversations.list(alice.id)
+
+      assert {:ok, page1} = Conversations.statuses(alice.id, a_convo.id, limit: 2)
+      assert Enum.map(page1, & &1.id) == [n5.id, n4.id]
+
+      assert {:ok, page2} = Conversations.statuses(alice.id, a_convo.id, limit: 2, max_id: n4.id)
+      assert Enum.map(page2, & &1.id) == [n3.id, n2.id]
+
+      assert {:ok, page3} = Conversations.statuses(alice.id, a_convo.id, limit: 2, max_id: n2.id)
+      assert Enum.map(page3, & &1.id) == [n1.id]
+    end
+
+    test "won't read someone else's conversation" do
+      alice = create_account!("alice_cv_sx")
+      bob = create_account!("bob_cv_sx")
+      carol = create_account!("carol_cv_sx")
+
+      cid = "https://example.test/contexts/private"
+      add_participant!(cid, alice.id)
+      add_participant!(cid, bob.id)
+      insert_note!(alice.id, "just between us", cid)
+
+      [a_convo] = Conversations.list(alice.id)
+
+      # Carol is not in the thread, so Alice's row does not exist for her.
+      assert {:error, :not_found} = Conversations.statuses(carol.id, a_convo.id)
+      # Bob is in the thread, but Alice's row is still not his to read.
+      assert {:error, :not_found} = Conversations.statuses(bob.id, a_convo.id)
+      # Bob reads it through his own row.
+      [b_convo] = Conversations.list(bob.id)
+      assert {:ok, [%{content: "just between us"}]} = Conversations.statuses(bob.id, b_convo.id)
+    end
+
+    test "a conversation row that doesn't exist is not_found" do
+      alice = create_account!("alice_cv_sn")
+      assert {:error, :not_found} = Conversations.statuses(alice.id, 999_999_999)
+    end
+
+    test "notes carry in_reply_to_id" do
+      alice = create_account!("alice_cv_si")
+      bob = create_account!("bob_cv_si")
+
+      {:ok, parent} =
+        Notes.create_status(alice, %{"status" => "@bob_cv_si hi", "visibility" => "direct"})
+
+      {:ok, reply} =
+        Notes.create_status(bob, %{
+          "status" => "@alice_cv_si hey",
+          "visibility" => "direct",
+          "in_reply_to_id" => to_string(parent.id)
+        })
+
+      [a_convo] = Conversations.list(alice.id)
+      assert {:ok, notes} = Conversations.statuses(alice.id, a_convo.id)
+      assert Enum.map(notes, & &1.id) == [reply.id, parent.id]
+      assert hd(notes).in_reply_to_id == parent.id
+    end
+  end
+
   describe "mark_read/2" do
     test "clears the viewer's unread flag" do
       alice = create_account!("alice_cv_r")
