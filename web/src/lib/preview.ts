@@ -63,21 +63,27 @@ function stripTrailingMentionParagraph(s: string): string {
 }
 
 /**
- * HTML のまま、あたまの言及だけを外す。
+ * あたまの言及を、本文から外して**分けて返す**。
  *
  * DM の宛先は本文の `@` 言及で決まる(サーバの契約)ので、どの一通も相手の
- * 名前で始まる。二人しかいない会話でそれを毎行読まされるのは、ただの重複
- * ── 誰が書いたかは、名前と左の線がもう言っている。
+ * 名前で始まる。二人しかいない会話でそれを毎行読まされるのは、ただの重複。
  *
- * 落とすのは **h-card に包まれた、先頭の言及だけ**。文中の言及も、素の
- * `@` で始まる文も触らない。本文は表示のためにほどくが、送られたものは
- * そのまま残る(サーバ側は言及つきのまま)。
+ * でも、消すのとどけるのは違う。日本語の「@さん、」は呼びかけの文だけれど、
+ * 英語圏の先頭 `@` は「あなたに話しかけています」の合図 ── 読む文ではなく、
+ * 宛名。だから本文からは外して、誰に宛てたかは小さく添える(呼ぶ側の仕事)。
+ *
+ * 外すのは **先頭の言及だけ**。文中の言及も、素の `@` で始まる文も触らない。
+ * ほどくのは表示のときだけで、送られたものはそのまま残る。
  */
-export function stripLeadingMentionHtml(html: string | null | undefined): string {
+export function splitLeadingMentions(html: string | null | undefined): {
+  body: string;
+  handles: string[];
+} {
   const s = stripTrailingMentionParagraph(String(html ?? ''));
+  const handles: string[] = [];
 
   const open = /^\s*<p[^>]*>/i.exec(s);
-  if (!open) return s;
+  if (!open) return { body: s, handles };
 
   const head = open[0];
   let i = head.length;
@@ -104,13 +110,17 @@ export function stripLeadingMentionHtml(html: string | null | undefined): string
     if (/^<span class="h-card"/i.test(s.slice(at))) {
       const end = closeSpanFrom(at);
       if (end < 0) break;
+      const inner = s.slice(at, end).replace(/<[^>]+>/g, '');
+      const h = /@?([\w.\-]+(?:@[\w.\-]+)?)/u.exec(inner);
+      if (h) handles.push(h[1]);
       i = end;
       continue;
     }
 
     // h-card に包まれていない素の言及も、あたまなら落とす。
-    const bare = /^@[\w.\-]+(?:@[\w.\-]+)?/u.exec(s.slice(at));
+    const bare = /^@([\w.\-]+(?:@[\w.\-]+)?)/u.exec(s.slice(at));
     if (bare) {
+      handles.push(bare[1]);
       i = at + bare[0].length;
       continue;
     }
@@ -119,7 +129,13 @@ export function stripLeadingMentionHtml(html: string | null | undefined): string
     break;
   }
 
-  return i === head.length ? s : head + s.slice(i);
+  if (i === head.length) return { body: s, handles: [] };
+  return { body: head + s.slice(i), handles: [...new Set(handles)] };
+}
+
+/** 本文だけ ── 宛名は要らない場所(一覧のひとことなど)で。 */
+export function stripLeadingMentionHtml(html: string | null | undefined): string {
+  return splitLeadingMentions(html).body;
 }
 
 /** 一覧に出す一行。HTML をほどいて、あたまの言及を外して、長すぎたら畳む。 */

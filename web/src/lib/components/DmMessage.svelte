@@ -14,7 +14,7 @@
   import { phrase } from '$lib/phrase';
   import Avatar from './Avatar.svelte';
   import type { Status } from '$lib/api';
-  import { stripLeadingMentionHtml } from '$lib/preview';
+  import { splitLeadingMentions } from '$lib/preview';
   import { t, locale, type Locale, type TranslationKey } from '$lib/i18n';
 
   let {
@@ -24,6 +24,10 @@
   }: { status: Status; mine?: boolean; grouped?: boolean } = $props();
 
   let name = $derived(status.account.display_name || status.account.username);
+
+  // 宛名は本文から外して、下に小さく置く ── 消すのではなく、どける。
+  // (サーバの `mentions` はまだ空を返すので、本文の h-card から拾う)
+  let split = $derived(splitLeadingMentions(status.content));
 
   function shortTime(
     iso: string,
@@ -58,10 +62,14 @@
   {#if status.spoiler_text}
     <details>
       <summary>{status.spoiler_text}</summary>
-      <div class="dm-body">{@html stripLeadingMentionHtml(status.content)}</div>
+      <div class="dm-body">{@html split.body}</div>
     </details>
   {:else}
-    <div class="dm-body">{@html stripLeadingMentionHtml(status.content)}</div>
+    <div class="dm-body">{@html split.body}</div>
+  {/if}
+
+  {#if split.handles.length > 0}
+    <p class="dm-to">{$t('messages.mentioned', { who: split.handles.map((h) => `@${h}`).join(' ') })}</p>
   {/if}
 
   {#if status.media_attachments?.length}
@@ -127,6 +135,14 @@
   .dm-body {
     padding-left: calc(36px + var(--space-2));
     overflow-wrap: anywhere;
+  }
+
+  /* 宛名。本文ではないので、字を小さく薄く ── 見えるけれど、読まなくていい。 */
+  .dm-to {
+    margin: var(--space-1) 0 0;
+    padding-left: calc(36px + var(--space-2));
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
   }
 
   .dm-media {

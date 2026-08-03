@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { previewOf, stripLeadingMentionHtml } from './preview.ts';
+import { previewOf, splitLeadingMentions, stripLeadingMentionHtml } from './preview.ts';
 
 // sukhi が返す実際の形。言及は h-card の span に包まれる。
 const CARD = (acct: string) =>
@@ -76,4 +76,45 @@ test('宛名だけの一通は、空にならず段落が残る', () => {
   // 本文が無く宛名だけ ── 落としたら何も残らないので、先頭側の規則に任せる。
   const out = stripLeadingMentionHtml(`<p>${CARD('nyanrus')}</p>`);
   assert.equal(out, '<p></p>');
+});
+
+// ── 外した宛名を、捨てずに返す ───────────────────────────────────────
+// 消すのではなく、どける。誰に宛てたかは下に小さく添えるので、handle が要る。
+
+test('外した宛名を handle で返す', () => {
+  const { body, handles } = splitLeadingMentions(`<p>${CARD('shiro_mudita')} こんにちは</p>`);
+  assert.equal(body, '<p>こんにちは</p>');
+  assert.deepEqual(handles, ['shiro_mudita']);
+});
+
+test('二人ぶんなら、二つとも返す(順は書かれたまま)', () => {
+  const { handles } = splitLeadingMentions(`<p>${CARD('a')} ${CARD('b')} やあ</p>`);
+  assert.deepEqual(handles, ['a', 'b']);
+});
+
+test('よその鯖の handle も、まるごと返す', () => {
+  const { handles } = splitLeadingMentions(`<p>${CARD('nyanrus@example.social')} やあ</p>`);
+  assert.deepEqual(handles, ['nyanrus@example.social']);
+});
+
+test('h-card に包まれていない素の @ も拾う', () => {
+  const { body, handles } = splitLeadingMentions('<p>@alice やあ</p>');
+  assert.equal(body, '<p>やあ</p>');
+  assert.deepEqual(handles, ['alice']);
+});
+
+test('同じ人が二度書かれていても、一度だけ', () => {
+  const { handles } = splitLeadingMentions(`<p>${CARD('a')} @a やあ</p>`);
+  assert.deepEqual(handles, ['a']);
+});
+
+test('宛名で始まらない一通は、添えるものが無い', () => {
+  const { body, handles } = splitLeadingMentions('<p>ただの文</p>');
+  assert.equal(body, '<p>ただの文</p>');
+  assert.deepEqual(handles, []);
+});
+
+test('文中の言及は、宛名ではない', () => {
+  const html = `<p>これは ${CARD('someone')} のこと</p>`;
+  assert.deepEqual(splitLeadingMentions(html).handles, []);
 });

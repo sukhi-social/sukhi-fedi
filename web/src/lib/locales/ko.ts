@@ -536,6 +536,7 @@ export const ko: Dict = {
   'messages.openThread': '스레드 열기',
   'messages.back': '메시지 목록으로',
   'messages.threadEmpty': '이 대화에는 아직 메시지가 없어요.',
+  'messages.mentioned': '{who} 님에게',
 
   // ── 찾기 ─────────────────────────────────────────────
   'search.title': '찾기',

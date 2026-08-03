@@ -537,6 +537,8 @@ export const ja = {
   'messages.openThread': 'スレッドをひらく',
   'messages.back': 'メッセージ一覧へ',
   'messages.threadEmpty': 'このやりとりには、まだメッセージがありません。',
+  // 本文から外した宛名を、下に小さく。読む文ではなく「誰に話しかけたか」。
+  'messages.mentioned': '{who} へ',
 
   // ── さがす ───────────────────────────────────────────
   'search.title': 'さがす',

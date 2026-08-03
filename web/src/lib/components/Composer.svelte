@@ -93,19 +93,22 @@
   // **DM では、入力欄に入れない。** 書き出しに相手の名前が居座ると、
   // その手前から書けないし、消すと dm_no_recipients で断られる ── 消せない
   // ものを本文に置くのは、書き手に断りなく席を取っているのと同じ。
-  // 送るときに、目の立たない末尾へ回す(サーバは位置を見ない ──
-  // `resolve_mention_recipients` は本文を scan するだけ)。
+  // 送るときに、あたまへ回す。
   function initialMentionText(): string {
     if (dm) return '';
     const handles = mentionHandles();
     return handles.length > 0 ? handles.map((h) => `@${h}`).join(' ') + ' ' : '';
   }
 
-  // 送る本文。DM のときだけ、宛先を末尾に足す。
+  // 送る本文。DM のときだけ、宛先をあたまに足す。
+  //
+  // 先頭が de facto ── 連合の向こうの実装も、人の目も、そこを宛名だと
+  // 知っている。**置く場所は慣習に合わせて、見え方はこちらで引く。**
+  // 読む側では `splitLeadingMentions` が本文から外して、下に小さく添える。
   function bodyToSend(): string {
     if (!dm) return text;
     const handles = mentionHandles().filter((h) => !text.includes(`@${h}`));
-    return handles.length > 0 ? `${text.trimEnd()}\n\n${handles.map((h) => `@${h}`).join(' ')}` : text;
+    return handles.length > 0 ? `${handles.map((h) => `@${h}`).join(' ')} ${text}` : text;
   }
   let spoiler = $state(untrack(() => restored?.spoiler ?? ''));
   let useSpoiler = $state(untrack(() => restored?.useSpoiler ?? false));
