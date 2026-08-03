@@ -82,16 +82,30 @@
     untrack(() => restoredDm || restored?.text || initialMentionText())
   );
 
-  // 返信の頭につける @ 言及。グループの宛先が渡されていればそれを全部、
-  // なければ(prefillMention のとき)返信先一人だけ。
+  // 宛先の @ 言及。DM の宛先は本文の言及で決まる(サーバの契約)ので、
+  // 必ずどこかに要る。
+  function mentionHandles(): string[] {
+    if (prefillRecipients && prefillRecipients.length > 0) return prefillRecipients;
+    if (prefillMention && replyTo) return [replyTo.account.acct];
+    return [];
+  }
+
+  // **DM では、入力欄に入れない。** 書き出しに相手の名前が居座ると、
+  // その手前から書けないし、消すと dm_no_recipients で断られる ── 消せない
+  // ものを本文に置くのは、書き手に断りなく席を取っているのと同じ。
+  // 送るときに、目の立たない末尾へ回す(サーバは位置を見ない ──
+  // `resolve_mention_recipients` は本文を scan するだけ)。
   function initialMentionText(): string {
-    const handles =
-      prefillRecipients && prefillRecipients.length > 0
-        ? prefillRecipients
-        : prefillMention && replyTo
-          ? [replyTo.account.acct]
-          : [];
+    if (dm) return '';
+    const handles = mentionHandles();
     return handles.length > 0 ? handles.map((h) => `@${h}`).join(' ') + ' ' : '';
+  }
+
+  // 送る本文。DM のときだけ、宛先を末尾に足す。
+  function bodyToSend(): string {
+    if (!dm) return text;
+    const handles = mentionHandles().filter((h) => !text.includes(`@${h}`));
+    return handles.length > 0 ? `${text.trimEnd()}\n\n${handles.map((h) => `@${h}`).join(' ')}` : text;
   }
   let spoiler = $state(untrack(() => restored?.spoiler ?? ''));
   let useSpoiler = $state(untrack(() => restored?.useSpoiler ?? false));
@@ -290,7 +304,7 @@
     error = null;
     try {
       const s = await postStatus({
-        status: text,
+        status: bodyToSend(),
         spoiler_text: useSpoiler ? spoiler : undefined,
         sensitive: sensitive || (useSpoiler && !!spoiler) || undefined,
         visibility,

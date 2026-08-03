@@ -54,3 +54,26 @@ test('一覧のひとことは、長ければ畳む', () => {
   assert.equal(out.length, 21);
   assert.ok(out.endsWith('…'));
 });
+
+// ── 末尾に回した宛名 ─────────────────────────────────────────────────
+// composer は DM の宛先を末尾へ回す。受け取る側では配達の宛名なので出さない。
+
+test('末尾の「言及だけの段落」は落とす', () => {
+  const html = `<p>こんにちは</p><p>${CARD('nyanrus')}</p>`;
+  assert.equal(stripLeadingMentionHtml(html), '<p>こんにちは</p>');
+});
+
+test('末尾に文が混じっていれば、落とさない', () => {
+  const html = `<p>やあ</p><p>${CARD('nyanrus')} これは本文</p>`;
+  assert.equal(stripLeadingMentionHtml(html), html);
+});
+
+test('末尾が素の @ だけでも落とす', () => {
+  assert.equal(stripLeadingMentionHtml('<p>やあ</p><p>@nyanrus</p>'), '<p>やあ</p>');
+});
+
+test('宛名だけの一通は、空にならず段落が残る', () => {
+  // 本文が無く宛名だけ ── 落としたら何も残らないので、先頭側の規則に任せる。
+  const out = stripLeadingMentionHtml(`<p>${CARD('nyanrus')}</p>`);
+  assert.equal(out, '<p></p>');
+});

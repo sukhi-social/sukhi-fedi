@@ -35,6 +35,34 @@ export function stripLeadingMentions(text: string): string {
 }
 
 /**
+ * 末尾が「言及だけの段落」なら、その段落ごと落とす。
+ *
+ * sukhi の composer は DM の宛先を末尾に回す(書き出しに相手の名前が
+ * 居座らないように)。受け取る側では、それは配達の宛名であって本文では
+ * ないので、出さない。**言及だけの段落**に限る ── 文が混じっていれば、
+ * それは書き手が書いたもの。
+ */
+function stripTrailingMentionParagraph(s: string): string {
+  if (!/<\/p>\s*$/i.test(s)) return s;
+
+  // 内部の形(h-card の入れ子)を当てにしない ── そこで一度すべった。
+  // 最後の段落を切り出して、タグと言及を全部抜いて、何も残らなければ宛名。
+  const start = s.toLowerCase().lastIndexOf('<p');
+  if (start <= 0) return s; // 段落が一つだけなら、先頭側の規則に任せる
+  const open = s.indexOf('>', start);
+  if (open < 0) return s;
+
+  const inner = s.slice(open + 1, s.toLowerCase().lastIndexOf('</p>'));
+  if (!inner.includes('@')) return s;
+
+  const bare = inner
+    .replace(/<[^>]+>/g, '')
+    .replace(/@[\w.\-]+(?:@[\w.\-]+)?/gu, '')
+    .replace(/[\s　]/gu, '');
+  return bare === '' ? s.slice(0, start) : s;
+}
+
+/**
  * HTML のまま、あたまの言及だけを外す。
  *
  * DM の宛先は本文の `@` 言及で決まる(サーバの契約)ので、どの一通も相手の
@@ -46,7 +74,7 @@ export function stripLeadingMentions(text: string): string {
  * そのまま残る(サーバ側は言及つきのまま)。
  */
 export function stripLeadingMentionHtml(html: string | null | undefined): string {
-  const s = String(html ?? '');
+  const s = stripTrailingMentionParagraph(String(html ?? ''));
 
   const open = /^\s*<p[^>]*>/i.exec(s);
   if (!open) return s;
