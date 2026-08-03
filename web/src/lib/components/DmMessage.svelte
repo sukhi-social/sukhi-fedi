@@ -13,7 +13,11 @@
   import { renderEmojis } from '$lib/emoji';
   import { phrase } from '$lib/phrase';
   import Avatar from './Avatar.svelte';
-  import type { Status } from '$lib/api';
+  import Twemoji from './Twemoji.svelte';
+  import ReactionPicker from './ReactionPicker.svelte';
+  import * as api from '$lib/api';
+  import { toggled, willAdd } from '$lib/reactions';
+  import type { Reaction, Status } from '$lib/api';
   import { splitLeadingMentions } from '$lib/preview';
   import { t, locale, type Locale, type TranslationKey } from '$lib/i18n';
 
@@ -28,6 +32,33 @@
   // 宛名は本文から外して、下に小さく置く ── 消すのではなく、どける。
   // (サーバの `mentions` はまだ空を返すので、本文の h-card から拾う)
   let split = $derived(splitLeadingMentions(status.content));
+
+  // ── 絵文字で、そっと返す ─────────────────────────────────────────
+  //
+  // 返事を書くほどではないけれど、無言でもない ── そのあいだの返し方。
+  // 「読んだよ」「うれしい」を一文字で置ける。既読の印を機械が付けるのと
+  // 違って、これは**その人が押した**もの。押さない自由もある。
+  //
+  // 押した瞬間に手元を書き換えて、返事は後から待つ。落ちたら、そっと戻す
+  // ── 失敗を叫ばない(その一押しは、そこまで大事な用ではない)。
+  let reactions = $state<Reaction[]>([]);
+  let pickerOpen = $state(false);
+
+  // 拾い直しで status ごと入れ替わることがあるので、そのたびに合わせ直す。
+  $effect(() => {
+    reactions = status.reactions ?? [];
+  });
+
+  async function toggle(emoji: string) {
+    const snapshot = reactions;
+    const adding = willAdd(reactions, emoji);
+    reactions = toggled(reactions, emoji);
+    try {
+      await (adding ? api.react(status.id, emoji) : api.unreact(status.id, emoji));
+    } catch {
+      reactions = snapshot;
+    }
+  }
 
   function shortTime(
     iso: string,
@@ -70,6 +101,42 @@
 
   {#if split.handles.length > 0}
     <p class="dm-to">{$t('messages.mentioned', { who: split.handles.map((h) => `@${h}`).join(' ') })}</p>
+  {/if}
+
+  <!-- 付いている絵文字と、足す口。**足す口は、押されるまで出ない** ──
+       一通ごとに ＋ が並ぶと、会話が操作の列に見える。触れたとき(hover)か、
+       tab で来たときだけ、そっと現れる。指の画面では常に出す(hover が
+       無いので、出ないと辿り着けない)。 -->
+  <div class="dm-reactions">
+    {#each reactions as r (r.name)}
+      <button type="button" class="reaction-chip" class:me={r.me} title={r.name} onclick={() => toggle(r.name)}>
+        {#if r.url}
+          <img class="emoji" src={r.url} alt={r.name} loading="lazy" />
+        {:else}
+          <span class="emoji"><Twemoji emoji={r.name} /></span>
+        {/if}
+        {#if r.count > 1}<span class="count">{r.count}</span>{/if}
+      </button>
+    {/each}
+
+    <button
+      type="button"
+      class="reaction-add"
+      aria-haspopup="dialog"
+      aria-expanded={pickerOpen}
+      title={$t('reaction.pick')}
+      aria-label={$t('reaction.pick')}
+      onclick={() => (pickerOpen = !pickerOpen)}
+    >
+      ＋
+    </button>
+  </div>
+
+  {#if pickerOpen}
+    <ReactionPicker
+      onpick={(e) => void toggle(e)}
+      onclose={() => (pickerOpen = false)}
+    />
   {/if}
 
   {#if status.media_attachments?.length}
@@ -143,6 +210,72 @@
     padding-left: calc(36px + var(--space-2));
     font-size: var(--text-sm);
     color: var(--color-text-muted);
+  }
+
+  /* ── 絵文字の返し ───────────────────────────────────────────────── */
+
+  .dm-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+    padding-left: calc(36px + var(--space-2));
+  }
+
+  .reaction-chip {
+    font: inherit;
+    font-size: var(--text-sm);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-2);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+
+  /* 自分が押したものは、罫線を濃く。色ではなく濃さで言う ── 色が見え
+     にくい人にも、同じだけ伝わるように。 */
+  .reaction-chip.me {
+    border-color: var(--color-text);
+    color: var(--color-text);
+  }
+
+  .reaction-chip :global(.emoji) {
+    display: inline-flex;
+    width: 1.15em;
+    height: 1.15em;
+  }
+
+  /* 足す口。ふだんは見えない ── 会話は、操作の列ではないので。
+     触れたとき・tab で来たとき・すでに何か付いているときだけ出す。 */
+  .reaction-add {
+    font: inherit;
+    font-size: var(--text-sm);
+    line-height: 1;
+    padding: 3px var(--space-2);
+    background: transparent;
+    border: 1px dashed var(--color-border);
+    border-radius: 999px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    opacity: 0;
+  }
+
+  .dm:hover .reaction-add,
+  .reaction-add:focus-visible,
+  .dm-reactions:has(.reaction-chip) .reaction-add {
+    opacity: 1;
+  }
+
+  /* 指で触る画面には hover が無い。出ないままだと、辿り着けない。 */
+  @media (pointer: coarse) {
+    .reaction-add {
+      opacity: 1;
+    }
   }
 
   .dm-media {

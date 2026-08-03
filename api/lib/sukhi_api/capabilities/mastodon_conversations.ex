@@ -22,7 +22,7 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
 
   use SukhiApi.Capability, addon: :mastodon_api
 
-  alias SukhiApi.{GatewayRpc, Pagination}
+  alias SukhiApi.{GatewayRpc, Pagination, StatusHydration}
   alias SukhiApi.Views.{MastodonAccount, MastodonStatus}
 
   @impl true
@@ -68,7 +68,13 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
 
         case GatewayRpc.call(SukhiFedi.Conversations, :statuses, [v.id, id, Map.to_list(opts)]) do
           {:ok, {:ok, notes}} when is_list(notes) ->
-            ok(200, Enum.map(notes, &MastodonStatus.render/1))
+            # Through StatusHydration, not `render/1` bare: the bare call
+            # silently drops the reaction chips and the viewer's own flags,
+            # which is exactly how the note page and the profile lost theirs
+            # before. A conversation now carries reactions too — answering a
+            # message with one emoji instead of a sentence — so the thread
+            # needs the same context every other status list gets.
+            ok(200, StatusHydration.many(notes, v))
 
           {:ok, {:error, :not_found}} ->
             ok(404, %{error: "not_found"})
