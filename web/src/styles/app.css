@@ -771,6 +771,21 @@ textarea {
   line-height: 1.6;
 }
 
+/* iOS Safari は 16px 未満の入力欄に焦点が当たると、勝手に画面を拡大する。
+   日本語では --type-scale が 0.92 なので --text-base は 15.6px ── ちょうど
+   下回っていて、返信箱を叩くたびに画面が寄っていた。指で触る画面のときだけ、
+   16px を下限にする(拡大したいときは自分でつまめる)。 */
+@media (pointer: coarse) {
+  textarea,
+  select,
+  input[type='text'],
+  input[type='password'],
+  input[type='email'],
+  input[type='search'] {
+    font-size: max(16px, var(--text-base));
+  }
+}
+
 textarea:focus,
 select:focus,
 input:focus {
@@ -803,6 +818,56 @@ button:disabled {
   field-sizing: content;
   /* 短い一言を続けて投げる場所なので、二行から。長く書けば伸びる。 */
   min-height: calc(2lh + var(--space-4));
+}
+
+/* ── メッセージの返信箱 ─────────────────────────────────────────────
+   会話の面では、返信箱は下に貼りつく。流れの末尾に置くと、長いやりとりでは
+   毎回いちばん下まで漕がないと返せない ── 話しかける口が、遠い。
+   (スマホの SNS がどれも下に固定しているのは、そういう理由。) */
+.composer.composer-dm {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  margin-bottom: 0;
+  background: var(--color-bg);
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  padding: var(--space-3) var(--space-4);
+  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom, 0px));
+}
+
+/* スマホでは下に親指の帯があるので、その上に貼る。帯が縁の余白(safe-area)を
+   もう持っているから、ここでは重ねて取らない。 */
+@media (max-width: 40rem) {
+  body.has-bottom-nav .composer.composer-dm {
+    bottom: 3.75rem;
+    padding-bottom: var(--space-3);
+  }
+
+  /* 指で押すところは、指の大きさに。3px の上下余白では小さすぎた。 */
+  .composer.composer-dm .chip,
+  .composer.composer-dm button[type='submit'] {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* 打っている途中の候補は、入力の**上**に出す。下は画面の縁で、
+   出しても見えない。(flex の並びを一つだけ入れ替える。) */
+.composer.composer-dm .mention-list {
+  order: -1;
+}
+
+/* 伸びるのは、画面の半分まで。それを超えたら中で漕ぐ ── 長い一通を書いて
+   いるあいだに、宛てている会話がぜんぶ画面の外へ出てしまわないように。
+   (「書く」の面には上限を置かない。あちらは会話を見ながらではないので。) */
+.composer.composer-dm textarea.grows {
+  max-height: 40vh;
+  overflow-y: auto;
+  /* 自分で伸びるので、つまんで伸ばす取っ手は要らない。 */
+  resize: none;
 }
 
 /* 「書く」の面。ほかに何も無い一枚なので、枠で囲わない ── 面そのものが

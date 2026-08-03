@@ -352,6 +352,7 @@
 <form
   class="composer"
   class:composer-page={page}
+  class:composer-dm={dm}
   onsubmit={(e) => {
     e.preventDefault();
     void submit();

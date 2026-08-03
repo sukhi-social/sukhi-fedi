@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import {
@@ -80,6 +80,7 @@
       initial = false;
       // 初回が乗ってから拾い直しを始める(空の手元に since_id は無い)。
       armed = true;
+      if (reset) void toNewest();
     }
   }
 
@@ -108,8 +109,20 @@
     );
   }
 
+  // 会話を開いたら、いちばん新しいところ。返信箱は下に貼りついているので、
+  // 直前のやりとりがそのすぐ上に来る ── 開いてすぐ返せる。
+  //
+  // **自分から動かすのは二度だけ**(開いたとき / 自分が送ったとき)。
+  // 拾い直しでは動かさない ── 遡って読んでいる最中に足元をさらわれるのは、
+  // 新しい一通が来たことより、ずっと困る。
+  async function toNewest(smooth = false) {
+    await tick();
+    window.scrollTo({ top: document.body.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  }
+
   function onPosted(s: Status) {
     upsert([s]);
+    void toNewest(true);
   }
 
   // ── 取りこぼしを拾い直す(最後の砦)───────────────────────────────
