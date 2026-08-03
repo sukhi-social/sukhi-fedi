@@ -531,6 +531,7 @@ export const ko: Dict = {
   'messages.self': '나',
   'messages.nameSep': ', ',
   'messages.unread': '안 읽음',
+  'messages.fromMe': '나: ',
   'messages.openThread': '스레드 열기',
   'messages.back': '메시지 목록으로',
   'messages.threadEmpty': '이 대화에는 아직 메시지가 없어요.',

@@ -43,6 +43,15 @@
     }
   }
 
+  // 最後に喋ったのが自分かどうか。Conversation の accounts は「自分以外の
+  // 参加者」なので、書いた人がそこに居なければ自分。自分の acct を別に
+  // 引かなくていい。
+  function lastWasMine(c: Conversation): boolean {
+    const author = c.last_status?.account?.id;
+    if (!author) return false;
+    return !c.accounts.some((a) => a.id === author);
+  }
+
   function withLabel(c: Conversation): string {
     const names = c.accounts.map((a) => a.display_name || a.username);
     if (names.length === 0) return $t('messages.self');
@@ -106,7 +115,13 @@
           >
           <span class="convo-when">{shortTime(c.last_status?.created_at, $t, $locale)}</span>
         </span>
-        <span class="convo-line">{previewOf(c.last_status?.content)}</span>
+        <!-- 誰が最後に喋ったかを、色ではなく文字で。行の頭に相手の名前が
+             出るので、自分の返事まで相手から来たように読めていた。 -->
+        <span class="convo-line">
+          {#if lastWasMine(c)}<span class="convo-mine">{$t('messages.fromMe')}</span>{/if}{previewOf(
+            c.last_status?.content
+          )}
+        </span>
       </span>
 
       {#if c.unread}
@@ -178,6 +193,11 @@
 
   .convo.unread .convo-line {
     color: var(--color-text);
+  }
+
+  /* 「自分:」は印であって中身ではないので、ひとことより一段引く。 */
+  .convo-mine {
+    color: var(--color-text-muted);
   }
 
   .unread-dot {

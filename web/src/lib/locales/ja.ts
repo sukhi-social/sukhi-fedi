@@ -137,9 +137,11 @@ export const ja = {
   'status.boostedBy': 'がブースト',
   'status.expandBoost': '開く',
   'status.now': 'いま',
-  'status.minutesAgo': '{n} 分前',
-  'status.hoursAgo': '{n} 時間前',
-  'status.daysAgo': '{n} 日前',
+  // 和文では数字と単位のあいだに半角空白を入れない(約物の作法)。
+  // ko は `{n}시간 전` のまま ── 韓国語は単位の前で切って、そこに空白が入る。
+  'status.minutesAgo': '{n}分前',
+  'status.hoursAgo': '{n}時間前',
+  'status.daysAgo': '{n}日前',
   'status.tapToShow': 'タップで表示',
   'status.readMore': '続きを読む',
   'status.readArticle': '記事を読む',
@@ -528,6 +530,9 @@ export const ja = {
   'messages.self': '自分',
   'messages.nameSep': '、',
   'messages.unread': '未読',
+  // 一覧で、最後に喋ったのが自分だったときの印。行の頭には相手の名前が
+  // 出ているので、これが無いと自分の返事も相手から来たように読める。
+  'messages.fromMe': '自分: ',
   'messages.openThread': 'スレッドをひらく',
   'messages.back': 'メッセージ一覧へ',
   'messages.threadEmpty': 'このやりとりには、まだメッセージがありません。',

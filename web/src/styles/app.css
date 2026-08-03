@@ -941,6 +941,18 @@ button:disabled {
   align-items: center;
   gap: var(--space-1);
   min-height: calc(1.6em + 8px);
+  /* 罫線は淡いほうへ。本文は枠のない地の文なのに、その真下で枠つきの輪が
+     六つ閉じていて、視線が先にそちらへ行っていた。「余計な線を消し、行間を
+     ゆったりとるだけで見栄えよくなる」── 押せる大きさ(min-height)は
+     変えないので、当たり判定は同じまま。 */
+  border-color: var(--color-border);
+}
+
+/* 押している / 済んでいるものは、いまも色で分かる。淡くしたぶん、
+   触れたときにだけ輪郭を戻して「押せる」を返す。 */
+.status-actions .chip:hover,
+.status-actions .chip:focus-visible {
+  border-color: var(--color-border-strong);
 }
 
 /* ── プロフィール ────────────────────────────────────────────────── */
@@ -1061,15 +1073,23 @@ button:disabled {
 
 /* ── 設定 ────────────────────────────────────────────────────────── */
 
+/* 節と節のあいだは、節の中(.stack-tight の --space-1)より **はっきり**
+   広く。同じ間隔で縦に並んでいると、どこからどこまでが一つのまとまりか
+   間隔から読めない ── ラベルと入力が離れ、隣の節とはくっついて見える。 */
 .settings-form {
   max-width: var(--measure);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-6);
 }
 
-.settings-form label.stack-tight > span {
+/* 節の見出しは、包みが label でも div でも同じ姿にする。片方だけに
+   掛けていたので、「プロフィールのひとこと欄」だけ本文の大きさで濃く出て、
+   同じ高さの「ことば」「表示名」より上の階層に見えていた。読み手は
+   大きさで階層を測るので、同じ役目のものは同じ大きさで。 */
+.settings-form label.stack-tight > span,
+.settings-form div.stack-tight > span {
   display: block;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
