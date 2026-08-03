@@ -29,6 +29,41 @@ export const reconnect = readable(0, (set) => {
   };
 });
 
+// 前に出ているあいだだけ、ゆっくり打つ合図。`reconnect` と同じ形
+// (増える数。値でなく「変わった」ことが合図)。
+//
+// DM には live の床が無い ── 管が死んでいても、こちらからは「静か」と
+// 見分けがつかない。**タブは開きっぱなし・管は死んでいる**が、気づかれ
+// ない一番長い窓になる。ここが最後の砦。
+//
+// 裏に回ったら止める(電池と回線を無駄にしない)。速くしない ── 速い
+// polling は「平穏」ではなく「監視」になる。live の代用ではなく、保険。
+export function slowPoll(everyMs = 60_000) {
+  return readable(0, (set) => {
+    if (typeof window === 'undefined') return;
+
+    let n = 0;
+    let id: ReturnType<typeof setInterval> | null = null;
+
+    const start = () => {
+      if (id === null) id = setInterval(() => set((n += 1)), everyMs);
+    };
+    const stop = () => {
+      if (id !== null) clearInterval(id);
+      id = null;
+    };
+    const onVisibility = () => (document.hidden ? stop() : start());
+
+    onVisibility();
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  });
+}
+
 // この失敗は「繋がらない」たぐいか(=戻れば直る)。本当のエラー
 // (404 や 422)とは分けて、静かな「待っています」表示＋自動再試行に
 // まわすために使う。

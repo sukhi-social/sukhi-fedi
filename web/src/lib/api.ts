@@ -334,12 +334,15 @@ export async function getConversations(
 // クエリも無い。鎖から外れた一通(スレッドの外から書かれた DM)も出る。
 export async function getConversationStatuses(
   id: string,
-  opts: { maxId?: string | null; limit?: number } = {}
+  opts: { maxId?: string | null; sinceId?: string | null; limit?: number } = {}
 ): Promise<Page<Status>> {
+  const qs = pageQs(opts, 30);
+  // 取りこぼしの拾い直し用。手元の最新より新しいぶんだけを引く。
+  if (opts.sinceId) qs.set('since_id', opts.sinceId);
   return page<Status>(
     await req(
       'GET',
-      `/api/v1/conversations/${encodeURIComponent(id)}/statuses?${pageQs(opts, 30)}`,
+      `/api/v1/conversations/${encodeURIComponent(id)}/statuses?${qs}`,
       'conversation_statuses'
     )
   );

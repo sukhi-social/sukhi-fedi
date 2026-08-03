@@ -9,6 +9,7 @@
     type Status
   } from '$lib/api';
   import { isLoggedIn, clearToken } from '$lib/auth';
+  import { reconnect, slowPoll } from '$lib/connection';
   import { createPager } from '$lib/pager.svelte';
   import { renderEmojis } from '$lib/emoji';
   import { phrase } from '$lib/phrase';
@@ -58,6 +59,8 @@
     } finally {
       loading = false;
       initial = false;
+      // 初回が乗ってから拾い直しを始める(空の手元に since_id は無い)。
+      armed = true;
     }
   }
 
@@ -73,11 +76,56 @@
     return names.join($t('messages.nameSep'));
   }
 
-  function onPosted(s: Status) {
-    // 送れた返事は、その場でスレッドの末尾に足す。pager は新しい順なので
-    // 頭へ。
-    pager.items = [s, ...pager.items];
+  // ── 同じ一通が三つの道から来る ───────────────────────────────────
+  //   自分の送信の返り値 / 拾い直し / (いずれ)live の管
+  // **id で、ここ一箇所だけで潰す。** 述語を散らさない。
+  function upsert(incoming: Status[]) {
+    if (incoming.length === 0) return;
+    const byId = new Map(pager.items.map((s) => [s.id, s]));
+    for (const s of incoming) byId.set(s.id, s);
+    // pager は新しい順。id は snowflake なので、数として降順に。
+    pager.items = [...byId.values()].sort((a, b) =>
+      a.id.length === b.id.length ? (a.id < b.id ? 1 : -1) : b.id.length - a.id.length
+    );
   }
+
+  function onPosted(s: Status) {
+    upsert([s]);
+  }
+
+  // ── 取りこぼしを拾い直す(最後の砦)───────────────────────────────
+  //
+  // live の床が無いので、ここが live の代わりを務める。**ストリームは
+  // 呼び鈴で、本当のことは API に訊く。** 呼び鈴が鳴らなかった日でも、
+  // 扉を開ければ荷物はそこにある。
+  //
+  // 引き金は三つとも、この一箇所に集める:
+  //   ・onMount(開いたとき)── 下の load(true)
+  //   ・online 復帰 / タブ復帰 ── reconnect
+  //   ・前に出ているあいだ、ゆっくり定期で ── slowPoll
+  //
+  // 重複は前提。広めに引いて、upsert に任せる。復帰は静かに ──
+  // 「再接続しました」は出さない。拾えたものが、ただそこに増える。
+  const poll = slowPoll();
+  let armed = $state(false);
+
+  async function catchUp() {
+    if (!armed || loading) return;
+    const newest = pager.items[0]?.id;
+    if (!newest) return;
+    try {
+      const page = await getConversationStatuses(id, { sinceId: newest });
+      upsert(page.items);
+    } catch {
+      // 拾い直しの失敗は黙って飲む。次の引き金でまた来る。
+    }
+  }
+
+  $effect(() => {
+    void $reconnect;
+    void $poll;
+    void catchUp();
+  });
 </script>
 
 <header class="timeline page-head">

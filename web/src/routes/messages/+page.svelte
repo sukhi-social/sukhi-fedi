@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { getConversations, type Conversation } from '$lib/api';
   import { isLoggedIn, clearToken } from '$lib/auth';
+  import { reconnect, slowPoll } from '$lib/connection';
   import { createPager } from '$lib/pager.svelte';
   import { renderEmojis } from '$lib/emoji';
   import { phrase } from '$lib/phrase';
@@ -40,8 +41,23 @@
     } finally {
       loading = false;
       initial = false;
+      armed = true;
     }
   }
+
+  // 取りこぼしを拾い直す。スレッドと同じ三つの引き金 ── 開いたとき /
+  // online 復帰・タブ復帰 / 前に出ているあいだゆっくり定期で。
+  //
+  // 一覧は一発で全部取り直せる(点の状態も、最後のひとことも、いっしょに
+  // 更新される)ので、ここは reset で足りる。静かに差し替わるだけ。
+  const poll = slowPoll();
+  let armed = $state(false);
+
+  $effect(() => {
+    void $reconnect;
+    void $poll;
+    if (armed && !loading) void load(true);
+  });
 
   // 最後に喋ったのが自分かどうか。Conversation の accounts は「自分以外の
   // 参加者」なので、書いた人がそこに居なければ自分。自分の acct を別に
