@@ -124,6 +124,7 @@ export const ko: Dict = {
   'compose.placeholderNew': '지금 떠오르는 생각…',
   'compose.removeMedia': '빼기',
   'compose.addImage': '이미지 더하기',
+  'compose.more': '다른 설정',
   'compose.fold': '접기',
   'compose.sensitive': '열람 주의',
   'compose.visLabel': '공개 범위',

@@ -813,8 +813,83 @@ button:disabled {
   margin-bottom: var(--space-6);
 }
 
+/* 「書く」は短い一言のための場所。白紙を大きく開けると「たくさん書け」に
+   見えるので、三行から始めて、書いたぶんだけ伸ばす。 */
 .composer.composer-page textarea.grows {
-  min-height: calc(8lh + var(--space-4));
+  min-height: calc(3lh + var(--space-4));
+}
+
+/* メンションの候補。浮かせない ── 浮き札で本文を覆ったのと同じ轍を
+   踏まない。入力のすぐ下に、要るあいだだけ場所を取る。
+   面の作法にならって枠だけ・影なし(nav-menu と同じ)。 */
+.mention-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.mention-list li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.mention-list button {
+  font: inherit;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.mention-list button.active,
+.mention-list button:hover {
+  background: var(--color-bg);
+}
+
+.mention-name {
+  font-weight: 700;
+}
+
+/* ハンドルは縮む側。長い @user@host が名前を押し出さないように。 */
+.mention-acct {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 畳んである「ほかの設定」。開くまで、何も主張しない。 */
+.composer-more > summary {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.composer-more-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.composer-more-row label.stack-tight {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 0;
 }
 
 .composer-reply {

@@ -3,6 +3,7 @@
   import {
     postStatus,
     uploadMedia,
+    type Account,
     type MediaAttachment,
     type Status,
     type Visibility
@@ -19,6 +20,9 @@
   } from '$lib/compose-draft';
   import { goto } from '$app/navigation';
   import { t } from '$lib/i18n';
+  import { applyPick } from '$lib/mention';
+  import { createMentions } from '$lib/mention.svelte';
+  import Avatar from './Avatar.svelte';
   import QuoteCard from './QuoteCard.svelte';
 
   let {
@@ -101,6 +105,51 @@
   let posting = $state(false);
   let error = $state<string | null>(null);
   let fileInput: HTMLInputElement | undefined = $state();
+
+  // ── メンションの補完 ─────────────────────────────────────────────
+  //
+  // 打っている途中の `@語` にだけ効く。**選ぶまで本文は変わらない** ──
+  // 勝手に確定させると、書いた覚えのない名前が文に入る。
+  let box: HTMLTextAreaElement | undefined = $state();
+  const mentions = createMentions();
+
+  function lookForMention() {
+    if (!box) return;
+    mentions.look(box.value, box.selectionStart ?? box.value.length);
+  }
+
+  function pickMention(a: Account) {
+    const f = mentions.fragment;
+    if (!f || !box) return;
+    const r = applyPick(text, f, a.acct);
+    text = r.text;
+    mentions.close();
+    // カーソルを置き直す。DOM が更新されてから。
+    queueMicrotask(() => box?.setSelectionRange(r.caret, r.caret));
+    box.focus();
+  }
+
+  // 候補が開いているあいだだけ、上下と Enter を借りる。開いていなければ
+  // 何もしない ── ふつうに改行できることのほうが大事。
+  function onMentionKey(e: KeyboardEvent) {
+    if (!mentions.open) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      mentions.move(1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      mentions.move(-1);
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      const a = mentions.items[mentions.active];
+      if (a) {
+        e.preventDefault();
+        pickMention(a);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      mentions.close();
+    }
+  }
 
   // 予約投稿。チェックを入れたときだけ日時を見る。返信では出さない
   // (返信を寝かせる場面はまずない)。下書きには含めない ─ 時刻は
@@ -318,12 +367,40 @@
   <label class="stack-tight">
     <span class="visually-hidden">{$t('compose.bodyLabel')}</span>
     <textarea
+      bind:this={box}
       class:grows={dm || page}
       bind:value={text}
-      rows={dm ? 4 : page ? 8 : replyTo ? 3 : 4}
+      rows={dm ? 4 : 3}
       placeholder={replyTo ? $t('compose.placeholderReply') : $t('compose.placeholderNew')}
+      onkeydown={onMentionKey}
+      oninput={lookForMention}
+      onclick={lookForMention}
+      onblur={() => setTimeout(() => mentions.close(), 120)}
     ></textarea>
   </label>
+
+  <!-- 打っている途中の @語 の候補。開いていないときは、何も無い。
+       選ぶまで本文は変わらない ── 勝手に確定させない。 -->
+  {#if mentions.open}
+    <ul class="mention-list">
+      {#each mentions.items as a, i (a.id)}
+        <li>
+          <button
+            type="button"
+            class:active={i === mentions.active}
+            onmousedown={(e) => {
+              e.preventDefault();
+              pickMention(a);
+            }}
+          >
+            <Avatar class="avatar avatar-sm" src={a.avatar} name={a.display_name || a.username} />
+            <span class="mention-name">{a.display_name || a.username}</span>
+            <span class="mention-acct">@{a.acct}</span>
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
 
   {#if useSchedule}
     <label class="stack-tight">
@@ -348,6 +425,32 @@
     </ul>
   {/if}
 
+  <!-- ふだん使わない三つは、畳んでおく。ここは短い一言を書く場所で、
+       折りたたみも、見せ注意も、時間指定も、たまにしか要らない。表に
+       出しておくと、六つ並んだ操作のほうが本文より大きくなる。
+       DM では畳む以前に出さない(上と同じ理由)。 -->
+  {#if !dm}
+    <details class="composer-more">
+      <summary>{$t('compose.more')}</summary>
+      <div class="composer-more-row">
+        <label class="stack-tight">
+          <input type="checkbox" bind:checked={useSpoiler} />
+          <span>{$t('compose.fold')}</span>
+        </label>
+
+        <label class="stack-tight">
+          <input type="checkbox" bind:checked={sensitive} />
+          <span>{$t('compose.sensitive')}</span>
+        </label>
+
+        <label class="stack-tight">
+          <input type="checkbox" bind:checked={useSchedule} />
+          <span>{$t('compose.schedule')}</span>
+        </label>
+      </div>
+    </details>
+  {/if}
+
   <div class="composer-row">
     <label class="chip">
       {$t('compose.addImage')}
@@ -364,21 +467,6 @@
     <!-- DM では、どれも使わない。可視性の select は出さないだけでなく、
          出してはいけない ─ 手が滑って公開に切り替わった一通は取り返せない。 -->
     {#if !dm}
-      <label class="stack-tight">
-        <input type="checkbox" bind:checked={useSpoiler} />
-        <span>{$t('compose.fold')}</span>
-      </label>
-
-      <label class="stack-tight">
-        <input type="checkbox" bind:checked={sensitive} />
-        <span>{$t('compose.sensitive')}</span>
-      </label>
-
-      <label class="stack-tight">
-        <input type="checkbox" bind:checked={useSchedule} />
-        <span>{$t('compose.schedule')}</span>
-      </label>
-
       <label class="stack-tight">
         <span class="visually-hidden">{$t('compose.visLabel')}</span>
         <select bind:value={visibility}>

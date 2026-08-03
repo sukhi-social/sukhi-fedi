@@ -121,6 +121,7 @@ export const ja = {
   'compose.placeholderNew': 'いま、思っていること…',
   'compose.removeMedia': 'はずす',
   'compose.addImage': '画像を足す',
+  'compose.more': 'ほかの設定',
   'compose.fold': '折りたたむ',
   'compose.sensitive': '見せ注意',
   'compose.visLabel': '公開の範囲',
