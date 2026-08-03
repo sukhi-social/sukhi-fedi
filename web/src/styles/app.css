@@ -153,6 +153,25 @@ main.wrap {
   text-decoration: underline;
 }
 
+/* 会話の面のときだけ、表札の場所に立つ「戻る」。矢だけにしない ──
+   かたちだけで意味を負わせず、言葉も添える(色や図形に頼らない、の続き)。
+   指で押すので 44px。 */
+.app-nav-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  margin-left: calc(var(--space-2) * -1);
+  padding-inline: var(--space-2);
+  font-weight: 700;
+  text-decoration: none;
+  color: inherit;
+}
+
+.app-nav-back:hover {
+  text-decoration: underline;
+}
+
 /* ── ナビのリンク(アイコン＋ことば) ───────────────────────────
    縁(chrome)は墨のまま。アイコンは NavIcon の currentColor 線画で、
    色は持たない ── 彩りは中身(Twemoji のリアクション)にだけ置く。

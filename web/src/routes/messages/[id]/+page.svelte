@@ -163,8 +163,8 @@
   });
 </script>
 
+<!-- 戻る口は屋根の左上へ移した(AppNav)。ここに置くと二つになる。 -->
 <header class="timeline page-head">
-  <a class="chip" href="/messages">{$t('messages.back')}</a>
   {#if convo}
     <h1>{@html renderEmojis(phrase(withLabel(convo)), convo.accounts[0]?.emojis)}</h1>
   {/if}

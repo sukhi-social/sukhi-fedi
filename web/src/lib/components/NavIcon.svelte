@@ -15,7 +15,8 @@
     | 'gear'
     | 'compose'
     | 'logout'
-    | 'user';
+    | 'user'
+    | 'back';
 
   let { name }: { name: IconName } = $props();
 </script>
@@ -31,7 +32,9 @@
   aria-hidden="true"
   focusable="false"
 >
-  {#if name === 'home'}
+  {#if name === 'back'}
+    <path d="M14.5 5 8 12l6.5 7" />
+  {:else if name === 'home'}
     <path d="M3.5 11.5 12 4l8.5 7.5" />
     <path d="M6 10v9.5h12V10" />
   {:else if name === 'bell'}

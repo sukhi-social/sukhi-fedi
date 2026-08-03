@@ -55,11 +55,15 @@
   let loggedIn = $state(false);
   let me = $state<Account | null>(null);
 
+  // 会話の面は「入った先」。ここは行き先を選ぶ場所ではなく、もう誰かと
+  // 話している場所なので、流れの帯は畳んで、左上を戻る口にする ──
+  // スマホのアプリが、話の画面でタブを消して ← を出すのと同じ約束。
+  // (畳んだぶんの高さは、そのまま会話に返る。)
+  let inThread = $derived(/^\/messages\/[^/]+\/?$/.test(page.url.pathname));
+  let showBottomNav = $derived(loggedIn && !inThread);
+
   function sync() {
     loggedIn = isLoggedIn();
-    if (typeof document !== 'undefined') {
-      document.body.classList.toggle('has-bottom-nav', loggedIn);
-    }
     if (loggedIn) {
       void refreshUnseen();
       void currentAccount().then((a) => (me = a));
@@ -69,6 +73,12 @@
       stopStream();
     }
   }
+
+  // 下の帯のぶんの余白は、帯が出ているときだけ。畳んだ面で余白だけ残ると、
+  // 会話の下に理由のない空きができる。
+  $effect(() => {
+    document.body.classList.toggle('has-bottom-nav', showBottomNav);
+  });
 
   onMount(() => {
     sync();
@@ -137,10 +147,17 @@
 {#if loggedIn}
   <header class="app-nav">
     <div class="wrap app-nav-row">
-      <a class="app-nav-name" href="/timeline">
-        <img class="app-nav-mark" src="/favicon.png" alt="" width="64" height="64" />
-        sukhi-fedi
-      </a>
+      {#if inThread}
+        <a class="app-nav-back" href="/messages">
+          <NavIcon name="back" />
+          <span>{$t('messages.back')}</span>
+        </a>
+      {:else}
+        <a class="app-nav-name" href="/timeline">
+          <img class="app-nav-mark" src="/favicon.png" alt="" width="64" height="64" />
+          sukhi-fedi
+        </a>
+      {/if}
       <nav class="nav-top" aria-label={$t('nav.label')}>
         {#each flowTop as item (item.key)}{@render flowLink(item)}{/each}
 
@@ -178,7 +195,9 @@
     </div>
   </header>
 
-  <nav class="nav-bottom" aria-label={$t('nav.bottomLabel')}>
-    {#each flowBottom as item (item.key)}{@render flowLink(item)}{/each}
-  </nav>
+  {#if showBottomNav}
+    <nav class="nav-bottom" aria-label={$t('nav.bottomLabel')}>
+      {#each flowBottom as item (item.key)}{@render flowLink(item)}{/each}
+    </nav>
+  {/if}
 {/if}

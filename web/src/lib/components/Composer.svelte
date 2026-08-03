@@ -152,9 +152,16 @@
   // DM を Enter で送るのは、短い一言を続けて投げる場所だから。改行が
   // 要るときは Shift+Enter ── LINE と同じ約束。**DM 以外では変えない**:
   // ふつうの投稿は長く書くことがあるので、Enter が送信だと事故になる。
+  //
+  // **ただし、指で触る画面では Enter は改行のまま。** スマホのキーボードに
+  // Shift は無いので、Enter が送信だと改行の入れようが無くなる ── 二行書き
+  // たいだけの人が、書けなくなる。送るのは「送る」を押して。
+  const sendsOnEnter = () =>
+    typeof window === 'undefined' || !window.matchMedia('(pointer: coarse)').matches;
+
   function onMentionKey(e: KeyboardEvent) {
     if (!mentions.open) {
-      if (dm && e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      if (dm && sendsOnEnter() && e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         if (canPost) void submit();
       }
