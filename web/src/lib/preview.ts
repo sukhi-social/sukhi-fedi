@@ -34,6 +34,66 @@ export function stripLeadingMentions(text: string): string {
   return text.replace(/^(?:\s*@[\w.\-]+(?:@[\w.\-]+)?)+/u, '').trim();
 }
 
+/**
+ * HTML のまま、あたまの言及だけを外す。
+ *
+ * DM の宛先は本文の `@` 言及で決まる(サーバの契約)ので、どの一通も相手の
+ * 名前で始まる。二人しかいない会話でそれを毎行読まされるのは、ただの重複
+ * ── 誰が書いたかは、名前と左の線がもう言っている。
+ *
+ * 落とすのは **h-card に包まれた、先頭の言及だけ**。文中の言及も、素の
+ * `@` で始まる文も触らない。本文は表示のためにほどくが、送られたものは
+ * そのまま残る(サーバ側は言及つきのまま)。
+ */
+export function stripLeadingMentionHtml(html: string | null | undefined): string {
+  const s = String(html ?? '');
+
+  const open = /^\s*<p[^>]*>/i.exec(s);
+  if (!open) return s;
+
+  const head = open[0];
+  let i = head.length;
+
+  // h-card は入れ子(<span class="h-card"><a>@<span>acct</span></a></span>)なので、
+  // 正規表現で `</span>` まで、では内側で閉じてしまう。span の開閉を数える。
+  const closeSpanFrom = (from: number): number => {
+    let depth = 0;
+    const tag = /<(\/?)span\b[^>]*>/giu;
+    tag.lastIndex = from;
+    let m: RegExpExecArray | null;
+    while ((m = tag.exec(s))) {
+      depth += m[1] ? -1 : 1;
+      if (depth === 0) return tag.lastIndex;
+    }
+    return -1;
+  };
+
+  for (;;) {
+    const rest = s.slice(i);
+    const ws = /^\s*/u.exec(rest)![0].length;
+    const at = i + ws;
+
+    if (/^<span class="h-card"/i.test(s.slice(at))) {
+      const end = closeSpanFrom(at);
+      if (end < 0) break;
+      i = end;
+      continue;
+    }
+
+    // h-card に包まれていない素の言及も、あたまなら落とす。
+    const bare = /^@[\w.\-]+(?:@[\w.\-]+)?/u.exec(s.slice(at));
+    if (bare) {
+      i = at + bare[0].length;
+      continue;
+    }
+
+    i = at;
+    break;
+  }
+
+  return i === head.length ? s : head + s.slice(i);
+}
+
 /** 一覧に出す一行。HTML をほどいて、あたまの言及を外して、長すぎたら畳む。 */
 export function previewOf(html: string | null | undefined, limit = 140): string {
   const text = stripLeadingMentions(plainText(html));

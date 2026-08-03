@@ -14,6 +14,7 @@
   import { phrase } from '$lib/phrase';
   import Avatar from './Avatar.svelte';
   import type { Status } from '$lib/api';
+  import { stripLeadingMentionHtml } from '$lib/preview';
   import { t, locale, type Locale, type TranslationKey } from '$lib/i18n';
 
   let {
@@ -57,10 +58,10 @@
   {#if status.spoiler_text}
     <details>
       <summary>{status.spoiler_text}</summary>
-      <div class="dm-body">{@html status.content}</div>
+      <div class="dm-body">{@html stripLeadingMentionHtml(status.content)}</div>
     </details>
   {:else}
-    <div class="dm-body">{@html status.content}</div>
+    <div class="dm-body">{@html stripLeadingMentionHtml(status.content)}</div>
   {/if}
 
   {#if status.media_attachments?.length}
