@@ -25,11 +25,18 @@ defmodule SukhiFedi.Streaming do
   """
   @spec publish_direct([%{account_id: integer(), conversation: map()}]) :: :ok
   def publish_direct(targets) when is_list(targets) do
-    if registry_running?() do
-      Enum.each(targets, fn %{account_id: account_id, conversation: conversation} ->
+    Enum.each(targets, fn %{account_id: account_id, conversation: conversation} ->
+      # gateway 内の WS 購読者へ。
+      if registry_running?() do
         Registry.broadcast(:direct, %{event: "conversation", payload: conversation}, account_id)
-      end)
-    end
+      end
+
+      # WebTransport のエッジ(karutte)は別ノードなので in-process Registry を
+      # 見られない。宛先ごとの subject へ出す。`fanout_entries/1` が既に
+      # 参加者ごとに分けてくれているので、`nats_listener` の中継は要らない
+      # (あれは `stream.new_post` から follower を展開するためのもの)。
+      nats_pub("stream.direct.#{account_id}", conversation)
+    end)
 
     :ok
   end
@@ -100,6 +107,15 @@ defmodule SukhiFedi.Streaming do
           _ -> :error
         end
     end
+  end
+
+  # NATS へ一発。streaming は任意の addon なので、落ちても投稿は落とさない
+  # (`publish_new_post/2` と同じ約束)。
+  defp nats_pub(subject, payload) do
+    Gnat.pub(:gnat, subject, JSON.encode!(payload))
+    :ok
+  rescue
+    _ -> :ok
   end
 
   defp plugin_node, do: Application.get_env(:sukhi_fedi, :plugin_nodes, []) |> List.first()

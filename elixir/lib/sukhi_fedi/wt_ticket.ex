@@ -17,6 +17,9 @@ defmodule SukhiFedi.WtTicket do
   `:ticket_pubkey` に置く。未設定なら発行しない（`{:error, :no_key}`）＝streaming 同様 best-effort。
   """
 
+  # `mint/2` を feeds 無しで呼んだときだけ効く。実際の発券口
+  # （`WtController`）は `feeds:` を明示で渡すので、**チケットに何が載るかを
+  # 変えたいならあちらを見ること** ── ここを直しても何も起きない。
   @default_feeds ["local", "user"]
   @default_ttl 300
 

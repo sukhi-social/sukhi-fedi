@@ -15,7 +15,11 @@ defmodule SukhiFedi.Web.WtController do
   alias SukhiFedi.Web.BearerToken
   alias SukhiFedi.WtTicket
 
-  @feeds ["local", "user"]
+  # チケットに載せる feed。**発券はここが正**（`mint/2` に明示で渡すので、
+  # `WtTicket` 側の `@default_feeds` はフォールバックに落ちない）。
+  # karutte が知らない feed 名を渡しても、向こうの `subject_for/2` が nil を
+  # 返してその feed が開かないだけなので、順番を合わせる必要はない。
+  @feeds ["local", "user", "direct"]
 
   def wt(conn, _opts) do
     case authenticate(conn) do
