@@ -244,6 +244,8 @@ export const ko: Dict = {
   'push.working': '잠시만요…',
   'push.blocked':
     '이 브라우저에서 알림이 거부되어 있어요. 브라우저 설정에서 허용하면 여기서 다시 고를 수 있어요.',
+  'push.reauth':
+    '알림을 받으려면 한 번 다시 로그인해 주세요. 이 기기의 열쇠에 알림 권한이 아직 없어요.',
   'push.failed': '잘되지 않았어요. 다시 한번 해 주세요.',
   'settings.emojiCreditPre': '이모지는 ',
   'settings.emojiCreditParenOpen': ' (',

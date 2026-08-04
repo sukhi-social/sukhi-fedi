@@ -23,6 +23,10 @@
       <!-- ブラウザ側で断られている。ここからは戻せないので、そう言う。
            押しても何も起きない釦を出すより、正直なほうがいい。 -->
       <p class="prose-small">{$t('push.blocked')}</p>
+    {:else if push.state === 'reauth'}
+      <!-- いまの token に push の許しが無い。押させない ── 進めても、
+           ブラウザの許可(一度しか訊けない)を使ったあとで断られるだけ。 -->
+      <p class="prose-small">{$t('push.reauth')}</p>
     {:else if push.state === 'on'}
       <div class="push-row">
         <span class="prose-small">{$t('push.on')}</span>

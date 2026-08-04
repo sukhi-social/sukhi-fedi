@@ -74,7 +74,13 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
             # before. A conversation now carries reactions too — answering a
             # message with one emoji instead of a sentence — so the thread
             # needs the same context every other status list gets.
-            ok(200, StatusHydration.many(notes, v))
+            # **With the Link header.** Without it the client's pager sees
+            # no cursor after the first page and hides 「もっと読む」, so a
+            # conversation looks like it only has its most recent 20
+            # messages — and looks like it is losing older ones as new ones
+            # push them past the edge. Every other status list emits this;
+            # this one was written without it.
+            page_with_link(notes, "/api/v1/conversations/#{id}/statuses", opts, v)
 
           {:ok, {:error, :not_found}} ->
             ok(404, %{error: "not_found"})
@@ -149,6 +155,27 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
        status: status,
        body: JSON.encode!(body),
        headers: [{"content-type", "application/json"}]
+     }}
+  end
+
+  # A page of statuses plus the cursor to the one before it. The client's
+  # pager reads `rel="next"` from here and shows 「もっと読む」 only while
+  # there is one, so a list that forgets this header looks like a list
+  # with no history.
+  defp page_with_link(notes, base_url, opts, viewer) do
+    headers = [{"content-type", "application/json"}]
+
+    headers =
+      case Pagination.link_header(base_url, notes, & &1.id, opts) do
+        nil -> headers
+        link -> [link | headers]
+      end
+
+    {:ok,
+     %{
+       status: 200,
+       body: JSON.encode!(StatusHydration.many(notes, viewer)),
+       headers: headers
      }}
   end
 end

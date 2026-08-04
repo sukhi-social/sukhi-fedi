@@ -13,6 +13,7 @@ import {
   getPushSubscription,
   putPushSubscription
 } from '$lib/api';
+import { loadToken } from '$lib/auth';
 import { adoptDirectTypes } from '$lib/notify';
 import { alertsFor, decodeServerKey, pushSupported } from '$lib/push';
 
@@ -20,9 +21,20 @@ export type PushState =
   | 'unsupported' // このブラウザ・この機械では、そもそも扱えない
   | 'unconfigured' // サーバに VAPID 鍵が無い。押せる口を出さない
   | 'denied' // ブラウザで拒否済み。設定から戻すしかない
+  | 'reauth' // いまの token に push の許しが無い。入りなおしが要る
   | 'off'
   | 'on'
   | 'working';
+
+// 購読の口(/api/v1/push/subscription)が要る scope。
+//
+// **押す前に確かめる。** 無いまま進むと、ブラウザの許可 ── 一度しか
+// 訊けないもの ── を使ったあとでサーバに 403 で断られて、手元からは
+// 「うまくいきませんでした」としか見えない。それは直しようのない案内。
+function hasPushScope(): boolean {
+  const t = loadToken();
+  return !!t && t.scope.split(/\s+/).includes('push');
+}
 
 export function createPush() {
   let state = $state<PushState>('working');
@@ -56,6 +68,13 @@ export function createPush() {
       return;
     }
 
+    // 許可を訊く**前に**。あとで気づくと、取り返しのつかない一回を使い
+    // 終わっている。
+    if (!hasPushScope()) {
+      state = 'reauth';
+      return;
+    }
+
     try {
       const row = await getPushSubscription();
 
@@ -74,6 +93,11 @@ export function createPush() {
   async function enable() {
     error = null;
     state = 'working';
+
+    if (!hasPushScope()) {
+      state = 'reauth';
+      return;
+    }
 
     try {
       const permission = await Notification.requestPermission();

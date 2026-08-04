@@ -40,7 +40,12 @@ const DRAFT_KEY = 'sf.signup_draft';
 // 書き込み (投稿・プロフィール編集) と follow を含む。読み取りだけの
 // 古い token を持っている人は、書き込み API で 401/403 を踏むので
 // その時点で clearToken → 再ログインで広い token を取り直す形。
-const SCOPES = 'read write follow';
+//
+// `push` は /api/v1/push/subscription 一式が要る scope。無いまま「知らせを
+// 受け取る」を押すと、**ブラウザの許可(一度しか訊けない)を使ったあとで**
+// サーバに 403 で断られる ── 手元からは「うまくいきませんでした」としか
+// 見えない。広げたので、古い creds は下の scopes 比較で作り直される。
+const SCOPES = 'read write follow push';
 
 // password は API call の直前まで sessionStorage に乗るが、call の
 // 直後(成功も失敗も)`clearSignupPassword` で消して、username +

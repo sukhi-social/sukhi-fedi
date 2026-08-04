@@ -244,6 +244,8 @@ export const ja = {
   'push.working': '待ってください…',
   'push.blocked':
     'このブラウザで、お知らせが断られています。ブラウザの設定から許可すると、ここでまた選べます。',
+  'push.reauth':
+    '知らせを受け取るには、一度ログインし直してください。この端末の合鍵に、まだお知らせの許しが入っていません。',
   'push.failed': 'うまくいきませんでした。もう一度どうぞ。',
   'settings.emojiCreditPre': '絵文字は ',
   'settings.emojiCreditParenOpen': '（',
