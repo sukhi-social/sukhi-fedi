@@ -141,9 +141,18 @@ defmodule SukhiFedi.Addons.WebPush do
 
     :ok
   rescue
-    # The doorbell is never allowed to break the house.
+    # The doorbell is never allowed to break the house — but it must say
+    # so when it breaks. This rescue once hid a wrong Oban instance name:
+    # every push vanished, `notify/1` returned `:ok`, and there was
+    # nothing in the log to find. Log the stacktrace, not just the
+    # message, so the next one is one grep away.
     error ->
-      Logger.warning("web push enqueue failed: #{Exception.message(error)}")
+      Logger.error("""
+      web push enqueue failed — nothing was sent for notification \
+      #{inspect(Map.get(notif, :id))}: #{Exception.message(error)}
+      #{Exception.format_stacktrace(__STACKTRACE__)}\
+      """)
+
       :ok
   end
 
@@ -209,6 +218,13 @@ defmodule SukhiFedi.Addons.WebPush do
   # The delivery node owns outbound HTTP, so the job names a module that
   # only exists over there. Oban takes a worker name as a string precisely
   # so a producer needn't carry the consumer's code.
+  #
+  # **`SukhiFedi.Oban`, not `Oban`.** This app runs its Oban under a name
+  # (application.ex), so the bare `Oban.insert/1` looks for a default
+  # instance that isn't there and raises — which `notify/1`'s rescue then
+  # swallowed. Every push was quietly dropped: `:ok` returned, nothing
+  # logged, nothing sent. Exactly the silent lie the round-trip test was
+  # written to prevent, arriving through a different door.
   defp enqueue(row, payload) do
     %{
       "subscription_id" => row.id,
@@ -218,7 +234,7 @@ defmodule SukhiFedi.Addons.WebPush do
       "payload" => payload
     }
     |> Oban.Job.new(worker: "SukhiDelivery.Push.Worker", queue: :push, max_attempts: 5)
-    |> Oban.insert()
+    |> then(&Oban.insert(SukhiFedi.Oban, &1))
   end
 
   defp config, do: Application.get_env(:sukhi_fedi, :web_push, [])

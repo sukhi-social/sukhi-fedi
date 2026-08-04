@@ -4,6 +4,8 @@ defmodule SukhiFedi.Integration.WebPushTest do
 
   @moduletag :integration
 
+  import Ecto.Query, only: [from: 2]
+
   alias SukhiFedi.Addons.WebPush
   alias SukhiFedi.Schema.Account
 
@@ -27,6 +29,58 @@ defmodule SukhiFedi.Integration.WebPushTest do
       end
 
       assert WebPush.get_subscription_for(alice.id) == nil
+    end
+
+    test "a mention actually enqueues a push, and a favourite does not" do
+      # The end of the chain that `deliverable?/3`'s unit tests can't see:
+      # a *job* has to come out the other side. It didn't, for a while —
+      # `Oban.insert/1` looks for a default instance and this app names
+      # its own, so every push raised, `notify/1`'s rescue returned :ok,
+      # and nothing was logged. Green predicate tests, zero pushes.
+      alice = create_account!("push_alice")
+      bob = create_account!("push_bob")
+
+      Application.put_env(:sukhi_fedi, :web_push, public_key: "test-key")
+      on_exit(fn -> Application.delete_env(:sukhi_fedi, :web_push) end)
+
+      {:ok, _} =
+        WebPush.subscribe(alice.id, "https://push.example/enqueue-1", "p256dh", "auth", %{
+          "mention" => true,
+          "favourite" => true
+        })
+
+      pushes = fn ->
+        SukhiFedi.Repo.aggregate(from(j in "oban_jobs", where: j.queue == "push"), :count)
+      end
+
+      # `:manual`, because the test env otherwise runs jobs inline at insert
+      # and this job's worker lives on the *delivery* node — which is the
+      # design, not an accident. Here we only care that the job is written.
+      Oban.Testing.with_testing_mode(:manual, fn ->
+        before = pushes.()
+
+        {:ok, mention} =
+          SukhiFedi.Notifications.create(%{
+            account_id: alice.id,
+            from_account_id: bob.id,
+            type: "mention",
+            note_id: nil
+          })
+
+        refute is_nil(mention.id), "a fresh row is needed for the doorbell to ring at all"
+        assert pushes.() == before + 1, "a mention must reach the push queue"
+
+        # And the calm contract survives the whole chain, not just the
+        # predicate: the same subscription, alerts on, produces nothing.
+        SukhiFedi.Notifications.create(%{
+          account_id: alice.id,
+          from_account_id: bob.id,
+          type: "favourite",
+          note_id: nil
+        })
+
+        assert pushes.() == before + 1, "a favourite must never reach the push queue"
+      end)
     end
 
     test "server_key reads from app config" do
