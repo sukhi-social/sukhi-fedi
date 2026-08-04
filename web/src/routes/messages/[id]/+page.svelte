@@ -13,6 +13,7 @@
   import { reconnect, slowPoll } from '$lib/connection';
   import { createPager } from '$lib/pager.svelte';
   import { atBottom, distanceFromBottom, keepPlaceAfterPrepend, onArrival } from '$lib/scroll';
+  import { watchDirect } from '$lib/direct.svelte';
   import { renderEmojis } from '$lib/emoji';
   import { phrase } from '$lib/phrase';
   import DmMessage from '$lib/components/DmMessage.svelte';
@@ -113,7 +114,7 @@
   }
 
   // ── 同じ一通が三つの道から来る ───────────────────────────────────
-  //   自分の送信の返り値 / 拾い直し / (いずれ)live の管
+  //   自分の送信の返り値 / 拾い直し / live の管が鳴らした拾い直し
   // **id で、ここ一箇所だけで潰す。** 述語を散らさない。
   function upsert(incoming: Status[], opts: { mine?: boolean } = {}) {
     if (incoming.length === 0) return;
@@ -178,14 +179,18 @@
 
   // ── 取りこぼしを拾い直す(最後の砦)───────────────────────────────
   //
-  // live の床が無いので、ここが live の代わりを務める。**ストリームは
-  // 呼び鈴で、本当のことは API に訊く。** 呼び鈴が鳴らなかった日でも、
-  // 扉を開ければ荷物はそこにある。
+  // **ストリームは呼び鈴で、本当のことは API に訊く。** 呼び鈴が鳴らなかった
+  // 日でも、扉を開ければ荷物はそこにある。
   //
-  // 引き金は三つとも、この一箇所に集める:
+  // 引き金は四つとも、この一箇所に集める:
   //   ・onMount(開いたとき)── 下の load(true)
   //   ・online 復帰 / タブ復帰 ── reconnect
+  //   ・live の管が鳴った ── watchDirect(下)
   //   ・前に出ているあいだ、ゆっくり定期で ── slowPoll
+  //
+  // 管があっても slowPoll は要る。連合の向こうから来た DM は direct の
+  // 管に流れない(サーバ側でそこを鳴らす呼び元が一箇所しかない)ので、
+  // よそからの一通はいまも 60 秒の見直しで拾っている。
   //
   // 重複は前提。広めに引いて、upsert に任せる。復帰は静かに ──
   // 「再接続しました」は出さない。拾えたものが、ただそこに増える。
@@ -211,6 +216,24 @@
     void $reconnect;
     void $poll;
     untrack(() => void catchUp());
+  });
+
+  // ── live の管 ───────────────────────────────────────────────────
+  //
+  // 上の三つの引き金だけだと、開きっぱなしの画面に新しい一通が出るまで
+  // 最大 60 秒かかる(実測)。それでは、どんなスクロールの工夫をしても
+  // 気づきようがない。
+  //
+  // **鳴らすだけ。** 荷物は運ばない ── 切れているあいだのぶんは管には
+  // 流れてこないので、荷物にすると切れた時間ぶんが穴になる。呼び鈴だと
+  // 思っておけば、catchUp が since_id で穴ごと埋める。
+  //
+  // 60 秒の見直しは残す。管が死んでいることに、こちらからは気づけない
+  // (「静か」と見分けがつかない)。あれが最後の砦で、これは速さ。
+  $effect(() => {
+    const cid = id;
+    if (!cid) return;
+    return watchDirect(cid, () => void catchUp());
   });
 </script>
 
