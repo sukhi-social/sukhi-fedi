@@ -60,13 +60,22 @@
 
   // 画像と枠が両方そろったら、覆う縮尺で中央に置きなおす。file が
   // 変わったとき(別の画像を選び直したとき)もここから組み直す。
+  //
+  // **書いたものを、この中で読み返さない。** 前は tx/ty の行で `scale` を
+  // 読んでいて、それが依存に乗っていた ── つまり `scale` が変わるたびに
+  // この effect が起き直して `zoom = 1` に戻していた。つまみを動かしても
+  // 描き直した瞬間に必ず 1 へ帰るので、画像はぴくりとも動かない。
+  // 「触れない」ように見えていたのは、これ(指の問題ではなかった)。
+  //
+  // 直しは、いま計算した値を手元の `s` で持ちまわるだけ。rune を読まない。
   $effect(() => {
     if (!nw || !nh || !fw || !fh) return;
-    baseScale = Math.max(fw / nw, fh / nh);
+    const s = Math.max(fw / nw, fh / nh);
+    baseScale = s;
     zoom = 1;
-    scale = baseScale;
-    tx = (fw - nw * scale) / 2;
-    ty = (fh - nh * scale) / 2;
+    scale = s;
+    tx = (fw - nw * s) / 2;
+    ty = (fh - nh * s) / 2;
   });
 
   // 画像はいつも枠を覆ったまま ─ はみ出しを許す向きにだけ動かせる。
@@ -267,6 +276,43 @@
   }
   .crop-zoom input {
     width: 100%;
+    /* 指で掴めるように。素のままだと帯が 16px しかなくて、当たり判定が
+       指より小さい。上下に余白を足して 44px の帯にし、つまみ自体も
+       大きくする ── 動くようになっても、掴めなければ同じことなので。 */
+    height: 44px;
+    margin: 0;
+    background: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .crop-zoom input::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border-strong);
+  }
+  .crop-zoom input::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border-strong);
+  }
+  .crop-zoom input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    margin-top: -12px;
+    border-radius: 999px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-text);
+    cursor: pointer;
+  }
+  .crop-zoom input::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--color-text);
+    border-radius: 999px;
+    background: var(--color-surface);
+    cursor: pointer;
   }
   .crop-hint {
     margin: 0;

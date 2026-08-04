@@ -25,6 +25,8 @@ defmodule SukhiFedi.LocalAccounts do
   alias SukhiFedi.{InviteCodes, Repo}
   alias SukhiFedi.Schema.{Account, Session}
 
+  require Logger
+
   @type signup_attrs :: %{
           required(:username) => String.t(),
           # Signed proof from `EmailAuth.confirm_signup_code/2` — the
@@ -85,7 +87,10 @@ defmodule SukhiFedi.LocalAccounts do
       end)
       |> Repo.transaction()
       |> case do
-        {:ok, %{account: a}} -> {:ok, a}
+        {:ok, %{account: a, invite: invite}} ->
+          follow_inviter(a, invite)
+          {:ok, a}
+
         {:error, :account, %Ecto.Changeset{} = cs, _} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
         {:error, :invite, reason, _} -> {:error, reason}
         {:error, _step, reason, _} -> {:error, reason}
@@ -456,4 +461,39 @@ defmodule SukhiFedi.LocalAccounts do
         :ok
     end
   end
+
+  # 招待してくれた人を、ひとつだけフォローする。
+  #
+  # 繋がりのためでもあるけれど、**本体は招待した側への知らせ**のほう。
+  # いままで、コードを渡したあと、その人が来たのかどうか分かる道が無かった。
+  # follow 通知なら、よその実装のアプリでもそのまま読める(専用の通知型を
+  # 作ると、そこだけ誰にも見えなくなる)。
+  #
+  # 片方向だけ。招待した側が自動でフォローバックすることはしない ──
+  # そちらは、その人が選ぶこと。
+  #
+  # トランザクションの**外**。ここで転んでも、登録そのものは通す。
+  # フォロー一本のために、入れた account を巻き戻すほうが重い。
+  #
+  # `on_behalf_of_id` があればそちらを優先する。管理者が誰かの代理で出した
+  # 招待は、繋がるべき相手が発行者ではなく、その「誰か」なので。
+  defp follow_inviter(%Account{} = newcomer, invite) do
+    inviter_id = Map.get(invite, :on_behalf_of_id) || Map.get(invite, :issued_by_id)
+
+    if is_integer(inviter_id) and inviter_id != newcomer.id do
+      # 鍵つきの相手なら pending で止まる ── request_follow がその判断を
+      # 持っているので、こちらで follow 行を作らない。冪等でもある。
+      case SukhiFedi.Social.request_follow(newcomer, inviter_id) do
+        {:ok, _} -> :ok
+        {:error, reason} -> Logger.info("招待した人をフォローできず (#{inspect(reason)})")
+      end
+    end
+
+    :ok
+  rescue
+    error ->
+      Logger.warning("招待した人のフォローで転んだ: #{Exception.message(error)}")
+      :ok
+  end
+
 end

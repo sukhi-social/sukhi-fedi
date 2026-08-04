@@ -10,6 +10,8 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
 
   use SukhiFedi.IntegrationCase, async: false
 
+  import Ecto.Query, only: [from: 2]
+
   @moduletag :integration
 
   alias SukhiFedi.{Accounts, LocalAccounts}
@@ -46,7 +48,7 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
       issuer = "inv_#{System.unique_integer([:positive])}"
       {:ok, issuer} = LocalAccounts.create_admin(issuer, "long-enough-pass")
       {:ok, invite} = SukhiFedi.InviteCodes.issue(issuer.id)
-      %{invite: invite.code}
+      %{invite: invite.code, issuer: issuer}
     end
 
     defp proof_for(email) do
@@ -68,6 +70,52 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
         },
         overrides
       )
+    end
+
+
+    # ── 招待してくれた人を、ひとつだけフォローする ────────────────────
+    #
+    # 繋がりのためでもあるけれど、本体は**招待した側への知らせ**。
+    # コードを渡したあと、その人が来たのかどうか分かる道がこれまで無かった。
+    # follow 通知なら、よその実装のアプリでもそのまま読める。
+
+    defp follows?(follower, target_id) do
+      uri = "https://#{SukhiFedi.Config.domain!()}/users/#{follower.username}"
+
+      SukhiFedi.Repo.exists?(
+        from f in SukhiFedi.Schema.Follow,
+          where: f.follower_uri == ^uri and f.followee_id == ^target_id
+      )
+    end
+
+    test "入った人は、招待してくれた人をフォローしている", %{invite: invite, issuer: issuer} do
+      {:ok, newcomer} = LocalAccounts.create(signup_attrs(invite, %{}))
+      assert follows?(newcomer, issuer.id)
+    end
+
+    test "**片方向だけ** — 招待した側は、勝手にフォローバックしない", %{invite: invite, issuer: issuer} do
+      # 繋がるかどうかは、招待した人が選ぶこと。
+      {:ok, newcomer} = LocalAccounts.create(signup_attrs(invite, %{}))
+      refute follows?(issuer, newcomer.id)
+    end
+
+    test "代理で出された招待は、その「誰か」を向く", %{issuer: issuer} do
+      on_behalf = "onbehalf_#{System.unique_integer([:positive])}"
+      {:ok, friend} = LocalAccounts.create_admin(on_behalf, "long-enough-pass")
+      {:ok, inv} = SukhiFedi.InviteCodes.issue(issuer.id, on_behalf_of_id: friend.id)
+
+      {:ok, newcomer} = LocalAccounts.create(signup_attrs(inv.code, %{}))
+
+      # 発行したのは管理者でも、繋がるべき相手は名前を貸した人のほう。
+      assert follows?(newcomer, friend.id)
+      refute follows?(newcomer, issuer.id)
+    end
+
+    test "フォローが作れなくても、登録そのものは通る", %{invite: invite, issuer: issuer} do
+      # 招待した人が先に消えている、というような場合。フォロー一本のために
+      # account を巻き戻すほうが重いので、登録は必ず生かす。
+      SukhiFedi.Repo.delete!(issuer)
+      assert {:ok, _newcomer} = LocalAccounts.create(signup_attrs(invite, %{}))
     end
 
     test "born passwordless with the proven address verified", %{invite: invite} do
