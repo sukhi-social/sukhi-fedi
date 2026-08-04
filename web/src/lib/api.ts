@@ -1,4 +1,5 @@
 import { loadToken, tryRefresh, redirectToLogin } from './auth';
+import { readPushConfig } from './push';
 
 export type Field = {
   name: string;
@@ -454,14 +455,11 @@ export type PushConfig = { serverKey: string | null; directTypes: string[] };
  */
 export async function getPushConfig(): Promise<PushConfig> {
   try {
-    const res = await req('GET', '/api/v1/instance', 'instance', { auth: false });
-    const body = (await res.json()) as {
-      configuration?: { vapid?: { public_key?: string | null }; direct_types?: string[] };
-    };
-    return {
-      serverKey: body.configuration?.vapid?.public_key ?? null,
-      directTypes: body.configuration?.direct_types ?? []
-    };
+    // v2。configuration の一式はこちらにしかない ── v1 を見ていると、
+    // 鍵が置かれたあとも「無い」と読み続けて、釦が永久に出ない。
+    // (隠れているのが正しく見えてしまうので、気づきにくい間違い。)
+    const res = await req('GET', '/api/v2/instance', 'instance', { auth: false });
+    return readPushConfig(await res.json());
   } catch {
     // 訊けなかったら「やっていない」に倒す。出さないほうが、押して
     // 何も起きないよりいい。

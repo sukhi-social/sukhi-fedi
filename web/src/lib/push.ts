@@ -43,6 +43,31 @@ export function alertsFor(directTypes: string[]): Record<string, boolean> {
   return alerts;
 }
 
+/**
+ * `/api/v2/instance` の返事から、鍵と一覧を取り出す。
+ *
+ * 取り出すだけを切り離してあるのは、ここを一度まちがえたから ── v1 を
+ * 見ていて、v1 には configuration がまるごと無かった。**パネルは正しく
+ * 隠れた**ので、動いているように見えていた。鍵を置いた日に、はじめて
+ * 「ずっと出ない」と分かるたぐいの間違い。
+ *
+ * 欠けているものは「やっていない」に倒す。出さないほうが、押して何も
+ * 起きないよりいい。
+ */
+export function readPushConfig(body: unknown): { serverKey: string | null; directTypes: string[] } {
+  const config = (body as { configuration?: unknown })?.configuration as
+    | { vapid?: { public_key?: unknown }; direct_types?: unknown }
+    | undefined;
+
+  const key = config?.vapid?.public_key;
+  const types = config?.direct_types;
+
+  return {
+    serverKey: typeof key === 'string' && key !== '' ? key : null,
+    directTypes: Array.isArray(types) ? types.filter((t): t is string => typeof t === 'string') : []
+  };
+}
+
 /** ブラウザがこの機械で push を扱えるか。 */
 export function pushSupported(): boolean {
   return (

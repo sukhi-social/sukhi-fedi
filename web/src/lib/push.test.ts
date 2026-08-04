@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { alertsFor, decodeServerKey } from './push.ts';
+import { alertsFor, decodeServerKey, readPushConfig } from './push.ts';
 
 // 本物の VAPID 公開鍵の形 ── 65 バイトの非圧縮 P-256 点。
 const REAL_KEY =
@@ -67,4 +67,57 @@ test('**自分では足さない** — 一覧に無いものは on にしない'
 test('空で来たら、何も鳴らさない', () => {
   // サーバの一覧が取れなかったとき。分からないなら、鳴らさないほう。
   assert.deepEqual(alertsFor([]), {});
+});
+
+// ── サーバの返事の読みとり ─────────────────────────────────────────────
+//
+// ここを一度まちがえた。v1 を見ていて、v1 には configuration が無かった。
+// **パネルは正しく隠れた**ので動いて見えて、鍵を置いた日にはじめて
+// 「ずっと出ない」と分かる ── いちばん気づきにくい壊れかた。
+
+// 本番の /api/v2/instance が返す形（要るところだけ）。
+const V2 = {
+  domain: 'sukhi.f3liz.casa',
+  configuration: {
+    statuses: { max_characters: 500 },
+    vapid: { public_key: 'BOjTBaInlH6UV-k8kNgW8T' },
+    direct_types: ['mention', 'follow_request']
+  }
+};
+
+test('v2 の返事から、鍵と一覧が取れる', () => {
+  assert.deepEqual(readPushConfig(V2), {
+    serverKey: 'BOjTBaInlH6UV-k8kNgW8T',
+    directTypes: ['mention', 'follow_request']
+  });
+});
+
+test('鍵が置かれていなければ null(=やっていない)', () => {
+  const off = { configuration: { vapid: { public_key: null }, direct_types: ['mention'] } };
+  assert.equal(readPushConfig(off).serverKey, null);
+  // 一覧のほうは、鍵が無くても層分けに要るので残る。
+  assert.deepEqual(readPushConfig(off).directTypes, ['mention']);
+});
+
+test('空文字の鍵も、無いものとして扱う', () => {
+  assert.equal(readPushConfig({ configuration: { vapid: { public_key: '' } } }).serverKey, null);
+});
+
+test('**configuration ごと無い返事**でも転ばず、やっていない扱い', () => {
+  // これが v1 の形。転ばないのは良いが、転ばないから気づけなかった。
+  assert.deepEqual(readPushConfig({ domain: 'sukhi.f3liz.casa', title: 'sukhi' }), {
+    serverKey: null,
+    directTypes: []
+  });
+});
+
+test('null や、まるで違うものが来ても転ばない', () => {
+  for (const junk of [null, undefined, 'なにか', 42, []]) {
+    assert.deepEqual(readPushConfig(junk), { serverKey: null, directTypes: [] });
+  }
+});
+
+test('一覧に文字列でないものが混じっていたら、落とす', () => {
+  const odd = { configuration: { direct_types: ['mention', 42, null, 'follow_request'] } };
+  assert.deepEqual(readPushConfig(odd).directTypes, ['mention', 'follow_request']);
 });
