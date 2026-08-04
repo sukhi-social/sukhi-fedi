@@ -357,6 +357,31 @@ defmodule SukhiFedi.Integration.SocialTest do
       a = create_account!("alice_counts")
       assert %{followers: 0, following: 0, statuses: 0} = Accounts.counts_for(a.id)
     end
+
+    # プロフィールの数は誰でも見られる。ここに DM を足すと、中身は見えなく
+    # ても「何通送ったか」が外から数えられてしまう。実際そうなっていて、
+    # 一晩 DM をしたら公開の投稿数が 241 になった。
+    test "**DM は、公開の投稿数に入らない**" do
+      a = create_account!("dm_counts_a")
+      b = create_account!("dm_counts_b")
+
+      {:ok, _} = SukhiFedi.Notes.create_status(a.id, %{"status" => "みんなに", "visibility" => "public"})
+      {:ok, _} = SukhiFedi.Notes.create_status(a.id, %{"status" => "@dm_counts_b ないしょ", "visibility" => "direct"})
+      {:ok, _} = SukhiFedi.Notes.create_status(a.id, %{"status" => "@dm_counts_b これも", "visibility" => "direct"})
+
+      # 新しく作ったアカウントなので、まだ数えられていない(キャッシュ無し)。
+      assert %{statuses: 1} = Accounts.counts_for(a.id)
+      _ = b
+    end
+
+    test "フォロワー限定は、数える(見える人には見える投稿だから)" do
+      a = create_account!("fo_counts")
+      {:ok, _} = SukhiFedi.Notes.create_status(a.id, %{"status" => "みんなに", "visibility" => "public"})
+      {:ok, _} = SukhiFedi.Notes.create_status(a.id, %{"status" => "ふぉろわに", "visibility" => "followers"})
+
+      # 新しく作ったアカウントなので、まだ数えられていない(キャッシュ無し)。
+      assert %{statuses: 2} = Accounts.counts_for(a.id)
+    end
   end
 
   describe "Accounts.signing_identity/0" do

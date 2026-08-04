@@ -227,9 +227,21 @@ defmodule SukhiFedi.Accounts do
             0
           end
 
+        # **DM は数えない。** プロフィールの数は誰でも見られるので、ここに
+        # direct を足すと「この人が何通 DM を送ったか」が外から数えられる。
+        # 中身は見えなくても、増えかたは見えてしまう。
+        #
+        # 実際そうなっていた ── 一晩 DM をしていたら、公開のプロフィールが
+        # 241 になった。手紙の枚数を、玄関に貼っていたようなもの。
+        #
+        # ほかは残す。フォロワー限定は「見える人には見える投稿」なので、
+        # 投稿ではある。ここは timelines / lists / self_cleanup が既に
+        # 使っている切りかたと同じ ── 数えるところだけが揃っていなかった。
         statuses =
           Repo.aggregate(
-            from(n in Note, where: n.account_id == ^account_id),
+            from(n in Note,
+              where: n.account_id == ^account_id and n.visibility != "direct"
+            ),
             :count,
             :id
           )
