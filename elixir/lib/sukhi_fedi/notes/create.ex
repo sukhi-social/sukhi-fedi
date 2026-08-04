@@ -11,9 +11,11 @@ defmodule SukhiFedi.Notes.Create do
 
   alias Ecto.Multi
   alias SukhiFedi.Notes.{Ids, Read}
-  alias SukhiFedi.{Outbox, Repo}
+  alias SukhiFedi.{Notifications, Outbox, Repo}
   alias SukhiFedi.Schema.{ConversationParticipant, Media, Note}
   alias SukhiFedi.Schema.{Account, NoteCleanupLedger}
+
+  require Logger
 
   @doc """
   Create a note and enqueue the `sns.outbox.note.created` event atomically.
@@ -130,6 +132,7 @@ defmodule SukhiFedi.Notes.Create do
         {:ok, %{note: note}} ->
           maybe_request_quote(note)
           maybe_enqueue_preview(note)
+          notify_local_mentions(note)
           {:ok, Repo.preload(note, [:account, :media]) |> Read.with_refs()}
 
         {:error, :note, %Ecto.Changeset{} = cs, _} ->
@@ -285,6 +288,7 @@ defmodule SukhiFedi.Notes.Create do
       |> Repo.transaction()
       |> case do
         {:ok, %{dm: note}} ->
+          notify_local_mentions(note)
           {:ok, Repo.preload(note, [:account, :media]) |> Read.with_refs()}
 
         {:error, :note, %Ecto.Changeset{} = cs, _} ->
@@ -384,6 +388,71 @@ defmodule SukhiFedi.Notes.Create do
   # delivery from federation.
   @mention_re ~r/(?<![\w])@([\w]+)(?:@([\w.\-]+))?/
   @max_mentions 20
+
+  @doc """
+  Tell the local people this note named.
+
+  This did not exist. `mention` notifications were created in exactly one
+  place — `AP.Instructions.Mirror`, where a note arriving *from another
+  server* is taken in — and its own comment notes that DMs never reach it.
+  So nothing written here ever notified anybody: not a DM, not a public
+  post naming a neighbour. A hundred messages in one conversation and not
+  one `mention` row behind them.
+
+  It went unnoticed because the thread shows its own messages regardless,
+  and because the direct-tier count and Web Push both read the
+  notification table — a pipe can be built end to end and stay silent
+  when nothing upstream ever pours into it.
+
+  Best-effort and after the commit: a notification that fails must never
+  fail the post it was about.
+  """
+  def notify_local_mentions(%Note{} = note) do
+    for account_id <- local_mentioned_ids(note.content),
+        account_id != note.account_id do
+      Notifications.create(%{
+        account_id: account_id,
+        from_account_id: note.account_id,
+        note_id: note.id,
+        type: "mention"
+      })
+    end
+
+    :ok
+  rescue
+    error ->
+      Logger.warning("mention notify failed for note #{note.id}: #{Exception.message(error)}")
+      :ok
+  end
+
+  # Local accounts named in the body. **No remote resolution here** —
+  # `resolve_mention_recipients/1` WebFingers unknown handles so it can
+  # address them, which is right for delivery and wrong for this: a
+  # notification is only ever for someone who lives here, and a synchronous
+  # fetch to an attacker-named host on every post is a door we don't need
+  # to open twice.
+  defp local_mentioned_ids(content) when is_binary(content) do
+    our = SukhiFedi.Config.domain!() |> String.split(":") |> hd()
+
+    @mention_re
+    |> Regex.scan(content)
+    |> Enum.flat_map(fn
+      # A bare `@name`, or `@name@our-own-domain` — both mean someone here.
+      [_, user, host] when host == "" or host == our -> [user]
+      [_, user] -> [user]
+      _ -> []
+    end)
+    |> Enum.uniq()
+    |> Enum.take(@max_mentions)
+    |> Enum.flat_map(fn username ->
+      case SukhiFedi.Accounts.by_local_username(username) do
+        %Account{id: id} -> [id]
+        _ -> []
+      end
+    end)
+  end
+
+  defp local_mentioned_ids(_), do: []
 
   defp resolve_mention_recipients(content) when is_binary(content) do
     domain = SukhiFedi.Config.domain!()

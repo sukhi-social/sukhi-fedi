@@ -833,4 +833,74 @@ defmodule SukhiFedi.Integration.NotesTest do
   defp update_ap_id(%Note{id: id}, ap_id) do
     Repo.update_all(from(n in Note, where: n.id == ^id), set: [ap_id: ap_id])
   end
+  describe "mention notifications for locally-written notes" do
+    # These did not exist. `mention` rows were only ever created in
+    # `AP.Instructions.Mirror` — the path a note takes coming in *from
+    # another server* — so nothing written here notified anybody. A
+    # conversation could run to a hundred messages with not one `mention`
+    # behind it, which is why Web Push stayed silent with every part of it
+    # working: the pipe was complete and nothing upstream fed it.
+
+    defp mentions_for(account_id) do
+      SukhiFedi.Repo.all(
+        from n in SukhiFedi.Schema.Notification,
+          where: n.account_id == ^account_id and n.type == "mention",
+          select: n.note_id
+      )
+    end
+
+    test "a DM notifies the person it names" do
+      a = create_account!("m_sender")
+      b = create_account!("m_target")
+
+      {:ok, note} = Notes.create_status(a.id, %{"status" => "@m_target こんにちは", "visibility" => "direct"})
+
+      assert mentions_for(b.id) == [note.id]
+    end
+
+    test "a public post naming someone notifies them too" do
+      a = create_account!("m_sender2")
+      b = create_account!("m_target2")
+
+      {:ok, note} = Notes.create_status(a.id, %{"status" => "@m_target2 みてみて", "visibility" => "public"})
+
+      assert mentions_for(b.id) == [note.id]
+    end
+
+    test "@name@our-own-domain counts as here" do
+      a = create_account!("m_sender3")
+      b = create_account!("m_target3")
+      host = SukhiFedi.Config.domain!() |> String.split(":") |> hd()
+
+      {:ok, note} =
+        Notes.create_status(a.id, %{"status" => "@m_target3@#{host} やあ", "visibility" => "public"})
+
+      assert mentions_for(b.id) == [note.id]
+    end
+
+    test "naming yourself does not notify you" do
+      a = create_account!("m_self")
+      {:ok, _} = Notes.create_status(a.id, %{"status" => "@m_self ひとりごと", "visibility" => "public"})
+      assert mentions_for(a.id) == []
+    end
+
+    test "a name nobody here has is simply skipped" do
+      a = create_account!("m_sender4")
+      # No WebFinger, no fetch — a notification is only ever for someone
+      # who lives here, so an unknown handle must not reach out anywhere.
+      {:ok, _} = Notes.create_status(a.id, %{"status" => "@nobody_at_all やあ", "visibility" => "public"})
+      assert true
+    end
+
+    test "the same person named twice is notified once" do
+      a = create_account!("m_sender5")
+      b = create_account!("m_target5")
+
+      {:ok, note} =
+        Notes.create_status(a.id, %{"status" => "@m_target5 と @m_target5", "visibility" => "public"})
+
+      assert mentions_for(b.id) == [note.id]
+    end
+  end
+
 end
