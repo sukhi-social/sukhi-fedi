@@ -9,6 +9,7 @@
 
 import {
   deletePushSubscription,
+  getPushConfig,
   getPushSubscription,
   putPushSubscription
 } from '$lib/api';
@@ -37,23 +38,26 @@ export function createPush() {
       return;
     }
 
+    // **鍵の有無は、購読より先に確かめる。** /push/subscription は購読が
+    // 無いと 404 なので、そこだけ見ていると「このサーバは push をやって
+    // いない」と「まだ購読していない」が見分けられない。見分けずに釦を
+    // 出すと、ブラウザの許可を一度きり使ってから「鍵がありません」になる。
+    const config = await getPushConfig();
+    directTypes = config.directTypes;
+    adoptDirectTypes(config.directTypes);
+
+    if (!config.serverKey) {
+      state = 'unconfigured';
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      state = 'denied';
+      return;
+    }
+
     try {
       const row = await getPushSubscription();
-      directTypes = row?.direct_types ?? [];
-      // 層の分けかたも、同じ一覧から。二つ持たない。
-      adoptDirectTypes(row?.direct_types);
-
-      // サーバに鍵が無ければ、押せる口そのものを出さない。押しても
-      // 何も起きない釦は、壊れているのと見分けがつかない。
-      if (row && row.server_key === null) {
-        state = 'unconfigured';
-        return;
-      }
-
-      if (Notification.permission === 'denied') {
-        state = 'denied';
-        return;
-      }
 
       // サーバに行があっても、このブラウザの購読が消えていることがある
       // (端末を替えた、履歴を消した)。**ブラウザ側を本当のこととする。**
@@ -80,11 +84,12 @@ export function createPush() {
 
       const reg = await navigator.serviceWorker.ready;
 
-      // サーバの鍵と、鳴っていい種類を、同じ一回で受け取る。
-      const current = await getPushSubscription();
-      const serverKey = current?.server_key ?? null;
-      directTypes = current?.direct_types ?? [];
-      adoptDirectTypes(current?.direct_types);
+      // 鍵は取り直す ── refresh から時間が経っているかもしれないし、
+      // 古い鍵で購読すると、送っても復号できないまま静かに落ちる。
+      const config = await getPushConfig();
+      const serverKey = config.serverKey;
+      directTypes = config.directTypes;
+      adoptDirectTypes(config.directTypes);
 
       if (!serverKey) {
         state = 'unconfigured';

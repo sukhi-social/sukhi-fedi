@@ -93,7 +93,19 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
           min_expiration: 300,
           max_expiration: 2_629_746
         },
-        translation: %{enabled: false}
+        translation: %{enabled: false},
+        # Mastodon 4.3's shape. A client needs this *before* it has a
+        # subscription: `GET /push/subscription` 404s until there is one,
+        # so asking there can't tell "push is off on this server" from
+        # "you haven't subscribed yet". Without it the settings panel
+        # offers a button that burns the browser's one permission prompt
+        # and then finds there is no key to encrypt to.
+        vapid: %{public_key: vapid_public_key()},
+        # Ours, not Mastodon's: which notification types may ever wake
+        # somebody. The server decides and the client reads — two
+        # literals drift, and this drift is a phone buzzing for a
+        # favourite.
+        direct_types: direct_types()
       },
       registrations: %{
         enabled: true,
@@ -105,6 +117,23 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
     }
 
     json(200, body)
+  end
+
+  # nil when no keypair is configured — which is how a client learns that
+  # push is simply off here, and hides its own switch instead of offering
+  # one that cannot work.
+  defp vapid_public_key do
+    case SukhiApi.GatewayRpc.call(SukhiFedi.Addons.WebPush, :server_key, []) do
+      {:ok, key} when is_binary(key) and key != "" -> key
+      _ -> nil
+    end
+  end
+
+  defp direct_types do
+    case SukhiApi.GatewayRpc.call(SukhiFedi.Addons.WebPush, :direct_types, []) do
+      {:ok, list} when is_list(list) -> list
+      _ -> []
+    end
   end
 
   defp json(status, body) do

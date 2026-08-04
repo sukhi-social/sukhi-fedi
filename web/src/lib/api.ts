@@ -442,6 +442,33 @@ export type PushSubscriptionRow = {
   direct_types?: string[];
 };
 
+export type PushConfig = { serverKey: string | null; directTypes: string[] };
+
+/**
+ * サーバの鍵と、鳴っていい種類。
+ *
+ * **購読より先に要る。** `/push/subscription` は購読が無いと 404 なので、
+ * そこだけ見ていると「このサーバでは push をやっていない」と「まだ購読して
+ * いない」が見分けられない。見分けられないまま釦を出すと、ブラウザの許可を
+ * 一度きり使ってから「鍵がありません」になる。
+ */
+export async function getPushConfig(): Promise<PushConfig> {
+  try {
+    const res = await req('GET', '/api/v1/instance', 'instance', { auth: false });
+    const body = (await res.json()) as {
+      configuration?: { vapid?: { public_key?: string | null }; direct_types?: string[] };
+    };
+    return {
+      serverKey: body.configuration?.vapid?.public_key ?? null,
+      directTypes: body.configuration?.direct_types ?? []
+    };
+  } catch {
+    // 訊けなかったら「やっていない」に倒す。出さないほうが、押して
+    // 何も起きないよりいい。
+    return { serverKey: null, directTypes: [] };
+  }
+}
+
 /** いまの購読。していなければ null(404)。 */
 export async function getPushSubscription(): Promise<PushSubscriptionRow | null> {
   const res = await req('GET', '/api/v1/push/subscription', 'push_get', { auth: 'optional' });
