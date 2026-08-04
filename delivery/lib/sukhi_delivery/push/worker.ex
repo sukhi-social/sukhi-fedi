@@ -36,7 +36,14 @@ defmodule SukhiDelivery.Push.Worker do
 
     sub = %Subscription{endpoint: endpoint, p256dh: p256dh, auth: auth}
 
-    case WebPush.send(sub, payload, ttl: ttl(), urgency: "normal", finch: SukhiDelivery.Finch) do
+    opts =
+      [ttl: ttl(), urgency: urgency(), finch: SukhiDelivery.Finch] ++
+        case args["topic"] do
+          t when is_binary(t) and t != "" -> [topic: t]
+          _ -> []
+        end
+
+    case WebPush.send(sub, payload, opts) do
       :ok ->
         :ok
 
@@ -80,4 +87,16 @@ defmodule SukhiDelivery.Push.Worker do
   # How long a push service may hold this before giving up. A knock that
   # arrives a day late is not a knock, and the event is in the list anyway.
   defp ttl, do: Application.get_env(:sukhi_delivery, :push_ttl, 3600)
+
+  # RFC 8030 §5.3. `normal` is the gentle setting, not a middling one:
+  # the RFC's own example for it is "chat or calendar messages", while
+  # `high` is "incoming phone calls or time-sensitive alerts" — the class
+  # that gets through on a dying battery. Choosing not to be `high` is the
+  # calm decision here.
+  #
+  # `low` reads like the quieter choice and isn't: it means "deliver when
+  # the device is on power *or* Wi-Fi", so someone speaking to you could
+  # wait until the phone is plugged in. A knock that only arrives on a
+  # charger isn't a knock either.
+  defp urgency, do: Application.get_env(:sukhi_delivery, :push_urgency, "normal")
 end

@@ -183,8 +183,42 @@ defmodule SukhiFedi.Addons.WebPush do
 
     for row <- rows,
         deliverable?(notif.type, row.alerts || %{}, %{quiet_until: row.quiet_until, now: now}) do
-      enqueue(row, payload)
+      enqueue(row, payload, topic_for(row, notif))
     end
+  end
+
+  @doc """
+  The RFC 8030 `Topic` for this knock.
+
+  A push service replaces a *pending* message that carries the same topic
+  on the same subscription. So ten messages from one person while a phone
+  is asleep become one buzz, decided upstream — the device never wakes
+  nine times to be told the same thing.
+
+  (This is not the service worker's `tag`, which stacks notifications
+  already *shown* on the device. That one can't help while the phone is
+  off; this one is the half that can.)
+
+  It is a keyed digest, not `mention-42`. The topic travels as a plain
+  header — the push service reads it even though the body is ciphertext —
+  and a legible one would hand a third party "account 42 messages you,
+  here is how often". A stable token is unavoidable, because collapsing
+  *is* recognising sameness; making it opaque is the part we can choose.
+  Keyed with the subscription's own auth secret, so it is neither
+  guessable nor comparable across devices.
+  """
+  @spec topic_for(map(), Notification.t()) :: String.t()
+  def topic_for(row, %Notification{} = notif) do
+    # Collapse per (sender, kind): a burst from one person folds into one
+    # knock, while a follow request from someone else still gets its own.
+    key = "#{notif.type}:#{notif.from_account_id}"
+
+    :hmac
+    |> :crypto.mac(:sha256, row.auth_key || "", key)
+    # RFC 8030 §5.4 caps Topic at 32 url-safe characters; 16 is plenty and
+    # leaves the shape unmistakably opaque.
+    |> binary_part(0, 12)
+    |> Base.url_encode64(padding: false)
   end
 
   @doc """
@@ -225,13 +259,14 @@ defmodule SukhiFedi.Addons.WebPush do
   # swallowed. Every push was quietly dropped: `:ok` returned, nothing
   # logged, nothing sent. Exactly the silent lie the round-trip test was
   # written to prevent, arriving through a different door.
-  defp enqueue(row, payload) do
+  defp enqueue(row, payload, topic) do
     %{
       "subscription_id" => row.id,
       "endpoint" => row.endpoint,
       "p256dh_key" => row.p256dh_key,
       "auth_key" => row.auth_key,
-      "payload" => payload
+      "payload" => payload,
+      "topic" => topic
     }
     |> Oban.Job.new(worker: "SukhiDelivery.Push.Worker", queue: :push, max_attempts: 5)
     |> then(&Oban.insert(SukhiFedi.Oban, &1))

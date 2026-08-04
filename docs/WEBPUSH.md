@@ -515,3 +515,63 @@ drifts again, that test says so out loud.
   payload carries `note_id`, so the deep link is available; the reason it
   is not used is that a note id alone does not make a URL here (the
   thread route wants the author's acct). Worth doing, not guessed at.
+
+---
+
+## 10. Quieter, once the live pipe existed (2026-08-04)
+
+A DM thread now hears the `direct` stream and shows a new message in
+~0.2s (it used to take up to 60). That changed what push is *for*, and
+two things followed.
+
+### It stopped ringing people who are looking
+
+The knock fired whether or not anyone was watching, so an open
+conversation got the message twice: once down the live pipe, once in a
+pocket. One event, two interruptions.
+
+The service worker now asks `clients.matchAll()` and shows nothing when
+a visible window exists — **if a window is visible, they already know.**
+The decision belongs there and not on the server: a server that knew who
+was looking would need presence state, and presence state is a
+surveillance surface we have no other use for. The browser already knows
+about its own windows, so the browser answers.
+
+(Skipping `showNotification` is counted against a browser budget, and a
+site that skips too often gets a generic "updated in the background"
+shown for it. This one only ever knocks for mentions and follow
+requests, which is far under that line.)
+
+### One buzz per conversation, not one per message
+
+Every push now carries an RFC 8030 `Topic`. A push service replaces a
+*pending* message with the same topic on the same subscription, so ten
+messages arriving while a phone sleeps become one buzz, folded upstream —
+the device never wakes nine times to hear the same thing.
+
+This is the half the service worker's `tag` can't do. `tag` stacks
+notifications already *shown*; it does nothing while the phone is off,
+which is exactly when the burst happens.
+
+The topic is a keyed digest of (kind, sender), not `mention-42`. It
+travels as a plain header — the push service reads it even though the
+body is ciphertext — and a legible one would hand a third party "account
+42 messages you, and here is how often". A *stable* token is unavoidable,
+since collapsing is recognising sameness; making it opaque is the part
+that is ours to choose. Keying it with each subscription's own auth
+secret also means two of your devices produce different topics for the
+same event, so they can't be lined up as one person.
+
+### Urgency stays `normal`, deliberately
+
+`low` looks like the gentle setting and isn't. RFC 8030 §5.3 defines it
+as "deliver when the device is on power *or* Wi-Fi" — someone speaking to
+you could then wait for a charger. `normal` is the RFC's own example for
+"chat or calendar messages"; `high` is "incoming phone calls". **Not
+being `high` is the calm choice here**; going below `normal` would just
+make the knock unreliable, and an unreliable knock is worse than none.
+
+### Still open
+
+`quiet_until` has a predicate, a column, a read path and tests, and
+nothing that sets it. That is the last piece of §6.

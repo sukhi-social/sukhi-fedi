@@ -88,6 +88,59 @@ defmodule SukhiFedi.WebPushDeliverableTest do
     end
   end
 
+  describe "the Topic that collapses a burst" do
+    # A push service replaces a *pending* message carrying the same topic,
+    # so ten messages from one person while a phone sleeps become one buzz.
+    # Everything here is about what counts as "the same knock".
+    defp sub(auth \\ "auth-secret-1"), do: %{auth_key: auth}
+
+    defp notif(type, from), do: %SukhiFedi.Schema.Notification{type: type, from_account_id: from}
+
+    test "a burst from one person collapses into one knock" do
+      assert WebPush.topic_for(sub(), notif("mention", 7)) ==
+               WebPush.topic_for(sub(), notif("mention", 7))
+    end
+
+    test "a different person does not fold into it" do
+      refute WebPush.topic_for(sub(), notif("mention", 7)) ==
+               WebPush.topic_for(sub(), notif("mention", 8))
+    end
+
+    test "and neither does a different kind of knock" do
+      # A follow request arriving during a conversation is its own thing;
+      # swallowing it into the mention topic would lose it silently.
+      refute WebPush.topic_for(sub(), notif("mention", 7)) ==
+               WebPush.topic_for(sub(), notif("follow_request", 7))
+    end
+
+    test "two devices get different topics for the same event" do
+      # The topic rides as a plain header. Keying it with each
+      # subscription's own secret means a push service can't line the two
+      # up and learn that one person is behind both.
+      refute WebPush.topic_for(sub("auth-a"), notif("mention", 7)) ==
+               WebPush.topic_for(sub("auth-b"), notif("mention", 7))
+    end
+
+    test "it says nothing legible about who is knocking" do
+      topic = WebPush.topic_for(sub(), notif("mention", 7))
+      refute topic =~ "mention"
+      refute topic =~ "7"
+    end
+
+    test "it fits where RFC 8030 says a Topic fits" do
+      topic = WebPush.topic_for(sub(), notif("mention", 7))
+      assert byte_size(topic) <= 32
+      # url-safe base64: no +, /, or padding.
+      assert topic =~ ~r/^[A-Za-z0-9_-]+$/
+    end
+
+    test "a subscription with no auth secret still produces one" do
+      # Shouldn't happen, but a crash in the fan-out would drop the push
+      # entirely — and a knock lost to a nil is the worst trade here.
+      assert is_binary(WebPush.topic_for(%{auth_key: nil}, notif("mention", 7)))
+    end
+  end
+
   describe "the list the client reads" do
     test "is the same one the predicate gates on" do
       # The web client takes its DIRECT_TYPES from here rather than

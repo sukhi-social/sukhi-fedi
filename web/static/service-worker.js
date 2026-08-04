@@ -113,18 +113,41 @@ self.addEventListener("push", (event) => {
 
   // 同じ投稿へのノックは、重ねずに最新の一つへ畳む。何度も鳴るより、
   // 「まだ返していない」が一つ残っているほうが静か。
+  //
+  // (これは**もう出したもの**を重ねる。まだ届いていないぶんは、サーバが
+  //  付ける RFC 8030 の Topic が向こう側で畳む。端末が寝ているあいだに
+  //  効くのは、そちら。)
   const tag = data.note_id ? `note-${data.note_id}` : "sukhi";
 
-  event.waitUntil(
-    self.registration.showNotification("sukhi", {
-      body,
-      tag,
-      icon: "/icon-512.png",
-      badge: "/icon-512.png",
-      data: { note_id: data.note_id ?? null, type: data.notification_type ?? null },
-    }),
-  );
+  event.waitUntil(knock(body, tag, data));
 });
+
+// 見ている人を、二度呼ばない。
+//
+// 会話の画面は live の管で 0.2 秒で受け取る。そのうえ push まで鳴ったら、
+// 一つの出来事で二回さわられることになる。**見えている窓があるなら、
+// その人はもう知っている。**
+//
+// 判断はここでする ── サーバは誰が画面を見ているか知らないし、知るべきでも
+// ない(そのために presence を持てば、それは新しい監視になる)。ブラウザは
+// 自分の窓のことを知っている。知っているほうが答える。
+//
+// showNotification を呼ばずに済ませる回はブラウザに数えられていて、続けば
+// 「バックグラウンドで更新されました」を勝手に出されることがある。ここが
+// 鳴らすのは呼びかけと申請だけで数が少ないので、その線には届かない。
+async function knock(body, tag, data) {
+  const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  const watching = windows.some((w) => w.visibilityState === "visible");
+  if (watching) return;
+
+  await self.registration.showNotification("sukhi", {
+    body,
+    tag,
+    icon: "/icon-512.png",
+    badge: "/icon-512.png",
+    data: { note_id: data.note_id ?? null, type: data.notification_type ?? null },
+  });
+}
 
 // 押したら、その話のところへ。既に開いている窓があれば、そこを使う ──
 // タブを増やさない。
