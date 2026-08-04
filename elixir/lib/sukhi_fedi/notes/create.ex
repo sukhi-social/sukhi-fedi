@@ -36,7 +36,7 @@ defmodule SukhiFedi.Notes.Create do
           note_id: note.id,
           account_id: note.account_id,
           visibility: note.visibility,
-          content: note.content
+          content: Note.html(note)
         }
       end
     )
@@ -112,7 +112,8 @@ defmodule SukhiFedi.Notes.Create do
             note_id: n.id,
             account_id: n.account_id,
             visibility: n.visibility,
-            content: n.content,
+            # AP `content` is HTML, so the rendered form is what federates.
+            content: Note.html(n),
             # The content warning and sensitive flag are set by the author but
             # were never federated — remotes showed our CW'd / NSFW posts
             # unwarned. Carry them through to the outbound builder.
@@ -158,7 +159,7 @@ defmodule SukhiFedi.Notes.Create do
         Outbox.enqueue("sns.outbox.note.updated", "note", to_string(note.id), %{
           note_id: note.id,
           account_id: note.account_id,
-          content: note.content,
+          content: Note.html(note),
           cw: note.cw,
           sensitive: note.sensitive,
           published: DateTime.to_iso8601(note.created_at),
@@ -316,7 +317,7 @@ defmodule SukhiFedi.Notes.Create do
         %{
           note_id: n.id,
           account_id: n.account_id,
-          content: n.content,
+          content: Note.html(n),
           media: media,
           recipient_actor_uris: remote_uris,
           in_reply_to_ap_id: n.in_reply_to_ap_id,

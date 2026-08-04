@@ -90,7 +90,8 @@ defmodule SukhiFedi.Web.NoteController do
       "id" => "#{actor_uri}/notes/#{n.id}",
       "type" => "Note",
       "attributedTo" => actor_uri,
-      "content" => n.content,
+      # AP `content` is HTML by contract, so the rendered form goes out.
+      "content" => Note.html(n),
       "published" => DateTime.to_iso8601(n.created_at),
       "to" => [@public_ns],
       "cc" => ["#{actor_uri}/followers"],

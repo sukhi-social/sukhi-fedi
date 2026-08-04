@@ -5,6 +5,12 @@ defmodule SukhiFedi.Schema.Note do
 
   schema "notes" do
     field(:content, :string)
+    # What the author typed, rendered. Set once at write time for local
+    # notes (Markdown → HTML); NULL for remote notes, whose `content` is
+    # already the HTML their server sent, and for local notes written
+    # before the column existed. Read it through `html/1`, never straight
+    # — that fallback is what keeps both of those cases working.
+    field(:content_html, :string)
     # An Article's human title (AP `name`); NULL for a plain Note. Kept
     # structured alongside the `<h2>` we also fold into `content`, so the
     # client can detect an article and route it to its reader page.
@@ -63,6 +69,10 @@ defmodule SukhiFedi.Schema.Note do
       :mfm,
       :emojis
     ])
+    # Render before escaping — Markdown needs the source as typed, and
+    # `escape/1` would turn every `<` into `&lt;` for Earmark to escape
+    # a second time.
+    |> put_content_html()
     |> sanitize_or_escape_content()
     |> put_domain()
     |> validate_required([:content, :account_id])
@@ -90,6 +100,39 @@ defmodule SukhiFedi.Schema.Note do
         else: &SukhiFedi.HTML.sanitize/1
 
     update_change(changeset, :content, transform)
+  end
+
+  # Render the local author's Markdown, once, at write time. Remote notes
+  # are left alone: their `content` is their own HTML, and running Markdown
+  # over someone else's markup would change their words. Keyed off the same
+  # `local_ap_id?/1` as the escaping above, so the two never disagree about
+  # whose text this is.
+  defp put_content_html(changeset) do
+    case get_change(changeset, :content) do
+      content when is_binary(content) ->
+        if local_ap_id?(changeset),
+          do: put_change(changeset, :content_html, SukhiFedi.Markdown.to_html(content)),
+          else: changeset
+
+      _ ->
+        changeset
+    end
+  end
+
+  @doc """
+  The HTML to show a reader (or send to another server).
+
+  Falls back to `content` when there is no rendered form: a remote note
+  (already HTML) or a local note written before the column existed
+  (plaintext, served the way it always was). Takes a plain map too — notes
+  cross the node boundary as maps.
+  """
+  @spec html(map()) :: String.t()
+  def html(note) do
+    case Map.get(note, :content_html) do
+      html when is_binary(html) and html != "" -> html
+      _ -> Map.get(note, :content) || ""
+    end
   end
 
   # Locality follows the ap_id host. A note created here inserts with no

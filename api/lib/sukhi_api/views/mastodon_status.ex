@@ -241,7 +241,11 @@ defmodule SukhiApi.Views.MastodonStatus do
   defp mastodon_visibility(_), do: "public"
 
   defp render_content(note) do
-    raw = Map.get(note, :content) || ""
+    # A local note carries its rendered form (Markdown, line breaks and all);
+    # a remote one carries the HTML its server sent. Either way `content_html`
+    # first, `content` behind it — the fallback is what keeps remote notes and
+    # anything written before the column existed rendering as they always did.
+    raw = Map.get(note, :content_html) || Map.get(note, :content) || ""
     html = if String.starts_with?(raw, "<"), do: raw, else: "<p>#{raw}</p>"
 
     # When we're showing the quoted post as a card (render_quote/1), a

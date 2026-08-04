@@ -169,7 +169,8 @@ defmodule SukhiFedi.Web.CollectionController do
           "id" => note_ap_id,
           "type" => "Note",
           "attributedTo" => actor_uri,
-          "content" => n.content,
+          # AP `content` is HTML by contract, so the rendered form goes out.
+          "content" => Note.html(n),
           "published" => published,
           "to" => [public_ns],
           "cc" => ["#{actor_uri}/followers"]

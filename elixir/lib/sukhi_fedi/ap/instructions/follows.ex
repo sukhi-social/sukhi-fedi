@@ -389,6 +389,7 @@ defmodule SukhiFedi.AP.Instructions.Follows do
           select: %{
             id: n.id,
             content: n.content,
+            content_html: n.content_html,
             cw: n.cw,
             sensitive: n.sensitive,
             quote_of_ap_id: n.quote_of_ap_id,
@@ -404,7 +405,9 @@ defmodule SukhiFedi.AP.Instructions.Follows do
             %{
               account_id: account_id,
               note_id: n.id,
-              content: n.content,
+              # What goes over the wire is HTML (AP `content`), so send the
+              # rendered form — old rows have none and fall back as before.
+              content: Note.html(n),
               cw: n.cw,
               sensitive: n.sensitive,
               quote_of_ap_id: n.quote_of_ap_id,
