@@ -135,3 +135,31 @@ export function injectQuote(
     }
   }
 }
+
+/**
+ * その投稿を、人が読みに行くところ。
+ *
+ * AP の `id` は機械の識別子で、`url` は「見に行くならここ」── 別のもの
+ * なのに、こちらは `id` しか出していなかった。受け取った側は「元の投稿を
+ * 開く」の行き先を作れないまま、ただ何も起きない釦を持つことになる。
+ *
+ * `https://host/users/name` と `.../notes/123` から
+ * `https://host/@name/123` を組む。どちらも自分が作った文字列なので、
+ * 形が違えば null を返して、何も足さない ── まちがった行き先を渡すより、
+ * 渡さないほうがいい。
+ */
+export function humanNoteUrl(actor: string, noteId: string): string | null {
+  try {
+    const a = new URL(actor);
+    const n = new URL(noteId);
+    if (a.origin !== n.origin) return null;
+
+    const name = a.pathname.match(/^\/users\/([^/]+)$/)?.[1];
+    const id = n.pathname.match(/\/notes\/([^/]+)$/)?.[1];
+    if (!name || !id) return null;
+
+    return `${a.origin}/@${name}/${id}`;
+  } catch {
+    return null;
+  }
+}

@@ -37,6 +37,10 @@ defmodule SukhiDelivery.AP.ActorJson do
       ],
       "id" => actor_uri,
       "type" => "Person",
+      # 人が読む頁のありか。`id` は機械の識別子なので、これとは別。
+      # 無いまま出していたので、受け取った側は「プロフィールを開く」の
+      # 行き先を作れなかった(gateway 側の actor と同じ抜けかた)。
+      "url" => "https://#{domain}/@#{account.username}",
       "preferredUsername" => account.username,
       "name" => account.display_name || account.username,
       "summary" => account.summary || "",

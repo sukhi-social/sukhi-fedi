@@ -30,12 +30,18 @@ defmodule SukhiFedi.Markdown do
   through unchanged, so this is safe to drop into a changeset.
   """
   @spec to_html(term()) :: term()
-  def to_html(text) when is_binary(text) do
+  def to_html(text, lookup \\ &SukhiFedi.Linkify.known_account/1)
+
+  def to_html(text, lookup) when is_binary(text) do
     text
     |> Earmark.as_html!(@opts)
+    # `@だれか` と `#なにか` を、ここでリンクにする。Markdown のあと、
+    # scrubber の前 ── 出すのはこちらの組んだ小さな HTML なので、その
+    # まま allow-list を通して確かめてもらえる。
+    |> SukhiFedi.Linkify.run(lookup)
     |> SukhiFedi.HTML.sanitize()
     |> String.trim()
   end
 
-  def to_html(other), do: other
+  def to_html(other, _lookup), do: other
 end

@@ -48,6 +48,11 @@ defmodule SukhiFedi.AP.ActorJson do
       ],
       "id" => actor_uri,
       "type" => "Person",
+      # **人が読む頁のありか。** `id` とは別のもの ── `id` は機械の識別子で、
+      # `url` は「この人を見に行くならここ」。これが無いので、actor を引いた
+      # 道具(fedify lookup など)はプロフィールへのリンクを出しようがなかった。
+      # 行き先は書かれていなかっただけで、頁のほうは前からある。
+      "url" => "https://#{domain}/@#{account.username}",
       "preferredUsername" => account.username,
       "name" => account.display_name || account.username,
       "summary" => account.summary || "",

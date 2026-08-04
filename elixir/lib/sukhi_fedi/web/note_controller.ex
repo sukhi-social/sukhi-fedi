@@ -50,7 +50,7 @@ defmodule SukhiFedi.Web.NoteController do
          true <- note.account_id == aid,
          true <- note.visibility == "public" do
       note = Repo.preload(note, :media)
-      send_json(conn, 200, note_to_ap(note, actor_uri))
+      send_json(conn, 200, note_to_ap(note, actor_uri, username))
     else
       _ -> send_json(conn, 404, %{error: "not found"})
     end
@@ -84,11 +84,15 @@ defmodule SukhiFedi.Web.NoteController do
     end
   end
 
-  defp note_to_ap(%Note{} = n, actor_uri) do
+  defp note_to_ap(%Note{} = n, actor_uri, username) do
     %{
       "@context" => @context,
       "id" => "#{actor_uri}/notes/#{n.id}",
       "type" => "Note",
+      # 人が読む頁のありか。`id` は機械の識別子なので、別に要る ──
+      # 無いと、受け取った側は「元の投稿を見る」の行き先を作れない。
+      # actor と同じ抜けかたをしていた。
+      "url" => "https://#{SukhiFedi.Config.domain!()}/@#{username}/#{n.id}",
       "attributedTo" => actor_uri,
       # AP `content` is HTML by contract, so the rendered form goes out.
       "content" => Note.html(n),

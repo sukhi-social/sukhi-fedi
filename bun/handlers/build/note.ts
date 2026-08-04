@@ -1,6 +1,6 @@
 import { Create, Note } from "@fedify/fedify/vocab";
 import { nowInstant } from "../../fedify/temporal.ts";
-import { injectAttachments, injectMisskey, injectQuote, signAndSerialize, type AttachmentDescriptor, type SignedPayload } from "../../fedify/utils.ts";
+import { humanNoteUrl, injectAttachments, injectMisskey, injectQuote, signAndSerialize, type AttachmentDescriptor, type SignedPayload } from "../../fedify/utils.ts";
 import { resolveAudience } from "../../fedify/addressing.ts";
 
 export interface BuildNotePayload extends SignedPayload {
@@ -26,6 +26,7 @@ export async function handleBuildNote(
   payload: BuildNotePayload,
 ): Promise<BuildNoteResult> {
   const audience = resolveAudience({ kind: "public", actor: payload.actor });
+  const humanUrl = humanNoteUrl(payload.actor, payload.noteId);
 
   const note = new Note({
     id: new URL(payload.noteId),
@@ -35,6 +36,9 @@ export async function handleBuildNote(
     tos: audience.tos,
     ccs: audience.ccs,
     ...(payload.inReplyToId ? { replyTarget: new URL(payload.inReplyToId) } : {}),
+    // 人が読む頁のありか。`id` とは別もので、無いと受け取った側は
+    // 「元の投稿を開く」の行き先を作れない。組めなければ足さない。
+    ...(humanUrl ? { url: new URL(humanUrl) } : {}),
   });
 
   const create = new Create({

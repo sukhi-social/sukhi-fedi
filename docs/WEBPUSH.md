@@ -575,3 +575,70 @@ make the knock unreliable, and an unreliable knock is worse than none.
 
 `quiet_until` has a predicate, a column, a read path and tests, and
 nothing that sets it. That is the last piece of §6.
+
+---
+
+## 11. Measured on a real phone (2026-08-04)
+
+Everything up to here could be checked from a script. The last stretch —
+does a pocket actually buzz, and does it buzz *once* — needed a person
+holding a phone. nyanrus held it.
+
+**It rang.** And the first time it didn't, which is the useful half.
+
+### Why the first attempt was silent
+
+Not push. There was no `mention` notification to push *about*. Those
+rows were only ever created on the path a note takes coming in from
+another server, so nothing written on this server had ever notified
+anybody — a hundred-message conversation with not one `mention` behind
+it. VAPID, the encryption, the queue, the Topic were all correct and
+there was nothing upstream pouring into them. Fixed separately; the
+tests live in `notes_test.exs`.
+
+### Why it then rang three times for three messages
+
+Also not the push path. The service worker had been tagging per note, so
+each message was a *different* notification and alerted again. That was
+fixed and deployed — and it rang three times anyway, because **the old
+service worker was still the one handling push.**
+
+sukhi never calls `skipWaiting()` on purpose (a worker swapping itself
+mid-session races the update banner). The consequence had not been
+followed through: a new worker then waits for every tab to close, and on
+a phone the app never closes. A behaviour fix inside the worker could
+not reach anyone, ever. The update banner now asks the waiting worker to
+swap, and learned to appear when only the *worker* is new — `$updated`
+tracks the page version and doesn't move for a worker-only change, so
+the one thing meant to announce updates was blind to exactly this case.
+
+### The result
+
+Three DMs, 2.5s apart, phone locked:
+
+- three push jobs, all `completed` on the first attempt, one shared topic
+- **one buzz**
+
+So the server really did send three times and the device folded the
+last two. Both halves working, and each doing the part the other can't:
+`Topic` folds what a sleeping phone hasn't received, the `tag` folds what
+a woken one already shows.
+
+### The pattern in all four bugs
+
+Four separate failures today had one shape: **the decision was right, the
+sentence after it never executed, and nothing looked wrong.**
+
+- `Oban.insert/1` named an instance that doesn't exist → rescued, `:ok`,
+  no log, no push.
+- The client read `/api/v1/instance` for the VAPID key, which has no
+  `configuration` block → panel hid itself, which is also what it does
+  correctly when push is off.
+- `mention` notifications were never created locally → the push pipe was
+  complete and had no source.
+- The service worker fix was deployed, served, and never activated.
+
+Each layer was individually correct. The joins were where things went
+quiet. Worth remembering when adding the next layer: *test the sentence
+after the decision*, and prefer a check that fails loudly over one that
+silently looks like the healthy state.
