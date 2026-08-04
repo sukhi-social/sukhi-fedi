@@ -8,7 +8,7 @@
     type Notification
   } from '$lib/api';
   import {
-    DIRECT_TYPES,
+    directTypeList,
     markAllSeen,
     clearCounts,
     seenId,
@@ -35,8 +35,8 @@
   const pager = createPager<Notification>((maxId) =>
     getNotifications({
       maxId,
-      types: tier === 'direct' ? DIRECT_TYPES : undefined,
-      excludeTypes: tier === 'ambient' ? DIRECT_TYPES : undefined
+      types: tier === 'direct' ? directTypeList() : undefined,
+      excludeTypes: tier === 'ambient' ? directTypeList() : undefined
     })
   );
   let loading = $state(false);

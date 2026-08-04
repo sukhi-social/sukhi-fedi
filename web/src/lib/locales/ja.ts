@@ -230,6 +230,21 @@ export const ja = {
   'settings.security': 'ログインと安全',
   'settings.migration': 'アカウントの引っ越し',
   'settings.cleanup': '古い投稿のお片づけ',
+
+  // ── 知らせを受け取る（Web Push）─────────────────────────
+  // 何が鳴って、何が鳴らないかを、釦の前に書く。押してから知るのでは遅い。
+  'push.title': '知らせを受け取る',
+  'push.what':
+    'この端末を閉じているあいだも、あなたに話しかけられたときだけ、そっとお知らせします。呼びかけ（メンション）と、フォローの申請だけです。',
+  'push.never':
+    'お気に入りやブースト、フォローでは鳴りません。お知らせに本文は入らないので、画面を見ている人に読まれることもありません。数字も出しません。',
+  'push.start': '受け取る',
+  'push.stop': 'やめる',
+  'push.on': 'この端末で受け取っています。',
+  'push.working': '待ってください…',
+  'push.blocked':
+    'このブラウザで、お知らせが断られています。ブラウザの設定から許可すると、ここでまた選べます。',
+  'push.failed': 'うまくいきませんでした。もう一度どうぞ。',
   'settings.emojiCreditPre': '絵文字は ',
   'settings.emojiCreditParenOpen': '（',
   'settings.emojiCreditParenClose': '）。',

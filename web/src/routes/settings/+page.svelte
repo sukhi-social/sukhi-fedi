@@ -16,6 +16,7 @@
   import Avatar from '$lib/components/Avatar.svelte';
   import ImageCrop from '$lib/components/ImageCrop.svelte';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
+  import PushToggle from '$lib/components/PushToggle.svelte';
   import { t } from '$lib/i18n';
 
   let me = $state<Account | null>(null);
@@ -366,6 +367,8 @@
     <a class="chip" href="/requests">{$t('requests.title')}</a>
     <a class="chip" href="/settings/cleanup">{$t('settings.cleanup')}</a>
   </p>
+
+  <PushToggle />
 
   <details class="rel-manage timeline" style="margin-top: var(--space-5);" ontoggle={onRelToggle}>
     <summary style="font-size: var(--text-base); cursor: pointer;">{$t('settings.blockMute')}</summary>

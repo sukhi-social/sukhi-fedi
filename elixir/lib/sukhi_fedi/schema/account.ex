@@ -80,6 +80,12 @@ defmodule SukhiFedi.Schema.Account do
     field :totp_enabled_at, :utc_datetime
     field :totp_last_used_step, :integer
 
+    # おやすみ. While `now` is before this, no push leaves the building —
+    # for every device at once, which is why it sits on the account and
+    # not on the per-device subscription. NULL = not quiet. It gates the
+    # doorbell only; the notification list is unaffected.
+    field :quiet_until, :utc_datetime
+
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end
 

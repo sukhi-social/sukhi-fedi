@@ -1,12 +1,47 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Addons.WebPush do
-  @moduledoc "Web Push addon — browser push notifications."
+  @moduledoc """
+  Web Push — the one transport that can wake a person who isn't looking.
+
+  Everything else this server renders (the SSE count, the NotifGlyph
+  silhouette) only moves for someone already on the page. A push buzzes
+  a pocket. So the whole question is *which notifications have earned
+  the right to interrupt a life*, and the answer lives in exactly one
+  place here: `deliverable?/3`. The send path has no other door.
+
+  This node decides and enqueues; the delivery node does the outbound
+  HTTP (ARCHITECTURE §2.1 — all outbound HTTP lives there).
+
+  Design: `docs/WEBPUSH.md`.
+  """
 
   use SukhiFedi.Addon, id: :web_push
 
   import Ecto.Query
   alias SukhiFedi.Repo
-  alias SukhiFedi.Schema.PushSubscription
+  alias SukhiFedi.Schema.{Account, Notification, PushSubscription}
+
+  require Logger
+
+  # ── The calm contract, stated once ──────────────────────────────────────
+  #
+  # Only these may ever reach a push transport. **Nothing is added here
+  # without re-reading docs/WEBPUSH.md §7** — putting `favourite` in this
+  # list is precisely the FOMO regression the two-tier model exists to
+  # prevent. The rest (favourite, reblog, follow, poll, update…) are the
+  # 景色: they grow a silhouette at a navigation boundary, they do not
+  # wake anybody.
+  #
+  # This list is canonical. The web client's `DIRECT_TYPES` reads it from
+  # the server rather than keeping its own copy — the decision that gates
+  # a phone buzz should live next to the code that buzzes it.
+  @direct_types ["mention", "follow_request"]
+
+  @doc "The notification types allowed to interrupt. The client reads this."
+  @spec direct_types() :: [String.t()]
+  def direct_types, do: @direct_types
+
+  # ── Subscriptions ───────────────────────────────────────────────────────
 
   def subscribe(account_id, endpoint, p256dh_key, auth_key, alerts \\ %{}) do
     %PushSubscription{
@@ -49,15 +84,142 @@ defmodule SukhiFedi.Addons.WebPush do
   @doc """
   Server VAPID key the client needs to encrypt push messages with.
   Returned by `GET /api/v1/instance` (under `configuration.urls`) and
-  by `POST /api/v1/push/subscription` on success. Reads from
-  `:sukhi_fedi, :vapid_public_key` config; nil if unconfigured.
+  by `POST /api/v1/push/subscription` on success. nil if unconfigured.
   """
-  def server_key, do: Application.get_env(:sukhi_fedi, :vapid_public_key)
+  def server_key, do: config()[:public_key]
 
-  def send_notification(account_id, _notification) do
-    # Placeholder until a push-web library is wired up. Subscriptions are
-    # persisted; delivery is a future task.
-    _ = get_subscriptions(account_id)
-    :ok
+  @doc "True when a VAPID keypair is configured. Push is off without one."
+  def configured?, do: is_binary(server_key()) and server_key() != ""
+
+  # ── The one predicate ───────────────────────────────────────────────────
+
+  @doc """
+  May this notification interrupt this person, right now?
+
+  Pure: `now` and `quiet_until` come in as arguments so there is no clock
+  read and no `Repo` call inside, and so it can be unit-tested and called
+  anywhere. This is read *after* the notification row is already written
+  and streamed — it changes what buzzes a phone, never what the list
+  truthfully contains.
+  """
+  @spec deliverable?(String.t(), map(), %{
+          quiet_until: DateTime.t() | nil,
+          now: DateTime.t()
+        }) :: boolean()
+  def deliverable?(type, alerts, %{quiet_until: quiet_until, now: now}) do
+    interruptible_tier?(type) and alert_enabled?(type, alerts) and
+      not quiet?(quiet_until, now)
   end
+
+  defp interruptible_tier?(type), do: type in @direct_types
+
+  # The user's own switch. A type they turned off is never pushed even if
+  # it is `direct`. Absence is not consent, so a key the client never sent
+  # defaults to *off*; `== true` normalizes the untrusted truthiness once,
+  # strictly, at the edge (the alerts map arrived as client JSON).
+  defp alert_enabled?(type, alerts) when is_map(alerts), do: Map.get(alerts, type) == true
+  defp alert_enabled?(_type, _alerts), do: false
+
+  defp quiet?(nil, _now), do: false
+  defp quiet?(%DateTime{} = until, now), do: DateTime.compare(now, until) == :lt
+
+  # ── Fan-out ─────────────────────────────────────────────────────────────
+
+  @doc """
+  Ring the doorbell for a freshly-written notification.
+
+  Best-effort *to enqueue* and off the caller's path — a push that can't
+  be queued must never fail the write that produced the notification.
+  But once enqueued, delivery is durable (the delivery node's Oban queue
+  retries with backoff).
+  """
+  @spec notify(Notification.t()) :: :ok
+  def notify(%Notification{} = notif) do
+    if configured?() and interruptible_tier?(notif.type) do
+      do_notify(notif)
+    end
+
+    :ok
+  rescue
+    # The doorbell is never allowed to break the house.
+    error ->
+      Logger.warning("web push enqueue failed: #{Exception.message(error)}")
+      :ok
+  end
+
+  def notify(_), do: :ok
+
+  defp do_notify(notif) do
+    now = DateTime.utc_now()
+
+    # One query, not one per subscription: the subscriptions and the
+    # recipient's quiet-state come back together.
+    rows =
+      Repo.all(
+        from p in PushSubscription,
+          join: a in Account,
+          on: a.id == p.account_id,
+          where: p.account_id == ^notif.account_id,
+          select: %{
+            id: p.id,
+            endpoint: p.endpoint,
+            p256dh_key: p.p256dh_key,
+            auth_key: p.auth_key,
+            alerts: p.alerts,
+            quiet_until: a.quiet_until
+          }
+      )
+
+    payload = payload_for(notif)
+
+    for row <- rows,
+        deliverable?(notif.type, row.alerts || %{}, %{quiet_until: row.quiet_until, now: now}) do
+      enqueue(row, payload)
+    end
+  end
+
+  @doc """
+  What the service worker gets. **The minimum**: enough to say "someone
+  spoke to you" and open the right thread.
+
+  Deliberately not in here: the note body, media, a content preview, or a
+  badge count. (a) the push service learns nothing even though it is
+  ciphertext-blind; (b) a lock-screen preview of a DM is a leak the
+  recipient never opted into; (c) a push is a knock, not the message
+  shoved in your face — the words wait, calmly, in the app. A count on an
+  app icon would be the FOMO number the ambient tier exists to avoid.
+  """
+  @spec payload_for(Notification.t()) :: map()
+  def payload_for(%Notification{} = notif) do
+    %{
+      notification_id: notif.id,
+      notification_type: notif.type,
+      # Who, by handle — no display name, no avatar, no body.
+      from: from_acct(notif.from_account_id),
+      note_id: notif.note_id
+    }
+  end
+
+  defp from_acct(nil), do: nil
+
+  defp from_acct(account_id) do
+    Repo.one(from a in Account, where: a.id == ^account_id, select: a.username)
+  end
+
+  # The delivery node owns outbound HTTP, so the job names a module that
+  # only exists over there. Oban takes a worker name as a string precisely
+  # so a producer needn't carry the consumer's code.
+  defp enqueue(row, payload) do
+    %{
+      "subscription_id" => row.id,
+      "endpoint" => row.endpoint,
+      "p256dh_key" => row.p256dh_key,
+      "auth_key" => row.auth_key,
+      "payload" => payload
+    }
+    |> Oban.Job.new(worker: "SukhiDelivery.Push.Worker", queue: :push, max_attempts: 5)
+    |> Oban.insert()
+  end
+
+  defp config, do: Application.get_env(:sukhi_fedi, :web_push, [])
 end

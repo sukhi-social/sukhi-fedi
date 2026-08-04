@@ -430,6 +430,45 @@ export async function deleteServerDraft(): Promise<void> {
   await req('DELETE', '/api/i/notes/drafts', 'draft_delete', { auth: 'optional' });
 }
 
+// ── web push ─────────────────────────────────────────────────────────
+// `direct_types` は sukhi の足しもの(Mastodon には無い)。どの通知なら人を
+// 起こしていいかはサーバが決めるので、手元では一覧を持たない。
+
+export type PushSubscriptionRow = {
+  id: string;
+  endpoint: string;
+  alerts: Record<string, boolean>;
+  server_key: string | null;
+  direct_types?: string[];
+};
+
+/** いまの購読。していなければ null(404)。 */
+export async function getPushSubscription(): Promise<PushSubscriptionRow | null> {
+  const res = await req('GET', '/api/v1/push/subscription', 'push_get', { auth: 'optional' });
+  if (res.status === 404) return null;
+  return json<PushSubscriptionRow>(res);
+}
+
+export async function putPushSubscription(input: {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  alerts: Record<string, boolean>;
+}): Promise<PushSubscriptionRow> {
+  return json<PushSubscriptionRow>(
+    await req('POST', '/api/v1/push/subscription', 'push_post', {
+      auth: 'optional',
+      json: {
+        subscription: { endpoint: input.endpoint, keys: input.keys },
+        data: { alerts: input.alerts }
+      }
+    })
+  );
+}
+
+export async function deletePushSubscription(): Promise<void> {
+  await req('DELETE', '/api/v1/push/subscription', 'push_delete', { auth: 'optional' });
+}
+
 // ── interactions ─────────────────────────────────────────────────────
 // Each toggle returns the updated Status.
 

@@ -30,10 +30,17 @@ defmodule SukhiFedi.Integration.WebPushTest do
     end
 
     test "server_key reads from app config" do
-      Application.put_env(:sukhi_fedi, :vapid_public_key, "test-key")
+      # The public half now lives with its private twin and the VAPID
+      # subject under one `:web_push` key, instead of alone at
+      # `:vapid_public_key` — the three are only ever set together, and
+      # push is off unless all three are.
+      Application.put_env(:sukhi_fedi, :web_push, public_key: "test-key")
       assert WebPush.server_key() == "test-key"
-      Application.delete_env(:sukhi_fedi, :vapid_public_key)
+      assert WebPush.configured?()
+
+      Application.delete_env(:sukhi_fedi, :web_push)
       assert WebPush.server_key() == nil
+      refute WebPush.configured?()
     end
   end
 

@@ -32,14 +32,34 @@ if config_env() == :prod do
   # Finch sockets and inflight HTTP bodies in BEAM heap at once.
   # Config.config/3 shallow-merges keyword lists, so overriding just
   # `:queues` leaves `:repo` and `:plugins` from compile-time intact.
+  # The list itself, though, is replaced wholesale — a queue missing from
+  # here simply never drains in prod, quietly. Name every one.
   config :sukhi_delivery, Oban,
     queues: [
       delivery: String.to_integer(System.get_env("OBAN_DELIVERY_CONCURRENCY", "10")),
-      federation: String.to_integer(System.get_env("OBAN_FEDERATION_CONCURRENCY", "3"))
+      federation: String.to_integer(System.get_env("OBAN_FEDERATION_CONCURRENCY", "3")),
+      push: String.to_integer(System.get_env("OBAN_PUSH_CONCURRENCY", "3"))
     ]
 
   # Outbound HTTP pool sizing. Consumed by SukhiDelivery.Application.
   config :sukhi_delivery, :finch_pool,
     size: String.to_integer(System.get_env("FINCH_POOL_SIZE", "50")),
     count: String.to_integer(System.get_env("FINCH_POOL_COUNT", "4"))
+
+  # ── Web Push (VAPID) ───────────────────────────────────────────────────
+  # The same keypair the gateway hands to clients; this node signs with it.
+  # Without one push is simply off — the gateway never enqueues, so nothing
+  # here ever runs.
+  vapid_public = System.get_env("VAPID_PUBLIC_KEY")
+
+  if vapid_public not in [nil, ""] do
+    config :web_push, :vapid,
+      public_key: vapid_public,
+      private_key: System.fetch_env!("VAPID_PRIVATE_KEY"),
+      subject:
+        System.get_env(
+          "VAPID_SUBJECT",
+          "mailto:admin@" <> System.get_env("DOMAIN", "localhost")
+        )
+  end
 end

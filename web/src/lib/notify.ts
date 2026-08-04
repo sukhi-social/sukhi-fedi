@@ -20,10 +20,28 @@ import { loadToken } from './auth';
 
 export type Tier = 'direct' | 'ambient';
 
-export const DIRECT_TYPES: NotificationType[] = ['mention', 'follow_request'];
+// **この一覧の正本はサーバにある**(WebPush の @direct_types)。同じ一覧が
+// 「その通知は人の携帯を鳴らしていいか」も決めているので、手元に二つ目の
+// リテラルを置くと、いつか片方だけ増えて、静かに約束が破れる ── お気に入りで
+// 電話が鳴る、というかたちで。
+//
+// ここにあるのは、サーバに訊く前の暫定値。/api/v1/push/subscription が
+// direct_types を返したら adoptDirectTypes() が置き換える。ずれているあいだも
+// 違うのは見えかた(数字か、育つかたちか)だけで、鳴る鳴らないはサーバの側。
+let directTypes: string[] = ['mention', 'follow_request'];
+
+/** サーバの一覧に合わせる。空や欠けは無視して、暫定値のままにする。 */
+export function adoptDirectTypes(fromServer: string[] | undefined | null): void {
+  if (Array.isArray(fromServer) && fromServer.length > 0) directTypes = fromServer;
+}
 
 export function tierOf(type: NotificationType): Tier {
-  return DIRECT_TYPES.includes(type) ? 'direct' : 'ambient';
+  return directTypes.includes(type) ? 'direct' : 'ambient';
+}
+
+/** いまの一覧。通知ページが API の絞りこみに使う。 */
+export function directTypeList(): NotificationType[] {
+  return directTypes as NotificationType[];
 }
 
 // まだ見ていない数。AppNav がこれを描く。

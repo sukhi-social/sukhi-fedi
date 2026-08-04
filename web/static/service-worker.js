@@ -83,6 +83,69 @@ async function cacheFirst(req) {
   return res;
 }
 
+// ── ノック ────────────────────────────────────────────────────────────
+//
+// ここだけが、見ていない人に届く。サーバは既に「これは割り込んでいい」と
+// 決めたうえで送っている(WebPush.deliverable?/3 — 決める場所は一つ)ので、
+// ここで考え直さない。運ぶだけ。
+//
+// 中身は最小限。だれから・何の種類・どの投稿、だけ。本文も画像も来ない
+// ので、ロック画面に人の言葉が出ることはない。ノックであって、手紙を
+// 顔に押しつけるのではないから。
+//
+// 数もつけない。バッジの数字は、このサーバがずっと避けてきた FOMO の
+// かたちそのものなので。
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    // 読めない形で来たら、黙って何も出さない。中身の分からない通知で
+    // 人を起こすのは、起こさないより悪い。
+    return;
+  }
+
+  const from = data.from ? `@${data.from}` : "だれか";
+  const body =
+    data.notification_type === "follow_request"
+      ? `${from} さんから、フォローの申請が届きました`
+      : `${from} さんが話しかけています`;
+
+  // 同じ投稿へのノックは、重ねずに最新の一つへ畳む。何度も鳴るより、
+  // 「まだ返していない」が一つ残っているほうが静か。
+  const tag = data.note_id ? `note-${data.note_id}` : "sukhi";
+
+  event.waitUntil(
+    self.registration.showNotification("sukhi", {
+      body,
+      tag,
+      icon: "/icon-512.png",
+      badge: "/icon-512.png",
+      data: { note_id: data.note_id ?? null, type: data.notification_type ?? null },
+    }),
+  );
+});
+
+// 押したら、その話のところへ。既に開いている窓があれば、そこを使う ──
+// タブを増やさない。
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const target = "/notifications";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      for (const w of windows) {
+        if (new URL(w.url).origin === self.location.origin) {
+          w.focus();
+          return w.navigate ? w.navigate(target) : undefined;
+        }
+      }
+      return self.clients.openWindow(target);
+    }),
+  );
+});
+
 async function networkFirst(req) {
   try {
     const res = await fetch(req);

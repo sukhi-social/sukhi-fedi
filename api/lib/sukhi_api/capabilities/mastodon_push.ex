@@ -132,11 +132,22 @@ defmodule SukhiApi.Capabilities.MastodonPush do
         _ -> nil
       end
 
+    # `direct_types` is ours, not Mastodon's. The server decides which
+    # notification types may ever wake somebody, and the web client reads
+    # that list from here rather than keeping its own copy — two literals
+    # would drift, and a drift here is a phone buzzing for a favourite.
+    direct_types =
+      case GatewayRpc.call(SukhiFedi.Addons.WebPush, :direct_types, []) do
+        {:ok, list} when is_list(list) -> list
+        _ -> []
+      end
+
     %{
       id: Id.encode(row.id),
       endpoint: row.endpoint,
       alerts: row.alerts || %{},
-      server_key: server_key
+      server_key: server_key,
+      direct_types: direct_types
     }
   end
 

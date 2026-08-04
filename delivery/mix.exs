@@ -39,6 +39,21 @@ defmodule SukhiDelivery.MixProject do
       # HTTP client for outbound inbox POSTs
       {:req, "~> 0.5"},
 
+      # Web Push: RFC 8291 payload encryption + the RFC 8292 VAPID JWT.
+      # Picked for narrowness, not popularity (docs/WEBPUSH.md §5): its
+      # only dependency is Finch, which this node already supervises, so
+      # nothing new lands on the box at all.
+      #
+      # The obvious alternative, `web_push_elixir`, was tried first and
+      # put back: it emits `aesgcm`, the superseded draft encoding, where
+      # the standard (RFC 8188/8291, and what §4 asks for) is `aes128gcm`.
+      # Hand-rolling on `:crypto` was the other option — every primitive
+      # is in OTP — but this crypto fails *silently* when it is subtly
+      # wrong: the push service answers 201 and the browser shows nothing.
+      # `test/web_push_round_trip_test.exs` decrypts what we encrypt, so
+      # that silence can't hide here.
+      {:web_push, "~> 0.1"},
+
       # Plug is required transitively by PromEx even when the metrics
       # server is disabled — it imports Plug.Conn at compile time.
       {:plug, "~> 1.16"},

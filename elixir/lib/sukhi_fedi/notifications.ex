@@ -63,8 +63,14 @@ defmodule SukhiFedi.Notifications do
   # Push to the recipient's `user` stream — but only on a genuinely new
   # row. `on_conflict: :nothing` returns `id: nil` when the insert hit the
   # idempotency index, so a re-delivered favourite/follow doesn't re-fire.
+  #
+  # The doorbell hangs here too, behind the same guard: that idempotency
+  # is already paid for, and it is exactly the idempotency a doorbell
+  # needs — the same event must not buzz a pocket twice. Whether it may
+  # buzz at all is `WebPush.deliverable?/3`'s call, not this line's.
   defp tap_stream({:ok, %Notification{id: id} = notif} = res) when not is_nil(id) do
     SukhiFedi.Streaming.publish_notification(notif.account_id, notif)
+    SukhiFedi.Addons.WebPush.notify(notif)
     res
   end
 

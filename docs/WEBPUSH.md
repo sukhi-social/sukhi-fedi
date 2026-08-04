@@ -1,10 +1,11 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# Web Push delivery (design)
+# Web Push delivery
 
-> A design for turning `SukhiFedi.Addons.WebPush.send_notification/2`
-> from a stub into real RFC 8030 / RFC 8291 Web Push **without breaking
-> the calm-UX honesty contract**. No code yet — this fixes *where each
-> concern will live* (CODE_STYLE §0) before any of it is written.
+> **Built.** This began as a design — fixing *where each concern would
+> live* (CODE_STYLE §0) before any of it was written. The sections below
+> are kept as they were, because they are still the reasoning. What
+> actually shipped, and the two places it departed from the plan, are in
+> **§9** at the end.
 >
 > Companions: [`ARCHITECTURE.md`](ARCHITECTURE.md) (where processes
 > run), [`CODE_STYLE.md`](CODE_STYLE.md) (where concerns live),
@@ -421,3 +422,96 @@ ARCHITECTURE.md, and the calm-UX contract in `notify.ts`'s own header.
 It proposes structure, not lines; if a pin has drifted or I've read the
 calm contract as stricter (or looser) than it really is, that's a
 misreading on my part — tell me and I'll re-check the function.
+
+---
+
+## 9. What was built (2026-08-04)
+
+The design above held. Two things went differently, and both are worth
+knowing before touching this again.
+
+### Where each piece landed
+
+| Concern | Where |
+|---|---|
+| `@direct_types` + `deliverable?/3` | `elixir/lib/sukhi_fedi/addons/web_push.ex` |
+| `notify/1` off `tap_stream/1` | same file; called from `notifications.ex` |
+| `payload_for/1` (no body, no count) | same file |
+| おやすみ (`quiet_until`) | `accounts.quiet_until`, read in `notify/1`'s one query |
+| VAPID config | `:sukhi_fedi, :web_push` (gateway), `:web_push, :vapid` (delivery) |
+| Durable send, retry, 410-expiry | `delivery/lib/sukhi_delivery/push/worker.ex` |
+| RFC 8291 encryption + VAPID JWT | the `web_push` library |
+| Service worker `push` / `notificationclick` | `web/static/service-worker.js` |
+| Subscribe / unsubscribe | `web/src/lib/push.ts` + `push.svelte.ts` + `PushToggle.svelte` |
+
+`send_notification/2` is gone, as §2 said it would be.
+
+### Departure 1 — Oban, not a `push_deliveries` table
+
+§3 proposed a dedicated table the delivery node drains. It already runs
+Oban, with the attempts/backoff discipline this wanted, so the queue is
+`push` on that node instead. The design's *separation* is intact — push
+does not ride `sns.outbox.>`, and a push failure is still never a
+federation event — only the table is borrowed rather than built.
+
+The gateway enqueues with a **string worker name**
+(`"SukhiDelivery.Push.Worker"`), which is how a producer names a consumer
+whose code it doesn't carry.
+
+> One trap, paid for once: `delivery/config/runtime.exs` replaces
+> `:queues` wholesale in prod. A queue that exists only in `config.exs`
+> compiles, boots, and then never drains — silently. Every queue has to
+> be named in *both* places.
+
+### Departure 2 — the first library was the wrong one
+
+§5 said pick a narrow library, and `web_push_elixir` looked right: three
+deps, two already present. It was added, and then removed, because it
+emits **`aesgcm`** — the superseded draft encoding — where §4 asks for
+`aes128gcm` (RFC 8188/8291).
+
+`web_push` replaced it: `aes128gcm`, and its only dependency is Finch,
+which the delivery node already supervises. **Zero new dependencies on
+the box** — better than the design hoped for.
+
+This is the failure mode §5 warned about, and it deserves restating
+because it is genuinely nasty: **wrong Web Push crypto does not error.**
+The push service answers 201, the log says success, and the phone stays
+dark. There is nothing to chase.
+
+So `delivery/test/push/encryption_round_trip_test.exs` plays the
+recipient: it generates a subscription keypair, hands the public half to
+the encrypter, and decrypts the body the way a user agent would —
+written out independently, so the two have to agree rather than share a
+mistake. Japanese survives; a single flipped byte fails instead of
+garbling; salt and ephemeral key differ every time. If the encoding ever
+drifts again, that test says so out loud.
+
+### What the tests hold
+
+- `elixir/test/sukhi_fedi/web_push_deliverable_test.exs` — the calm
+  contract. The load-bearing assertion is that **the entire ambient tier
+  never wakes anybody**, checked type by type. It also pins that absence
+  is not consent and that a truthy-looking string from the wire (`"true"`,
+  `1`) is not a yes.
+- `delivery/test/push/encryption_round_trip_test.exs` — above.
+- `web/src/lib/push.test.ts` — the base64url key conversion (another
+  silent failure: a key one byte off subscribes fine and never rings),
+  and that the client **cannot** add a type to `alerts` on its own,
+  because it never builds the list.
+
+### Still open
+
+- **No おやすみ UI.** The column, the predicate input and the read path
+  are all there and tested; nothing sets it yet. §6's toggle is a
+  settings form away.
+- **No VAPID keypair in production.** Until `VAPID_PUBLIC_KEY` /
+  `VAPID_PRIVATE_KEY` are set, `configured?/0` is false, the gateway
+  never enqueues, and the settings panel hides itself rather than
+  offering a button that does nothing. Generate with
+  `mix web_push.gen.vapid` on the delivery node and set all three vars on
+  **both** nodes — they must be the same pair.
+- **`notificationclick` opens `/notifications`, not the thread.** The
+  payload carries `note_id`, so the deep link is available; the reason it
+  is not used is that a note id alone does not make a URL here (the
+  thread route wants the author's acct). Worth doing, not guessed at.

@@ -150,6 +150,31 @@ cond do
       from: System.get_env("MAIL_FROM", "no-reply@localhost")
 end
 
+# ── Web Push (VAPID / RFC 8292) ──────────────────────────────────────────
+# Off unless a keypair is configured — the same shape as SMTP being the
+# log transport until SMTP_HOST is set. Generate the pair once, out of
+# band, and keep it: a keypair that changes invalidates every live
+# subscription, because clients encrypted against the old public key.
+#
+#   VAPID_PUBLIC_KEY   P-256 public key, base64url. Not secret — the
+#                      client needs it, and it goes out in the instance doc.
+#   VAPID_PRIVATE_KEY  The signing key. Secret, handled like SMTP_PASSWORD
+#                      / SECRET_KEY_BASE. Never logged, never sent out.
+#   VAPID_SUBJECT      mailto: or https: contact a push service can reach
+#                      about abuse (RFC 8292 §2.1).
+vapid_public = System.get_env("VAPID_PUBLIC_KEY")
+
+if vapid_public not in [nil, ""] do
+  config :sukhi_fedi, :web_push,
+    public_key: vapid_public,
+    private_key: System.fetch_env!("VAPID_PRIVATE_KEY"),
+    subject:
+      System.get_env(
+        "VAPID_SUBJECT",
+        "mailto:admin@" <> System.get_env("DOMAIN", "localhost")
+      )
+end
+
 if config_env() == :prod do
   config :sukhi_fedi, SukhiFedi.Repo,
     database: System.get_env("DB_NAME", "sukhi_fedi"),

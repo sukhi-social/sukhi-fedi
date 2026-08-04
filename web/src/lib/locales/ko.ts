@@ -231,6 +231,20 @@ export const ko: Dict = {
   'settings.security': '로그인과 안전',
   'settings.migration': '계정 이사',
   'settings.cleanup': '오래된 글 정리',
+
+  // ── 알림 받기(Web Push) ────────────────────────────────
+  'push.title': '알림 받기',
+  'push.what':
+    '이 기기를 닫아 두어도, 누군가 말을 걸었을 때만 조용히 알려 드려요. 멘션과 팔로우 요청뿐이에요.',
+  'push.never':
+    '좋아요나 리블로그, 팔로우로는 울리지 않아요. 알림에 글 내용은 담기지 않아서 화면을 보는 사람에게 읽힐 일도 없고, 숫자도 띄우지 않아요.',
+  'push.start': '받기',
+  'push.stop': '그만두기',
+  'push.on': '이 기기에서 받고 있어요.',
+  'push.working': '잠시만요…',
+  'push.blocked':
+    '이 브라우저에서 알림이 거부되어 있어요. 브라우저 설정에서 허용하면 여기서 다시 고를 수 있어요.',
+  'push.failed': '잘되지 않았어요. 다시 한번 해 주세요.',
   'settings.emojiCreditPre': '이모지는 ',
   'settings.emojiCreditParenOpen': ' (',
   'settings.emojiCreditParenClose': ').',
