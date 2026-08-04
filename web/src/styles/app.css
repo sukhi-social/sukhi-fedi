@@ -846,6 +846,27 @@ button:disabled {
   min-height: calc(2lh + var(--space-4));
 }
 
+/* 遡って読んでいるあいだに来た、という印。
+   返信箱のすぐ上に貼りつく ── 押す指の行き先が近いし、返事を書く場所と
+   「新しいのが来た」が並んでいるのは、会話として素直。
+   色ではなく囲いと言葉で言う。点滅も、数字も、しない。 */
+.new-messages {
+  position: sticky;
+  bottom: 5.5rem;
+  z-index: 11;
+  display: block;
+  margin: 0 auto;
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-4);
+  min-height: 40px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-text);
+  border-radius: 999px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
 /* ── メッセージの返信箱 ─────────────────────────────────────────────
    会話の面では、返信箱は下に貼りつく。流れの末尾に置くと、長いやりとりでは
    毎回いちばん下まで漕がないと返せない ── 話しかける口が、遠い。

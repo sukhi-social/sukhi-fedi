@@ -12,6 +12,7 @@
   import { isLoggedIn, clearToken } from '$lib/auth';
   import { reconnect, slowPoll } from '$lib/connection';
   import { createPager } from '$lib/pager.svelte';
+  import { atBottom, distanceFromBottom, keepPlaceAfterPrepend, onArrival } from '$lib/scroll';
   import { renderEmojis } from '$lib/emoji';
   import { phrase } from '$lib/phrase';
   import DmMessage from '$lib/components/DmMessage.svelte';
@@ -59,6 +60,16 @@
     if (loading) return;
     loading = true;
     error = null;
+
+    // 古いぶんは**上に**積まれる。何もしなければ、読んでいた一通が
+    // そのぶん下へ流れていく(実測で 4348px ぶん置いていかれた)。
+    //
+    // ブラウザの位置保持(scroll anchoring)はここでは働かない ── いちばん
+    // 上にいるときは効かない仕様で、「もっと読む」は上にあるので、押すには
+    // 上にいるしかないから。Safari と iOS にはそもそも無い。だから自分で
+    // 覚えて戻す。覚えるのは「下からの距離」── 上に足しても変わらない量。
+    const keep = reset ? null : distanceFromBottom(window.scrollY, document.body.scrollHeight);
+
     try {
       if (reset) {
         // 会話そのものを引く口は無いが、既読にする口が会話を返す。開いた
@@ -67,6 +78,11 @@
         convo = await markConversationRead(id);
       }
       await (reset ? pager.reset() : pager.more());
+
+      if (keep !== null) {
+        await tick();
+        window.scrollTo({ top: keepPlaceAfterPrepend(keep, document.body.scrollHeight) });
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       if (msg === 'unauthorized') {
@@ -99,30 +115,65 @@
   // ── 同じ一通が三つの道から来る ───────────────────────────────────
   //   自分の送信の返り値 / 拾い直し / (いずれ)live の管
   // **id で、ここ一箇所だけで潰す。** 述語を散らさない。
-  function upsert(incoming: Status[]) {
+  function upsert(incoming: Status[], opts: { mine?: boolean } = {}) {
     if (incoming.length === 0) return;
+
+    // **数える前に、居場所を見る。** 差し込んだあとでは中身が伸びていて、
+    // 「下にいたかどうか」がもう分からない。
+    const wasAtBottom = nowAtBottom();
+
     const byId = new Map(pager.items.map((s) => [s.id, s]));
+    const before = byId.size;
     for (const s of incoming) byId.set(s.id, s);
+    const added = byId.size - before;
+
     // pager は新しい順。id は snowflake なので、数として降順に。
     pager.items = [...byId.values()].sort((a, b) =>
       a.id.length === b.id.length ? (a.id < b.id ? 1 : -1) : b.id.length - a.id.length
     );
+
+    switch (onArrival({ added, wasAtBottom, mine: opts.mine })) {
+      case 'follow':
+        void toNewest(true);
+        break;
+      case 'mark':
+        unread = true;
+        break;
+      case 'nothing':
+        break;
+    }
   }
 
   // 会話を開いたら、いちばん新しいところ。返信箱は下に貼りついているので、
   // 直前のやりとりがそのすぐ上に来る ── 開いてすぐ返せる。
-  //
-  // **自分から動かすのは二度だけ**(開いたとき / 自分が送ったとき)。
-  // 拾い直しでは動かさない ── 遡って読んでいる最中に足元をさらわれるのは、
-  // 新しい一通が来たことより、ずっと困る。
   async function toNewest(smooth = false) {
     await tick();
     window.scrollTo({ top: document.body.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    unread = false;
   }
 
+  // ── 下にいるときだけ、ついていく ─────────────────────────────────
+  //
+  // 規則は scroll.ts に一本だけ置いてある。ここはそれをブラウザに繋ぐ側。
+  // 遡って読んでいる人は引っぱらない。かわりに「新しいメッセージ」とだけ
+  // 置いて、行くかどうかは、その人が決める。
+  let unread = $state(false);
+
+  function nowAtBottom(): boolean {
+    return atBottom(window.scrollY, window.innerHeight, document.body.scrollHeight);
+  }
+
+  onMount(() => {
+    const onScroll = () => {
+      // 自分で底まで漕いだら、印は役目を終える。
+      if (unread && nowAtBottom()) unread = false;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  });
+
   function onPosted(s: Status) {
-    upsert([s]);
-    void toNewest(true);
+    upsert([s], { mine: true });
   }
 
   // ── 取りこぼしを拾い直す(最後の砦)───────────────────────────────
@@ -191,6 +242,15 @@
     {/each}
   {/if}
 </section>
+
+<!-- 遡って読んでいるあいだに来たぶん。数は出さない ── 会話の中に居るなら、
+     下まで漕げばぜんぶ見える。いくつ、を先に言うのは急かすことになる。
+     返信箱のすぐ上に置くので、押す指の行き先が近い。 -->
+{#if unread}
+  <button class="new-messages" onclick={() => void toNewest(true)}>
+    {$t('messages.newMessages')}
+  </button>
+{/if}
 
 {#if lastStatus && !initial && !error}
   <Composer
