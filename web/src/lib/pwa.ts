@@ -9,6 +9,17 @@
 // 分からなくなる。SW 側も skipWaiting() を呼ばない。
 
 import { browser } from '$app/environment';
+import { writable } from 'svelte/store';
+
+/**
+ * 新しい service worker が、代わる番を待っている。
+ *
+ * `$updated`(ページの版が変わった)とは別の合図。**worker だけが新しい**
+ * ことがあって、そのとき `$updated` は動かない ── 静かに古いふるまいの
+ * ままになる。通知の畳みかたを直した日がそれで、直っていない worker が
+ * 鳴らし続けた。更新バナーは、こちらも見る。
+ */
+export const swWaiting = writable(false);
 
 export function registerServiceWorker() {
   if (!browser) return;
@@ -18,7 +29,25 @@ export function registerServiceWorker() {
   // 「直したのに直らない」になる。
   if (import.meta.env.DEV) return;
 
-  navigator.serviceWorker.register('/service-worker.js', { scope: '/' }).catch(() => {
-    // 登録できなくてもアプリは動く(installable でなくなるだけ)。黙って諦める。
-  });
+  navigator.serviceWorker
+    .register('/service-worker.js', { scope: '/' })
+    .then((reg) => {
+      // もう待っている(前の訪問で降りてきていた)。
+      if (reg.waiting) swWaiting.set(true);
+
+      // これから降りてくるぶん。installed になって、かつ既に誰かが動いて
+      // いるなら、それは「入れ替わり待ち」── 初めての登録ではない。
+      reg.addEventListener('updatefound', () => {
+        const next = reg.installing;
+        if (!next) return;
+        next.addEventListener('statechange', () => {
+          if (next.state === 'installed' && navigator.serviceWorker.controller) {
+            swWaiting.set(true);
+          }
+        });
+      });
+    })
+    .catch(() => {
+      // 登録できなくてもアプリは動く(installable でなくなるだけ)。黙って諦める。
+    });
 }

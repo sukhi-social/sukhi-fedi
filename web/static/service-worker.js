@@ -28,7 +28,21 @@ const SHELL_URL = "/messages";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL).then((c) => c.add(SHELL_URL)));
-  // skipWaiting() は呼ばない(上記)。
+  // 自分からは skipWaiting() を呼ばない(上記)。
+});
+
+// **頼まれたときだけ、代わる。**
+//
+// 待つだけにしておいたら、この worker の**ふるまい**を直しても永久に
+// 届かないことに気づいた。新しい worker は全部のタブが閉じるまで待って
+// いて、そのあいだ push を受けるのは古いほう。実際、通知の畳みかたを
+// 直した日に、直っていない古い worker が鳴らし続けた。
+//
+// 自動で入れ替わらないのは、そのまま(勝手に代わると更新バナーと二重に
+// なる)。人が更新バナーの「読み込みなおす」を押したときだけ、ここに合図
+// が来て代わる ── 入口はやっぱり一つ。
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "skip-waiting") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {

@@ -17,9 +17,34 @@
   // SvelteKit はリンクを踏んだ瞬間に invalidateAll してくれるので、
   // バナーを無視しても通常操作で必ず追いつく(壊れる前に)。
   import { updated } from '$app/stores';
+  import { swWaiting } from '$lib/pwa';
   import { t } from '$lib/i18n';
 
-  function reload() {
+  // 「読み込みなおす」で、待っている service worker も一緒に代える。
+  //
+  // ただ reload するだけだと、新しいページを配るのは**古い worker**の
+  // まま ── 新しいほうは全部のタブが閉じるまで待ちつづける。ページの
+  // 見た目は新しくなるのに worker のふるまいは古いままで、その差が
+  // いちばん出るのが push だった(通知の畳みかたを直した日に、直って
+  // いない worker が鳴らし続けた)。
+  //
+  // 自動では代えない。押されたときだけ合図を送って、代わったのを見て
+  // から読み込みなおす ── 入口は、この釦ひとつのまま。
+  async function reload() {
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration();
+      if (reg?.waiting) {
+        navigator.serviceWorker.addEventListener(
+          'controllerchange',
+          () => window.location.reload(),
+          { once: true }
+        );
+        reg.waiting.postMessage({ type: 'skip-waiting' });
+        return;
+      }
+    } catch {
+      // service worker が居ない・触れないブラウザ。ふつうに読み込む。
+    }
     window.location.reload();
   }
 
@@ -32,8 +57,11 @@
     show = false;
   }
 
+  // 版が変わったとき、**または** worker だけが代わりを待っているとき。
+  // 後者は $updated が動かないので、これが無いと worker のふるまいの
+  // 直しは全部のタブが閉じるまで誰にも届かない。
   $effect(() => {
-    if ($updated) show = true;
+    if ($updated || $swWaiting) show = true;
   });
 </script>
 
