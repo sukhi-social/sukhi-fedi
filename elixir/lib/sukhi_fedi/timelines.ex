@@ -79,7 +79,7 @@ defmodule SukhiFedi.Timelines do
       Note
       |> where([n], n.account_id in ^note_account_ids)
       |> where([n], n.account_id not in ^excluded or like(n.in_reply_to_ap_id, ^reply_here))
-      |> where([n], n.visibility in ["public", "unlisted", "followers"])
+      |> where([n], n.visibility in ^SukhiFedi.Visibility.not_direct())
       |> where(
         [n],
         n.account_id not in ^pl.only_media or
@@ -163,7 +163,7 @@ defmodule SukhiFedi.Timelines do
         on: ba.id == b.account_id,
         where: b.account_id in ^account_ids,
         where: n.account_id not in ^hidden,
-        where: n.visibility in ["public", "unlisted"],
+        where: n.visibility in ^SukhiFedi.Visibility.public_only(),
         order_by: [desc: b.created_at],
         limit: ^limit,
         select: %{boost_id: b.id, created_at: b.created_at, booster: ba, note: n}

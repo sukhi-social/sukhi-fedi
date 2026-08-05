@@ -106,7 +106,7 @@ defmodule SukhiFedi.SelfCleanup do
   defp target_scope(account_id, older_than_days) do
     Notes.local_notes()
     |> where([n], n.account_id == ^account_id)
-    |> where([n], n.visibility != "direct")
+    |> where([n], n.visibility in ^SukhiFedi.Visibility.not_direct())
     |> exclude_pinned()
     |> exclude_ledger()
     |> older_than(older_than_days)

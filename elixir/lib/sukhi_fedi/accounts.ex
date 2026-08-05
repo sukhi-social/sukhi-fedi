@@ -240,7 +240,7 @@ defmodule SukhiFedi.Accounts do
         statuses =
           Repo.aggregate(
             from(n in Note,
-              where: n.account_id == ^account_id and n.visibility != "direct"
+              where: n.account_id == ^account_id and n.visibility in ^SukhiFedi.Visibility.not_direct()
             ),
             :count,
             :id

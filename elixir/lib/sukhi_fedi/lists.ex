@@ -161,7 +161,7 @@ defmodule SukhiFedi.Lists do
         from n in Note,
           join: la in "list_accounts",
           on: la.account_id == n.account_id,
-          where: la.list_id == ^lid and n.visibility in ["public", "unlisted", "followers"]
+          where: la.list_id == ^lid and n.visibility in ^SukhiFedi.Visibility.not_direct()
 
       results =
         base

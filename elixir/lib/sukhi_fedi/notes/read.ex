@@ -60,7 +60,7 @@ defmodule SukhiFedi.Notes.Read do
   @spec visible_to?(Note.t(), integer() | nil) :: boolean()
   def visible_to?(%Note{visibility: v} = note, viewer_id) do
     cond do
-      v in ["public", "unlisted"] -> true
+      v in SukhiFedi.Visibility.public_only() -> true
       not is_integer(viewer_id) -> false
       note.account_id == viewer_id -> true
       v == "followers" -> local_follower?(viewer_id, note.account_id)
@@ -91,8 +91,8 @@ defmodule SukhiFedi.Notes.Read do
 
     allowed =
       if followers_visible?,
-        do: ["public", "unlisted", "followers"],
-        else: ["public", "unlisted"]
+        do: SukhiFedi.Visibility.not_direct(),
+        else: SukhiFedi.Visibility.public_only()
 
     query
     |> where([n], n.visibility in ^allowed)
