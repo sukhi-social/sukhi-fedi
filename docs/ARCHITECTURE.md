@@ -85,6 +85,15 @@ Rules enforced by this split:
    fully-qualified worker string (`SukhiDelivery.Delivery.Worker`) into
    the shared `oban_jobs` table; only delivery polls the `:delivery`
    queue, so only delivery executes them.
+
+   Web Push rides the same arrangement on the `:push` queue
+   (`SukhiDelivery.Push.Worker`) — a push POST is outbound HTTP, so it
+   belongs here for the same reason. The gateway decides *whether* to
+   knock (`WebPush.deliverable?/3`); delivery only carries it.
+
+   > A queue named only in `config.exs` will not run in production:
+   > `runtime.exs` replaces `:queues` wholesale, so every queue has to
+   > appear in both. A missing one drains nowhere, silently.
 4. **Gateway ↔ Delivery is Postgres + NATS.** No distributed Erlang on
    that edge. Distributed Erlang is reserved for the `api/` plugin node,
    which needs synchronous request/reply for Mastodon REST.
@@ -201,6 +210,8 @@ sukhi-fedi/
 │   │   │   ├── fedify_client.ex           # NATS Micro client → Bun
 │   │   │   ├── followers_sync.ex          # FEP-8fcf
 │   │   │   └── follower_sync_worker.ex    # Oban :federation queue
+│   │   ├── push/
+│   │   │   └── worker.ex                  # Oban :push queue (RFC 8291)
 │   │   ├── schema/                        # read-only projection of the
 │   │   │                                    gateway's core schema
 │   │   │   ├── outbox_event.ex / delivery_receipt.ex

@@ -45,7 +45,7 @@ The inbox is the model for any untrusted entry point
 (`elixir/lib/sukhi_fedi/web/inbox_controller.ex`):
 
 1. **Verify first** — `FedifyClient.verify/1` before anything reads
-   the payload (`inbox_controller.ex:49`). No parse before proof.
+   the payload (`inbox_controller.ex`, the `raw_body` assign). No parse before proof.
 2. **Bind identity to content** — the signer's host travels with the
    activity, and `Instructions.trusted_inline_origin?/2`
    (`ap/instructions.ex:96`) refuses inline data whose claimed actor
@@ -96,7 +96,8 @@ Rules for the set:
 ## 4. Writes: changeset is the gate, Multi is the envelope
 
 - **Validation, coercion, length caps, and sanitization live in the
-  changeset** (`schema/note.ex:52`, `schema/account.ex:71,88`) — not
+  changeset** (`Note.changeset/2`, `Account.changeset_remote/2` and
+  `changeset_local/2`) — not
   in controllers, not in contexts. Anything inserted through the
   changeset is clean; therefore everything must be inserted through
   the changeset. Remote and local content take the *same* gate.
@@ -173,11 +174,11 @@ warning or a loud `MatchError`, never a silently-wrong branch.
 - **Assert results with a literal on the left.** When failure is a
   bug, `{:ok, x} = ...` / `:ok = ...` crashes at the cause.
   Discarding with `_ = ...` needs a comment saying why the result
-  doesn't matter (`addons/web_push.ex:60` is the sanctioned shape).
+  doesn't matter (`WebPush.subscribe/5` is the sanctioned shape).
 - **No `=` inside `if`/`unless` conditions.** `if x = f()` is one
   keystroke from `if x == f()` and both compile. Bind on its own
   line, then branch — or use `case` on the value
-  (`addons/media.ex:294`, `config/runtime.exs:62`).
+  (`Media.sign_request/7`, `config/runtime.exs:62`).
 - **Don't launder falsy values through sentinels.** `with`'s
   `true <- valid? || :invalid` breeds unreachable `false ->`
   clauses; match the falsy value in `else` directly
