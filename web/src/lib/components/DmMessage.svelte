@@ -373,24 +373,29 @@
     }
   }
 
-  /* ── Clips: バブルで境界を出す ────────────────────────────────────
-     話者名もアバターも消したぶん、フラットな左線だけでは一つ一つの
-     クリップがどこで切れるか分かりにくい。囲って区切る。ただし、この
-     アプリは影を持たない設計(tokens.css 曰く「no drop shadows」)なので、
-     硬い罫線とサーフェス色ではなく QuoteCard と同じ --fill-soft(文字色を
-     6% だけ混ぜた、ごく淡い塗り)で柔らかく囲う。 */
+  /* ── Clips: メジャーなチャットUIのバブル(刺激は少なく) ──────────
+     LINE/iMessage 系の見慣れた形 ── 罫線ではなく塗りだけの、丸めた
+     ひとかたまり。文の長さぶんだけ幅を持つ(inline-block)。相手は
+     常に自分なので左右で分けるほうの意味は無く、左に寄せたまま。
+     色は QuoteCard と同じ --fill-soft(文字色 6% のごく淡い塗り、影は
+     このアプリの設計にそもそも無い)── 「バブル」の形だけ借りて、
+     色の刺激は増やさない。 */
   .dm.clips {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
+    /* inline-block だと、短い一言同士が同じ行に並んでしまう(chat の
+       積み上げにならない)。block のまま幅だけ中身に合わせて縮める。 */
+    width: fit-content;
+    max-width: min(34rem, 100%);
+    border: none;
+    border-radius: 1.1rem;
     background: var(--fill-soft);
-    padding: var(--space-3);
+    padding: var(--space-2) var(--space-4);
     margin-bottom: var(--space-2);
   }
 
   /* グループ化で上詰めにする効果は、バブルでは要らない ── 一枚ずつ
      独立したカードなので、続きだからと詰める理由が無い。 */
   .dm.clips.grouped {
-    padding-top: var(--space-3);
+    padding-top: var(--space-2);
   }
 
   .dm-media {
