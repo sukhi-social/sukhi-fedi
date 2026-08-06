@@ -560,6 +560,13 @@ export const ja = {
   'messages.newMessages': '新しいメッセージ',
   'messages.mentioned': '{who} へ',
 
+  // ── Clips (試作) ─────────────────────────────────────
+  'clips.title': 'Clips',
+  'clips.empty': 'まだ、なにも置かれていません。URL・テキスト・画像を送ってみて。',
+  'clips.pinnedOnly': 'ピン留めのみ',
+  'clips.showAll': 'すべて表示',
+  'clips.noPinned': 'ピン留めされた Clip は、まだありません。',
+
   // ── さがす ───────────────────────────────────────────
   'search.title': 'さがす',
   'search.labelPre': '名前、ID、または ',

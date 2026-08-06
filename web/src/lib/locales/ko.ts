@@ -555,6 +555,13 @@ export const ko: Dict = {
   'messages.newMessages': '새 메시지',
   'messages.mentioned': '{who} 님에게',
 
+  // ── Clips (시험판) ────────────────────────────────────
+  'clips.title': 'Clips',
+  'clips.empty': '아직 아무것도 없어요. URL·텍스트·이미지를 보내보세요.',
+  'clips.pinnedOnly': '고정된 것만',
+  'clips.showAll': '전체 보기',
+  'clips.noPinned': '고정한 Clip이 아직 없어요.',
+
   // ── 찾기 ─────────────────────────────────────────────
   'search.title': '찾기',
   'search.labelPre': '이름, ID 또는 ',
