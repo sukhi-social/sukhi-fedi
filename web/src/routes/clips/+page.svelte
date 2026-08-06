@@ -215,6 +215,38 @@
     return () => window.removeEventListener('scroll', onScroll);
   });
 
+  // 入力欄を position: fixed にした代わりに、最後のクリップがその下に
+  // 隠れる ── sticky なら自分の場所ぶん自然に空きができるが、fixed は
+  // 流れから抜けるので、その空きを自分で作らないといけない。返信箱は
+  // 複数行で伸びる(Composer の textarea.grows)ので、決め打ちの余白だと
+  // 伸びたときにまた隠れる。実測して CSS 変数に渡す。
+  //
+  // 高さ(offsetHeight)だけでなく、画面の底から入力欄の上端までの距離を
+  // 見る ── スマホでは下タブの帯ぶん(3.75rem)入力欄が浮いているので、
+  // 高さだけだとその浮きぶんを見落として、最後のクリップがタブ帯の
+  // 裏まで隠れてしまう。
+  $effect(() => {
+    if (resolving || error || !me) return;
+    const el = document.querySelector<HTMLElement>('.composer.composer-dm');
+    if (!el) return;
+
+    const setH = () => {
+      const gap = window.innerHeight - el.getBoundingClientRect().top;
+      document.body.style.setProperty('--clips-composer-h', `${Math.max(gap, 0)}px`);
+    };
+    setH();
+    const ro = new ResizeObserver(setH);
+    ro.observe(el);
+    // 画面の回転・リサイズでスマホの下タブ帯の有無が変わることがある
+    // ── 入力欄自体の大きさは変わらなくても、浮きぶんは変わりうる。
+    window.addEventListener('resize', setH);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', setH);
+      document.body.style.removeProperty('--clips-composer-h');
+    };
+  });
+
   // 最初の一通のときだけ、送れたあとに会話 id を見つけ直す ── その前は
   // 会話そのものが無いので、探しようがない。
   async function onPosted(s: Status) {
@@ -349,12 +381,13 @@
     right: 0;
   }
 
-  /* main.wrap は本来どのページも下に大きめの余白を持つ(「もっと読む」
-     などが底にぴったり付かないように)。固定した入力欄の下にその余白が
-     残ると、意味のない空きスクロールになる ── :has() で「実際に Clips の
-     入力欄を子に持つ main.wrap」だけに絞って外す。 */
+  /* fixed にした入力欄は流れから抜けているので、いちばん下のクリップが
+     その裏に隠れる。sticky ならここが自然に空くところ ── 実測した高さ
+     (--clips-composer-h、上の $effect が ResizeObserver で更新)ぶんだけ
+     余白を用意して、隠れないようにする。JS が効く前の初回描画だけ、
+     控えめな既定値(一行ぶん)で仮置きする。 */
   :global(main.wrap:has(> .composer.composer-dm)) {
-    padding-bottom: 0;
+    padding-bottom: calc(var(--clips-composer-h, 4.5rem) + var(--space-3));
   }
 
   .clips-search {
