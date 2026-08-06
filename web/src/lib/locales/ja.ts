@@ -568,6 +568,8 @@ export const ja = {
   'clips.noPinned': 'ピン留めされた Clip は、まだありません。',
   'clips.pin': 'ピン留め',
   'clips.unpin': 'ピン留めを外す',
+  'clips.copy': 'コピー',
+  'clips.copied': 'コピーしました',
 
   // ── さがす ───────────────────────────────────────────
   'search.title': 'さがす',

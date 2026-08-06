@@ -37,6 +37,9 @@
   // (サーバの `mentions` はまだ空を返すので、本文の h-card から拾う)
   let split = $derived(splitLeadingMentions(status.content));
 
+  // 画像・ファイルだけのクリップには、コピーする本文が無い。
+  let hasText = $derived(status.content.replace(/<[^>]*>/g, '').trim().length > 0);
+
   // ── 絵文字で、そっと返す ─────────────────────────────────────────
   //
   // 返事を書くほどではないけれど、無言でもない ── そのあいだの返し方。
@@ -58,6 +61,23 @@
   // ピンの専用ボタンを出す面では、同じ絵文字が通常のリアクション列にも
   // 重ねて出ないように外す ── 二重に同じ状態を見せない。
   let otherReactions = $derived(showPin ? reactions.filter((r) => r.name !== PIN_EMOJI) : reactions);
+
+  // Clips の「全文コピー」。画像だけ・ファイルだけのクリップには
+  // コピーする本文が無いので、そのときはボタンごと出さない。
+  let bodyEl: HTMLElement | undefined = $state();
+  let copied = $state(false);
+
+  async function copyText() {
+    if (!bodyEl) return;
+    try {
+      await navigator.clipboard.writeText(bodyEl.textContent ?? '');
+      copied = true;
+      setTimeout(() => (copied = false), 1500);
+    } catch {
+      // クリップボード権限が無い/使えない環境もある。押しても何も起きない
+      // だけにする ── 騒がしいエラーより、その一押しはそこまで大事な用ではない。
+    }
+  }
 
   async function toggle(emoji: string) {
     const snapshot = reactions;
@@ -103,10 +123,10 @@
   {#if status.spoiler_text}
     <details>
       <summary>{status.spoiler_text}</summary>
-      <div class="dm-body">{@html split.body}</div>
+      <div class="dm-body" bind:this={bodyEl}>{@html split.body}</div>
     </details>
   {:else}
-    <div class="dm-body">{@html split.body}</div>
+    <div class="dm-body" bind:this={bodyEl}>{@html split.body}</div>
   {/if}
 
   {#if split.handles.length > 0}
@@ -129,6 +149,18 @@
         onclick={() => toggle(PIN_EMOJI)}
       >
         <span class="emoji"><Twemoji emoji={PIN_EMOJI} /></span>
+      </button>
+    {/if}
+
+    {#if showPin && hasText}
+      <button
+        type="button"
+        class="reaction-chip copy-toggle"
+        title={copied ? $t('clips.copied') : $t('clips.copy')}
+        aria-label={copied ? $t('clips.copied') : $t('clips.copy')}
+        onclick={copyText}
+      >
+        <span class="emoji"><Twemoji emoji="📋" /></span>
       </button>
     {/if}
 
