@@ -566,6 +566,8 @@ export const ja = {
   'clips.pinnedOnly': 'ピン留めのみ',
   'clips.showAll': 'すべて表示',
   'clips.noPinned': 'ピン留めされた Clip は、まだありません。',
+  'clips.pin': 'ピン留め',
+  'clips.unpin': 'ピン留めを外す',
 
   // ── さがす ───────────────────────────────────────────
   'search.title': 'さがす',

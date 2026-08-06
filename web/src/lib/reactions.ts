@@ -9,6 +9,11 @@
 
 import type { Reaction } from './api';
 
+// Clips のピンは、専用の列ではなくこの絵文字のリアクション(自分の投稿への
+// 自分のリアクション)そのもの。付ける側(DmMessage)と絞り込む側
+// (clips/+page.svelte)の両方が同じ文字列を見るので、ここ一箇所に置く。
+export const PIN_EMOJI = '📌';
+
 /** 押したら付くのか、外れるのか。react / unreact のどちらを呼ぶかが決まる。 */
 export function willAdd(list: Reaction[], emoji: string): boolean {
   const found = list.find((r) => r.name === emoji);

@@ -17,7 +17,7 @@
   import ReactionPicker from './ReactionPicker.svelte';
   import FileChip from './FileChip.svelte';
   import * as api from '$lib/api';
-  import { toggled, willAdd } from '$lib/reactions';
+  import { toggled, willAdd, PIN_EMOJI } from '$lib/reactions';
   import type { Reaction, Status } from '$lib/api';
   import { splitLeadingMentions } from '$lib/preview';
   import { t, locale, type Locale, type TranslationKey } from '$lib/i18n';
@@ -25,8 +25,11 @@
   let {
     status,
     mine = false,
-    grouped = false
-  }: { status: Status; mine?: boolean; grouped?: boolean } = $props();
+    grouped = false,
+    // Clips だけで出す、専用のピン留めボタン。ふつうの DM では出さない
+    // (ピンという概念自体、いまは Clips にしか無いので)。
+    showPin = false
+  }: { status: Status; mine?: boolean; grouped?: boolean; showPin?: boolean } = $props();
 
   let name = $derived(status.account.display_name || status.account.username);
 
@@ -49,6 +52,12 @@
   $effect(() => {
     reactions = status.reactions ?? [];
   });
+
+  let pinned = $derived(reactions.some((r) => r.name === PIN_EMOJI && r.me));
+
+  // ピンの専用ボタンを出す面では、同じ絵文字が通常のリアクション列にも
+  // 重ねて出ないように外す ── 二重に同じ状態を見せない。
+  let otherReactions = $derived(showPin ? reactions.filter((r) => r.name !== PIN_EMOJI) : reactions);
 
   async function toggle(emoji: string) {
     const snapshot = reactions;
@@ -109,7 +118,21 @@
        tab で来たときだけ、そっと現れる。指の画面では常に出す(hover が
        無いので、出ないと辿り着けない)。 -->
   <div class="dm-reactions">
-    {#each reactions as r (r.name)}
+    {#if showPin}
+      <button
+        type="button"
+        class="reaction-chip pin-toggle"
+        class:me={pinned}
+        aria-pressed={pinned}
+        title={pinned ? $t('clips.unpin') : $t('clips.pin')}
+        aria-label={pinned ? $t('clips.unpin') : $t('clips.pin')}
+        onclick={() => toggle(PIN_EMOJI)}
+      >
+        <span class="emoji"><Twemoji emoji={PIN_EMOJI} /></span>
+      </button>
+    {/if}
+
+    {#each otherReactions as r (r.name)}
       <button type="button" class="reaction-chip" class:me={r.me} title={r.name} onclick={() => toggle(r.name)}>
         {#if r.url}
           <img class="emoji" src={r.url} alt={r.name} loading="lazy" />

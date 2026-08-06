@@ -26,13 +26,10 @@
   import { createPager } from '$lib/pager.svelte';
   import { atBottom, distanceFromBottom, keepPlaceAfterPrepend, onArrival } from '$lib/scroll';
   import { watchDirect } from '$lib/direct.svelte';
+  import { PIN_EMOJI } from '$lib/reactions';
   import DmMessage from '$lib/components/DmMessage.svelte';
   import Composer from '$lib/components/Composer.svelte';
   import { t } from '$lib/i18n';
-
-  // ピンは「自分の Clip に自分で付けた 📌 リアクション」。専用の列を足す
-  // 前に、まずこれで足りるかを見たい。
-  const PIN_EMOJI = '📌';
 
   // Clips だけ、画像に限らず何でも添付できる(サーバは元々 MIME で
   // 弾いていない)。ここが「アップロードの経路」の入口 ── ローカルの
@@ -262,7 +259,7 @@
     {/if}
 
     {#each visibleRows as r (r.status.id)}
-      <DmMessage status={r.status} mine={r.mine} grouped={r.grouped} />
+      <DmMessage status={r.status} mine={r.mine} grouped={r.grouped} showPin />
     {/each}
   {/if}
 </section>
