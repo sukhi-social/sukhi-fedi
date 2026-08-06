@@ -70,6 +70,40 @@
   let pinnedOnly = $state(false);
   let visibleRows = $derived(pinnedOnly ? rows.filter((r) => isPinned(r.status)) : rows);
 
+  // ── 全文検索 ─────────────────────────────────────────────────────
+  //
+  // 通常の会話ビュー(pager.items)とは別枠。検索中は結果だけを出す ──
+  // ページングとリアルタイム更新のぶんの状態(pager/armed/unread)に
+  // 検索を混ぜると、両方の面倒を一つの状態で見ることになって崩れやすい。
+  let searchQuery = $state('');
+  let searchResults = $state<Status[] | null>(null);
+  let searching = $state(false);
+  let searchRows = $derived(
+    (searchResults ?? []).map((s) => ({ status: s, mine: !!me && s.account.id === me.id, grouped: false }))
+  );
+
+  $effect(() => {
+    const q = searchQuery.trim();
+    const cid = id;
+    if (!q || !cid) {
+      searchResults = null;
+      return;
+    }
+    // 打ってる途中で叩かない。300ms 手が止まったら検索する。
+    const timer = setTimeout(async () => {
+      searching = true;
+      try {
+        const page = await getConversationStatuses(cid, { q });
+        searchResults = page.items;
+      } catch {
+        searchResults = [];
+      } finally {
+        searching = false;
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  });
+
   // 自分宛て会話を探す。他の参加者が居ない(accounts が空)会話が、それ。
   async function findSelfConversationId(): Promise<string | null> {
     try {
@@ -230,6 +264,16 @@
   <h1>{$t('clips.title')}</h1>
   {#if !resolving}
     <span class="page-nav">
+      <input
+        type="text"
+        class="clips-search"
+        bind:value={searchQuery}
+        placeholder={$t('clips.searchPlaceholder')}
+        aria-label={$t('clips.searchPlaceholder')}
+        autocapitalize="none"
+        autocorrect="off"
+        spellcheck="false"
+      />
       <button
         type="button"
         class="chip"
@@ -245,6 +289,16 @@
 <section class="timeline thread">
   {#if error}
     <p class="error">{error}</p>
+  {:else if searchQuery.trim()}
+    {#if searching && searchResults === null}
+      <p class="loading">{$t('common.loading')}</p>
+    {:else if (searchResults ?? []).length === 0}
+      <p class="prose-small">{$t('clips.noResults')}</p>
+    {:else}
+      {#each searchRows as r (r.status.id)}
+        <DmMessage status={r.status} mine={r.mine} grouped={r.grouped} clipsMode />
+      {/each}
+    {/if}
   {:else if resolving || (initial && loading)}
     <p class="loading">{$t('common.loading')}</p>
   {:else if messages.length === 0}
@@ -262,7 +316,7 @@
     {/if}
 
     {#each visibleRows as r (r.status.id)}
-      <DmMessage status={r.status} mine={r.mine} grouped={r.grouped} showPin />
+      <DmMessage status={r.status} mine={r.mine} grouped={r.grouped} clipsMode />
     {/each}
   {/if}
 </section>
@@ -301,5 +355,10 @@
      入力欄を子に持つ main.wrap」だけに絞って外す。 */
   :global(main.wrap:has(> .composer.composer-dm)) {
     padding-bottom: 0;
+  }
+
+  .clips-search {
+    flex: 1 1 auto;
+    min-width: 10rem;
   }
 </style>

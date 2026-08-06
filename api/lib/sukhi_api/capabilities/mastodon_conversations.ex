@@ -64,7 +64,10 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        opts = Pagination.parse_opts(req[:query])
+        # `q` は Mastodon 互換のページング語彙には無い、sukhi 拡張(Clips の
+        # 全文検索)。Pagination.parse_opts は既知キーだけを見て未知キーは
+        # 無視する共有ヘルパーなので、ここだけで別途拾う。
+        opts = Pagination.parse_opts(req[:query]) |> Map.put(:q, URI.decode_query(req[:query] || "")["q"])
 
         case GatewayRpc.call(SukhiFedi.Conversations, :statuses, [v.id, id, Map.to_list(opts)]) do
           {:ok, {:ok, notes}} when is_list(notes) ->

@@ -79,6 +79,7 @@ defmodule SukhiFedi.Conversations do
           from(n in Note, where: n.conversation_ap_id == ^cid)
           |> maybe_max_id(opts[:max_id])
           |> maybe_since_id(opts[:since_id])
+          |> maybe_search(opts[:q])
           |> order_by([n], desc: n.id)
           |> limit(^limit)
           |> Repo.all()
@@ -282,6 +283,19 @@ defmodule SukhiFedi.Conversations do
 
   defp maybe_since_id(q, nil), do: q
   defp maybe_since_id(q, v), do: where(q, [n], n.id > ^to_int(v))
+
+  # Clips の「全文検索」。件数の小さい単一会話が相手なので、GIN index も
+  # 形態素解析も要らない ── ILIKE の部分一致で足りる(サイト全体の全文検索は
+  # 別問題、OPEN_QUESTIONS.md#Q1 で検討中)。ユーザの入力に `%` / `_` が
+  # 混じっていても ILIKE のワイルドカードとして暴発しないよう先にエスケープ
+  # する(「100%」を検索しても、それが「1000000...」に化けたりしない)。
+  defp maybe_search(q, nil), do: q
+  defp maybe_search(q, ""), do: q
+
+  defp maybe_search(q, term) when is_binary(term) do
+    escaped = term |> String.replace("\\", "\\\\") |> String.replace("%", "\\%") |> String.replace("_", "\\_")
+    where(q, [n], ilike(n.content, ^"%#{escaped}%"))
+  end
 
   defp to_int(v), do: SukhiFedi.Coercion.to_int!(v)
 

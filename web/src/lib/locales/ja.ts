@@ -570,6 +570,8 @@ export const ja = {
   'clips.unpin': 'ピン留めを外す',
   'clips.copy': 'コピー',
   'clips.copied': 'コピーしました',
+  'clips.searchPlaceholder': 'Clips を検索',
+  'clips.noResults': '見つからなかった。',
 
   // ── さがす ───────────────────────────────────────────
   'search.title': 'さがす',

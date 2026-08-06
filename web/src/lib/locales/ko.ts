@@ -565,6 +565,8 @@ export const ko: Dict = {
   'clips.unpin': '고정 해제',
   'clips.copy': '복사',
   'clips.copied': '복사했어요',
+  'clips.searchPlaceholder': 'Clips 검색',
+  'clips.noResults': '찾지 못했어요.',
 
   // ── 찾기 ─────────────────────────────────────────────
   'search.title': '찾기',

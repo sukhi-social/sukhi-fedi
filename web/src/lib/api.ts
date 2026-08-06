@@ -339,11 +339,13 @@ export async function getConversations(
 // クエリも無い。鎖から外れた一通(スレッドの外から書かれた DM)も出る。
 export async function getConversationStatuses(
   id: string,
-  opts: { maxId?: string | null; sinceId?: string | null; limit?: number } = {}
+  opts: { maxId?: string | null; sinceId?: string | null; limit?: number; q?: string } = {}
 ): Promise<Page<Status>> {
   const qs = pageQs(opts, 30);
   // 取りこぼしの拾い直し用。手元の最新より新しいぶんだけを引く。
   if (opts.sinceId) qs.set('since_id', opts.sinceId);
+  // Clips の全文検索。Mastodon 互換のページング語彙には無い、sukhi 拡張。
+  if (opts.q) qs.set('q', opts.q);
   return page<Status>(
     await req(
       'GET',
