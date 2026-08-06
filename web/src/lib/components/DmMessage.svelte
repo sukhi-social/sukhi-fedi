@@ -26,10 +26,11 @@
     status,
     mine = false,
     grouped = false,
-    // Clips だけで出す、専用のピン留めボタン。ふつうの DM では出さない
-    // (ピンという概念自体、いまは Clips にしか無いので)。
-    showPin = false
-  }: { status: Status; mine?: boolean; grouped?: boolean; showPin?: boolean } = $props();
+    // Clips 用の見せ方まとめて一枚。相手は常に自分なので、話者名・
+    // アバター・宛名は消し、ピン留め/コピーの専用ボタンを足し、境界が
+    // わかるようバブルにする。ふつうの DM では立てない。
+    clipsMode = false
+  }: { status: Status; mine?: boolean; grouped?: boolean; clipsMode?: boolean } = $props();
 
   let name = $derived(status.account.display_name || status.account.username);
 
@@ -60,7 +61,7 @@
 
   // ピンの専用ボタンを出す面では、同じ絵文字が通常のリアクション列にも
   // 重ねて出ないように外す ── 二重に同じ状態を見せない。
-  let otherReactions = $derived(showPin ? reactions.filter((r) => r.name !== PIN_EMOJI) : reactions);
+  let otherReactions = $derived(clipsMode ? reactions.filter((r) => r.name !== PIN_EMOJI) : reactions);
 
   // Clips の「全文コピー」。画像だけ・ファイルだけのクリップには
   // コピーする本文が無いので、そのときはボタンごと出さない。
@@ -109,8 +110,18 @@
   }
 </script>
 
-<article class="dm" class:mine class:grouped>
-  {#if !grouped}
+<article class="dm" class:mine class:grouped class:clips={clipsMode}>
+  {#if clipsMode}
+    <!-- 相手は常に自分なので、名前もアバターも言うことが無い。時刻だけ
+         残す ── クリップ毎に「いつ置いたか」自体は要る情報なので。
+         グループ化(grouped)も無視して毎回出す ── 一つ一つが独立した
+         カードなので、続きだからと畳む理由が無い。 -->
+    <header class="dm-head">
+      <a class="dm-when" href={`/@${status.account.acct}/${status.id}`}>
+        {shortTime(status.created_at, $t, $locale)}
+      </a>
+    </header>
+  {:else if !grouped}
     <header class="dm-head">
       <Avatar class="avatar avatar-sm" src={status.account.avatar} {name} />
       <span class="dm-name">{@html renderEmojis(phrase(name), status.account.emojis)}</span>
@@ -129,7 +140,7 @@
     <div class="dm-body" bind:this={bodyEl}>{@html split.body}</div>
   {/if}
 
-  {#if split.handles.length > 0}
+  {#if split.handles.length > 0 && !clipsMode}
     <p class="dm-to">{$t('messages.mentioned', { who: split.handles.map((h) => `@${h}`).join(' ') })}</p>
   {/if}
 
@@ -138,7 +149,7 @@
        tab で来たときだけ、そっと現れる。指の画面では常に出す(hover が
        無いので、出ないと辿り着けない)。 -->
   <div class="dm-reactions">
-    {#if showPin}
+    {#if clipsMode}
       <button
         type="button"
         class="reaction-chip pin-toggle"
@@ -152,7 +163,7 @@
       </button>
     {/if}
 
-    {#if showPin && hasText}
+    {#if clipsMode && hasText}
       <button
         type="button"
         class="reaction-chip copy-toggle"
@@ -334,6 +345,46 @@
     .reaction-add {
       opacity: 1;
     }
+  }
+
+  /* ピン留め・コピーは、いつも並んでいると操作の列に見えてしまう
+     (＋ボタンと同じ理由)。触れたときだけ、そっと出す。ただしピン留め
+     済みのものだけは、その状態自体が情報なので出したままにする。 */
+  .pin-toggle,
+  .copy-toggle {
+    opacity: 0;
+  }
+
+  .dm:hover .pin-toggle,
+  .dm:hover .copy-toggle,
+  .pin-toggle:focus-visible,
+  .copy-toggle:focus-visible,
+  .pin-toggle.me {
+    opacity: 1;
+  }
+
+  @media (pointer: coarse) {
+    .pin-toggle,
+    .copy-toggle {
+      opacity: 1;
+    }
+  }
+
+  /* ── Clips: バブルで境界を出す ────────────────────────────────────
+     話者名もアバターも消したぶん、フラットな左線だけでは一つ一つの
+     クリップがどこで切れるか分かりにくい。囲って区切る。 */
+  .dm.clips {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    padding: var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+
+  /* グループ化で上詰めにする効果は、バブルでは要らない ── 一枚ずつ
+     独立したカードなので、続きだからと詰める理由が無い。 */
+  .dm.clips.grouped {
+    padding-top: var(--space-3);
   }
 
   .dm-media {
