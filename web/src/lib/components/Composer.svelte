@@ -51,6 +51,11 @@
     // 入力を大きく取る ── 面そのものが composer なので、面の中でもう一度
     // 箱を描く必要がない。
     page = false,
+    // 添付ファイルの入力ダイアログに渡す accept。既定は画像だけ(いまの
+    // 全画面の実際の挙動と同じ) ── Clips だけ、ここを広げて任意のファイルを
+    // 通す。サーバ側はもう MIME で弾いていない(image/video/audio 以外は
+    // type: "unknown" で普通に受ける)ので、ここは入口の絞りだけの話。
+    accept = 'image/*',
     onposted,
     oncancel
   }: {
@@ -60,6 +65,7 @@
     prefillRecipients?: string[] | null;
     dmConversationId?: string | null;
     page?: boolean;
+    accept?: string;
     onposted?: (s: Status) => void;
     oncancel?: () => void;
   } = $props();
@@ -430,7 +436,7 @@
         <input
           bind:this={fileInput}
           type="file"
-          accept="image/*"
+          {accept}
           multiple
           onchange={onFiles}
           style="display: none;"
@@ -541,7 +547,7 @@
         <input
           bind:this={fileInput}
           type="file"
-          accept="image/*"
+          {accept}
           multiple
           onchange={onFiles}
           style="display: none;"

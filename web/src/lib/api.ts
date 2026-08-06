@@ -52,6 +52,10 @@ export type MediaAttachment = {
   url: string;
   preview_url?: string | null;
   description?: string | null;
+  // Not Mastodon's shape — sukhi extension. The name the file was
+  // uploaded under (server derives an extension-only fallback if the
+  // browser never sent one). Absent on attachments uploaded before this.
+  filename?: string | null;
 };
 
 export type Tag = {

@@ -34,6 +34,13 @@
   // 前に、まずこれで足りるかを見たい。
   const PIN_EMOJI = '📌';
 
+  // Clips だけ、画像に限らず何でも添付できる(サーバは元々 MIME で
+  // 弾いていない)。ここが「アップロードの経路」の入口 ── ローカルの
+  // ファイルパスを覚える方式に差し替えるなら、まずこの一行と Composer
+  // への渡し方を見直す。アップロードごと要らなくなったら、ここを消して
+  // Composer の accept 既定(image/*)に戻すだけで済む。
+  const CLIPS_FILE_ACCEPT = '*/*';
+
   let id = $state<string | null>(null);
   // 自分宛て会話があるかどうか、まだ探しているあいだ。
   let resolving = $state(true);
@@ -271,6 +278,28 @@
     replyTo={lastStatus}
     prefillRecipients={[me.acct]}
     dmConversationId={id ?? 'clips-new'}
+    accept={CLIPS_FILE_ACCEPT}
     onposted={onPosted}
   />
 {/if}
+
+<style>
+  /* DM の入力欄は position: sticky で下に貼りつくが、sticky は
+     「スクロールできるだけの中身がある」ときしか画面の底に見えない。
+     Clips は最初 0 件から始まる(=中身が画面より低い)のがふつうの状態
+     なので、ここだけ本当に固定する。main.wrap の幅と中央寄せ(margin:
+     0 auto と max-width)はそのまま効くよう、left/right だけ足す。 */
+  :global(main.wrap .composer.composer-dm) {
+    position: fixed;
+    left: 0;
+    right: 0;
+  }
+
+  /* main.wrap は本来どのページも下に大きめの余白を持つ(「もっと読む」
+     などが底にぴったり付かないように)。固定した入力欄の下にその余白が
+     残ると、意味のない空きスクロールになる ── :has() で「実際に Clips の
+     入力欄を子に持つ main.wrap」だけに絞って外す。 */
+  :global(main.wrap:has(> .composer.composer-dm)) {
+    padding-bottom: 0;
+  }
+</style>

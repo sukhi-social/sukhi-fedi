@@ -88,6 +88,7 @@ defmodule SukhiFedi.Addons.Media do
           url: url,
           type: type,
           description: description,
+          filename: filename,
           size: byte_size(file_bytes),
           width: width,
           height: height,

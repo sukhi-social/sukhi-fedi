@@ -20,7 +20,10 @@ defmodule SukhiApi.Views.MastodonMedia do
       text_url: nil,
       meta: meta(media),
       description: Map.get(media, :description),
-      blurhash: Map.get(media, :blurhash)
+      blurhash: Map.get(media, :blurhash),
+      # Not a Mastodon field — sukhi extension so a non-image Clip can
+      # show the name it was uploaded under instead of just an extension.
+      filename: Map.get(media, :filename)
     }
   end
 

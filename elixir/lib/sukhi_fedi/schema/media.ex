@@ -9,6 +9,7 @@ defmodule SukhiFedi.Schema.Media do
     field :type, :string
     field :blurhash, :string
     field :description, :string
+    field :filename, :string
     field :width, :integer
     field :height, :integer
     field :size, :integer
@@ -22,7 +23,7 @@ defmodule SukhiFedi.Schema.Media do
 
   def changeset(media, attrs) do
     media
-    |> cast(attrs, [:url, :remote_url, :type, :blurhash, :description, :width, :height, :size, :tags, :account_id, :attached_at])
+    |> cast(attrs, [:url, :remote_url, :type, :blurhash, :description, :filename, :width, :height, :size, :tags, :account_id, :attached_at])
     |> validate_required([:url, :type, :account_id])
     |> validate_inclusion(:type, ["image", "video", "audio", "unknown"])
   end

@@ -15,6 +15,7 @@
   import Avatar from './Avatar.svelte';
   import Twemoji from './Twemoji.svelte';
   import ReactionPicker from './ReactionPicker.svelte';
+  import FileChip from './FileChip.svelte';
   import * as api from '$lib/api';
   import { toggled, willAdd } from '$lib/reactions';
   import type { Reaction, Status } from '$lib/api';
@@ -143,10 +144,12 @@
     <ul class="dm-media">
       {#each status.media_attachments as m (m.id)}
         <li>
-          {#if m.preview_url || m.url}
+          {#if m.type === 'image' && (m.preview_url || m.url)}
             <a href={m.url} target="_blank" rel="noopener noreferrer">
               <img src={m.preview_url || m.url} alt={m.description ?? ''} loading="lazy" />
             </a>
+          {:else if m.type !== 'image'}
+            <FileChip media={m} />
           {/if}
         </li>
       {/each}
