@@ -38,8 +38,11 @@
   // (サーバの `mentions` はまだ空を返すので、本文の h-card から拾う)
   let split = $derived(splitLeadingMentions(status.content));
 
-  // 画像・ファイルだけのクリップには、コピーする本文が無い。
-  let hasText = $derived(status.content.replace(/<[^>]*>/g, '').trim().length > 0);
+  // 画像・ファイルだけのクリップには、コピーする本文が無い ── ただし
+  // Clips は DM の宛先メンションが常に本文の頭に付くので、生の
+  // status.content で見ると「@自分」だけが残って非空に見えてしまう。
+  // 宛名を外した split.body のほうで判定する。
+  let hasText = $derived(split.body.replace(/<[^>]*>/g, '').trim().length > 0);
 
   // ── 絵文字で、そっと返す ─────────────────────────────────────────
   //
@@ -372,11 +375,14 @@
 
   /* ── Clips: バブルで境界を出す ────────────────────────────────────
      話者名もアバターも消したぶん、フラットな左線だけでは一つ一つの
-     クリップがどこで切れるか分かりにくい。囲って区切る。 */
+     クリップがどこで切れるか分かりにくい。囲って区切る。ただし、この
+     アプリは影を持たない設計(tokens.css 曰く「no drop shadows」)なので、
+     硬い罫線とサーフェス色ではなく QuoteCard と同じ --fill-soft(文字色を
+     6% だけ混ぜた、ごく淡い塗り)で柔らかく囲う。 */
   .dm.clips {
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
+    border-radius: var(--radius);
+    background: var(--fill-soft);
     padding: var(--space-3);
     margin-bottom: var(--space-2);
   }
