@@ -405,6 +405,12 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  # 試作中の Clips (自分宛て DM を保存先に流用)。lists / messages/:id と
+  # 同じ理由で明示が要る ── 足し忘れると直リンク / リロードだけ 404 になる。
+  get "/clips" do
+    serve_spa(conn)
+  end
+
   get "/compose" do
     serve_spa(conn)
   end
