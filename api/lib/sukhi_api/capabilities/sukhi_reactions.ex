@@ -42,6 +42,9 @@ defmodule SukhiApi.Capabilities.SukhiReactions do
     with %{} = v <- viewer || :no_viewer,
          {:ok, emoji} <- decode_emoji(raw),
          {:ok, {:ok, note}} <- GatewayRpc.call(SukhiFedi.Notes, fun, [v, id, emoji]) do
+      # Clips が「自分の Clip に自分でリアクション」でピンを表すので、
+      # 別タブ/端末にも見た目を追いつかせるには通常の DM と同じ道が要る。
+      SukhiApi.Capabilities.MastodonConversations.maybe_stream_dm(note)
       ok(200, render_status_with_context(v, note))
     else
       :no_viewer -> ok(403, %{error: "this endpoint requires a user-bound token"})

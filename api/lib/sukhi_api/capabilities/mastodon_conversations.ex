@@ -116,6 +116,20 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
 
   def stream_new_dm(_), do: :ok
 
+  @doc """
+  Push the `direct` stream poke for any note-shaped event on a DM —
+  a new message (`MastodonStatuses.create`) or a reaction toggle
+  (`SukhiReactions`) on one. Both call sites had their own copy of
+  this guard; kept here so there's one place that decides "is this a
+  DM" instead of two that could drift.
+  """
+  def maybe_stream_dm(%{visibility: "direct", conversation_ap_id: cid}) when is_binary(cid) do
+    Task.start(fn -> stream_new_dm(cid) end)
+    :ok
+  end
+
+  def maybe_stream_dm(_), do: :ok
+
   def read(req) do
     %{current_account: viewer} = req[:assigns]
     id = req[:path_params]["id"]

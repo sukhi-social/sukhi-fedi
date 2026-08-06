@@ -55,7 +55,7 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
   defp create_now(v, attrs) do
     case GatewayRpc.call(SukhiFedi.Notes, :create_status, [v, attrs]) do
       {:ok, {:ok, note}} ->
-        maybe_stream_dm(note)
+        SukhiApi.Capabilities.MastodonConversations.maybe_stream_dm(note)
         rendered = StatusHydration.one(note, v)
         maybe_stream_new_post(note, rendered, v)
         ok(200, rendered)
@@ -104,16 +104,6 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
         ok(500, %{error: "internal_error"})
     end
   end
-
-  # DMs push a `conversation` event to each local participant's `direct`
-  # stream. Off the response path and best-effort: streaming must never
-  # delay or fail a post.
-  defp maybe_stream_dm(%{visibility: "direct", conversation_ap_id: cid}) when is_binary(cid) do
-    Task.start(fn -> SukhiApi.Capabilities.MastodonConversations.stream_new_dm(cid) end)
-    :ok
-  end
-
-  defp maybe_stream_dm(_), do: :ok
 
   # Public な新規投稿を streaming に流す（local timeline + フォロワーの home）。views は
   # この node にあるので、レスポンス用にレンダ済みの status をそのまま gateway の

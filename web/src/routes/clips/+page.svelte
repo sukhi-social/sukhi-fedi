@@ -198,12 +198,15 @@
   const poll = slowPoll();
   let armed = $state(false);
 
+  // since_id だけで拾うと、新しい一通は来ても「もう持ってる一通のピンが
+  // 増えた」には気づけない ── リアクションは note を新規発行しないので。
+  // 直近ぶんを丸ごと引き直して upsert に渡す(id で潰すので、中身だけ
+  // 更新されたものはそのまま置き換わる)。Clips は件数が少ない前提なので、
+  // 直近の一巻きぶんで足りる。
   async function catchUp() {
     if (!armed || loading || !id) return;
-    const newest = pager.items[0]?.id;
-    if (!newest) return;
     try {
-      const page = await getConversationStatuses(id, { sinceId: newest });
+      const page = await getConversationStatuses(id, {});
       upsert(page.items);
     } catch {
       // 拾い直しの失敗は黙って飲む。次の引き金でまた来る。
