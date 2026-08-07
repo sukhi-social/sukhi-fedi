@@ -30,11 +30,12 @@ defmodule SukhiFedi.Fedi.Verifier do
   result map: `%{"ok" => true, "keyId" => …, "owner" => …}` on success,
   `%{"ok" => false}` when the signature does not check out.
   """
-  @spec verify(map(), fetch_fun()) :: {:ok, map()} | {:error, term()}
-  def verify(payload, fetch_fun \\ &Fetcher.fetch_cached/2)
+  @spec verify(map(), fetch_fun() | nil) :: {:ok, map()} | {:error, term()}
+  def verify(payload, fetch_fun \\ nil)
 
-  def verify(%{"raw" => raw, "headers" => headers, "method" => method, "url" => url}, fetch_fun) do
+  def verify(%{"raw" => raw, "headers" => headers, "method" => method, "url" => url} = payload, fetch_fun) do
     headers = Map.new(headers, fn {name, value} -> {String.downcase(name), value} end)
+    fetch_fun = fetch_fun || default_fetch_fun(payload["signAs"])
 
     with {:ok, key_id} <- HttpSignature.key_id(headers),
          {:ok, result} <- check(method, url, headers, raw, key_id, fetch_fun) do
@@ -57,6 +58,12 @@ defmodule SukhiFedi.Fedi.Verifier do
   end
 
   def verify(_payload, _fetch_fun), do: {:ok, %{"ok" => false}}
+
+  # `signAs` is the receiving account's signing identity — present only for
+  # a user-scoped inbox (`InboxController.sign_as_for/1`); nil for shared
+  # inbox. `Fetcher.fetch_cached/3` only spends it when a plain fetch is
+  # turned away for lacking auth, so this stays free for the common case.
+  defp default_fetch_fun(sign_as), do: fn uri, opts -> Fetcher.fetch_cached(uri, opts, sign_as) end
 
   defp check(method, url, headers, raw, key_id, fetch_fun, retried? \\ false) do
     with {:ok, document} <- fetch_fun.(key_id, if(retried?, do: [:fresh], else: [])),

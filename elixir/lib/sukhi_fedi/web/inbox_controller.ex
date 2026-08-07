@@ -35,15 +35,24 @@ defmodule SukhiFedi.Web.InboxController do
     url = public_url(conn)
     sync_header = get_req_header(conn, "collection-synchronization") |> List.first()
 
-    verify_payload = %{
-      raw: raw_body,
-      headers: headers,
-      method: "POST",
-      url: url
-    }
+    # A user-scoped inbox has a natural signer: the receiving account.
+    # Shared inbox has none (no :name in the path) — fall back to any local
+    # account's key, the same fallback outbound fetches already use for
+    # this exact class of peer (`Accounts.signing_identity/0`: any local
+    # actor's signature satisfies an auth-fetch check). Some peers
+    # (Iceshrimp with authorized-fetch on, at least) 401 an unsigned GET for
+    # the *signing key itself* — not just the activity's actor — so
+    # verification needs this identity too, not only the inbox parse.
+    sign_as = sign_as_for(conn) || SukhiFedi.Accounts.signing_identity()
+
+    verify_payload =
+      case sign_as do
+        nil -> %{raw: raw_body, headers: headers, method: "POST", url: url}
+        sign_as -> %{raw: raw_body, headers: headers, method: "POST", url: url, signAs: sign_as}
+      end
 
     inbox_payload =
-      case sign_as_for(conn) do
+      case sign_as do
         nil -> %{raw: raw_json, selfDomain: self_domain}
         sign_as -> %{raw: raw_json, signAs: sign_as, selfDomain: self_domain}
       end

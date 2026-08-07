@@ -41,27 +41,43 @@ defmodule SukhiFedi.Fedi.Fetcher do
   end
 
   @doc """
-  Like `fetch_document/2` but unsigned and cached — used for signing-key
-  lookups during inbound verification, where the same actor document is
-  needed for every activity a peer delivers. `:fresh` bypasses the cache
-  (the stale-key retry in `Fedi.Verifier`).
+  Like `fetch_document/2` but cached — used for signing-key lookups during
+  inbound verification, where the same actor document is needed for every
+  activity a peer delivers. `:fresh` bypasses the cache (the stale-key
+  retry in `Fedi.Verifier`).
+
+  Unsigned by default; `sign_as` is the *receiving* account's signing
+  identity (only known for a user-scoped inbox — shared inbox has none).
+  A peer with authorized-fetch on can 401/403 even this key lookup, not
+  only the activity's own actor fetch, so a plain fetch that gets turned
+  away for lacking auth retries once, signed, when a signer is available.
   """
-  @spec fetch_cached(String.t(), [:fresh]) :: {:ok, map()} | {:error, term()}
-  def fetch_cached(uri, opts \\ []) do
+  @spec fetch_cached(String.t(), [:fresh], map() | nil) :: {:ok, map()} | {:error, term()}
+  def fetch_cached(uri, opts \\ [], sign_as \\ nil) do
     if :fresh in opts do
-      refresh(uri)
+      refresh(uri, sign_as)
     else
       case Ets.get(@cache_table, uri) do
         {:ok, document} -> {:ok, document}
-        :miss -> refresh(uri)
+        :miss -> refresh(uri, sign_as)
       end
     end
   end
 
-  defp refresh(uri) do
-    with {:ok, document} <- get_json(uri, nil) do
-      Ets.put(@cache_table, uri, document, @cache_ttl_seconds)
-      {:ok, document}
+  defp refresh(uri, sign_as) do
+    case get_json(uri, nil) do
+      {:error, {:http_status, status}} when status in [401, 403] and not is_nil(sign_as) ->
+        with {:ok, document} <- get_json(uri, signer(sign_as)) do
+          Ets.put(@cache_table, uri, document, @cache_ttl_seconds)
+          {:ok, document}
+        end
+
+      {:ok, document} ->
+        Ets.put(@cache_table, uri, document, @cache_ttl_seconds)
+        {:ok, document}
+
+      other ->
+        other
     end
   end
 
