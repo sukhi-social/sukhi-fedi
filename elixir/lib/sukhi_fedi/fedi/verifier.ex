@@ -19,6 +19,8 @@ defmodule SukhiFedi.Fedi.Verifier do
   remote side doesn't strand its followers (same behavior as fedify).
   """
 
+  require Logger
+
   alias SukhiFedi.Fedi.{Fetcher, HttpSignature, JWK}
 
   @type fetch_fun :: (String.t(), [:fresh] -> {:ok, map()} | {:error, term()})
@@ -40,7 +42,17 @@ defmodule SukhiFedi.Fedi.Verifier do
     else
       # No/odd signature header, unresolvable key, bad PEM, failed
       # verification — all the same answer for the controller: reject.
-      _ -> {:ok, %{"ok" => false}}
+      reason ->
+        # TEMP: ff.lapy.link 401 investigation (2026-08-07) — the reason was
+        # discarded here with no logging anywhere in the call chain, so the
+        # controller's 401 carried no clue why. Remove once diagnosed.
+        Logger.warning(
+          "fedi verify rejected: #{inspect(reason)} url=#{url} " <>
+            "signature=#{inspect(Map.get(headers, "signature"))} " <>
+            "signature-input=#{inspect(Map.get(headers, "signature-input"))}"
+        )
+
+        {:ok, %{"ok" => false}}
     end
   end
 
