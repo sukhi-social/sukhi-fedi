@@ -205,14 +205,8 @@ defmodule SukhiFedi.Notes.Read do
 
   defp visible_ref(ap_id, by_ap, viewer_id) do
     case Map.get(by_ap, ap_id) do
-      nil ->
-        nil
-
-      note ->
-        ok? = visible_to?(note, viewer_id)
-        require Logger
-        Logger.warning("DEBUG visible_ref: note_id=#{note.id} vis=#{note.visibility} viewer_id=#{inspect(viewer_id)} visible?=#{ok?}")
-        if ok?, do: note, else: nil
+      nil -> nil
+      note -> if visible_to?(note, viewer_id), do: note, else: nil
     end
   end
 
