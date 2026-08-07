@@ -197,12 +197,14 @@
   const poll = slowPoll();
   let armed = $state(false);
 
+  // since_id だけで拾うと、新しい一通は来ても「もう持ってる一通に付いた
+  // リアクション」には気づけない ── リアクションは note を新規発行しない
+  // ので、since_id の対象にならない。直近ぶんを丸ごと引き直して upsert に
+  // 渡す(id で潰すので、中身だけ更新されたものはそのまま置き換わる)。
   async function catchUp() {
     if (!armed || loading) return;
-    const newest = pager.items[0]?.id;
-    if (!newest) return;
     try {
-      const page = await getConversationStatuses(id, { sinceId: newest });
+      const page = await getConversationStatuses(id, {});
       upsert(page.items);
     } catch {
       // 拾い直しの失敗は黙って飲む。次の引き金でまた来る。

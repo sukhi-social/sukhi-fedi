@@ -279,8 +279,20 @@ defmodule SukhiFedi.Notes.Create do
         # sender's own row stays read; a local recipient is unread;
         # remote rows just exist for the `accounts` list (their unread
         # flag is never read here).
+        #
+        # A self-mention (Clips: you're both sender and sole recipient)
+        # would otherwise upsert your own row twice in this same
+        # transaction — read (as sender), then immediately unread (as a
+        # "local recipient" who happens to be you) — since both target
+        # the same (cid, account_id) row and `on_conflict` keeps the
+        # last write. Every message you post to yourself flipped the
+        # conversation back to unread the instant you sent it.
         upsert_participant(repo, cid, account_id, false)
-        Enum.each(recipients, fn r -> upsert_participant(repo, cid, r.account_id, r.local?) end)
+
+        Enum.each(recipients, fn r ->
+          unread = r.local? and r.account_id != account_id
+          upsert_participant(repo, cid, r.account_id, unread)
+        end)
 
         {:ok, note}
       end)
