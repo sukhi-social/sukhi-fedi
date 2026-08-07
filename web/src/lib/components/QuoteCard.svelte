@@ -70,7 +70,17 @@
     white-space: nowrap;
     text-overflow: ellipsis;
   }
+  /* 引用は小さな添え物のつもりだったのに、中身が長文記事(Article)だと
+     丸ごと出てしまっていた ── ここには Status 本体側の「描画後に測って
+     畳む」仕組み(collapsible/COLLAPSE_PX)が無かった。カードはもともと
+     href でクリックすれば全文へ飛べるので、JS の実測は要らない ──
+     line-clamp で行数を決め打ちして切るだけで足りる。 */
   .quote-content {
     font-size: var(--text-sm);
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 </style>
