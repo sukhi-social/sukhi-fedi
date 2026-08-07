@@ -134,9 +134,15 @@ defmodule SukhiFedi.Notes.Read do
   (no N+1):
 
     * `in_reply_to_id` / `in_reply_to_account_id` — the reply parent,
-      when we hold it locally (else left nil; the reply still renders).
+      when we hold it locally *and* `viewer_id` may see it (else left
+      nil; the reply still renders). Without the visibility check, a
+      reply to a followers-only or direct note exposed its parent's id
+      to every viewer — a link that always 404s for anyone who isn't
+      an accepted follower (or the DM's other participant), since
+      `GET /statuses/:id` correctly gates on the same check this
+      skipped.
     * `quoted_note` — the quoted note with its account preloaded, for a
-      nested-Status `quote` render.
+      nested-Status `quote` render. Same visibility gate.
 
   Accepts a list or a single note; anything else passes through.
   """
@@ -155,8 +161,8 @@ defmodule SukhiFedi.Notes.Read do
     poll_views = poll_views_for(Enum.map(notes, & &1.id), viewer_id)
 
     Enum.map(notes, fn n ->
-      parent = n.in_reply_to_ap_id && Map.get(by_ap, n.in_reply_to_ap_id)
-      quoted = n.quote_of_ap_id && Map.get(by_ap, n.quote_of_ap_id)
+      parent = visible_ref(n.in_reply_to_ap_id, by_ap, viewer_id)
+      quoted = visible_ref(n.quote_of_ap_id, by_ap, viewer_id)
 
       %{
         n
@@ -188,6 +194,20 @@ defmodule SukhiFedi.Notes.Read do
         _ -> {note_id, nil}
       end
     end)
+  end
+
+  # Look up a resolved ref and gate it on the viewer's ability to see it.
+  # `resolve_refs/1` only checks "do we hold this row locally" — it has
+  # no idea who's asking, so a followers-only or DM parent came back
+  # exposed to everyone. This is the one place that turns "exists" into
+  # "exists, and you're allowed to know that."
+  defp visible_ref(nil, _by_ap, _viewer_id), do: nil
+
+  defp visible_ref(ap_id, by_ap, viewer_id) do
+    case Map.get(by_ap, ap_id) do
+      nil -> nil
+      note -> if visible_to?(note, viewer_id), do: note, else: nil
+    end
   end
 
   # Resolve each ref URI to its local Note (account preloaded), keyed by
