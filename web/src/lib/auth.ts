@@ -138,10 +138,23 @@ export function loadOtherAccounts(): StoredAccount[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as StoredAccount[]) : [];
+    return Array.isArray(parsed) ? dedupeByAcct(parsed as StoredAccount[]) : [];
   } catch {
     return [];
   }
+}
+
+// AppNav の {#each otherAccounts as other (other.acct)} は key の重複を
+// 許さない(each_key_duplicate で画面ごと落ちる)。書き込み側は毎回
+// filter してから push しているので理屈上は重複しないはずだが、読む側
+// でも黙って畳んでおく ── 表示は「何か古いのが残っていた」程度で済ませ、
+// クラッシュにしない。後の方(新しい方)を残す。
+function dedupeByAcct(list: StoredAccount[]): StoredAccount[] {
+  const byAcct = new Map<string, StoredAccount>();
+  for (const a of list) {
+    if (a && typeof a.acct === 'string') byAcct.set(a.acct, a);
+  }
+  return [...byAcct.values()];
 }
 
 function saveOtherAccounts(list: StoredAccount[]): void {
@@ -174,11 +187,17 @@ export async function switchAccount(acct: string): Promise<void> {
   if (!target) throw new Error('not_found');
 
   const current = loadToken();
-  const others = loadOtherAccounts().filter((a) => a.acct !== acct);
+  let others = loadOtherAccounts().filter((a) => a.acct !== acct);
 
   if (current) {
     const currentAcct = await resolveAcct(current);
-    if (currentAcct) others.push({ acct: currentAcct, token: current });
+    if (currentAcct) {
+      // push する前に必ず同じ acct を追い出す ── どこかに古いエントリが
+      // 残っていたら(dedupeByAcct 参照)、そのまま push すると配列内で
+      // 二重になって each_key_duplicate で画面が落ちる。
+      others = others.filter((a) => a.acct !== currentAcct);
+      others.push({ acct: currentAcct, token: current });
+    }
   }
 
   saveOtherAccounts(others);
@@ -469,14 +488,25 @@ export async function completeLogin(code: string, state: string): Promise<TokenS
 
   if (adding) {
     const previous = loadToken();
+    // 「追加」で戻ってきた先が、実は前から知っていたアカウントだった
+    // ケース(同じアカウントを選び直した/既に sf.accounts にあった方を
+    // また選んだ)を、必ず一枚岩にする。newAcct を others から追い出して
+    // おかないと、あとで switchAccount するときに同じ acct が配列内で
+    // 二重になって画面が落ちる(each_key_duplicate、2026-08-08 実機で
+    // 踏んだ)。
+    const newAcct = await resolveAcct(t);
+    let others = loadOtherAccounts();
+
     if (previous) {
       const prevAcct = await resolveAcct(previous);
-      if (prevAcct) {
-        const others = loadOtherAccounts().filter((a) => a.acct !== prevAcct);
+      if (prevAcct && prevAcct !== newAcct) {
+        others = others.filter((a) => a.acct !== prevAcct);
         others.push({ acct: prevAcct, token: previous });
-        saveOtherAccounts(others);
       }
     }
+
+    if (newAcct) others = others.filter((a) => a.acct !== newAcct);
+    saveOtherAccounts(others);
   }
 
   saveToken(t);
