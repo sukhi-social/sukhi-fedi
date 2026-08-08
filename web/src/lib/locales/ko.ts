@@ -38,6 +38,7 @@ export const ko: Dict = {
   'nav.settings': '설정',
   'nav.compose': '쓰기',
   'nav.logout': '로그아웃',
+  'nav.addAccount': '계정 추가하기',
 
   // ── 첫 페이지 ────────────────────────────────────────
   'landing.heroTitle': '여기는 sukhi라는, 작은 별이에요.',
@@ -321,6 +322,8 @@ export const ko: Dict = {
   'login.passkey': '패스키로 들어가기',
   'login.passkeyFailed': '패스키로는 들어가지 못했어요.',
   'login.rateLimited': '조금 쉬었다가 다시 해 주세요.',
+  'login.addTitle': '다른 계정을 추가하기',
+  'login.addTagline': '지금 계정은 그대로 두고, 비밀번호로 하나 더 들어가요.',
 
   // ── 비밀번호 변경(password)──────────────────────────
   'password.title': '비밀번호 변경',
@@ -403,6 +406,8 @@ export const ko: Dict = {
   'security.passwordRemoveHelp':
     '비밀번호를 내려놓아요. 앞으로는 메일 코드(나 패스키)로 들어가요.',
   'security.needRelogin': '설정을 바꾸려면 다시 한번 들어와 주세요.',
+  'security.accountMismatch':
+    '지금 이 설정은 「@{acct}」님의 것이에요. 지금 보고 있는 계정의 설정을 바꾸고 싶으면, 다시 한번 로그인해 주세요.',
   'security.reloginLink': '로그인으로',
   'security.backToSettings': '설정으로 돌아가기',
 

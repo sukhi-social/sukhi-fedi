@@ -17,8 +17,16 @@
   // 共有メモ(currentAccount)から一度だけ取る。
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { goto, afterNavigate } from '$app/navigation';
-  import { isLoggedIn, signOutServer } from '$lib/auth';
+  import { afterNavigate } from '$app/navigation';
+  import {
+    isLoggedIn,
+    signOutServer,
+    loadOtherAccounts,
+    switchAccount,
+    removeAccount,
+    startAddAccount,
+    type StoredAccount
+  } from '$lib/auth';
   import Avatar from './Avatar.svelte';
   import { currentAccount, type Account } from '$lib/api';
   import {
@@ -54,6 +62,8 @@
 
   let loggedIn = $state(false);
   let me = $state<Account | null>(null);
+  // 他に一度ログインしたことのあるアカウント(いま見ている me は含まない)。
+  let otherAccounts = $state<StoredAccount[]>([]);
 
   // 会話の面は「入った先」。ここは行き先を選ぶ場所ではなく、もう誰かと
   // 話している場所なので、流れの帯は畳んで、左上を戻る口にする ──
@@ -67,9 +77,11 @@
     if (loggedIn) {
       void refreshUnseen();
       void currentAccount().then((a) => (me = a));
+      otherAccounts = loadOtherAccounts();
       startStream();
     } else {
       me = null;
+      otherAccounts = [];
       stopStream();
     }
   }
@@ -106,11 +118,23 @@
     return parts.length > 0 ? parts.join(' / ') : null;
   });
 
+  // 「ログアウト」は、いま見ているアカウントだけを外す ── 他にも
+  // サインインしているアカウントがあれば、そちらへ格上げされて続く
+  // (removeAccount の約束)。誰も残らなければ、これまで通り本当の
+  // ログアウト。ページ内の状態(タイムライン等)はアカウントに紐づく
+  // ので、切り替え後は必ずフルリロードで作り直す。
   async function signOut() {
-    await signOutServer();
-    loggedIn = false;
-    me = null;
-    goto('/');
+    if (me) {
+      await removeAccount(me.acct);
+    } else {
+      await signOutServer();
+    }
+    window.location.assign(isLoggedIn() ? '/timeline' : '/');
+  }
+
+  async function switchTo(acct: string) {
+    await switchAccount(acct);
+    window.location.assign('/timeline');
   }
 </script>
 
@@ -189,6 +213,24 @@
           {/snippet}
           {#snippet children()}
             {#if me}{@render menuLink(`/@${me.acct}`, 'nav.profile', 'user')}{/if}
+            {#if otherAccounts.length > 0}
+              <div class="nav-menu-sep" role="separator"></div>
+              {#each otherAccounts as other (other.acct)}
+                <button
+                  type="button"
+                  class="nav-menu-item"
+                  role="menuitem"
+                  onclick={() => void switchTo(other.acct)}
+                >
+                  <NavIcon name="user" />
+                  <span>@{other.acct}</span>
+                </button>
+              {/each}
+            {/if}
+            <button type="button" class="nav-menu-item" role="menuitem" onclick={startAddAccount}>
+              <NavIcon name="user" />
+              <span>{$t('nav.addAccount')}</span>
+            </button>
             <div class="nav-menu-sep" role="separator"></div>
             {@render menuLink('/settings', 'nav.settings', 'gear')}
             <button type="button" class="nav-menu-item" role="menuitem" onclick={signOut}>

@@ -22,6 +22,7 @@
     type Reauth,
     type Session
   } from '$lib/auth';
+  import { currentAccount } from '$lib/api';
   import { passkeySupported } from '$lib/webauthn';
   import ReauthField from '$lib/components/ReauthField.svelte';
   import { t } from '$lib/i18n';
@@ -31,6 +32,14 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let canPasskey = $state(false);
+  // マルチアカウント: session_token クッキーの持ち主(auth.acct)と、
+  // SPA がいま bearer で見せているアカウント(viewingAcct)がズレて
+  // いないか。ナビの切り替えは bearer だけを差し替えるので(consent
+  // ピッカーを通さない限り)、クッキーは前回ログインした方のまま
+  // 残ることがある ── ここで変更すると、見た目と違う方の設定が
+  // 変わってしまう。
+  let viewingAcct = $state<string | null>(null);
+  let mismatch = $derived(!!auth?.manageable && !!viewingAcct && auth.acct !== viewingAcct);
 
   onMount(() => {
     if (!isLoggedIn()) {
@@ -50,9 +59,14 @@
         void goto('/');
         return;
       }
-      // 端末一覧は session cookie 専用 ─ 変更系が使える(manageable)
-      // ときだけ読む。bearer だけの加入直後は出さない。
-      if (auth.manageable) await loadSessions();
+      if (auth.manageable) {
+        const me = await currentAccount();
+        viewingAcct = me?.acct ?? null;
+        // 端末一覧は session cookie 専用 ─ 変更系が使える(manageable)
+        // ときだけ読む。bearer だけの加入直後は出さない。ズレている
+        // ときは、どのみち下の設定フォームを出さないので読まない。
+        if (auth.acct === viewingAcct) await loadSessions();
+      }
     } catch {
       error = $t('common.readFailed');
     } finally {
@@ -320,6 +334,13 @@
   <section class="timeline" style="margin-block: var(--space-4);">
     <p>{$t('security.needRelogin')}</p>
     <p class="prose-small"><a class="chip" href="/login">{$t('security.reloginLink')}</a></p>
+  </section>
+{:else if auth && mismatch}
+  <section class="timeline" style="margin-block: var(--space-4);">
+    <p>{$t('security.accountMismatch', { acct: auth.acct })}</p>
+    <p class="prose-small">
+      <a class="chip" href="/login?next=/settings/security">{$t('security.reloginLink')}</a>
+    </p>
   </section>
 {:else if auth}
   <!-- メール -->

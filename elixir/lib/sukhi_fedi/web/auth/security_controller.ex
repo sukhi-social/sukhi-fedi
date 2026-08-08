@@ -61,6 +61,12 @@ defmodule SukhiFedi.Web.Auth.SecurityController do
   defp render_state(account, manageable?) do
     %{
       manageable: manageable?,
+      # 誰の分の state か(local アカウントなので acct はドメイン無しの
+      # username そのまま)。マルチアカウントのブラウザだと、mutations
+      # が従う session_token の持ち主と、SPA がいま bearer で見せている
+      # アカウントがズレることがある ── SPA 側はこれを currentAccount()
+      # の acct と突き合わせて、ズレていたら警告できる。
+      acct: account.username,
       email: account.email,
       email_verified: not is_nil(account.email_verified_at),
       has_password: is_binary(account.password_hash),

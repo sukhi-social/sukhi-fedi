@@ -35,6 +35,7 @@ export const ja = {
   'nav.settings': '設定',
   'nav.compose': '書く',
   'nav.logout': 'ログアウト',
+  'nav.addAccount': 'アカウントを追加',
 
   // ── 表のページ ───────────────────────────────────────
   'landing.heroTitle': 'ここは、sukhiという、小さなお星さまです。',
@@ -321,6 +322,8 @@ export const ja = {
   'login.passkey': 'パスキーで入る',
   'login.passkeyFailed': 'パスキーでは、入れませんでした。',
   'login.rateLimited': 'すこし間をおいて、もう一度ためしてください。',
+  'login.addTitle': 'べつのアカウントを、追加する',
+  'login.addTagline': '今のアカウントは、そのまま。あいことばで、もう一つ入れます。',
 
   // ── 合言葉を変える（password）────────────────────────
   'password.title': '合言葉を変える',
@@ -403,6 +406,8 @@ export const ja = {
   'security.passwordRemoveHelp':
     'あいことばを外します。これからは、メールのコード（やパスキー）で入ります。',
   'security.needRelogin': '設定を変えるには、もう一度入りなおしてください。',
+  'security.accountMismatch':
+    'いまここの設定は「@{acct}」のものです。いま見ているアカウントの設定を変えたいときは、もう一度ログインしなおしてください。',
   'security.reloginLink': 'ログインへ',
   'security.backToSettings': '設定にもどる',
 

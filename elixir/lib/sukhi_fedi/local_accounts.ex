@@ -91,9 +91,14 @@ defmodule SukhiFedi.LocalAccounts do
           follow_inviter(a, invite)
           {:ok, a}
 
-        {:error, :account, %Ecto.Changeset{} = cs, _} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
-        {:error, :invite, reason, _} -> {:error, reason}
-        {:error, _step, reason, _} -> {:error, reason}
+        {:error, :account, %Ecto.Changeset{} = cs, _} ->
+          {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+
+        {:error, :invite, reason, _} ->
+          {:error, reason}
+
+        {:error, _step, reason, _} ->
+          {:error, reason}
       end
     end
   end
@@ -185,6 +190,7 @@ defmodule SukhiFedi.LocalAccounts do
   end
 
   defp trim_or_nil(nil), do: nil
+
   defp trim_or_nil(s) when is_binary(s) do
     case String.trim(s) do
       "" -> nil
@@ -428,6 +434,23 @@ defmodule SukhiFedi.LocalAccounts do
   end
 
   @doc """
+  Revoke a session by its plaintext cookie token rather than its row id
+  — for dropping *one* of several accounts a browser is signed into
+  (`Web.Auth.SessionCookie.remove/2`), where the caller only ever has
+  the token, never the row's id. A no-op (not an error) when the token
+  doesn't resolve to a live session — the cookie is being cleared
+  either way.
+  """
+  @spec revoke_session_by_token(String.t()) :: :ok
+  def revoke_session_by_token(token) when is_binary(token) and token != "" do
+    hash = :crypto.hash(:sha256, token) |> Base.encode16(case: :lower)
+    from(s in Session, where: s.token_hash == ^hash) |> Repo.delete_all()
+    :ok
+  end
+
+  def revoke_session_by_token(_), do: :ok
+
+  @doc """
   Has this account signed in from this `{ip, user_agent}` pair before?
 
   Pure so the new-device heads-up is decided in one place and unit-
@@ -495,5 +518,4 @@ defmodule SukhiFedi.LocalAccounts do
       Logger.warning("招待した人のフォローで転んだ: #{Exception.message(error)}")
       :ok
   end
-
 end

@@ -23,6 +23,7 @@ defmodule SukhiApi.Capabilities.OAuth do
   alias SukhiApi.GatewayRpc
 
   @gateway SukhiFedi.OAuth
+  @session_cookie SukhiFedi.Web.Auth.SessionCookie
 
   @impl true
   def routes do
@@ -43,7 +44,10 @@ defmodule SukhiApi.Capabilities.OAuth do
     scope = params["scope"] || "read"
     state = params["state"] || ""
     response_type = params["response_type"] || "code"
-    session_token = session_token_from_cookies(req[:headers] || [])
+    choose = params["choose"]
+    headers = req[:headers] || []
+    primary_token = session_token_from_cookies(headers)
+    extra_tokens = extra_tokens_from_cookies(headers)
 
     cond do
       response_type != "code" ->
@@ -52,17 +56,56 @@ defmodule SukhiApi.Capabilities.OAuth do
       is_nil(client_id) or client_id == "" ->
         html_error(400, "invalid_request", "missing client_id")
 
+      is_binary(choose) ->
+        # 「このアカウントで続ける」を選んだ直後。選んだ方を主に並べ替えた
+        # Set-Cookie を付けたまま、その場で consent(または first-party の
+        # 即発行)へ進む ── 一度リダイレクトを挟むと、まだ2アカウントとも
+        # 有効なままなのでピッカーがもう一度出てしまう。
+        sessions = resolve_sessions(primary_token, extra_tokens)
+        account_id = String.to_integer(choose)
+
+        case Enum.find(sessions, &(&1.account.id == account_id)) do
+          nil ->
+            # 選んだものがもう無い(期限切れ等)。選び直してもらう。
+            html_account_picker(sessions, params)
+
+          target ->
+            case GatewayRpc.call(@session_cookie, :layout_for_promote, [sessions, account_id]) do
+              {:ok, {new_primary, new_extras}} ->
+                authorize_with_session(
+                  target.account,
+                  client_id,
+                  redirect_uri,
+                  scope,
+                  state,
+                  session_set_cookie_headers(new_primary, new_extras)
+                )
+
+              {:error, :not_connected} ->
+                html_error(503, "gateway_not_connected", "the gateway is unreachable")
+
+              {:error, {:badrpc, reason}} ->
+                html_error(503, "gateway_rpc_failed", inspect(reason))
+            end
+        end
+
       true ->
-        case resolve_session(session_token) do
-          {:error, :no_session} ->
+        case resolve_sessions(primary_token, extra_tokens) do
+          [] ->
             # ログインしていない人に consent 画面を見せない。`/login`
             # に飛ばし、ログインが済んだら同じ /oauth/authorize?... に
             # 戻ってこられるよう `next` に元 URL を載せる。
             next = "/oauth/authorize?" <> (req[:query] || "")
             redirect_to_login(next)
 
-          {:ok, account} ->
+          [%{account: account}] ->
             authorize_with_session(account, client_id, redirect_uri, scope, state)
+
+          sessions ->
+            # 2 個以上サインインしてるときだけ、consent の手前に一枚
+            # 「どのアカウントで続ける?」を挟む。1個しか無い人には今まで
+            # 通り何も見えない。
+            html_account_picker(sessions, params)
         end
     end
   end
@@ -70,14 +113,16 @@ defmodule SukhiApi.Capabilities.OAuth do
   # 自分のサーバの SPA に「自分が自分を許可する?」を聞くのは形式で
   # しかないので、redirect_uri が自ホストなら consent を出さずに即
   # code を発行する。外部の Mastodon クライアント等(別ホスト)が来た
-  # ときは従来どおり consent form。
-  defp authorize_with_session(account, client_id, redirect_uri, scope, state) do
+  # ときは従来どおり consent form。`extra_headers` はピッカーで選んだ直後
+  # だけ乗る、並べ替えた Set-Cookie(このリクエストの応答が最初にそれを
+  # 運ぶ唯一の機会)。
+  defp authorize_with_session(account, client_id, redirect_uri, scope, state, extra_headers \\ []) do
     case GatewayRpc.call(@gateway, :find_app_by_client_id, [client_id]) do
       {:ok, {:ok, app}} ->
         if first_party?(redirect_uri) do
-          mint_and_redirect(app, account, redirect_uri, scope, state)
+          mint_and_redirect(app, account, redirect_uri, scope, state, extra_headers)
         else
-          html_form(app, redirect_uri, scope, state)
+          html_form(app, redirect_uri, scope, state, extra_headers)
         end
 
       {:ok, {:error, :not_found}} ->
@@ -91,14 +136,14 @@ defmodule SukhiApi.Capabilities.OAuth do
     end
   end
 
-  defp mint_and_redirect(app, account, redirect_uri, scope, state) do
+  defp mint_and_redirect(app, account, redirect_uri, scope, state, extra_headers) do
     case GatewayRpc.call(@gateway, :create_authorization_code, [
            app,
            account,
            %{redirect_uri: redirect_uri, scopes: scope, state: state}
          ]) do
       {:ok, {:ok, %{code: code, state: returned_state}}} ->
-        redirect(redirect_uri, code: code, state: returned_state)
+        redirect(redirect_uri, [code: code, state: returned_state], extra_headers)
 
       {:ok, {:error, :invalid_redirect_uri}} ->
         html_error(400, "invalid_redirect_uri", "redirect_uri does not match registered URIs")
@@ -338,7 +383,19 @@ defmodule SukhiApi.Capabilities.OAuth do
   defp parse_query(""), do: %{}
   defp parse_query(q) when is_binary(q), do: URI.decode_query(q)
 
-  defp session_token_from_cookies(headers) do
+  defp session_token_from_cookies(headers), do: cookie_value(headers, "session_token")
+
+  # The `session_tokens` cookie's raw value, decoded via the gateway's own
+  # `SessionCookie.decode_extra/1` — the format (base64url'd JSON) is that
+  # module's to own, not something to re-parse by hand here.
+  defp extra_tokens_from_cookies(headers) do
+    case GatewayRpc.call(@session_cookie, :decode_extra, [cookie_value(headers, "session_tokens")]) do
+      {:ok, tokens} -> tokens
+      _ -> []
+    end
+  end
+
+  defp cookie_value(headers, name) do
     Enum.find_value(headers, fn {k, v} ->
       if String.downcase(to_string(k)) == "cookie" do
         v
@@ -347,12 +404,46 @@ defmodule SukhiApi.Capabilities.OAuth do
         |> Enum.map(&String.trim/1)
         |> Enum.find_value(fn pair ->
           case String.split(pair, "=", parts: 2) do
-            ["session_token", t] -> t
+            [^name, value] -> value
             _ -> nil
           end
         end)
       end
     end)
+  end
+
+  # All accounts this browser is signed into, resolved via the gateway's
+  # `SessionCookie.resolve_all/2` — RPC failures degrade to "no session"
+  # rather than surfacing a 503 here; `authorize_with_session`'s own RPC
+  # calls right after would fail the same way and explain it properly.
+  defp resolve_sessions(primary_token, extra_tokens) do
+    case GatewayRpc.call(@session_cookie, :resolve_all, [primary_token, extra_tokens]) do
+      {:ok, sessions} -> sessions
+      _ -> []
+    end
+  end
+
+  # Same flags as `SessionCookie`'s own cookie-writer — duplicated rather
+  # than shared because `api` and the gateway are separate deployables
+  # (RPC, not a shared compile-time dependency); see that module's
+  # `put_primary_cookie/2` and `put_extra_cookie/2`.
+  defp session_set_cookie_headers(primary_token, extra_tokens) do
+    flags = "HttpOnly; SameSite=Lax; Secure; Max-Age=#{60 * 60 * 24 * 30}; Path=/"
+    primary = {"set-cookie", "session_token=#{primary_token}; #{flags}"}
+
+    extra =
+      case extra_tokens do
+        [] ->
+          {"set-cookie", "session_tokens=; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Path=/"}
+
+        tokens ->
+          case GatewayRpc.call(@session_cookie, :encode_extra, [tokens]) do
+            {:ok, value} -> {"set-cookie", "session_tokens=#{value}; #{flags}"}
+            _ -> {"set-cookie", "session_tokens=; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Path=/"}
+          end
+      end
+
+    [primary, extra]
   end
 
   defp resolve_session(nil), do: {:error, :no_session}
@@ -367,7 +458,53 @@ defmodule SukhiApi.Capabilities.OAuth do
 
   # ── HTML rendering ───────────────────────────────────────────────────────
 
-  defp html_form(app, redirect_uri, scope, state) do
+  # 2 アカウント以上サインインしているときだけ挟む一枚。選ぶと
+  # `/oauth/authorize?...&choose=<id>` に飛び、選んだ方を主に並べ替えて
+  # 同じ URL(choose= 抜き)へ戻る ── その次はいつもの1アカウントの流れ。
+  defp html_account_picker(sessions, params) do
+    qs = Map.take(params, ["client_id", "redirect_uri", "scope", "state", "response_type"])
+
+    buttons =
+      Enum.map_join(sessions, "\n        ", fn %{account: account} ->
+        href = "/oauth/authorize?" <> URI.encode_query(Map.put(qs, "choose", to_string(account.id)))
+        ~s|<a class="button" href="#{h(href)}">@#{h(account.username)}</a>|
+      end)
+
+    add_href =
+      "/login?" <>
+        URI.encode_query(%{
+          "next" => "/oauth/authorize?" <> URI.encode_query(qs),
+          "mode" => "add"
+        })
+
+    body = """
+    <!doctype html>
+    <html lang="ja">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>どのアカウント? — sukhi-fedi</title>
+      <link rel="stylesheet" href="/static/styles/app.css" />
+    </head>
+    <body>
+      <main class="wrap stack">
+        <section class="hero">
+          <h1>どのアカウントで、続けますか?</h1>
+          <p class="tagline">このブラウザには、いくつかサインインしています。</p>
+        </section>
+        <div class="stack">
+          #{buttons}
+        </div>
+        <p class="prose-small"><a href="#{h(add_href)}">別のアカウントでログイン</a></p>
+      </main>
+    </body>
+    </html>
+    """
+
+    {:ok, %{status: 200, body: body, headers: [{"content-type", "text/html; charset=utf-8"}]}}
+  end
+
+  defp html_form(app, redirect_uri, scope, state, extra_headers) do
     name = h(app.name)
     cid = h(app.client_id)
     redir = h(redirect_uri)
@@ -412,18 +549,19 @@ defmodule SukhiApi.Capabilities.OAuth do
      %{
        status: 200,
        body: body,
-       headers: [
-         {"content-type", "text/html; charset=utf-8"},
-         # この同意フォームは、わざと外部アプリの custom scheme
-         # (例 `cx-c3-toot://…`) へ 302 で戻すのが仕事。グローバルCSP
-         # の `form-action 'self'`(CorsPlug) は、WebKit(Safari/iOS)だと
-         # フォーム送信のリダイレクト先まで照合するので、そのままだと
-         # Toot! 等の webview が戻りを掴めず「いいよ」で先に進めない
-         # (Chrome系は CSP3 でリダイレクト先チェックを外したので通る)。
-         # ここだけ form-action を落とす — 他の hardening は残す。
-         # CorsPlug は handler が CSP を立てたら上書きしない。
-         {"content-security-policy", "object-src 'none'; base-uri 'none'; frame-ancestors 'self'"}
-       ]
+       headers:
+         [
+           {"content-type", "text/html; charset=utf-8"},
+           # この同意フォームは、わざと外部アプリの custom scheme
+           # (例 `cx-c3-toot://…`) へ 302 で戻すのが仕事。グローバルCSP
+           # の `form-action 'self'`(CorsPlug) は、WebKit(Safari/iOS)だと
+           # フォーム送信のリダイレクト先まで照合するので、そのままだと
+           # Toot! 等の webview が戻りを掴めず「いいよ」で先に進めない
+           # (Chrome系は CSP3 でリダイレクト先チェックを外したので通る)。
+           # ここだけ form-action を落とす — 他の hardening は残す。
+           # CorsPlug は handler が CSP を立てたら上書きしない。
+           {"content-security-policy", "object-src 'none'; base-uri 'none'; frame-ancestors 'self'"}
+         ] ++ extra_headers
      }}
   end
 
@@ -506,7 +644,7 @@ defmodule SukhiApi.Capabilities.OAuth do
     |> String.replace("'", "&#39;")
   end
 
-  defp redirect(base, params) do
+  defp redirect(base, params, extra_headers \\ []) do
     qs =
       params
       |> Enum.reject(fn {_, v} -> is_nil(v) or v == "" end)
@@ -518,7 +656,7 @@ defmodule SukhiApi.Capabilities.OAuth do
      %{
        status: 302,
        body: "",
-       headers: [{"location", location}, {"content-type", "text/plain"}]
+       headers: [{"location", location}, {"content-type", "text/plain"}] ++ extra_headers
      }}
   end
 

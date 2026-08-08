@@ -34,7 +34,7 @@ defmodule SukhiFedi.Web.Auth.LoginController do
 
     case LocalAccounts.authenticate(username, password) do
       {:ok, account} ->
-        finish_first_factor(conn, account)
+        finish_first_factor(conn, account, add?(conn))
 
       {:error, :invalid} ->
         json(conn, 401, %{error: "invalid"})
@@ -49,7 +49,7 @@ defmodule SukhiFedi.Web.Auth.LoginController do
          :ok <- totp_rate_ok(account),
          :ok <- SecondFactor.verify_totp(account, code) do
       conn
-      |> SessionCookie.mint(account)
+      |> mint(account, add?(conn))
       |> json(200, %{ok: true})
     else
       {:error, :invalid_pending} -> json(conn, 401, %{error: "pending"})
@@ -68,16 +68,26 @@ defmodule SukhiFedi.Web.Auth.LoginController do
   @doc """
   A first factor has been proven for `account`: mint the session, or
   hand back a pending token when the account wants a TOTP on top.
+
+  `add?` is true for "sign in to *another* account" rather than a
+  fresh login (`Web.Auth.SessionCookie.mint_additional/2`) — the SPA
+  resends `mode: "add"` on the TOTP step too, since the pending token
+  itself carries nothing but the account.
   """
-  def finish_first_factor(conn, account) do
+  def finish_first_factor(conn, account, add? \\ false) do
     if SecondFactor.required?(account) do
       json(conn, 200, %{second_factor: "totp", pending: SecondFactor.issue_pending(account)})
     else
       conn
-      |> SessionCookie.mint(account)
+      |> mint(account, add?)
       |> json(200, %{ok: true})
     end
   end
+
+  defp mint(conn, account, true), do: SessionCookie.mint_additional(conn, account)
+  defp mint(conn, account, false), do: SessionCookie.mint(conn, account)
+
+  defp add?(conn), do: conn.body_params["mode"] == "add"
 
   defp totp_rate_ok(%{id: id}) do
     {limit, scale} = @totp_rate

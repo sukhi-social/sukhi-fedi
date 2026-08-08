@@ -26,6 +26,47 @@ defmodule SukhiApi.Capabilities.OAuthTest do
       table = Application.get_env(:sukhi_api, :fake_sessions, %{})
       {:ok, Map.get(table, token)}
     end
+
+    # Multi-account: a from-scratch reimplementation of SessionCookie's pure
+    # layout math (it lives in the gateway's own mix project, not this one,
+    # so there's nothing to delegate to here — same as the SukhiFedi.OAuth
+    # fake above, which is canned rather than a real call). `fake_sessions`
+    # doubles as the token→account table these draw from.
+    def call(SukhiFedi.Web.Auth.SessionCookie, :decode_extra, [nil], _timeout), do: {:ok, []}
+
+    def call(SukhiFedi.Web.Auth.SessionCookie, :decode_extra, [value], _timeout) do
+      table = Application.get_env(:sukhi_api, :fake_extra_tokens, %{})
+      {:ok, Map.get(table, value, [])}
+    end
+
+    def call(SukhiFedi.Web.Auth.SessionCookie, :resolve_all, [primary, extras], _timeout) do
+      accounts = Application.get_env(:sukhi_api, :fake_sessions, %{})
+
+      sessions =
+        [{primary, true} | Enum.map(extras, &{&1, false})]
+        |> Enum.reject(fn {t, _primary?} -> is_nil(t) end)
+        |> Enum.map(fn {token, primary?} -> {token, primary?, Map.get(accounts, token)} end)
+        |> Enum.reject(fn {_token, _primary?, account} -> is_nil(account) end)
+        |> Enum.uniq_by(fn {_token, _primary?, account} -> account.id end)
+        |> Enum.map(fn {token, primary?, account} -> %{account: account, token: token, primary?: primary?} end)
+
+      {:ok, sessions}
+    end
+
+    def call(SukhiFedi.Web.Auth.SessionCookie, :layout_for_promote, [sessions, account_id], _timeout) do
+      case Enum.find(sessions, &(&1.account.id == account_id)) do
+        nil ->
+          {:ok, :not_found}
+
+        target ->
+          others = sessions |> Enum.reject(&(&1.account.id == account_id)) |> Enum.map(& &1.token)
+          {:ok, {target.token, others}}
+      end
+    end
+
+    def call(SukhiFedi.Web.Auth.SessionCookie, :encode_extra, [tokens], _timeout) do
+      {:ok, Enum.join(tokens, ",")}
+    end
   end
 
   setup do
@@ -33,17 +74,20 @@ defmodule SukhiApi.Capabilities.OAuthTest do
     prev_addons = Application.get_env(:sukhi_api, :enabled_addons)
     prev_oauth = Application.get_env(:sukhi_api, :fake_oauth)
     prev_sessions = Application.get_env(:sukhi_api, :fake_sessions)
+    prev_extra_tokens = Application.get_env(:sukhi_api, :fake_extra_tokens)
 
     Application.put_env(:sukhi_api, :gateway_rpc_impl, FakeRpc)
     Application.put_env(:sukhi_api, :enabled_addons, :all)
     Application.put_env(:sukhi_api, :fake_oauth, %{})
     Application.put_env(:sukhi_api, :fake_sessions, %{})
+    Application.put_env(:sukhi_api, :fake_extra_tokens, %{})
 
     on_exit(fn ->
       restore(:gateway_rpc_impl, prev_rpc)
       restore(:enabled_addons, prev_addons)
       restore(:fake_oauth, prev_oauth)
       restore(:fake_sessions, prev_sessions)
+      restore(:fake_extra_tokens, prev_extra_tokens)
     end)
 
     :ok
@@ -270,6 +314,73 @@ defmodule SukhiApi.Capabilities.OAuthTest do
       assert csp, "consent form must set its own CSP so CorsPlug's form-action 'self' is not applied"
       refute csp =~ "form-action"
       assert csp =~ "frame-ancestors 'self'"
+    end
+  end
+
+  describe "GET /oauth/authorize with multiple accounts" do
+    setup do
+      Application.put_env(:sukhi_api, :fake_sessions, %{
+        "tok_alice" => %{id: 1, username: "alice"},
+        "tok_bob" => %{id: 2, username: "bob"}
+      })
+
+      Application.put_env(:sukhi_api, :fake_extra_tokens, %{"extras_ab" => ["tok_bob"]})
+
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        find_app_by_client_id:
+          {:ok, %{id: 1, name: "TwoApp", client_id: "c", redirect_uri: "https://example.com/cb"}}
+      })
+
+      :ok
+    end
+
+    test "two sessions → a picker, not the consent form" do
+      {:ok, resp} =
+        Router.handle(%{
+          method: "GET",
+          path: "/oauth/authorize",
+          query: "client_id=c&redirect_uri=https://example.com/cb&scope=read&response_type=code",
+          headers: [{"cookie", "session_token=tok_alice; session_tokens=extras_ab"}]
+        })
+
+      assert resp.status == 200
+      assert resp.body =~ "@alice"
+      assert resp.body =~ "@bob"
+      assert resp.body =~ "choose=1"
+      assert resp.body =~ "choose=2"
+      refute resp.body =~ "TwoApp"
+    end
+
+    test "choosing an account promotes it and goes straight to consent, cookies swapped" do
+      {:ok, resp} =
+        Router.handle(%{
+          method: "GET",
+          path: "/oauth/authorize",
+          query: "client_id=c&redirect_uri=https://example.com/cb&scope=read&response_type=code&choose=2",
+          headers: [{"cookie", "session_token=tok_alice; session_tokens=extras_ab"}]
+        })
+
+      assert resp.status == 200
+      assert resp.body =~ "TwoApp"
+
+      set_cookies = for {"set-cookie", v} <- resp.headers, do: v
+      assert Enum.any?(set_cookies, &String.starts_with?(&1, "session_token=tok_bob;"))
+      assert Enum.any?(set_cookies, &String.starts_with?(&1, "session_tokens=tok_alice;"))
+    end
+
+    test "choosing an unknown/stale id falls back to the picker" do
+      {:ok, resp} =
+        Router.handle(%{
+          method: "GET",
+          path: "/oauth/authorize",
+          query: "client_id=c&redirect_uri=https://example.com/cb&scope=read&response_type=code&choose=999",
+          headers: [{"cookie", "session_token=tok_alice; session_tokens=extras_ab"}]
+        })
+
+      assert resp.status == 200
+      assert resp.body =~ "@alice"
+      assert resp.body =~ "@bob"
+      refute resp.body =~ "TwoApp"
     end
   end
 

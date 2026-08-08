@@ -37,6 +37,16 @@ const CLIENT_KEY = 'sf.client';
 const TOKEN_KEY = 'sf.token';
 const STATE_KEY = 'sf.state';
 const DRAFT_KEY = 'sf.signup_draft';
+// マルチアカウント: sf.token/sf.client(=「いま見ているアカウント」)は
+// 一切さわらない ── 既存の呼び出し元(isLoggedIn/loadToken 直読み、
+// .svelte 側に数十箇所)はこれまで通り。他に一度ログインしたことのある
+// アカウントは sf.accounts(配列)へ。サーバ側の session_token(主)+
+// session_tokens(側)とおなじ形。client(app登録)はアカウント間で
+// 共有できるので、こちら側には持たせない。
+const ACCOUNTS_KEY = 'sf.accounts';
+// /login に「置き換えでなく追加」だと伝える一時フラグ。/app/callback が
+// 読んで、戻ってきたトークンをどちらに仕舞うか決める。
+const ADD_MODE_KEY = 'sf.adding_account';
 // 書き込み (投稿・プロフィール編集) と follow を含む。読み取りだけの
 // 古い token を持っている人は、書き込み API で 401/403 を踏むので
 // その時点で clearToken → 再ログインで広い token を取り直す形。
@@ -116,6 +126,111 @@ export function saveToken(t: TokenSet): void {
 export function clearToken(): void {
   if (!browser) return;
   localStorage.removeItem(TOKEN_KEY);
+}
+
+// ── マルチアカウント: 他に一度ログインしたことのあるアカウント ─────────
+
+export type StoredAccount = { acct: string; token: TokenSet };
+
+export function loadOtherAccounts(): StoredAccount[] {
+  if (!browser) return [];
+  const raw = localStorage.getItem(ACCOUNTS_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as StoredAccount[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveOtherAccounts(list: StoredAccount[]): void {
+  if (!browser) return;
+  if (list.length === 0) localStorage.removeItem(ACCOUNTS_KEY);
+  else localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list));
+}
+
+// どのアカウントも「いま見ている」自覚を持たない(sf.token がそう
+// なので)── 切り替え・追加のたびに verify_credentials で問い直す。
+// 呼び出し頻度は低い(切り替え操作そのものの中でしか呼ばない)ので、
+// キャッシュしてまで避ける値ではない。
+async function resolveAcct(token: TokenSet): Promise<string | null> {
+  try {
+    const res = await fetch('/api/v1/accounts/verify_credentials', {
+      headers: { authorization: `Bearer ${token.access_token}` }
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { acct?: string };
+    return typeof body.acct === 'string' ? body.acct : null;
+  } catch {
+    return null;
+  }
+}
+
+// 「いま見ている」アカウントを、sf.accounts の中の一つと入れ替える。
+// 元「いま見ていた」方は、そのぶん sf.accounts へ移る。
+export async function switchAccount(acct: string): Promise<void> {
+  const target = loadOtherAccounts().find((a) => a.acct === acct);
+  if (!target) throw new Error('not_found');
+
+  const current = loadToken();
+  const others = loadOtherAccounts().filter((a) => a.acct !== acct);
+
+  if (current) {
+    const currentAcct = await resolveAcct(current);
+    if (currentAcct) others.push({ acct: currentAcct, token: current });
+  }
+
+  saveOtherAccounts(others);
+  saveToken(target.token);
+}
+
+// このブラウザから一つのアカウントだけ抜く。「いま見ている」方を抜いた
+// ときは、残りの先頭を新しく「いま見ている」に格上げする(いなければ
+// 完全ログアウトと同じ状態に)。トークンの失効はベストエフォート
+// (signOutServer とおなじ考え方)。
+export async function removeAccount(acct: string): Promise<void> {
+  const current = loadToken();
+  const currentAcct = current ? await resolveAcct(current) : null;
+
+  if (current && currentAcct === acct) {
+    await revokeToken(current);
+    const [next, ...rest] = loadOtherAccounts();
+    saveOtherAccounts(rest);
+    if (next) saveToken(next.token);
+    else clearToken();
+    return;
+  }
+
+  const target = loadOtherAccounts().find((a) => a.acct === acct);
+  if (target) await revokeToken(target.token);
+  saveOtherAccounts(loadOtherAccounts().filter((a) => a.acct !== acct));
+}
+
+async function revokeToken(t: TokenSet): Promise<void> {
+  const raw = localStorage.getItem(CLIENT_KEY);
+  if (!raw) return;
+  try {
+    const c = JSON.parse(raw) as ClientCreds;
+    await fetch('/oauth/revoke', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: t.access_token, client_id: c.client_id, client_secret: c.client_secret })
+    });
+  } catch {
+    /* best-effort: local state is dropped by the caller regardless */
+  }
+}
+
+// 「アカウントを追加」の入り口。/login(?mode=add)へ ── そこで別の
+// 資格情報を入れてもらい、通ったら /oauth/authorize(サーバ側に
+// もう主セッションがあるので、2アカウント以上ならピッカーが挟まる)
+// → /app/callback → completeLogin が addOtherAccount で仕舞う。
+export function startAddAccount(): void {
+  if (!browser) return;
+  localStorage.setItem(ADD_MODE_KEY, '1');
+  const next = `${window.location.origin}/login?mode=add`;
+  window.location.assign(next);
 }
 
 // dev で「ログイン後の見た目」を覗くための近道。web/.env.local に
@@ -317,12 +432,20 @@ export async function startLogin(): Promise<void> {
 
 // Called on /app/callback. Verifies state, exchanges the code, persists
 // the token. Throws on any check that fails.
+//
+// 「アカウントを追加」(startAddAccount 発、ADD_MODE_KEY で覚えている)
+// のときは、新しいトークンで sf.token を上書きする前に、いま見ていた
+// 方を sf.accounts へ退避する ── これで「追加」が「置き換え」になら
+// ない。通常ログインでは今まで通り、ただ上書きするだけ。
 export async function completeLogin(code: string, state: string): Promise<TokenSet> {
   const expected = localStorage.getItem(STATE_KEY);
   if (!expected || expected !== state) {
     throw new Error('state mismatch');
   }
   localStorage.removeItem(STATE_KEY);
+
+  const adding = localStorage.getItem(ADD_MODE_KEY) === '1';
+  localStorage.removeItem(ADD_MODE_KEY);
 
   const client = await loadOrRegisterClient();
 
@@ -343,6 +466,19 @@ export async function completeLogin(code: string, state: string): Promise<TokenS
   }
 
   const t = (await res.json()) as TokenSet;
+
+  if (adding) {
+    const previous = loadToken();
+    if (previous) {
+      const prevAcct = await resolveAcct(previous);
+      if (prevAcct) {
+        const others = loadOtherAccounts().filter((a) => a.acct !== prevAcct);
+        others.push({ acct: prevAcct, token: previous });
+        saveOtherAccounts(others);
+      }
+    }
+  }
+
   saveToken(t);
   return t;
 }
@@ -462,15 +598,19 @@ export type FirstFactorResult = { ok: true } | { second_factor: 'totp'; pending:
 // walks through `/check` (Anubis) → `/oauth/authorize` to get a token.
 // アプリ 2FA が有効な人には cookie は立たず、`/login/totp` 用の
 // pending トークンが返る ─ 呼び元が二段目の画面を出す。
+//
+// `add` = マルチアカウントの「追加」入り口から来た(サーバ側は
+// mint_additional で受け止め、いまの主セッションを上書きしない)。
 export async function loginWithPassword(
   username: string,
-  password: string
+  password: string,
+  add = false
 ): Promise<FirstFactorResult> {
   const res = await fetch('/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({ username, password, ...(add ? { mode: 'add' } : {}) })
   });
   if (res.status === 401) throw new Error('invalid');
   if (!res.ok) throw new Error(`login_failed_${res.status}`);
@@ -478,13 +618,13 @@ export async function loginWithPassword(
 }
 
 // 二段目: /login で受け取った pending と、認証アプリの 6 桁。
-// 通れば session_token cookie が立つ。
-export async function submitTotp(pending: string, code: string): Promise<void> {
+// 通れば session_token cookie が立つ。`add` は loginWithPassword 参照。
+export async function submitTotp(pending: string, code: string, add = false): Promise<void> {
   const res = await fetch('/login/totp', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ pending, code })
+    body: JSON.stringify({ pending, code, ...(add ? { mode: 'add' } : {}) })
   });
   if (res.ok) return;
   const body = await res.json().catch(() => ({}));
@@ -590,6 +730,10 @@ export type AuthState = {
   // false のときは cookie が無い(または切れた)ので、変更系を呼ぶ前に
   // もう一度 /login を通ってもらう必要がある。
   manageable: boolean;
+  // 変更系がどのアカウントに効くか(session_token クッキーの持ち主)。
+  // マルチアカウントで、いま bearer で見せているアカウントと違う
+  // ことがある ─ settings/security ページがここを見て警告する。
+  acct: string;
   email: string | null;
   email_verified: boolean;
   // false = パスワード無し(いまの標準)。要素を外す操作の本人確認は

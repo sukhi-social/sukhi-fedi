@@ -159,9 +159,11 @@ defmodule SukhiFedi.Integration.AuthFlowTest do
     cookie = login!(u, p)
     verify_email!(cookie, email)
 
-    # state reflects it
+    # state reflects it — acct names whose settings this is (multi-account:
+    # the SPA compares this against the bearer-active account to catch a
+    # stale session_token cookie).
     conn = get_json("/auth/state", [{"cookie", "session_token=#{cookie}"}])
-    assert %{"email" => ^email, "email_verified" => true, "manageable" => true} = body!(conn)
+    assert %{"acct" => ^u, "email" => ^email, "email_verified" => true, "manageable" => true} = body!(conn)
 
     # now the email door works
     conn = post_json("/login/email/request", %{email: email})

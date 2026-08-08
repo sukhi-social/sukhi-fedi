@@ -40,10 +40,17 @@ defmodule SukhiFedi.Web.Auth.EmailLoginController do
     code = to_string(conn.body_params["code"] || "")
 
     case EmailAuth.confirm_login(email, code) do
-      {:ok, account} -> LoginController.finish_first_factor(conn, account)
-      {:error, :expired} -> json(conn, 422, %{error: "expired"})
-      {:error, :too_many_attempts} -> json(conn, 429, %{error: "too_many_attempts"})
-      {:error, :invalid_code} -> json(conn, 422, %{error: "code"})
+      {:ok, account} ->
+        LoginController.finish_first_factor(conn, account, conn.body_params["mode"] == "add")
+
+      {:error, :expired} ->
+        json(conn, 422, %{error: "expired"})
+
+      {:error, :too_many_attempts} ->
+        json(conn, 429, %{error: "too_many_attempts"})
+
+      {:error, :invalid_code} ->
+        json(conn, 422, %{error: "code"})
     end
   end
 

@@ -30,13 +30,19 @@ defmodule SukhiFedi.Web.Auth.PasskeyLoginController do
     case Passkeys.login_finish(conn.body_params) do
       {:ok, account} ->
         conn
-        |> SessionCookie.mint(account)
+        |> mint(account, conn.body_params["mode"] == "add")
         |> json(200, %{ok: true})
 
       {:error, _reason} ->
         json(conn, 401, %{error: "passkey"})
     end
   end
+
+  # `mode: "add"` signs in to another account alongside whatever's
+  # already primary, rather than replacing it — same convention as
+  # LoginController's password/email doors.
+  defp mint(conn, account, true), do: SessionCookie.mint_additional(conn, account)
+  defp mint(conn, account, false), do: SessionCookie.mint(conn, account)
 
   defp json(conn, status, data) do
     conn

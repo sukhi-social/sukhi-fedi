@@ -43,11 +43,18 @@
     return n && n.startsWith('/') ? n : '/check?intent=login';
   });
 
+  // startAddAccount() 発の「追加」入り口(マルチアカウント)。今すでに
+  // ログイン済みでも弾かない ─ 別の資格情報を入れてもらうのが目的な
+  // ので。今のところパスワードの道だけ繋がっている(メール・パスキーは
+  // まだ)。
+  let addMode = $derived($page.url.searchParams.get('mode') === 'add');
+
   onMount(() => {
-    if (isLoggedIn()) {
+    if (isLoggedIn() && !addMode) {
       void goto('/timeline');
       return;
     }
+    if (addMode) method = 'password';
     canPasskey = passkeySupported();
   });
 
@@ -71,7 +78,7 @@
     submitting = true;
     error = null;
     try {
-      proceed(await loginWithPassword(username, password));
+      proceed(await loginWithPassword(username, password, addMode));
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       error = msg === 'invalid' ? $t('login.invalid') : $t('login.failed');
@@ -94,7 +101,7 @@
     submitting = true;
     error = null;
     try {
-      await submitTotp(pending, totpCode);
+      await submitTotp(pending, totpCode, addMode);
       window.location.assign(next);
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
@@ -132,8 +139,8 @@
 
 <div class="measure stack">
   <section class="hero">
-    <h1>{$t('login.title')}</h1>
-    <p class="tagline">{$t('login.tagline')}</p>
+    <h1>{addMode ? $t('login.addTitle') : $t('login.title')}</h1>
+    <p class="tagline">{addMode ? $t('login.addTagline') : $t('login.tagline')}</p>
   </section>
 
   {#if error}
@@ -167,28 +174,30 @@
       <button type="submit" class="btn px-6 py-2" disabled={submitting}>{$t('login.submit')}</button>
     </form>
   {:else}
-    <div class="method-switch" role="tablist" aria-label={$t('login.methodLabel')}>
-      <button
-        type="button"
-        class="chip"
-        role="tab"
-        aria-selected={method === 'email'}
-        onclick={() => {
-          method = 'email';
-          error = null;
-        }}>{$t('login.methodEmail')}</button
-      >
-      <button
-        type="button"
-        class="chip"
-        role="tab"
-        aria-selected={method === 'password'}
-        onclick={() => {
-          method = 'password';
-          error = null;
-        }}>{$t('login.methodPassword')}</button
-      >
-    </div>
+    {#if !addMode}
+      <div class="method-switch" role="tablist" aria-label={$t('login.methodLabel')}>
+        <button
+          type="button"
+          class="chip"
+          role="tab"
+          aria-selected={method === 'email'}
+          onclick={() => {
+            method = 'email';
+            error = null;
+          }}>{$t('login.methodEmail')}</button
+        >
+        <button
+          type="button"
+          class="chip"
+          role="tab"
+          aria-selected={method === 'password'}
+          onclick={() => {
+            method = 'password';
+            error = null;
+          }}>{$t('login.methodPassword')}</button
+        >
+      </div>
+    {/if}
 
     {#if method === 'password'}
       <form
@@ -245,7 +254,7 @@
       </form>
     {/if}
 
-    {#if canPasskey}
+    {#if canPasskey && !addMode}
       <p class="prose-small" style="margin-top: var(--space-4);">
         <button type="button" class="chip" disabled={submitting} onclick={() => void passkey()}
           >{$t('login.passkey')}</button
@@ -253,8 +262,12 @@
       </p>
     {/if}
 
-    <p class="prose-small"><a href="/signup">{$t('login.toSignup')}</a></p>
-    <p class="prose-small"><a href="/">{$t('signup.backToFront')}</a></p>
+    {#if addMode}
+      <p class="prose-small"><a href="/timeline">{$t('common.backToTimeline')}</a></p>
+    {:else}
+      <p class="prose-small"><a href="/signup">{$t('login.toSignup')}</a></p>
+      <p class="prose-small"><a href="/">{$t('signup.backToFront')}</a></p>
+    {/if}
   {/if}
 
   <section class="section" style="text-align: center; margin-top: var(--space-5);">
