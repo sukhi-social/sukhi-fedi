@@ -35,4 +35,65 @@ defmodule SukhiFedi.Web.PluginPlugTest do
       assert result.halted
     end
   end
+
+  describe "respond/2" do
+    # A capability answering with two set-cookie headers (the OAuth
+    # multi-account picker sets session_token + session_tokens together)
+    # used to lose the first one: put_resp_header/3 replaces same-key
+    # headers (List.keystore), so the second set-cookie silently clobbered
+    # the first instead of adding a second Set-Cookie line. Bug found live
+    # (2026-08-08): the picker minted a code for the chosen account, but
+    # the browser's session_token cookie never actually moved, so the next
+    # /oauth/authorize resolved back down to one account and skipped the
+    # picker it should have shown.
+    test "multiple set-cookie headers all survive, not just the last" do
+      conn = conn(:get, "/oauth/authorize")
+
+      result =
+        PluginPlug.respond(conn, %{
+          status: 302,
+          body: "",
+          headers: [
+            {"location", "/somewhere"},
+            {"set-cookie", "session_token=abc; Path=/"},
+            {"set-cookie", "session_tokens=def; Path=/"}
+          ]
+        })
+
+      cookies = for {"set-cookie", v} <- result.resp_headers, do: v
+      assert length(cookies) == 2
+      assert Enum.any?(cookies, &String.starts_with?(&1, "session_token=abc"))
+      assert Enum.any?(cookies, &String.starts_with?(&1, "session_tokens=def"))
+    end
+
+    test "a single set-cookie still works (the common, single-account case)" do
+      conn = conn(:get, "/login")
+
+      result =
+        PluginPlug.respond(conn, %{
+          status: 200,
+          body: "{}",
+          headers: [
+            {"content-type", "application/json"},
+            {"set-cookie", "session_token=xyz; Path=/"}
+          ]
+        })
+
+      cookies = for {"set-cookie", v} <- result.resp_headers, do: v
+      assert cookies == ["session_token=xyz; Path=/"]
+    end
+
+    test "non-cookie headers still overwrite on repeat, as before" do
+      conn = conn(:get, "/whatever")
+
+      result =
+        PluginPlug.respond(conn, %{
+          status: 200,
+          body: "",
+          headers: [{"content-type", "text/plain"}, {"content-type", "text/html"}]
+        })
+
+      assert Plug.Conn.get_resp_header(result, "content-type") == ["text/html"]
+    end
+  end
 end

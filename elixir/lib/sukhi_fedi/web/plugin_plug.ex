@@ -159,10 +159,26 @@ defmodule SukhiFedi.Web.PluginPlug do
     end)
   end
 
-  defp respond(conn, %{status: status, body: body, headers: headers}) do
+  # public (not `defp`) so a test can drive it directly without a real
+  # cross-node RPC round trip — the header-merging logic is the part worth
+  # covering in isolation.
+  @doc false
+  def respond(conn, %{status: status, body: body, headers: headers}) do
     conn =
       Enum.reduce(headers || [], conn, fn {k, v}, c ->
-        put_resp_header(c, String.downcase(k), v)
+        key = String.downcase(k)
+
+        # put_resp_header/3 *replaces* same-key headers (List.keystore) — fine
+        # for everything except set-cookie, where a capability legitimately
+        # needs to set more than one cookie in the same response (the OAuth
+        # multi-account picker sets session_token + session_tokens together).
+        # A second set-cookie from put_resp_header would silently clobber the
+        # first instead of adding a second Set-Cookie line.
+        if key == "set-cookie" do
+          prepend_resp_headers(c, [{key, v}])
+        else
+          put_resp_header(c, key, v)
+        end
       end)
 
     conn
@@ -170,7 +186,7 @@ defmodule SukhiFedi.Web.PluginPlug do
     |> halt()
   end
 
-  defp respond(conn, other) do
+  def respond(conn, other) do
     Logger.warning("PluginPlug: malformed response #{inspect(other)}")
     send_err(conn, 500, "plugin_response_malformed")
   end
