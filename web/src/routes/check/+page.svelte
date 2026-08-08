@@ -45,6 +45,10 @@
   let stepError = $state<string | null>(null);
   let stepNotice = $state<string | null>(null);
   let next: string | null = null;
+  // マルチアカウントの「追加」入り口(login.ts の addMode と同じ約束)。
+  // login-email のときだけ意味を持つ ─ loginWithEmailCode/submitTotp へ
+  // そのまま引き継ぐ。
+  let addMode = false;
 
   // 直近 10 分以内に同じ宛先へ送っていたら、auto-send を黙って
   // 飛ばす(リロード連打で rate limit を食わないように)。コードの
@@ -151,6 +155,7 @@
     const i = params.get('intent');
     const n = params.get('next');
     next = n && n.startsWith('/') ? n : null;
+    addMode = params.get('mode') === 'add';
 
     if (i !== 'login' && i !== 'signup' && i !== 'login-email') {
       error = $t('check.unknownIntent');
@@ -244,7 +249,7 @@
         saveSignupDraft({ ...draft, email_proof: proof });
         await createAccount(proof);
       } else {
-        const result = await loginWithEmailCode(email, code);
+        const result = await loginWithEmailCode(email, code, addMode);
         if ('second_factor' in result) {
           pending = result.pending;
           totpCode = '';
@@ -337,7 +342,7 @@
     busy = true;
     stepError = null;
     try {
-      await submitTotp(pending, totpCode);
+      await submitTotp(pending, totpCode, addMode);
       await finishLogin();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';

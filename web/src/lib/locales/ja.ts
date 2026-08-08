@@ -323,7 +323,7 @@ export const ja = {
   'login.passkeyFailed': 'パスキーでは、入れませんでした。',
   'login.rateLimited': 'すこし間をおいて、もう一度ためしてください。',
   'login.addTitle': 'べつのアカウントを、追加する',
-  'login.addTagline': '今のアカウントは、そのまま。あいことばで、もう一つ入れます。',
+  'login.addTagline': '今のアカウントは、そのまま。別の資格情報で、もう一つ入れます。',
 
   // ── 合言葉を変える（password）────────────────────────
   'password.title': '合言葉を変える',

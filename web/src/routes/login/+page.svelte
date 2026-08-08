@@ -45,8 +45,7 @@
 
   // startAddAccount() 発の「追加」入り口(マルチアカウント)。今すでに
   // ログイン済みでも弾かない ─ 別の資格情報を入れてもらうのが目的な
-  // ので。今のところパスワードの道だけ繋がっている(メール・パスキーは
-  // まだ)。
+  // ので。パスワード・メール・パスキー、どの道からでも追加できる。
   let addMode = $derived($page.url.searchParams.get('mode') === 'add');
 
   onMount(() => {
@@ -54,7 +53,6 @@
       void goto('/timeline');
       return;
     }
-    if (addMode) method = 'password';
     canPasskey = passkeySupported();
   });
 
@@ -93,7 +91,7 @@
   function goEmailCheck() {
     saveLoginEmail(email);
     const raw = $page.url.searchParams.get('next');
-    goToCheck('login-email', raw && raw.startsWith('/') ? raw : undefined);
+    goToCheck('login-email', raw && raw.startsWith('/') ? raw : undefined, addMode);
   }
 
   async function submitTotpCode() {
@@ -124,7 +122,7 @@
     submitting = true;
     error = null;
     try {
-      await loginWithPasskey();
+      await loginWithPasskey(addMode);
       window.location.assign(next);
     } catch (e) {
       // 認証器のダイアログを自分で閉じたときは、何も言わない。
@@ -174,30 +172,28 @@
       <button type="submit" class="btn px-6 py-2" disabled={submitting}>{$t('login.submit')}</button>
     </form>
   {:else}
-    {#if !addMode}
-      <div class="method-switch" role="tablist" aria-label={$t('login.methodLabel')}>
-        <button
-          type="button"
-          class="chip"
-          role="tab"
-          aria-selected={method === 'email'}
-          onclick={() => {
-            method = 'email';
-            error = null;
-          }}>{$t('login.methodEmail')}</button
-        >
-        <button
-          type="button"
-          class="chip"
-          role="tab"
-          aria-selected={method === 'password'}
-          onclick={() => {
-            method = 'password';
-            error = null;
-          }}>{$t('login.methodPassword')}</button
-        >
-      </div>
-    {/if}
+    <div class="method-switch" role="tablist" aria-label={$t('login.methodLabel')}>
+      <button
+        type="button"
+        class="chip"
+        role="tab"
+        aria-selected={method === 'email'}
+        onclick={() => {
+          method = 'email';
+          error = null;
+        }}>{$t('login.methodEmail')}</button
+      >
+      <button
+        type="button"
+        class="chip"
+        role="tab"
+        aria-selected={method === 'password'}
+        onclick={() => {
+          method = 'password';
+          error = null;
+        }}>{$t('login.methodPassword')}</button
+      >
+    </div>
 
     {#if method === 'password'}
       <form
@@ -254,7 +250,7 @@
       </form>
     {/if}
 
-    {#if canPasskey && !addMode}
+    {#if canPasskey}
       <p class="prose-small" style="margin-top: var(--space-4);">
         <button type="button" class="chip" disabled={submitting} onclick={() => void passkey()}
           >{$t('login.passkey')}</button

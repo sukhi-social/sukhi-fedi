@@ -646,15 +646,17 @@ export async function requestEmailLoginCode(email: string): Promise<void> {
   throw new Error(body?.error ?? `email_request_failed_${res.status}`);
 }
 
+// `add` は loginWithPassword 参照(マルチアカウントの「追加」入り口)。
 export async function loginWithEmailCode(
   email: string,
-  code: string
+  code: string,
+  add = false
 ): Promise<FirstFactorResult> {
   const res = await fetch('/login/email', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ email, code })
+    body: JSON.stringify({ email, code, ...(add ? { mode: 'add' } : {}) })
   });
   ensureJsonOrAnubis(res);
   if (!res.ok) {
@@ -666,8 +668,8 @@ export async function loginWithEmailCode(
 
 // パスキーでのログイン。options → ブラウザの認証器 → submit まで
 // 一息にやる。成功すれば cookie が立つ(2FA の二段目は無し ─
-// 認証器の本人確認がその役)。
-export async function loginWithPasskey(): Promise<void> {
+// 認証器の本人確認がその役)。`add` は loginWithPassword 参照。
+export async function loginWithPasskey(add = false): Promise<void> {
   const { getPasskeyAssertion } = await import('./webauthn');
 
   const optRes = await fetch('/login/passkey/options', {
@@ -685,7 +687,7 @@ export async function loginWithPasskey(): Promise<void> {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ ref, ...assertion })
+    body: JSON.stringify({ ref, ...assertion, ...(add ? { mode: 'add' } : {}) })
   });
   if (!res.ok) throw new Error('passkey');
 }
@@ -899,9 +901,17 @@ export async function executeCleanup(
 // "入る"、signup の「作る」、login のメールタブが短く揃う。
 // 'login-email' はメールコードでのログイン: コードの送信も入力も
 // /check の上(= PoW の内側)で行われる。
-export function goToCheck(intent: 'login' | 'signup' | 'login-email', next?: string): void {
+// `add` = マルチアカウントの「追加」入り口(メールの道)。/check は
+// これを ?mode=add として受け取り、その上の loginWithEmailCode/
+// submitTotp 呼び出しへ引き継ぐ。
+export function goToCheck(
+  intent: 'login' | 'signup' | 'login-email',
+  next?: string,
+  add?: boolean
+): void {
   const params = new URLSearchParams({ intent });
   if (next) params.set('next', next);
+  if (add) params.set('mode', 'add');
   window.location.assign(`/check?${params.toString()}`);
 }
 

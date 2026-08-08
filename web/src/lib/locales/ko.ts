@@ -323,7 +323,7 @@ export const ko: Dict = {
   'login.passkeyFailed': '패스키로는 들어가지 못했어요.',
   'login.rateLimited': '조금 쉬었다가 다시 해 주세요.',
   'login.addTitle': '다른 계정을 추가하기',
-  'login.addTagline': '지금 계정은 그대로 두고, 비밀번호로 하나 더 들어가요.',
+  'login.addTagline': '지금 계정은 그대로 두고, 다른 계정으로 하나 더 들어가요.',
 
   // ── 비밀번호 변경(password)──────────────────────────
   'password.title': '비밀번호 변경',
