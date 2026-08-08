@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
   import { completeLogin } from '$lib/auth';
   import { t } from '$lib/i18n';
 
@@ -24,7 +23,11 @@
 
     try {
       await completeLogin(code, state);
-      goto('/timeline');
+      // ソフトナビだと、api.ts の currentAccount() キャッシュ(モジュール
+      // 単位のメモ)がそのまま残って、切り替わったはずのプロフィール/
+      // タイムラインが前のアカウントのまま出る ── アカウントそのものが
+      // 変わったときは、フルリロードで作り直す。
+      window.location.assign('/timeline');
     } catch (e) {
       error = e instanceof Error ? e.message : 'unknown';
     }
