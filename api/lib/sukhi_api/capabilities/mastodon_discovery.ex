@@ -28,8 +28,7 @@ defmodule SukhiApi.Capabilities.MastodonDiscovery do
       {:get, "/api/v1/trends/statuses", &empty_list/1},
       {:get, "/api/v1/trends/links", &empty_list/1},
       {:get, "/api/v1/suggestions", &empty_list/1},
-      {:get, "/api/v2/suggestions", &empty_list/1},
-      {:get, "/api/v1/custom_emojis", &empty_list/1}
+      {:get, "/api/v2/suggestions", &empty_list/1}
     ]
   end
 

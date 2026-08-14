@@ -39,7 +39,7 @@ check:
 push-static:
 	cd web && npm run build
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(STATIC_DIR) && sudo chown $(DEPLOY_USER) $(STATIC_DIR)"
-	rsync -av --delete --exclude=styles web/build/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/
+	rsync -av --delete --exclude=styles --exclude=emojis web/build/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/
 	rsync -av --delete web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
 
 push-styles:
