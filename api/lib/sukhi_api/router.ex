@@ -181,7 +181,13 @@ defmodule SukhiApi.Router do
         end
 
       nil ->
-        {:error, :missing_token}
+        case req[:body] do
+          %{"i" => token} when is_binary(token) and token != "" ->
+            {:ok, String.trim(token)}
+
+          _ ->
+            {:error, :missing_token}
+        end
     end
   end
 

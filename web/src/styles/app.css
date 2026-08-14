@@ -904,7 +904,8 @@ button:disabled {
 
 /* 打っている途中の候補は、入力の**上**に出す。下は画面の縁で、
    出しても見えない。(flex の並びを一つだけ入れ替える。) */
-.composer.composer-dm .mention-list {
+.composer.composer-dm .mention-list,
+.composer.composer-dm .autocomplete-list {
   order: -1;
 }
 
@@ -1019,10 +1020,11 @@ button:disabled {
   min-height: calc(3lh + var(--space-4));
 }
 
-/* メンションの候補。浮かせない ── 浮き札で本文を覆ったのと同じ轍を
+/* メンション・絵文字補完の候補。浮かせない ── 浮き札で本文を覆ったのと同じ轍を
    踏まない。入力のすぐ下に、要るあいだだけ場所を取る。
    面の作法にならって枠だけ・影なし(nav-menu と同じ)。 */
-.mention-list {
+.mention-list,
+.autocomplete-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1030,13 +1032,17 @@ button:disabled {
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
 }
 
-.mention-list li + li {
+.mention-list li + li,
+.autocomplete-list li + li {
   border-top: 1px solid var(--color-border);
 }
 
-.mention-list button {
+.mention-list button,
+.autocomplete-list button {
   font: inherit;
   width: 100%;
   display: flex;
@@ -1051,8 +1057,42 @@ button:disabled {
 }
 
 .mention-list button.active,
-.mention-list button:hover {
+.mention-list button:hover,
+.autocomplete-list button.active,
+.autocomplete-list button:hover {
   background: var(--color-bg);
+}
+
+.custom-emoji-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.emoji-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 1.1rem;
+}
+
+.emoji-shortcode {
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-sm);
+}
+
+.autocomplete-badge {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
 }
 
 .mention-name {

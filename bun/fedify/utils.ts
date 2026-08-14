@@ -100,6 +100,43 @@ export function injectMisskey(activityJson: unknown, content: string): void {
   }
 }
 
+export interface EmojiDescriptor {
+  shortcode?: string;
+  name?: string;
+  url: string;
+}
+
+export function injectEmojis(
+  activityJson: unknown,
+  emojis: EmojiDescriptor[] | undefined,
+): void {
+  if (!emojis || emojis.length === 0) return;
+  if (
+    activityJson && typeof activityJson === "object" &&
+    "object" in activityJson
+  ) {
+    const obj = (activityJson as Record<string, unknown>).object;
+    if (obj && typeof obj === "object") {
+      const o = obj as Record<string, unknown>;
+      const tags = Array.isArray(o.tag) ? o.tag : o.tag ? [o.tag] : [];
+      for (const e of emojis) {
+        const rawName = e.name || e.shortcode;
+        if (!rawName || !e.url) continue;
+        const name = rawName.startsWith(":") ? rawName : `:${rawName}:`;
+        tags.push({
+          type: "Emoji",
+          name: name,
+          icon: {
+            type: "Image",
+            url: e.url,
+          },
+        });
+      }
+      o.tag = tags;
+    }
+  }
+}
+
 // Tag a Create(Note)'s inner object as a quote-note. We emit all three
 // shapes so the widest set of peers picks it up: Misskey's
 // `_misskey_quote`, the cross-fork `quoteUrl`, and the FEP-e232 `tag`

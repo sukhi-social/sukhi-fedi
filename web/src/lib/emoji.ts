@@ -31,7 +31,8 @@ export function renderEmojis(html: string, emojis?: Emoji[] | null): string {
   let out = html;
   if (byShortcode.size > 0) {
     out = out.replace(/:([^:\s]+):/g, (token, shortcode) => {
-      const url = byShortcode.get(shortcode);
+      const normalized = shortcode.endsWith('@.') ? shortcode.slice(0, -2) : shortcode;
+      const url = byShortcode.get(shortcode) || byShortcode.get(normalized);
       if (!url) return token;
       const src = escapeAttr(url);
       const alt = escapeAttr(token);

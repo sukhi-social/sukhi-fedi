@@ -39,7 +39,8 @@ defmodule SukhiApi.Capabilities.MastodonEmojis do
       url: e.image_url,
       static_url: e.static_url || e.image_url,
       visible_in_picker: e.visible_in_picker,
-      category: nil
+      category: e.category,
+      aliases: e.aliases || []
     }
   end
 

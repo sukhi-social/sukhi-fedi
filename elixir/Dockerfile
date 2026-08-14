@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Build context is the repo root so this Dockerfile can pull in both
@@ -23,7 +24,14 @@ WORKDIR /app
 # a bash shebang; Alpine ships only busybox sh, so without it the dep
 # fails with `env: can't execute 'bash'`. zstd builds with make here
 # (build-base) — cmake is optional and intentionally absent.
-RUN apk add --no-cache build-base git bash
+#
+# sccache wraps cc/g++ so ezstd's from-scratch zstd+NIF build (measured at
+# ~85s of a cold build, mostly C compilation) can be skipped on a cache hit
+# instead of rebuilt. Content-hashed, unlike caching _build/deps directly —
+# it can only ever serve back an identical result or miss, never something
+# stale, which is what bit us caching compiled Elixir output before.
+RUN apk add --no-cache build-base git bash sccache
+ENV CC="sccache gcc" CXX="sccache g++"
 
 # VERSION lives at the repo root and is read at compile time by
 # elixir/mix.exs and api/mix.exs. The gateway image only needs the
@@ -31,8 +39,31 @@ RUN apk add --no-cache build-base git bash
 COPY VERSION ../VERSION
 COPY elixir/mix.exs elixir/mix.lock ./
 RUN mix local.hex --force && mix local.rebar --force
+COPY elixir/rel/docker-deps-cache.exs ./docker-deps-cache.exs
 RUN MIX_ENV=prod mix deps.get --only prod
-RUN MIX_ENV=prod mix deps.compile
+
+# _build persists across builds via a cache mount so Mix's own incremental
+# compiler can skip deps whose locked version didn't change — most of a
+# ~150-dependency tree, on a typical lockfile bump. Restored/saved with
+# `cp -a` (not left inside the mount) so mtimes survive into a normal
+# layer for the later `mix release` step, which doesn't get the mount.
+# docker-deps-cache.exs does the actual staleness decision — see its
+# header for why a plain persisted _build isn't safe on its own.
+RUN --mount=type=cache,target=/sccache,id=sukhi-fedi-gateway-sccache,sharing=locked \
+    --mount=type=cache,target=/build-cache,id=sukhi-fedi-gateway-build,sharing=locked \
+    sh -c ' \
+      set -eu; \
+      rm -rf ./_build; \
+      # `cp -a src dst` nests (src into dst) rather than replacing when dst
+      # already exists — a prior step can leave a stray ./_build, so this
+      # rm keeps the restore exact.
+      [ -d /build-cache/_build ] && cp -a /build-cache/_build ./_build || true; \
+      elixir docker-deps-cache.exs; \
+      SCCACHE_DIR=/sccache MIX_ENV=prod mix deps.compile; \
+      sccache --show-stats; \
+      rm -rf /build-cache/_build; \
+      cp -a _build /build-cache/_build \
+    '
 
 COPY elixir/config config
 COPY elixir/lib lib

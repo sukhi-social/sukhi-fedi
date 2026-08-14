@@ -39,7 +39,7 @@ defmodule SukhiApi.Views.MastodonAccountTest do
       assert local.avatar == "/uploads/1/me.png"
 
       missing = MastodonAccount.render(account(%{domain: "remote.example"}))
-      assert String.starts_with?(missing.avatar, "data:image/png")
+      assert missing.avatar == "https://localhost:4000/static/avatar-default.svg"
     end
   end
 end

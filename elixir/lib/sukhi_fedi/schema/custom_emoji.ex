@@ -8,6 +8,8 @@ defmodule SukhiFedi.Schema.CustomEmoji do
     field :domain, :string
     field :image_url, :string
     field :static_url, :string
+    field :category, :string
+    field :aliases, {:array, :string}, default: []
     field :visible_in_picker, :boolean, default: true
     field :last_fetched_at, :utc_datetime
 
@@ -21,6 +23,8 @@ defmodule SukhiFedi.Schema.CustomEmoji do
       :domain,
       :image_url,
       :static_url,
+      :category,
+      :aliases,
       :visible_in_picker,
       :last_fetched_at
     ])

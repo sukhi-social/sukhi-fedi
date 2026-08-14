@@ -11,6 +11,8 @@ export type Emoji = {
   shortcode: string;
   url: string;
   static_url?: string;
+  category?: string | null;
+  aliases?: string[];
   visible_in_picker?: boolean;
 };
 
@@ -522,6 +524,10 @@ export const pinStatus = (id: string) => statusAction('POST', statusPath(id, 'pi
 export const unpinStatus = (id: string) => statusAction('POST', statusPath(id, 'unpin'));
 export const react = (id: string, emoji: string) => statusAction('PUT', reactPath(id, emoji));
 export const unreact = (id: string, emoji: string) => statusAction('DELETE', reactPath(id, emoji));
+
+export async function getCustomEmojis(): Promise<Emoji[]> {
+  return json(await req('GET', '/api/v1/custom_emojis', 'custom_emojis'));
+}
 
 export async function getBookmarks(
   opts: { maxId?: string | null; limit?: number } = {}

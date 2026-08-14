@@ -151,3 +151,23 @@ test("Create(Note) carries inReplyTo on the inner Note when replying", async () 
   const inner = (result.note as Record<string, unknown>)["object"] as Record<string, unknown>;
   expect(inner["inReplyTo"]).toBe(PARENT);
 });
+
+test("Create(Note) injects Emoji tags into tag array for custom emojis", async () => {
+  const result = await handleBuildNote({
+    ...await testCreds(ACTOR),
+    actor: ACTOR,
+    content: "hello :blobcat:",
+    recipientInboxes: [],
+    noteId: `${ACTOR}/notes/10`,
+    activityId: `${ACTOR}/activities/create/10`,
+    emojis: [
+      { shortcode: "blobcat", url: "https://watch.example/emojis/blobcat.png" },
+    ],
+  });
+  const inner = (result.note as Record<string, unknown>)["object"] as Record<string, unknown>;
+  const tags = (Array.isArray(inner["tag"]) ? inner["tag"] : [inner["tag"]]) as Record<string, unknown>[];
+  const emojiTag = tags.find((t) => t && t["type"] === "Emoji");
+  expect(emojiTag).toBeDefined();
+  expect(emojiTag!["name"]).toBe(":blobcat:");
+  expect((emojiTag!["icon"] as Record<string, unknown>)["url"]).toBe("https://watch.example/emojis/blobcat.png");
+});

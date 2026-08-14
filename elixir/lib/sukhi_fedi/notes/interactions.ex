@@ -195,14 +195,26 @@ defmodule SukhiFedi.Notes.Interactions do
   end
 
   @doc "Remove a custom emoji reaction. Idempotent. Emits `sns.outbox.reaction.undone` on actual delete."
-  @spec unreact(Account.t() | integer(), integer() | binary(), String.t()) ::
+  @spec unreact(Account.t() | integer(), integer() | binary(), String.t() | nil) ::
           {:ok, Note.t()} | {:error, :not_found | term()}
+  def unreact(account, note_id, emoji \\ nil)
   def unreact(%Account{id: aid}, note_id, emoji), do: unreact(aid, note_id, emoji)
 
-  def unreact(account_id, note_id, emoji)
-      when is_integer(account_id) and is_binary(emoji) do
+  def unreact(account_id, note_id, emoji) when is_integer(account_id) do
     with_loaded_note(note_id, fn note ->
-      case Repo.get_by(Reaction, account_id: account_id, note_id: note.id, emoji: emoji) do
+      reaction =
+        if is_binary(emoji) and emoji != "" do
+          Repo.get_by(Reaction, account_id: account_id, note_id: note.id, emoji: emoji) ||
+            Repo.get_by(Reaction, account_id: account_id, note_id: note.id)
+        else
+          from(r in Reaction,
+            where: r.account_id == ^account_id and r.note_id == ^note.id,
+            limit: 1
+          )
+          |> Repo.one()
+        end
+
+      case reaction do
         nil ->
           {:ok, note}
 

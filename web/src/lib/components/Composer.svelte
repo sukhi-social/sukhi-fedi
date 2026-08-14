@@ -20,11 +20,13 @@
   } from '$lib/compose-draft';
   import { goto } from '$app/navigation';
   import { t } from '$lib/i18n';
-  import { applyPick } from '$lib/mention';
-  import { createMentions } from '$lib/mention.svelte';
+  import { createAutocomplete, type AutocompleteItem } from '$lib/autocomplete.svelte';
+  import AutocompleteDropdown from './AutocompleteDropdown.svelte';
   import Avatar from './Avatar.svelte';
   import NavIcon from './NavIcon.svelte';
   import QuoteCard from './QuoteCard.svelte';
+  import ReactionPicker from './ReactionPicker.svelte';
+  import Twemoji from './Twemoji.svelte';
 
   let {
     replyTo = null,
@@ -129,28 +131,36 @@
   let posting = $state(false);
   let error = $state<string | null>(null);
   let fileInput: HTMLInputElement | undefined = $state();
+  let emojiPickerOpen = $state(false);
 
-  // ── メンションの補完 ─────────────────────────────────────────────
-  //
-  // 打っている途中の `@語` にだけ効く。**選ぶまで本文は変わらない** ──
-  // 勝手に確定させると、書いた覚えのない名前が文に入る。
-  let box: HTMLTextAreaElement | undefined = $state();
-  const mentions = createMentions();
-
-  function lookForMention() {
-    if (!box) return;
-    mentions.look(box.value, box.selectionStart ?? box.value.length);
+  function insertEmoji(emoji: string) {
+    emojiPickerOpen = false;
+    text = text ? `${text} ${emoji} ` : `${emoji} `;
+    box?.focus();
   }
 
-  function pickMention(a: Account) {
-    const f = mentions.fragment;
-    if (!f || !box) return;
-    const r = applyPick(text, f, a.acct);
-    text = r.text;
-    mentions.close();
-    // カーソルを置き直す。DOM が更新されてから。
-    queueMicrotask(() => box?.setSelectionRange(r.caret, r.caret));
-    box.focus();
+  // ── メンション・絵文字の自動補完 ─────────────────────────────────
+  //
+  // 打っている途中の `@語` または `:絵文字` に効く。**選ぶまで本文は変わらない** ──
+  // 勝手に確定させると、書いた覚えのない名前や絵文字が文に入る。
+  let box: HTMLTextAreaElement | undefined = $state();
+  const autocomplete = createAutocomplete();
+
+  function lookForAutocomplete() {
+    if (!box) return;
+    autocomplete.look(box.value, box.selectionStart ?? box.value.length);
+  }
+
+  function pickAutocomplete(item: AutocompleteItem) {
+    if (!box) return;
+    const r = autocomplete.pick(text, autocomplete.items.indexOf(item));
+    if (r) {
+      text = r.text;
+      autocomplete.close();
+      // カーソルを置き直す。DOM が更新されてから。
+      queueMicrotask(() => box?.setSelectionRange(r.caret, r.caret));
+      box.focus();
+    }
   }
 
   // 候補が開いているあいだだけ、上下と Enter を借りる。開いていなければ
@@ -166,9 +176,11 @@
   const sendsOnEnter = () =>
     typeof window === 'undefined' || !window.matchMedia('(pointer: coarse)').matches;
 
-  function onMentionKey(e: KeyboardEvent) {
-    if (!mentions.open) {
-      if (dm && sendsOnEnter() && e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+  function onComposerKey(e: KeyboardEvent) {
+    if (e.isComposing) return;
+
+    if (!autocomplete.open) {
+      if (dm && sendsOnEnter() && e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (canPost) void submit();
       }
@@ -176,19 +188,19 @@
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      mentions.move(1);
+      autocomplete.move(1);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      mentions.move(-1);
+      autocomplete.move(-1);
     } else if (e.key === 'Enter' || e.key === 'Tab') {
-      const a = mentions.items[mentions.active];
-      if (a) {
+      const item = autocomplete.items[autocomplete.active];
+      if (item) {
         e.preventDefault();
-        pickMention(a);
+        pickAutocomplete(item);
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      mentions.close();
+      autocomplete.close();
     }
   }
 
@@ -419,10 +431,10 @@
       bind:value={text}
       rows={dm ? 1 : 3}
       placeholder={replyTo ? $t('compose.placeholderReply') : $t('compose.placeholderNew')}
-      onkeydown={onMentionKey}
-      oninput={lookForMention}
-      onclick={lookForMention}
-      onblur={() => setTimeout(() => mentions.close(), 120)}
+      onkeydown={onComposerKey}
+      oninput={lookForAutocomplete}
+      onclick={lookForAutocomplete}
+      onblur={() => setTimeout(() => autocomplete.close(), 120)}
     ></textarea>
   {/snippet}
 
@@ -465,27 +477,14 @@
     </label>
   {/if}
 
-  <!-- 打っている途中の @語 の候補。開いていないときは、何も無い。
+  <!-- 打っている途中の @語 や :絵文字 の候補。開いていないときは、何も無い。
        選ぶまで本文は変わらない ── 勝手に確定させない。 -->
-  {#if mentions.open}
-    <ul class="mention-list">
-      {#each mentions.items as a, i (a.id)}
-        <li>
-          <button
-            type="button"
-            class:active={i === mentions.active}
-            onmousedown={(e) => {
-              e.preventDefault();
-              pickMention(a);
-            }}
-          >
-            <Avatar class="avatar avatar-sm" src={a.avatar} name={a.display_name || a.username} />
-            <span class="mention-name">{a.display_name || a.username}</span>
-            <span class="mention-acct">@{a.acct}</span>
-          </button>
-        </li>
-      {/each}
-    </ul>
+  {#if autocomplete.open}
+    <AutocompleteDropdown
+      items={autocomplete.items}
+      active={autocomplete.active}
+      onpick={pickAutocomplete}
+    />
   {/if}
 
   {#if useSchedule}
@@ -554,6 +553,22 @@
         />
       </label>
 
+      <div class="picker-container">
+        <button
+          type="button"
+          class="chip"
+          onclick={() => (emojiPickerOpen = !emojiPickerOpen)}
+          aria-haspopup="dialog"
+        >
+          <Twemoji emoji="😃" /> {$t('reaction.pick')}
+        </button>
+        {#if emojiPickerOpen}
+          <div class="composer-picker-anchor">
+            <ReactionPicker onpick={insertEmoji} onclose={() => (emojiPickerOpen = false)} />
+          </div>
+        {/if}
+      </div>
+
       <label class="stack-tight">
         <span class="visually-hidden">{$t('compose.visLabel')}</span>
         <select bind:value={visibility}>
@@ -573,3 +588,18 @@
     <p class="error">{error}</p>
   {/if}
 </form>
+
+<style>
+  .picker-container {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .composer-picker-anchor {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: 0.25rem;
+    z-index: 50;
+  }
+</style>

@@ -25,6 +25,8 @@ defmodule SukhiFedi.Notes.Create do
   "DB commit = event durable" semantics.
   """
   def create_note(attrs) do
+    attrs = maybe_extract_emojis(attrs)
+
     Multi.new()
     |> Multi.insert(:note, Note.changeset(%Note{}, attrs))
     |> stamp_local_ap_id()
@@ -38,7 +40,8 @@ defmodule SukhiFedi.Notes.Create do
           note_id: note.id,
           account_id: note.account_id,
           visibility: note.visibility,
-          content: Note.html(note)
+          content: Note.html(note),
+          emojis: note.emojis || []
         }
       end
     )
@@ -92,6 +95,7 @@ defmodule SukhiFedi.Notes.Create do
         }
         |> resolve_in_reply_to(params)
         |> resolve_quote(params)
+        |> maybe_extract_emojis()
 
       media_ids = list_media_ids(params)
       media = attachment_descriptors(media_ids, account_id)
@@ -123,7 +127,8 @@ defmodule SukhiFedi.Notes.Create do
             sensitive: n.sensitive,
             media: media,
             quote_of_ap_id: n.quote_of_ap_id,
-            in_reply_to_ap_id: n.in_reply_to_ap_id
+            in_reply_to_ap_id: n.in_reply_to_ap_id,
+            emojis: n.emojis || []
           }
         end
       )
@@ -259,6 +264,7 @@ defmodule SukhiFedi.Notes.Create do
           visibility: "direct"
         }
         |> resolve_in_reply_to(params)
+        |> maybe_extract_emojis()
 
       inherited_cid = reply_parent_conversation(params)
       media_ids = list_media_ids(params)
@@ -846,6 +852,24 @@ defmodule SukhiFedi.Notes.Create do
         %{note_id: note.id, ap_id: ap_id, account_id: note.account_id}
       end
     )
+  end
+
+  defp maybe_extract_emojis(attrs) do
+    case attrs[:emojis] || attrs["emojis"] do
+      list when is_list(list) and list != [] ->
+        attrs
+
+      _ ->
+        content = attrs[:content] || attrs["content"] || ""
+        cw = attrs[:cw] || attrs["cw"] || ""
+        title = attrs[:title] || attrs["title"] || ""
+        text = "#{title} #{cw} #{content}"
+
+        case SukhiFedi.CustomEmojis.extract_from_text(text) do
+          [] -> attrs
+          emojis -> Map.put(attrs, :emojis, emojis)
+        end
+    end
   end
 
   defp normalize_visibility(v) when v in ["public", "unlisted", "followers", "direct"], do: v

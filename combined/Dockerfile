@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Combined image: gateway + delivery in one BEAM, for small single-box
@@ -21,8 +22,12 @@ FROM elixir:1.20-alpine AS build
 
 WORKDIR /repo
 
-# bash: ezstd's build_deps.sh needs it (see elixir/Dockerfile).
-RUN apk add --no-cache build-base git bash
+# bash: ezstd's build_deps.sh needs it (see elixir/Dockerfile). sccache
+# wraps cc/g++ so ezstd's from-scratch zstd+NIF build doesn't get rebuilt
+# on a cache hit — measured ~75s saved on the gateway image; see
+# elixir/Dockerfile's comment for why this is content-hashed and safe.
+RUN apk add --no-cache build-base git bash sccache
+ENV CC="sccache gcc" CXX="sccache g++"
 
 COPY VERSION ./VERSION
 COPY elixir/mix.exs elixir/mix.lock elixir/
@@ -30,9 +35,29 @@ COPY delivery/mix.exs delivery/mix.lock delivery/
 COPY combined/mix.exs combined/
 
 RUN mix local.hex --force && mix local.rebar --force
+COPY elixir/rel/docker-deps-cache.exs /repo/docker-deps-cache.exs
 WORKDIR /repo/combined
 RUN MIX_ENV=prod mix deps.get --only prod
-RUN MIX_ENV=prod mix deps.compile
+
+# See elixir/Dockerfile's comment on the matching step for why this is
+# safe: docker-deps-cache.exs decides staleness from mix.lock's own
+# content hash, never from mtime ordering alone.
+RUN --mount=type=cache,target=/sccache,id=sukhi-fedi-combined-sccache,sharing=locked \
+    --mount=type=cache,target=/build-cache,id=sukhi-fedi-combined-build,sharing=locked \
+    sh -c ' \
+      set -eu; \
+      rm -rf ./_build; \
+      # combined has path-deps on ../elixir and ../delivery, so `mix
+      # deps.get` already leaves a partial ./_build scaffold behind —
+      # without this rm, `cp -a` nests (src into an existing dst)
+      # instead of replacing, and the restore silently does nothing.
+      [ -d /build-cache/_build ] && cp -a /build-cache/_build ./_build || true; \
+      elixir /repo/docker-deps-cache.exs; \
+      SCCACHE_DIR=/sccache MIX_ENV=prod mix deps.compile; \
+      sccache --show-stats; \
+      rm -rf /build-cache/_build; \
+      cp -a _build /build-cache/_build \
+    '
 
 WORKDIR /repo
 COPY elixir/config elixir/config

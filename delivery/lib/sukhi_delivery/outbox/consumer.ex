@@ -139,6 +139,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
           |> maybe_put_attachments(p["media"])
           |> maybe_put_cw(p["cw"])
           |> maybe_put_sensitive(p["sensitive"])
+          |> maybe_put_emojis(p["emojis"])
 
         translate_and_fanout("note", translator_payload, actor_uri, activity_id, recipients,
           extract_note: true
@@ -420,10 +421,10 @@ defmodule SukhiDelivery.Outbox.Consumer do
   # Local custom emoji only — domain IS NULL row in `custom_emojis`.
   # Unicode reactions and remote shortcodes leave tag absent.
   defp maybe_attach_emoji_tag(payload, emoji) when is_binary(emoji) do
-    with [_, shortcode] <- Regex.run(~r/^:([^:@]+):$/, emoji),
+    with [_, shortcode] <- Regex.run(~r/^:([^:@]+)(?:@\.)?:$/, emoji),
          %SukhiDelivery.Schema.CustomEmoji{image_url: url, static_url: static_url} <-
            Repo.get_by(SukhiDelivery.Schema.CustomEmoji, shortcode: shortcode, domain: nil) do
-      Map.put(payload, :tag, %{name: emoji, url: url, static_url: static_url})
+      Map.put(payload, :tag, %{name: ":#{shortcode}:", url: url, static_url: static_url})
     else
       _ -> payload
     end
@@ -934,4 +935,10 @@ defmodule SukhiDelivery.Outbox.Consumer do
   end
 
   defp maybe_put_attachments(payload, _), do: payload
+
+  defp maybe_put_emojis(payload, emojis) when is_list(emojis) and emojis != [] do
+    Map.put(payload, :emojis, emojis)
+  end
+
+  defp maybe_put_emojis(payload, _), do: payload
 end
