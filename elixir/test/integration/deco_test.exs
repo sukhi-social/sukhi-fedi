@@ -14,12 +14,26 @@ defmodule SukhiFedi.Integration.DecoTest do
 
   alias SukhiFedi.Addons.Deco
   alias SukhiFedi.LocalAccounts
+  alias SukhiFedi.Schema.Account
 
   setup do
     n = System.unique_integer([:positive])
     {:ok, author} = LocalAccounts.create_admin("deco_#{n}", "long-enough-pass")
+    # 新規アカウントの投稿ペース制限(下の describe で別に確かめる)に、
+    # この author を使う他のテストが巻き込まれないように、古参として
+    # 作る ── ここでのテストの主題は「板の仕組み」であって「新規制限」
+    # ではないので。
+    author = age_account(author)
     {:ok, deco} = Deco.create_deco(author, %{"slug" => "shiro#{n}", "name" => "しろい板"})
     %{author: author, deco: deco}
+  end
+
+  defp age_account(%Account{} = account) do
+    old = DateTime.add(DateTime.utc_now(), -48, :hour) |> DateTime.truncate(:second)
+
+    account
+    |> Ecto.Changeset.change(created_at: old)
+    |> SukhiFedi.Repo.update!()
   end
 
   describe "板" do
@@ -97,6 +111,53 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert child.deco_id == parent.deco_id
     end
 
+    test "動きのあった投稿が上に来る ── 古くても、レスが付けば", %{author: author, deco: deco} do
+      {:ok, older} = Deco.post(author, deco.slug, %{"title" => "ふるい話", "status" => "…"})
+      {:ok, newer} = Deco.post(author, deco.slug, %{"title" => "あたらしい話", "status" => "…"})
+
+      # このままなら、あたらしい話が先(投稿順)。
+      assert {:ok, [first, _second]} = Deco.list_posts(deco.slug)
+      assert first.id == newer.id
+
+      # ふるい話にレスが付くと、順位が入れ替わる。
+      # (created_at は秒精度なので、同じ秒だと同点になってしまう ──
+      # 秒境界をまたいでから確かめる)
+      Process.sleep(1100)
+      {:ok, _} = Deco.reply(author, older.id, %{"status" => "うんうん"})
+
+      assert {:ok, [first, second]} = Deco.list_posts(deco.slug)
+      assert first.id == older.id
+      assert second.id == newer.id
+      assert DateTime.compare(first.last_activity_at, first.created_at) == :gt
+    end
+
+    test "「もっと読む」は、動きの順のまま続きを取れる", %{author: author, deco: deco} do
+      {:ok, a} = Deco.post(author, deco.slug, %{"title" => "いち", "status" => "…"})
+      {:ok, b} = Deco.post(author, deco.slug, %{"title" => "に", "status" => "…"})
+      {:ok, c} = Deco.post(author, deco.slug, %{"title" => "さん", "status" => "…"})
+
+      assert {:ok, [first]} = Deco.list_posts(deco.slug, limit: 1)
+      assert first.id == c.id
+
+      assert {:ok, [second]} =
+               Deco.list_posts(deco.slug,
+                 limit: 1,
+                 before_activity_at: first.last_activity_at,
+                 before_id: first.id
+               )
+
+      assert second.id == b.id
+
+      assert {:ok, [third]} =
+               Deco.list_posts(deco.slug,
+                 limit: 1,
+                 before_activity_at: second.last_activity_at,
+                 before_id: second.id
+               )
+
+      assert third.id == a.id
+    end
+
     test "無い板には書けない", %{author: author} do
       assert {:error, :not_found} = Deco.post(author, "nowhere", %{"status" => "だれか"})
     end
@@ -145,6 +206,24 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert {:ok, opened} = Deco.get_post(parent.id)
       assert [%{author: %{acct: acct}}] = opened.replies
       assert acct == author.username
+    end
+  end
+
+  describe "できたばかりのアカウントの、投稿ペース" do
+    test "束にしては書けない ── 古参なら制限されない", %{author: author, deco: deco} do
+      n = System.unique_integer([:positive])
+      {:ok, fresh} = LocalAccounts.create_admin("fresh_#{n}", "long-enough-pass")
+
+      assert {:ok, first} = Deco.post(fresh, deco.slug, %{"title" => "いっかいめ", "status" => "…"})
+
+      assert {:error, :rate_limited} =
+               Deco.post(fresh, deco.slug, %{"title" => "にかいめ", "status" => "…"})
+
+      # レスにも同じ制限が掛かる(write/3 を通るのは同じなので)。
+      assert {:error, :rate_limited} = Deco.reply(fresh, first.id, %{"status" => "うんうん"})
+
+      # 主語は「書く人」。古参(setup の author)は、この間も普通に書ける。
+      assert {:ok, _} = Deco.post(author, deco.slug, %{"title" => "だいじょうぶ", "status" => "…"})
     end
   end
 end

@@ -155,6 +155,23 @@ defmodule SukhiApi.Capabilities.DecoTest do
       assert resp.status == 200
     end
 
+    test "before_activity_at は日時として渡る（動きのあった順の続き）" do
+      stub([
+        {{:list_posts, ["hinata", [before_activity_at: ~U[2026-08-20 12:00:00Z], before_id: 99]]},
+         {:ok, []}}
+      ])
+
+      {:ok, resp} =
+        get("/api/v1/deco/hinata/posts?before_id=99&before_activity_at=2026-08-20T12:00:00Z")
+
+      assert resp.status == 200
+
+      # 壊れた日時は落とす
+      stub([{{:list_posts, ["hinata", [before_id: 99]]}, {:ok, []}}])
+      {:ok, resp} = get("/api/v1/deco/hinata/posts?before_id=99&before_activity_at=not-a-date")
+      assert resp.status == 200
+    end
+
     # ここが取り違えやすいところ。`posts` を板の名前と読んでしまうと、
     # 一件を開く道が板の道に吸われる。
     test "/deco/posts/:id は、slug が posts の板とは読まれない" do

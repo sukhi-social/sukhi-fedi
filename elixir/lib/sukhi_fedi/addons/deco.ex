@@ -106,62 +106,143 @@ defmodule SukhiFedi.Addons.Deco do
     end
   end
 
+  # 開設(INVITE_REQUIRED=false)は誰でも今すぐ入れる分、できたばかりの
+  # アカウントが束にして書き込む道は塞いでおきたい。古参にはこの制限は
+  # 掛からない ── 内部の目安であって、外に見せるバッジやランクにはしない。
+  @new_account_window_h 24
+  @new_account_min_gap_s 20
+
   defp write(account_id, deco_id, params) when is_integer(account_id) do
     params = stringify(params)
 
-    # note を先に作り、そのあと板に結ぶ。note づくりは Notes 側の
-    # トランザクション（outbox 込み）なので、こちらでは包めない。
-    # 結びに失敗したら note は消す ── どこにも属さない投稿を残さない。
-    case Notes.create_status(account_id, Map.put(params, "visibility", "public")) do
-      {:ok, note} ->
-        %DecoNote{}
-        |> DecoNote.changeset(%{deco_id: deco_id, note_id: note.id})
-        |> Repo.insert()
-        |> case do
-          {:ok, dn} ->
-            # `create_status/2` は `:account` を preload して返すので、
-            # 書いた人をもう一度引きに行かなくていい。
-            {:ok, post_view(note, dn, note.account)}
+    with :ok <- check_pace(account_id) do
+      # note を先に作り、そのあと板に結ぶ。note づくりは Notes 側の
+      # トランザクション（outbox 込み）なので、こちらでは包めない。
+      # 結びに失敗したら note は消す ── どこにも属さない投稿を残さない。
+      case Notes.create_status(account_id, Map.put(params, "visibility", "public")) do
+        {:ok, note} ->
+          %DecoNote{}
+          |> DecoNote.changeset(%{deco_id: deco_id, note_id: note.id})
+          |> Repo.insert()
+          |> case do
+            {:ok, dn} ->
+              # `create_status/2` は `:account` を preload して返すので、
+              # 書いた人をもう一度引きに行かなくていい。
+              {:ok, post_view(note, dn, note.account)}
 
-          {:error, cs} ->
-            Notes.delete_note(account_id, note.id)
-            {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
-        end
+            {:error, cs} ->
+              Notes.delete_note(account_id, note.id)
+              {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+          end
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
+  end
+
+  defp check_pace(account_id) do
+    with %Account{created_at: created_at} <- Repo.get(Account, account_id),
+         true <- new_account?(created_at),
+         %DateTime{} = last <- last_post_at(account_id),
+         true <- DateTime.diff(DateTime.utc_now(), last) < @new_account_min_gap_s do
+      {:error, :rate_limited}
+    else
+      _ -> :ok
+    end
+  end
+
+  defp new_account?(%DateTime{} = created_at) do
+    DateTime.diff(DateTime.utc_now(), created_at, :hour) < @new_account_window_h
+  end
+
+  defp last_post_at(account_id) do
+    Repo.one(
+      from(dn in DecoNote,
+        join: n in Note,
+        on: n.id == dn.note_id,
+        where: n.account_id == ^account_id,
+        order_by: [desc: n.id],
+        limit: 1,
+        select: n.created_at
+      )
+    )
   end
 
   # ── 読む ─────────────────────────────────────────────────────────────
 
   @doc """
-  板の投稿（レスではない親だけ）を新しい順に。`before_id` があれば、
-  それより古いところから ── 「もっと読む」の道。
+  板の投稿（レスではない親だけ）を、動きのあった順に ── 新しいレスが
+  付いた投稿が上に来る（レスの無い投稿は自分の投稿時刻のまま）。板の
+  一覧が「名前順で競わせない」のとは別の話で、板の中では「いま話が
+  動いているもの」が見えたほうがいい。
+
+  `before_activity_at` + `before_id` の対で、そこより後ろから続きを
+  取る ──「もっと読む」の道。片方だけでは並びが動く途中でずれる
+  （新しいレスで順位が変わるので、note_id だけのカーソルは使えない）。
   """
   @spec list_posts(String.t(), keyword()) :: {:ok, [map()]} | {:error, :not_found}
   def list_posts(slug, opts \\ []) do
     with {:ok, %{id: deco_id}} <- get_deco(slug) do
       limit = opts |> Keyword.get(:limit, 30) |> min(60) |> max(1)
+      before_activity_at = opts[:before_activity_at]
       before_id = opts[:before_id]
 
+      last_reply_at =
+        from(r in Note,
+          where: not is_nil(r.in_reply_to_ap_id),
+          group_by: r.in_reply_to_ap_id,
+          select: %{parent_ap_id: r.in_reply_to_ap_id, at: max(r.created_at)}
+        )
+
+      # 一段のクエリのまま(select と order_by/where で coalesce(...) を
+      # 繰り返す)。%{note: n, ...} を subquery の select に置くと、
+      # Ecto は構造体を subquery の map 値として許さない ── いったん
+      # 別の subquery に包んでからだと弾かれる。
       q =
         from(dn in DecoNote,
           join: n in Note,
           on: n.id == dn.note_id,
           join: a in Account,
           on: a.id == n.account_id,
+          left_join: la in subquery(last_reply_at),
+          on: la.parent_ap_id == n.ap_id,
           where: dn.deco_id == ^deco_id and is_nil(n.in_reply_to_ap_id),
-          order_by: [desc: dn.note_id],
+          order_by: [desc: coalesce(la.at, n.created_at), desc: n.id],
           limit: ^limit,
-          select: {n, dn, a}
+          select: {n, dn, a, coalesce(la.at, n.created_at)}
         )
 
-      q = if before_id, do: where(q, [dn], dn.note_id < ^to_int(before_id)), else: q
+      q =
+        if before_activity_at && before_id do
+          where(
+            q,
+            [dn, n, a, la],
+            fragment(
+              "(?, ?) < (?, ?)",
+              coalesce(la.at, n.created_at),
+              n.id,
+              ^before_activity_at,
+              ^to_int(before_id)
+            )
+          )
+        else
+          q
+        end
 
-      {:ok, Repo.all(q) |> Enum.map(fn {n, dn, a} -> post_view(n, dn, a) end)}
+      {:ok,
+       Repo.all(q)
+       |> Enum.map(fn {n, dn, a, at} ->
+         Map.put(post_view(n, dn, a), :last_activity_at, to_utc(at))
+       end)}
     end
   end
+
+  # `coalesce(la.at, n.created_at)` の型が subquery を跨ぐと Ecto に
+  # :utc_datetime として伝わらず、NaiveDateTime で返ってくることがある
+  # ── notes.created_at は常に UTC で入っているので、その前提で戻す。
+  defp to_utc(%NaiveDateTime{} = t), do: DateTime.from_naive!(t, "Etc/UTC")
+  defp to_utc(%DateTime{} = t), do: t
 
   @doc "一件と、そのレス（古い順 ── 掲示板は上から下へ読むので）。"
   @spec get_post(integer() | String.t()) :: {:ok, map()} | {:error, :not_found}

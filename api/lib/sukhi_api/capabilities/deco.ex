@@ -62,6 +62,7 @@ defmodule SukhiApi.Capabilities.Deco do
       []
       |> put_int(:limit, q["limit"])
       |> put_int(:before_id, q["before_id"])
+      |> put_datetime(:before_activity_at, q["before_activity_at"])
 
     call(:list_posts, [req[:path_params]["slug"], opts], &ok(200, &1))
   end
@@ -114,6 +115,16 @@ defmodule SukhiApi.Capabilities.Deco do
   defp put_int(opts, key, raw) do
     case Integer.parse(to_string(raw)) do
       {n, _} when n > 0 -> Keyword.put(opts, key, n)
+      _ -> opts
+    end
+  end
+
+  defp put_datetime(opts, _key, nil), do: opts
+  defp put_datetime(opts, _key, ""), do: opts
+
+  defp put_datetime(opts, key, raw) do
+    case DateTime.from_iso8601(to_string(raw)) do
+      {:ok, dt, _offset} -> Keyword.put(opts, key, dt)
       _ -> opts
     end
   end
