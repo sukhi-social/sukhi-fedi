@@ -502,6 +502,18 @@ defmodule SukhiFedi.Web.Router do
     serve_static(conn, ["service-worker.js"])
   end
 
+  # natadeco の板の直リンク / リロード。web-natadeco の SPA も同じ shell
+  # (priv/static/index.html) を返すやり方で、JS が URL を読んで描く。
+  # `/:slug` はここまでの一段路の中で最後 ── favicon 等の具体的な
+  # 一段路より後ろに置かないと、それらを飲み込んでしまう。
+  get "/posts/:id" do
+    serve_spa(conn)
+  end
+
+  get "/:slug" do
+    serve_spa(conn)
+  end
+
   get "/api/nodeinfo" do
     if nodeinfo_monitor_enabled?(),
       do: ViewerController.nodeinfo_lookup(conn, []),
