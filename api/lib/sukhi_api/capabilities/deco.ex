@@ -4,7 +4,7 @@ defmodule SukhiApi.Capabilities.Deco do
   natadeco の掲示板。板一枚が「デコ」。
 
       GET  /api/v1/deco                    板の一覧（誰でも）
-      POST /api/v1/deco                    板を立てる            write:statuses
+      POST /api/v1/deco                    板を立てる            write:statuses + admin
       GET  /api/v1/deco/:slug              板一枚
       GET  /api/v1/deco/:slug/posts        その板の投稿（親だけ）
       POST /api/v1/deco/:slug/posts        書く                  write:statuses
@@ -21,7 +21,7 @@ defmodule SukhiApi.Capabilities.Deco do
 
   use SukhiApi.Capability, addon: :deco
 
-  alias SukhiApi.GatewayRpc
+  alias SukhiApi.{AdminAuth, GatewayRpc}
 
   @gateway SukhiFedi.Addons.Deco
 
@@ -44,12 +44,14 @@ defmodule SukhiApi.Capabilities.Deco do
     call(:get_deco, [req[:path_params]["slug"]], &ok(200, &1))
   end
 
+  # 板を立てるのは admin だけ ── natadeco が小さいうちは、板の数を
+  # 誰かが見て決める場所にしておく。読む・書くは誰でも、のまま。
   def create_deco(req) do
-    with %{} = viewer <- viewer(req) do
+    with {:ok, admin} <- AdminAuth.require_admin(req) do
       body = decode_body(req)
-      call(:create_deco, [viewer, take(body, ["slug", "name", "description"])], &ok(201, &1))
+      call(:create_deco, [admin, take(body, ["slug", "name", "description"])], &ok(201, &1))
     else
-      _ -> ok(403, %{error: "this endpoint requires a user-bound token"})
+      {:error, :forbidden} -> ok(403, %{error: "admin_required"})
     end
   end
 

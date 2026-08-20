@@ -510,6 +510,12 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  # 投稿ページ。`new` は deco の slug として予約済み(SukhiFedi.Schema.Deco
+  # の @reserved)なので、どの板の名前とも衝突しない。
+  get "/:slug/new" do
+    serve_spa(conn)
+  end
+
   get "/:slug" do
     serve_spa(conn)
   end

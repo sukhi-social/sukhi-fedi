@@ -38,7 +38,8 @@ defmodule SukhiApi.Capabilities.DecoTest do
     def call(_, _, _, _), do: {:error, :not_connected}
   end
 
-  @viewer %{id: 7, username: "alice", display_name: "A", summary: ""}
+  @viewer %{id: 7, username: "alice", display_name: "A", summary: "", is_admin: false}
+  @admin %{id: 9, username: "shiro", display_name: "shiro", summary: "", is_admin: true}
 
   @deco %{id: 1, slug: "hinata", name: "ひなた板", description: nil, post_count: 2}
   @post %{
@@ -180,18 +181,34 @@ defmodule SukhiApi.Capabilities.DecoTest do
       assert resp.status == 201
     end
 
-    test "板を立てる" do
+    test "板を立てるのは admin だけ" do
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        verify_bearer:
+          {:ok, %{account: @admin, app: %{id: 1, name: "x"}, scopes: ["write:statuses"]}}
+      })
+
       stub([
-        {{:create_deco, [@viewer, %{"slug" => "hinata", "name" => "ひなた板"}]}, {:ok, @deco}}
+        {{:create_deco, [@admin, %{"slug" => "hinata", "name" => "ひなた板"}]}, {:ok, @deco}}
       ])
 
       {:ok, resp} = post("/api/v1/deco", %{slug: "hinata", name: "ひなた板"})
       assert resp.status == 201
     end
 
+    test "admin でなければ 403(トークンは有効でも)" do
+      {:ok, resp} = post("/api/v1/deco", %{slug: "hinata", name: "ひなた板"})
+      assert resp.status == 403
+      assert %{"error" => "admin_required"} = JSON.decode!(resp.body)
+    end
+
     test "名前が使えなければ 422（どこが駄目かも返す）" do
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        verify_bearer:
+          {:ok, %{account: @admin, app: %{id: 1, name: "x"}, scopes: ["write:statuses"]}}
+      })
+
       stub([
-        {{:create_deco, [@viewer, %{"slug" => "posts", "name" => "板"}]},
+        {{:create_deco, [@admin, %{"slug" => "posts", "name" => "板"}]},
          {:error, {:validation, %{slug: ["は予約されています"]}}}}
       ])
 
