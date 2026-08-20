@@ -1,0 +1,142 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+defmodule SukhiFedi.Integration.DecoTest do
+  @moduledoc """
+  natadeco の板（デコ）。器と、呼び名。
+
+      podman compose -f docker-compose.test.yml up -d postgres nats nats-bootstrap
+      MIX_ENV=test mix sukhi.migrate
+      mix test --only integration test/integration/deco_test.exs
+  """
+
+  use SukhiFedi.IntegrationCase, async: false
+
+  @moduletag :integration
+
+  alias SukhiFedi.Addons.Deco
+  alias SukhiFedi.LocalAccounts
+
+  setup do
+    n = System.unique_integer([:positive])
+    {:ok, author} = LocalAccounts.create_admin("deco_#{n}", "long-enough-pass")
+    {:ok, deco} = Deco.create_deco(author, %{"slug" => "shiro#{n}", "name" => "しろい板"})
+    %{author: author, deco: deco}
+  end
+
+  describe "板" do
+    test "名前で作って、slug で引ける", %{deco: deco} do
+      assert {:ok, found} = Deco.get_deco(deco.slug)
+      assert found.name == "しろい板"
+      assert found.post_count == 0
+    end
+
+    test "同じ slug は二枚作れない", %{author: author, deco: deco} do
+      assert {:error, {:validation, %{slug: _}}} =
+               Deco.create_deco(author, %{"slug" => deco.slug, "name" => "べつの板"})
+    end
+
+    test "slug の形が変なら断る", %{author: author} do
+      assert {:error, {:validation, %{slug: _}}} =
+               Deco.create_deco(author, %{"slug" => "ダメ な スラグ", "name" => "板"})
+    end
+
+    test "API の道とぶつかる名前は断る", %{author: author} do
+      assert {:error, {:validation, %{slug: _}}} =
+               Deco.create_deco(author, %{"slug" => "posts", "name" => "板"})
+    end
+
+    test "一覧は名前順 ── 数の多い順ではなく", %{author: author} do
+      n = System.unique_integer([:positive])
+      {:ok, _} = Deco.create_deco(author, %{"slug" => "zz#{n}", "name" => "あいうえお#{n}"})
+      {:ok, _} = Deco.create_deco(author, %{"slug" => "aa#{n}", "name" => "んんんん#{n}"})
+
+      names = Deco.list_decos() |> Enum.map(& &1.name)
+      assert names == Enum.sort(names)
+    end
+  end
+
+  describe "書く・読む" do
+    test "題つきで一件書ける", %{author: author, deco: deco} do
+      assert {:ok, post} =
+               Deco.post(author, deco.slug, %{"title" => "はじめまして", "status" => "こんにちは"})
+
+      assert post.title == "はじめまして"
+      assert post.content_html =~ "こんにちは"
+      assert post.reply_count == 0
+
+      assert {:ok, [listed]} = Deco.list_posts(deco.slug)
+      assert listed.id == post.id
+    end
+
+    test "題は無くてもいい ── 無題の投稿もあるので", %{author: author, deco: deco} do
+      assert {:ok, post} = Deco.post(author, deco.slug, %{"status" => "ぽつり"})
+      assert is_nil(post.title)
+    end
+
+    test "レスは親にぶら下がり、一覧には出てこない", %{author: author, deco: deco} do
+      {:ok, parent} = Deco.post(author, deco.slug, %{"title" => "おはなし", "status" => "本文"})
+      {:ok, child} = Deco.reply(author, parent.id, %{"status" => "うんうん"})
+
+      # 板の一覧に出るのは親だけ（レスで板が埋まらないように）
+      assert {:ok, [listed]} = Deco.list_posts(deco.slug)
+      assert listed.id == parent.id
+      assert listed.reply_count == 1
+
+      # レスは、親を開いたときに、古い順に並ぶ
+      assert {:ok, opened} = Deco.get_post(parent.id)
+      assert Enum.map(opened.replies, & &1.id) == [child.id]
+
+      # レスも同じ板のもの
+      assert child.deco_id == parent.deco_id
+    end
+
+    test "無い板には書けない", %{author: author} do
+      assert {:error, :not_found} = Deco.post(author, "nowhere", %{"status" => "だれか"})
+    end
+
+    test "板の投稿でないものには、ぶら下げられない", %{author: author} do
+      {:ok, plain} = SukhiFedi.Notes.create_status(author.id, %{"status" => "ふつうの投稿"})
+      assert {:error, :not_found} = Deco.reply(author, plain.id, %{"status" => "レス"})
+    end
+  end
+
+  describe "書いた人（note.com 式 ── 隠さない）" do
+    test "投稿には、書いた人の名前とハンドルがついてくる", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"status" => "こんにちは"})
+
+      assert post.author.username == author.username
+      assert post.author.acct == author.username
+      assert post.author.display_name == author.display_name
+    end
+
+    test "同じ人の投稿は、同じ名前で並ぶ", %{author: author, deco: deco} do
+      {:ok, a} = Deco.post(author, deco.slug, %{"status" => "ひとつめ"})
+      {:ok, b} = Deco.post(author, deco.slug, %{"status" => "ふたつめ"})
+      assert a.author.acct == b.author.acct
+    end
+
+    test "板がちがっても、同じ人は同じ名前", %{author: author, deco: deco} do
+      n = System.unique_integer([:positive])
+      {:ok, other} = Deco.create_deco(author, %{"slug" => "other#{n}", "name" => "べつの板"})
+
+      {:ok, here} = Deco.post(author, deco.slug, %{"status" => "こっち"})
+      {:ok, there} = Deco.post(author, other.slug, %{"status" => "あっち"})
+
+      assert here.author.acct == there.author.acct
+    end
+
+    test "読み返しても、同じ人のまま", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"status" => "きょうの分"})
+      assert {:ok, again} = Deco.get_post(post.id)
+      assert again.author == post.author
+    end
+
+    test "レスにも、書いた人がついてくる", %{author: author, deco: deco} do
+      {:ok, parent} = Deco.post(author, deco.slug, %{"status" => "おはなし"})
+      {:ok, _} = Deco.reply(author, parent.id, %{"status" => "うんうん"})
+
+      assert {:ok, opened} = Deco.get_post(parent.id)
+      assert [%{author: %{acct: acct}}] = opened.replies
+      assert acct == author.username
+    end
+  end
+end
