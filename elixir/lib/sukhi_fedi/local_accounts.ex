@@ -7,7 +7,8 @@ defmodule SukhiFedi.LocalAccounts do
 
   The signup transaction:
 
-    1. consume the invite code
+    1. consume the invite code (only when one is required or given —
+       see `SukhiFedi.Config.invite_required?/0`)
     2. mint an Ed25519/RSA keypair (the AP actor's own keys)
     3. insert the account row with `domain: nil` and `password_hash`
 
@@ -37,7 +38,7 @@ defmodule SukhiFedi.LocalAccounts do
           required(:email_proof) => String.t(),
           optional(:password) => String.t() | nil,
           optional(:display_name) => String.t() | nil,
-          required(:invite_code) => String.t()
+          optional(:invite_code) => String.t()
         }
 
   @spec create(signup_attrs() | map()) ::
@@ -77,18 +78,15 @@ defmodule SukhiFedi.LocalAccounts do
 
       Multi.new()
       |> Multi.insert(:account, changeset)
-      |> Multi.run(:invite, fn _repo, %{account: %Account{id: id}} ->
-        case InviteCodes.consume(normalized.invite_code, id) do
-          {:ok, ic} -> {:ok, ic}
-          {:error, :invalid} -> {:error, :invite_invalid}
-          {:error, :already_used} -> {:error, :invite_used}
-          {:error, :expired} -> {:error, :invite_expired}
-        end
-      end)
+      |> consume_invite(normalized.invite_code)
       |> Repo.transaction()
       |> case do
         {:ok, %{account: a, invite: invite}} ->
           follow_inviter(a, invite)
+          {:ok, a}
+
+        # No code was given, and none was asked for.
+        {:ok, %{account: a}} ->
           {:ok, a}
 
         {:error, :account, %Ecto.Changeset{} = cs, _} ->
@@ -165,7 +163,7 @@ defmodule SukhiFedi.LocalAccounts do
     # never as a raw address — required regardless of whether a
     # password is set. The password itself is optional/legacy.
     cond do
-      is_nil(invite) ->
+      is_nil(invite) and SukhiFedi.Config.invite_required?() ->
         {:error, :invite_missing}
 
       is_nil(username) ->
@@ -500,6 +498,22 @@ defmodule SukhiFedi.LocalAccounts do
   #
   # `on_behalf_of_id` があればそちらを優先する。管理者が誰かの代理で出した
   # 招待は、繋がるべき相手が発行者ではなく、その「誰か」なので。
+  # A code that was handed over is still spent, even when the door is
+  # unlatched — that is how the person who invited gets told (below),
+  # and how a one-use code stays one-use.
+  defp consume_invite(multi, nil), do: multi
+
+  defp consume_invite(multi, code) do
+    Multi.run(multi, :invite, fn _repo, %{account: %Account{id: id}} ->
+      case InviteCodes.consume(code, id) do
+        {:ok, ic} -> {:ok, ic}
+        {:error, :invalid} -> {:error, :invite_invalid}
+        {:error, :already_used} -> {:error, :invite_used}
+        {:error, :expired} -> {:error, :invite_expired}
+      end
+    end)
+  end
+
   defp follow_inviter(%Account{} = newcomer, invite) do
     inviter_id = Map.get(invite, :on_behalf_of_id) || Map.get(invite, :issued_by_id)
 

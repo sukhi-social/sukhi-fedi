@@ -15,6 +15,17 @@ end
 # to offline analysis. Generate with `openssl rand -hex 32`.
 config :sukhi_fedi, :metrics_token, System.get_env("METRICS_TOKEN")
 
+# Whether signup needs an invite code.
+#   INVITE_REQUIRED=true  (default) — invite-only, as sukhi grew up.
+#   INVITE_REQUIRED=false           — anyone may register.
+# The mailbox is still proven either way: an address is how somebody
+# finds their way back after losing the account. Codes keep working
+# when the door is open — an invited newcomer still follows whoever
+# invited them.
+config :sukhi_fedi,
+       :invite_required,
+       System.get_env("INVITE_REQUIRED", "true") != "false"
+
 # WebTransport のエッジ（karutte, webtransport.f3liz.casa）。`WT_TICKET_KEY` は入場チケットを
 # 署名する Ed25519 の秘密鍵（生 32 バイト seed の base64）。公開鍵は karutte の `:ticket_pubkey`
 # に置く。未設定なら `/api/wt` は 503（発券しない）。

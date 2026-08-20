@@ -475,6 +475,22 @@ export async function getPushConfig(): Promise<PushConfig> {
   }
 }
 
+/**
+ * 招待コードが要るサーバかどうか。決めるのはサーバ、読むのがこちら
+ * ── 二つの literal は必ずずれて、ここでのずれは「誰も埋められない
+ * 必須欄」になる。訊けなかったら「要る」に倒す。欄が余分に出るのは
+ * ただ煩わしいだけだけれど、隠して必須だと、先へ進めなくなる。
+ */
+export async function getInviteRequired(): Promise<boolean> {
+  try {
+    const res = await req('GET', '/api/v2/instance', 'instance', { auth: false });
+    const body = (await res.json()) as { registrations?: { approval_required?: boolean } };
+    return body.registrations?.approval_required !== false;
+  } catch {
+    return true;
+  }
+}
+
 /** いまの購読。していなければ null(404)。 */
 export async function getPushSubscription(): Promise<PushSubscriptionRow | null> {
   const res = await req('GET', '/api/v1/push/subscription', 'push_get', { auth: 'optional' });
