@@ -1,9 +1,13 @@
 <script lang="ts">
-  import { listDecos, createDeco, signedIn, type Deco } from '$lib/api';
+  import { listDecos, createDeco, getCurrentAccount, type Deco } from '$lib/api';
 
   let decos = $state<Deco[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
+
+  // 板を立てられるのは admin だけ ── 板の数を、誰かが見て決める場所に
+  // しておく(natadeco が小さいうち)。
+  let isAdmin = $state(false);
 
   // 板を立てる欄は、押されるまで閉じている。一覧を開いた人の目的は
   // たいてい「読む」なので、作る欄が先に目に入らないように。
@@ -18,6 +22,8 @@
       .then((d) => (decos = d))
       .catch(() => (error = '板の一覧が読めませんでした'))
       .finally(() => (loading = false));
+
+    getCurrentAccount().then((a) => (isAdmin = a?.isAdmin ?? false));
   });
 
   async function open(e: SubmitEvent) {
@@ -58,7 +64,7 @@
 
 {#if error}<p class="error">{error}</p>{/if}
 
-{#if signedIn()}
+{#if isAdmin}
   {#if opening}
     <form class="card open" onsubmit={open}>
       <label>
@@ -81,8 +87,6 @@
   {:else}
     <button class="btn" type="button" onclick={() => (opening = true)}>板を立てる</button>
   {/if}
-{:else}
-  <p class="muted">板を立てたり、書いたりするには、ログインしてください。</p>
 {/if}
 
 <style>
@@ -104,7 +108,9 @@
   }
 
   .name {
-    font-weight: 600;
+    font-family: var(--font-round);
+    font-weight: 700;
+    font-size: 1.05rem;
     text-decoration: none;
   }
 

@@ -1,29 +1,59 @@
-/* ナタデコの地の色。
+/* ナタデコの地の色。oklch(明るさ 彩度 色相) で組んである。
+   色相は二つだけ ── 75(紙・文字・陽、暖色の一系統)と 40(ひなたの
+   「ほっぺ」、--blush 一箇所だけの差し色)。同じ色相のまま明るさと
+   彩度だけを段階的に動かしているので、見た目がばらけない。
    熱くも、冷たくもない ── 紙と、日向の色を基準にする。夜は暗くする
-   けれど、青には振らない。灯りを落とした部屋の紙、くらいのつもり。 */
+   けれど、青には振らない。灯りを落とした部屋の紙、くらいのつもり。
+   コントラストは計算で確認済み(下の値、明暗どちらも WCAG AA 以上)。 */
 :root {
-  --paper: #fbf7ef;
-  --paper-raised: #fffdf8;
-  --ink: #2f2a24;
-  --ink-soft: #6d6459;
-  --line: #e6ddcd;
-  --sun: #d9a441;
-  --sun-soft: #f3e6c9;
-  --radius: 10px;
+  --paper: oklch(97% 0.02 75);
+  --paper-raised: oklch(99% 0.012 75);
+  --ink: oklch(35% 0.045 75); /* paper比 10.46:1 */
+  --ink-soft: oklch(52% 0.05 75); /* paper比 5.09:1 */
+  --line: oklch(91% 0.035 75);
+  --sun: oklch(77% 0.13 75);
+  --sun-soft: oklch(93% 0.05 75);
+  --blush: oklch(80% 0.09 40);
+  --radius: 16px;
+  --shadow: 0 2px 14px -6px oklch(55% 0.09 75 / 22%);
+
+  --font-round: 'M PLUS Rounded 1c', ui-rounded, 'Hiragino Maru Gothic ProN', sans-serif;
 
   color-scheme: light dark;
 }
 
+/* 端末の設定に従う既定。/settings のトグルで明示に選んだ人は
+   [data-theme] のほうが勝つ(下)。色相はライトと同じ 75 / 40 のまま、
+   明るさだけ反転させる。 */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #1c1a17;
-    --paper-raised: #24211d;
-    --ink: #ece5d9;
-    --ink-soft: #a49a8a;
-    --line: #35302a;
-    --sun: #d9a441;
-    --sun-soft: #3a3025;
+  :root:not([data-theme='light']) {
+    --paper: oklch(22% 0.02 75);
+    /* 元は 27%(paper 比 1.15:1)で、カードがページに沈んで見える、
+       と hinata に指摘されて測り直した(paper 比 1.36:1)。 */
+    --paper-raised: oklch(32% 0.025 75);
+    --ink: oklch(93% 0.025 75); /* paper比 14.13:1 */
+    --ink-soft: oklch(76% 0.04 75); /* paper比 8.05:1 */
+    /* raised 比 1.51:1 になるよう合わせて上げた(元は raised と
+       ほぼ同じ暗さで、縁がほとんど見えていなかった)。 */
+    --line: oklch(42% 0.035 75);
+    --sun: oklch(77% 0.13 75);
+    --sun-soft: oklch(32% 0.055 75);
+    --blush: oklch(62% 0.09 40);
+    --shadow: 0 2px 16px -6px oklch(0% 0 0 / 40%);
   }
+}
+
+/* 明示に「暗く」を選んだ人 ── 端末が明るい設定でも、これが勝つ。 */
+:root[data-theme='dark'] {
+  --paper: oklch(22% 0.02 75);
+  --paper-raised: oklch(32% 0.025 75);
+  --ink: oklch(93% 0.025 75);
+  --ink-soft: oklch(76% 0.04 75);
+  --line: oklch(42% 0.035 75);
+  --sun: oklch(77% 0.13 75);
+  --sun-soft: oklch(32% 0.055 75);
+  --blush: oklch(62% 0.09 40);
+  --shadow: 0 2px 16px -6px rgb(0 0 0 / 0.4);
 }
 
 * {
@@ -55,6 +85,15 @@ a:hover {
   text-decoration-color: var(--sun);
 }
 
+h1,
+h2 {
+  font-family: var(--font-round);
+  font-weight: 700;
+  /* 参考にした「友好的・自然」系のサイトが軒並み見出しの字間を広めに
+     取っていたので合わせた ── 詰まった印象を減らして、空気を通す。 */
+  letter-spacing: 0.04em;
+}
+
 /* 一行の長さ。読みやすさの上限で、画面が広くても伸ばさない。 */
 .measure {
   max-width: 46rem;
@@ -71,7 +110,8 @@ a:hover {
   background: var(--paper-raised);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 1rem 1.15rem;
+  box-shadow: var(--shadow);
+  padding: 1.1rem 1.25rem;
 }
 
 button,
@@ -82,15 +122,25 @@ textarea {
 }
 
 .btn {
+  font-family: var(--font-round);
+  font-weight: 700;
   background: var(--sun-soft);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  padding: 0.5rem 1.3rem;
   cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    border-color 0.12s ease;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   border-color: var(--sun);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn:disabled {
@@ -99,25 +149,51 @@ textarea {
 }
 
 input[type='text'],
+input[type='email'],
+input[type='password'],
 textarea {
   width: 100%;
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.5rem 0.7rem;
+  border-radius: calc(var(--radius) * 0.6);
+  padding: 0.55rem 0.8rem;
 }
 
 input[type='text']:focus,
+input[type='email']:focus,
+input[type='password']:focus,
 textarea:focus {
-  outline: 2px solid var(--sun-soft);
+  outline: 3px solid var(--sun-soft);
+  outline-offset: 1px;
   border-color: var(--sun);
 }
 
-/* 投稿本文の中身（サーバが組んだ HTML）。 */
-.body :global(p) {
+/* 投稿本文の中身（サーバが組んだ HTML）。
+   :global() は Svelte の <style> の中でだけ意味を持つ ── ここは
+   +layout.svelte から plain import された、ふつうの CSS ファイルなので
+   :global(p) は不正なセレクタとして無視されていた(既定の 1em マージン
+   が代わりに効いていた)。ここで直す。 */
+.body p {
   margin: 0 0 0.75em;
 }
 
-.body :global(p:last-child) {
+.body p:last-child {
+  margin-bottom: 0;
+}
+
+.body blockquote {
+  margin: 0.75em 0;
+  padding: 0.4em 0.9em;
+  border-left: 3px solid var(--sun);
+  background: var(--sun-soft);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--ink-soft);
+}
+
+.body blockquote p {
+  margin: 0 0 0.4em;
+}
+
+.body blockquote p:last-child {
   margin-bottom: 0;
 }

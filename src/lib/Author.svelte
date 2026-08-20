@@ -32,9 +32,12 @@
     background: var(--sun-soft);
   }
 
+  /* アイコンが無い人の、小さな丸 ── Hinata.svelte の肖像画と同じ色。
+     誰であれ、まず暖かい色から始まる。 */
   .blank {
     display: inline-block;
-    border: 1px solid var(--line);
+    background: var(--blush);
+    border: 1px solid var(--sun);
   }
 
   .name {

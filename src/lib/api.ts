@@ -31,6 +31,15 @@ export type Post = {
   replies?: Post[];
 };
 
+export type CurrentAccount = {
+  username: string;
+  acct: string;
+  display_name: string;
+  note: string;
+  avatar_url: string | null;
+  isAdmin: boolean;
+};
+
 const TOKEN_KEY = 'sf.token';
 
 export function token(): string | null {
@@ -93,6 +102,38 @@ export const createReply = (id: number | string, body: { status: string }) =>
 
 export const createDeco = (body: { slug: string; name: string; description?: string }) =>
   req<Deco>('POST', '/api/v1/deco', body);
+
+/**
+ * いまログインしている人の、素の姿。板を立てる権限(admin かどうか)は
+ * `role.name` から読む ── サーバの返す形は Mastodon 互換の verify_credentials。
+ */
+export async function getCurrentAccount(): Promise<CurrentAccount | null> {
+  if (!signedIn()) return null;
+  try {
+    const body = await req<{
+      username: string;
+      acct: string;
+      display_name: string;
+      avatar_url: string | null;
+      source?: { note?: string };
+      role?: { name?: string };
+    }>('GET', '/api/v1/accounts/verify_credentials');
+
+    return {
+      username: body.username,
+      acct: body.acct,
+      display_name: body.display_name,
+      note: body.source?.note ?? '',
+      avatar_url: body.avatar_url,
+      isAdmin: body.role?.name === 'admin'
+    };
+  } catch {
+    return null;
+  }
+}
+
+export const updateProfile = (body: { display_name?: string; note?: string }) =>
+  req<CurrentAccount>('PATCH', '/api/v1/accounts/update_credentials', body);
 
 /** 「2 分前」くらいの、ゆるい時刻。掲示板の秒単位は要らないので。 */
 export function when(iso: string): string {
