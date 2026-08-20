@@ -1,0 +1,123 @@
+/* ナタデコの地の色。
+   熱くも、冷たくもない ── 紙と、日向の色を基準にする。夜は暗くする
+   けれど、青には振らない。灯りを落とした部屋の紙、くらいのつもり。 */
+:root {
+  --paper: #fbf7ef;
+  --paper-raised: #fffdf8;
+  --ink: #2f2a24;
+  --ink-soft: #6d6459;
+  --line: #e6ddcd;
+  --sun: #d9a441;
+  --sun-soft: #f3e6c9;
+  --radius: 10px;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1c1a17;
+    --paper-raised: #24211d;
+    --ink: #ece5d9;
+    --ink-soft: #a49a8a;
+    --line: #35302a;
+    --sun: #d9a441;
+    --sun-soft: #3a3025;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  line-height: 1.75;
+  font-size: 16px;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-color: var(--sun);
+}
+
+/* 一行の長さ。読みやすさの上限で、画面が広くても伸ばさない。 */
+.measure {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+.muted {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.btn {
+  background: var(--sun-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.45rem 1.1rem;
+  cursor: pointer;
+}
+
+.btn:hover {
+  border-color: var(--sun);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input[type='text'],
+textarea {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.7rem;
+}
+
+input[type='text']:focus,
+textarea:focus {
+  outline: 2px solid var(--sun-soft);
+  border-color: var(--sun);
+}
+
+/* 投稿本文の中身（サーバが組んだ HTML）。 */
+.body :global(p) {
+  margin: 0 0 0.75em;
+}
+
+.body :global(p:last-child) {
+  margin-bottom: 0;
+}
