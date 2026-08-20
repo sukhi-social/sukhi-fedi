@@ -26,6 +26,11 @@ REG=127.0.0.1:5000
 REGUSER=sukhi                       # techo の registry container に相乗り、user は分ける
 SHA=$(git rev-parse HEAD)
 REGPASS=$(grep '^REGISTRY_PASSWORD=' .kamal/secrets | cut -d= -f2)
+# 同じ箱に相乗りする別サービス用の image 名前空間。既定は今までどおり
+# sukhi-fedi-*。Kamal は web role の image に `service=$PREFIX` ラベルを
+# 要求するので(anti-misconfig guard)、ラベルも一緒に付け替える ── 相手の
+# deploy.yml の `service:` と揃っていないと deploy 自体が弾かれる。
+PREFIX="${IMAGE_PREFIX:-sukhi-fedi}"
 
 # name → context / dockerfile。release.yml の matrix と同じ context/file。
 build_one() {
@@ -40,12 +45,12 @@ build_one() {
     anubis)         ctx="config/anubis" file="config/anubis/Dockerfile" ;;
     *) echo "unknown image: $name" >&2; return 1 ;;
   esac
-  local img="$REG/sukhi-fedi-$name"
+  local img="$REG/$PREFIX-$name"
   echo "→ build + push $name  (context=$ctx file=$file)"
   # 順番に焼く＝CPU を一度に食い尽くさない。:v0 は accessory が pin する rolling、
   # :$SHA は anubis の kamal deploy --skip-push が拾う immutable。
   ssh "$BOX" "cd ~/sukhi-build \
-    && docker build --label service=sukhi-fedi -f '$file' -t '$img:v0' -t '$img:$SHA' '$ctx' \
+    && docker build --label service=$PREFIX -f '$file' -t '$img:v0' -t '$img:$SHA' '$ctx' \
     && docker push '$img:v0' \
     && docker push '$img:$SHA'"
 }
