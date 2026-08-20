@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goToCheck, saveSignupDraft, loadSignupDraft } from '$lib/auth';
+  import { getInviteRequired } from '$lib/api';
   import { t, locale } from '$lib/i18n';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
 
@@ -17,6 +18,9 @@
   let error = $state<string | null>(null);
   let restored = $state(false);
   let agreed = $state(false);
+  // 招待コードの欄を出すかどうか。訊き終わるまでは出したままにしておく
+  // ── 要るのに隠れている、が一番こまる。
+  let invite_required = $state(true);
 
   // 利用規約・プライバシーは、どちらも signup=true(末尾に「読みました」で
   // 戻れるページ)へ。誘いも同意チェックも、同じ先・同じタブ。読みに行く
@@ -37,6 +41,8 @@
   // /check で失敗して戻ってきた人のために下書きを復元する。email_proof が
   // 残っていれば /check はコードの段を飛ばすので、ここでは気にしなくていい。
   onMount(() => {
+    getInviteRequired().then((v) => (invite_required = v));
+
     const d = loadSignupDraft();
     if (d) {
       restored = true;
@@ -124,10 +130,12 @@
       <span class="help">{$t('signup.handleHelpPre')}<code>@usagi_05</code></span>
     </label>
 
-    <label class="stack-tight">
-      <span>{$t('signup.inviteCode')}</span>
-      <input type="text" bind:value={invite_code} autocomplete="off" required />
-    </label>
+    {#if invite_required}
+      <label class="stack-tight">
+        <span>{$t('signup.inviteCode')}</span>
+        <input type="text" bind:value={invite_code} autocomplete="off" required />
+      </label>
+    {/if}
 
     <!-- 同意は、自分でチェックする ── 受け身の「〜になります」ではなく、
          能動の「同意します／동의해요」。韓国では受け身の言い回しがあまり

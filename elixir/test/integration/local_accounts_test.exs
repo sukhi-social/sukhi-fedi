@@ -173,6 +173,62 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
                LocalAccounts.create(Map.put(attrs, "email_proof", "garbage"))
     end
 
+    # ── 招待コードを、必須ではなくする ────────────────────────────────
+    #
+    # natadeco のように、誰でも入れる場所のため。メールは残す ── アカウ
+    # ントをなくしたとき、そこから帰ってこられるから。
+
+    defp without_invite(fun) do
+      Application.put_env(:sukhi_fedi, :invite_required, false)
+      try do
+        fun.()
+      after
+        Application.delete_env(:sukhi_fedi, :invite_required)
+      end
+    end
+
+    test "門が開いているなら、コード無しで入れる" do
+      without_invite(fn ->
+        n = System.unique_integer([:positive])
+
+        attrs = %{
+          "username" => "open_#{n}",
+          "email_proof" => proof_for("open_#{n}@example.test")
+        }
+
+        assert {:ok, account} = LocalAccounts.create(attrs)
+        assert is_nil(account.domain)
+        assert %DateTime{} = account.email_verified_at
+      end)
+    end
+
+    test "門が開いていても、メールは要る" do
+      without_invite(fn ->
+        n = System.unique_integer([:positive])
+        assert {:error, :email_proof_invalid} = LocalAccounts.create(%{"username" => "noml_#{n}"})
+      end)
+    end
+
+    test "門が開いていても、渡されたコードはちゃんと使われる", %{invite: invite, issuer: issuer} do
+      without_invite(fn ->
+        {:ok, newcomer} = LocalAccounts.create(signup_attrs(invite, %{}))
+        # 招待した人には、来たことが伝わってほしい。
+        assert follows?(newcomer, issuer.id)
+        # 一度きりのコードは、開いていても一度きり。
+        assert {:error, :invite_used} = LocalAccounts.create(signup_attrs(invite, %{}))
+      end)
+    end
+
+    test "門が閉じているなら、コード無しは断る" do
+      n = System.unique_integer([:positive])
+
+      assert {:error, :invite_missing} =
+               LocalAccounts.create(%{
+                 "username" => "closed_#{n}",
+                 "email_proof" => proof_for("closed_#{n}@example.test")
+               })
+    end
+
     test "a verified address cannot be claimed twice", %{invite: invite} do
       email = "claimed_#{System.unique_integer([:positive])}@example.test"
       # two proofs up front — the second simulates a stale-but-valid one
