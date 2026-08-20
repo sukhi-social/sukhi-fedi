@@ -89,6 +89,10 @@ defmodule SukhiFedi.Notes.Create do
         %{
           account_id: account_id,
           content: params[:status] || params["status"] || "",
+          # 題は掲示板（deco）から来る。Mastodon の status には無い欄で、
+          # 取り込んだ Article と同じ `notes.title` に入る ── 題つきの
+          # 投稿の置き場を二つ作らないため。
+          title: params[:title] || params["title"],
           cw: params[:spoiler_text] || params["spoiler_text"] || params[:cw] || params["cw"],
           sensitive: params[:sensitive] || params["sensitive"] || false,
           visibility: visibility
