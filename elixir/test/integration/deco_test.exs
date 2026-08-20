@@ -67,9 +67,17 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert listed.id == post.id
     end
 
-    test "題は無くてもいい ── 無題の投稿もあるので", %{author: author, deco: deco} do
-      assert {:ok, post} = Deco.post(author, deco.slug, %{"status" => "ぽつり"})
-      assert is_nil(post.title)
+    test "題が無いと断る ── 一覧に並ぶのは題だけなので", %{author: author, deco: deco} do
+      assert {:error, {:validation, %{title: _}}} =
+               Deco.post(author, deco.slug, %{"status" => "ぽつり"})
+
+      assert {:error, {:validation, %{title: _}}} =
+               Deco.post(author, deco.slug, %{"title" => "   ", "status" => "ぽつり"})
+    end
+
+    test "レスには題を要らない", %{author: author, deco: deco} do
+      {:ok, parent} = Deco.post(author, deco.slug, %{"title" => "おはなし", "status" => "本文"})
+      assert {:ok, _} = Deco.reply(author, parent.id, %{"status" => "うんうん"})
     end
 
     test "レスは親にぶら下がり、一覧には出てこない", %{author: author, deco: deco} do
@@ -101,7 +109,7 @@ defmodule SukhiFedi.Integration.DecoTest do
 
   describe "書いた人（note.com 式 ── 隠さない）" do
     test "投稿には、書いた人の名前とハンドルがついてくる", %{author: author, deco: deco} do
-      {:ok, post} = Deco.post(author, deco.slug, %{"status" => "こんにちは"})
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "はじめまして", "status" => "こんにちは"})
 
       assert post.author.username == author.username
       assert post.author.acct == author.username
@@ -109,8 +117,8 @@ defmodule SukhiFedi.Integration.DecoTest do
     end
 
     test "同じ人の投稿は、同じ名前で並ぶ", %{author: author, deco: deco} do
-      {:ok, a} = Deco.post(author, deco.slug, %{"status" => "ひとつめ"})
-      {:ok, b} = Deco.post(author, deco.slug, %{"status" => "ふたつめ"})
+      {:ok, a} = Deco.post(author, deco.slug, %{"title" => "ひとつめ", "status" => "ひとつめ"})
+      {:ok, b} = Deco.post(author, deco.slug, %{"title" => "ふたつめ", "status" => "ふたつめ"})
       assert a.author.acct == b.author.acct
     end
 
@@ -118,20 +126,20 @@ defmodule SukhiFedi.Integration.DecoTest do
       n = System.unique_integer([:positive])
       {:ok, other} = Deco.create_deco(author, %{"slug" => "other#{n}", "name" => "べつの板"})
 
-      {:ok, here} = Deco.post(author, deco.slug, %{"status" => "こっち"})
-      {:ok, there} = Deco.post(author, other.slug, %{"status" => "あっち"})
+      {:ok, here} = Deco.post(author, deco.slug, %{"title" => "こっち", "status" => "こっち"})
+      {:ok, there} = Deco.post(author, other.slug, %{"title" => "あっち", "status" => "あっち"})
 
       assert here.author.acct == there.author.acct
     end
 
     test "読み返しても、同じ人のまま", %{author: author, deco: deco} do
-      {:ok, post} = Deco.post(author, deco.slug, %{"status" => "きょうの分"})
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "きょうの分", "status" => "きょうの分"})
       assert {:ok, again} = Deco.get_post(post.id)
       assert again.author == post.author
     end
 
     test "レスにも、書いた人がついてくる", %{author: author, deco: deco} do
-      {:ok, parent} = Deco.post(author, deco.slug, %{"status" => "おはなし"})
+      {:ok, parent} = Deco.post(author, deco.slug, %{"title" => "おはなし", "status" => "おはなし"})
       {:ok, _} = Deco.reply(author, parent.id, %{"status" => "うんうん"})
 
       assert {:ok, opened} = Deco.get_post(parent.id)

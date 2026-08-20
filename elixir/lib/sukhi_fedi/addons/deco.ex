@@ -63,16 +63,29 @@ defmodule SukhiFedi.Addons.Deco do
   # ── 書く ─────────────────────────────────────────────────────────────
 
   @doc """
-  板に一件書く。`params` は `%{"title" => _, "status" => _}`（title は
-  省略可 ── 無題の投稿もある）。返りは `list_posts/2` と同じ形。
+  板に一件書く。`params` は `%{"title" => _, "status" => _}`。板の一覧に
+  並ぶのは題だけなので、無題だと一覧の上で見分けがつかない ── title は必須。
+  返りは `list_posts/2` と同じ形。
   """
   @spec post(Account.t() | integer(), String.t(), map()) ::
           {:ok, map()} | {:error, :not_found | atom() | {:validation, map()}}
   def post(author, slug, params) do
-    with {:ok, %{id: deco_id}} <- get_deco(slug) do
+    with {:ok, %{id: deco_id}} <- get_deco(slug),
+         :ok <- require_title(params) do
       write(id_of(author), deco_id, params)
     end
   end
+
+  defp require_title(params) do
+    params = stringify(params)
+
+    case Map.get(params, "title") do
+      t when is_binary(t) -> if String.trim(t) == "", do: title_missing(), else: :ok
+      _ -> title_missing()
+    end
+  end
+
+  defp title_missing, do: {:error, {:validation, %{title: ["を入れてください"]}}}
 
   @doc "板の投稿に、ぶら下げる。板は親の投稿から引く。"
   @spec reply(Account.t() | integer(), integer() | String.t(), map()) ::
