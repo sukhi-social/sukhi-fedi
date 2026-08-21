@@ -23,8 +23,11 @@ defmodule SukhiFedi.Schema.Deco do
     field(:ed25519_private_key_jwk, :map)
     field(:ed25519_public_multibase, :string)
 
-    # 名前・説明の、もう一つの言語ぶん。`name`/`description` は主言語
-    # (必須)のまま、こちらは任意の上乗せ ── 例: %{"ko" => "..."}
+    # 名前・説明の、もう一つの言語ぶん。`name`/`description` には
+    # 「立てた人が実際に書いた言語」がそのまま入る(既定で日本語、では
+    # ない) ── こちらは、もう一方の言語があれば添える場所。
+    # 例: %{"ko" => "..."} や %{"ja" => "..."}(韓国語で立てて日本語を
+    # 添えた場合はこちら)。
     field(:name_i18n, :map)
     field(:description_i18n, :map)
 
@@ -39,10 +42,11 @@ defmodule SukhiFedi.Schema.Deco do
   # そのものを避けたくて残す。
   @reserved ~w(api admin)
 
-  # `name`/`description`(主言語=ja)の上乗せに使える言語。ja はすでに
-  # 主フィールドの座席なので、ここには入れない ── 両方に違う値が
-  # 入るとどちらが勝つか曖昧になるため。
-  @i18n_overlay_langs ~w(ko)
+  # `name`/`description` に添えられる、もう一つの言語。どちらが主
+  # (`name`)になるかは書いた人が実際に選んだ言語で決まるので、両方
+  # 受け付ける ── 「ja は常に主言語」という決め打ちはしない
+  # (翻訳は原文への奉仕ではなく、読む相手に向けて書かれるもの)。
+  @i18n_overlay_langs ~w(ja ko)
 
   def changeset(deco, attrs) do
     deco

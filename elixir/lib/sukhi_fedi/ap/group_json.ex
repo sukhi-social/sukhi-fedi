@@ -64,13 +64,19 @@ defmodule SukhiFedi.AP.GroupJson do
     |> maybe_put_lang_map("summaryMap", deco.description, deco.description_i18n)
   end
 
-  # AS2 の nameMap/summaryMap(FEP 抜きの素の仕様語彙)。主言語(ja)＋
-  # 上乗せぶんを一枚の地図にする ── 他言語が無ければ出さない(bare な
-  # actor のまま)。
+  # AS2 の nameMap/summaryMap(FEP 抜きの素の仕様語彙)。主フィールドの
+  # 言語＋上乗せぶんを一枚の地図にする ── 他言語が無ければ出さない
+  # (bare な actor のまま)。
+  #
+  # 主フィールドがどの言語かは決め打ちできない(書いた人が実際に選んだ
+  # 言語がそのまま入るので、ja とは限らない)。上乗せに入っている言語が
+  # 「もう一方」なので、対応言語(ja/ko)のうち上乗せに無いほうが主言語 ──
+  # 2 言語だけの前提で成り立つ、消去法の推定。
   defp maybe_put_lang_map(map, _key, _primary, i18n) when i18n in [nil, %{}], do: map
 
   defp maybe_put_lang_map(map, key, primary, i18n) do
-    Map.put(map, key, Map.put(i18n, "ja", primary || ""))
+    primary_lang = if Map.has_key?(i18n, "ja"), do: "ko", else: "ja"
+    Map.put(map, key, Map.put(i18n, primary_lang, primary || ""))
   end
 
   defp maybe_put_assertion_method(map, %Deco{ed25519_public_multibase: mb}, actor_uri)

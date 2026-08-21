@@ -92,6 +92,23 @@ defmodule SukhiFedi.AP.GroupJsonTest do
     assert translated["summaryMap"] == %{"ja" => "説明", "ko" => "따뜻한 게시판"}
   end
 
+  test "build_group/1 infers the primary language when the primary field is Korean" do
+    # name/description は「書いた人が実際に選んだ言語」がそのまま入る
+    # ── ja だけを主言語と決め打ちしない。上乗せに ja が入っていれば、
+    # 主フィールドは(消去法で)韓国語だと分かる。
+    group =
+      GroupJson.build_group(%Deco{
+        slug: "hinata",
+        name: "해바라기",
+        description: "따뜻한 게시판",
+        name_i18n: %{"ja" => "ひなた"},
+        description_i18n: %{"ja" => "説明"}
+      })
+
+    assert group["nameMap"] == %{"ja" => "ひなた", "ko" => "해바라기"}
+    assert group["summaryMap"] == %{"ja" => "説明", "ko" => "따뜻한 게시판"}
+  end
+
   test "actor_uri/1 and deco_username/1 accept a struct or a slug" do
     assert GroupJson.actor_uri("hinata") == "https://test.example/users/hinata-deco"
     assert GroupJson.actor_uri(%Deco{slug: "hinata"}) == "https://test.example/users/hinata-deco"

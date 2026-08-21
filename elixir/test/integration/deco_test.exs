@@ -107,13 +107,28 @@ defmodule SukhiFedi.Integration.DecoTest do
       {:ok, deco} =
         Deco.create_deco(author, %{
           "slug" => "empty#{n}",
-          "name" => "ひなたぼっこ",
-          "name_i18n" => %{"ko" => "  ", "ja" => "無視されるはず"}
+          "name" => "테스트",
+          "name_i18n" => %{"ko" => "  "}
         })
 
-      # ko は空欄でトリムすると空 → 保存しない。ja は主言語の座席なので
-      # name_i18n の対象言語(ko だけ)から外れて捨てられる。
+      # トリムすると空欄 → その言語では書かなかった扱いにする。
       assert deco.name_i18n == %{}
+    end
+
+    test "主言語が韓国語の板にも、日本語を添えられる(ja を決め打ちしない)", %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, deco} =
+        Deco.create_deco(author, %{
+          "slug" => "koprimary#{n}",
+          "name" => "테스트 게시판",
+          "name_i18n" => %{"ja" => "テスト板"}
+        })
+
+      # name(主)が韓国語で、日本語のほうが上乗せ ── 逆もできる、という
+      # ことは「どちらかを主言語に決め打ちしていない」証拠。
+      assert deco.name == "테스트 게시판"
+      assert deco.name_i18n == %{"ja" => "テスト板"}
     end
 
     test "投稿の題・本文にも、他言語を上乗せできる", %{author: author, deco: deco} do

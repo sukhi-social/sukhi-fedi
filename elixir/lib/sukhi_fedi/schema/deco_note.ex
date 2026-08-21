@@ -18,9 +18,10 @@ defmodule SukhiFedi.Schema.DecoNote do
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end
 
-  # title/content(主言語=ja)の上乗せに使える言語。deco.ex と同じ理由で
-  # ja は入れない。
-  @i18n_overlay_langs ~w(ko)
+  # title/content に添えられる、もう一つの言語。どちらが notes 側の
+  # 主言語になるかは書いた人が実際に選んだ言語で決まるので、両方
+  # 受け付ける(deco.ex と同じ理由 ── ja を既定の主言語に決め打ちしない)。
+  @i18n_overlay_langs ~w(ja ko)
 
   def changeset(deco_note, attrs) do
     deco_note
