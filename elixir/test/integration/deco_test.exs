@@ -66,6 +66,34 @@ defmodule SukhiFedi.Integration.DecoTest do
       names = Deco.list_decos() |> Enum.map(& &1.name)
       assert names == Enum.sort(names)
     end
+
+    test "畳むと、中の投稿も本当に消える", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "きえる", "status" => "…"})
+
+      assert :ok = Deco.delete_deco(deco.slug)
+
+      assert {:error, :not_found} = Deco.get_deco(deco.slug)
+      refute SukhiFedi.Repo.get(SukhiFedi.Schema.Note, post.id)
+    end
+
+    test "無い板を畳もうとしても :not_found" do
+      assert {:error, :not_found} = Deco.delete_deco("no-such-deco")
+    end
+  end
+
+  describe "Group actor(連合)" do
+    test "作ると鍵一式が付く", %{deco: deco} do
+      assert {:ok, %SukhiFedi.Schema.Deco{} = record} = Deco.get_deco_record(deco.slug)
+      assert is_binary(record.public_key_pem) and record.public_key_pem != ""
+      assert is_map(record.public_key_jwk)
+      assert is_map(record.private_key_jwk)
+      assert is_map(record.ed25519_private_key_jwk)
+      assert is_binary(record.ed25519_public_multibase) and record.ed25519_public_multibase != ""
+    end
+
+    test "get_deco_record/1 は無い板を :not_found で返す" do
+      assert {:error, :not_found} = Deco.get_deco_record("no-such-deco")
+    end
   end
 
   describe "書く・読む" do

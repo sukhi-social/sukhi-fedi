@@ -11,8 +11,11 @@ defmodule SukhiFedi.Addons.Deco do
   ここが持つのは器だけ。本文・HTML 化・タグ・メディア・削除は
   `SukhiFedi.Notes` のまま ── 同じものの道を二本作らないため。
 
-  まだ連合しない。板の AP Group actor を生やすのは中身が固まってから
-  で、それまでは投稿はふつうの public な note として外に出る。
+  板ごとに Group actor(`{slug}-deco@domain`)を持つ ── 個人アカウントの
+  username はハイフンを使えないので、この形は名前空間が構造的に
+  ぶつからない。actor JSON は `SukhiFedi.AP.GroupJson` が組む。
+  いまは actor が引ける・webfinger で見つかるところまで(フォローの
+  受理・Announce 中継はまだ先の段)。
   """
 
   use SukhiFedi.Addon, id: :deco
@@ -20,6 +23,8 @@ defmodule SukhiFedi.Addons.Deco do
   import Ecto.Query
 
   alias SukhiFedi.{Notes, Repo}
+  alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
+  alias SukhiFedi.Notes.Create, as: NotesCreate
   alias SukhiFedi.Notes.Ids
   alias SukhiFedi.Schema.{Account, Deco, DecoNote, Note}
 
@@ -46,17 +51,73 @@ defmodule SukhiFedi.Addons.Deco do
     end
   end
 
+  @doc """
+  素の `%Deco{}`(鍵込み)を返す ── `get_deco/1` は API 向けの view に
+  削っているので、actor JSON を組むにはこちらを使う。
+  """
+  @spec get_deco_record(String.t()) :: {:ok, Deco.t()} | {:error, :not_found}
+  def get_deco_record(slug) when is_binary(slug) do
+    case Repo.get_by(Deco, slug: String.downcase(String.trim(slug))) do
+      nil -> {:error, :not_found}
+      %Deco{} = d -> {:ok, d}
+    end
+  end
+
   @spec create_deco(Account.t() | integer(), map()) ::
           {:ok, map()} | {:error, {:validation, map()}}
   def create_deco(%Account{id: aid}, attrs), do: create_deco(aid, attrs)
 
   def create_deco(account_id, attrs) when is_integer(account_id) do
+    keys = KeyGen.generate()
+
+    key_attrs = %{
+      "public_key_pem" => keys.public_pem,
+      "public_key_jwk" => keys.public_jwk,
+      "private_key_jwk" => keys.private_jwk,
+      "ed25519_private_key_jwk" => keys.ed25519_private_jwk,
+      "ed25519_public_multibase" => keys.ed25519_public_multibase
+    }
+
     %Deco{}
-    |> Deco.changeset(Map.put(stringify(attrs), "created_by_id", account_id))
+    |> Deco.changeset(
+      attrs
+      |> stringify()
+      |> Map.put("created_by_id", account_id)
+      |> Map.merge(key_attrs)
+    )
     |> Repo.insert()
     |> case do
       {:ok, d} -> {:ok, view(d, 0)}
       {:error, cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+    end
+  end
+
+  @doc """
+  板ごと畳む。中の投稿も本当に消す(`deco_notes` は cascade で消えるが、
+  中身の `notes` はそれだけでは残ってしまうので、一件ずつ
+  `delete_note_for_cleanup/3` で ── 誰が書いたかに関わらず消せる、
+  federated Delete も出す片づけ用の道)。取り消せない。
+  """
+  @spec delete_deco(String.t()) :: :ok | {:error, :not_found}
+  def delete_deco(slug) when is_binary(slug) do
+    case Repo.get_by(Deco, slug: String.downcase(String.trim(slug))) do
+      nil ->
+        {:error, :not_found}
+
+      %Deco{} = d ->
+        now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+        from(dn in DecoNote, where: dn.deco_id == ^d.id, select: dn.note_id)
+        |> Repo.all()
+        |> Enum.each(fn note_id ->
+          case Repo.get(Note, note_id) do
+            nil -> :ok
+            %Note{} = note -> NotesCreate.delete_note_for_cleanup(note, now, "board removed")
+          end
+        end)
+
+        Repo.delete(d)
+        :ok
     end
   end
 

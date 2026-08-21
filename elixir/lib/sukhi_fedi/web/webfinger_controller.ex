@@ -81,7 +81,38 @@ defmodule SukhiFedi.Web.WebfingerController do
     end
   end
 
+  @deco_suffix "-deco"
+
   defp lookup_local_actor(username, domain) do
+    if String.ends_with?(username, @deco_suffix) and
+         SukhiFedi.Addon.Registry.enabled?(:deco) do
+      lookup_deco_actor(String.trim_trailing(username, @deco_suffix), username, domain)
+    else
+      lookup_person_actor(username, domain)
+    end
+  end
+
+  defp lookup_deco_actor(slug, username, domain) do
+    case SukhiFedi.Addons.Deco.get_deco_record(slug) do
+      {:error, :not_found} ->
+        {:error, :not_found}
+
+      {:ok, deco} ->
+        actor_url = SukhiFedi.AP.GroupJson.actor_uri(deco)
+
+        {:ok,
+         %{
+           subject: "acct:#{username}@#{domain}",
+           aliases: [actor_url],
+           links: [
+             %{rel: "self", type: "application/activity+json", href: actor_url},
+             %{rel: "http://webfinger.net/rel/profile-page", type: "text/html", href: actor_url}
+           ]
+         }}
+    end
+  end
+
+  defp lookup_person_actor(username, domain) do
     case Accounts.get_account_by_username(username) do
       nil ->
         {:error, :not_found}

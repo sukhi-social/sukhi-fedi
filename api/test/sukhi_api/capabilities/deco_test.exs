@@ -111,6 +111,10 @@ defmodule SukhiApi.Capabilities.DecoTest do
     })
   end
 
+  defp delete(path) do
+    Router.handle(%{method: "DELETE", path: path, headers: [{"authorization", "Bearer t"}]})
+  end
+
   defp stub(pairs), do: Application.put_env(:sukhi_api, :fake_deco, Map.new(pairs))
 
   describe "読む（誰でも）" do
@@ -216,6 +220,36 @@ defmodule SukhiApi.Capabilities.DecoTest do
       {:ok, resp} = post("/api/v1/deco", %{slug: "hinata", name: "ひなた板"})
       assert resp.status == 403
       assert %{"error" => "admin_required"} = JSON.decode!(resp.body)
+    end
+
+    test "板を畳むのも admin だけ" do
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        verify_bearer:
+          {:ok, %{account: @admin, app: %{id: 1, name: "x"}, scopes: ["write:statuses"]}}
+      })
+
+      stub([{{:delete_deco, ["hinata"]}, :ok}])
+
+      {:ok, resp} = delete("/api/v1/deco/hinata")
+      assert resp.status == 204
+    end
+
+    test "畳むのも admin でなければ 403" do
+      {:ok, resp} = delete("/api/v1/deco/hinata")
+      assert resp.status == 403
+      assert %{"error" => "admin_required"} = JSON.decode!(resp.body)
+    end
+
+    test "無い板を畳もうとすると 404" do
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        verify_bearer:
+          {:ok, %{account: @admin, app: %{id: 1, name: "x"}, scopes: ["write:statuses"]}}
+      })
+
+      stub([{{:delete_deco, ["no-such-slug"]}, {:error, :not_found}}])
+
+      {:ok, resp} = delete("/api/v1/deco/no-such-slug")
+      assert resp.status == 404
     end
 
     test "名前が使えなければ 422（どこが駄目かも返す）" do

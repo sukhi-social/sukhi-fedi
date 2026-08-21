@@ -6,6 +6,7 @@ defmodule SukhiApi.Capabilities.Deco do
       GET  /api/v1/deco                    板の一覧（誰でも）
       POST /api/v1/deco                    板を立てる            write:statuses + admin
       GET  /api/v1/deco/:slug              板一枚
+      DELETE /api/v1/deco/:slug            板を畳む(中の投稿も)   write:statuses + admin
       GET  /api/v1/deco/:slug/posts        その板の投稿（親だけ）
       POST /api/v1/deco/:slug/posts        書く                  write:statuses
       GET  /api/v1/deco/posts/:id          一件＋ぶら下がり
@@ -33,6 +34,7 @@ defmodule SukhiApi.Capabilities.Deco do
       {:get, "/api/v1/deco/posts/:id", &show_post/1},
       {:post, "/api/v1/deco/posts/:id/replies", &reply/1, scope: "write:statuses"},
       {:get, "/api/v1/deco/:slug", &show/1},
+      {:delete, "/api/v1/deco/:slug", &delete_deco/1, scope: "write:statuses"},
       {:get, "/api/v1/deco/:slug/posts", &list_posts/1},
       {:post, "/api/v1/deco/:slug/posts", &post/1, scope: "write:statuses"}
     ]
@@ -50,6 +52,20 @@ defmodule SukhiApi.Capabilities.Deco do
     with {:ok, admin} <- AdminAuth.require_admin(req) do
       body = decode_body(req)
       call(:create_deco, [admin, take(body, ["slug", "name", "description"])], &ok(201, &1))
+    else
+      {:error, :forbidden} -> ok(403, %{error: "admin_required"})
+    end
+  end
+
+  # 板を畳むのも admin だけ ── 立てるのと対称。取り消せない。
+  def delete_deco(req) do
+    with {:ok, _admin} <- AdminAuth.require_admin(req) do
+      case GatewayRpc.call(@gateway, :delete_deco, [req[:path_params]["slug"]]) do
+        {:ok, :ok} -> ok(204, %{})
+        {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+        {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
+        _ -> ok(500, %{error: "internal_error"})
+      end
     else
       {:error, :forbidden} -> ok(403, %{error: "admin_required"})
     end

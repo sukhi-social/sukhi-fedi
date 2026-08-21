@@ -4,13 +4,24 @@ defmodule SukhiFedi.Schema.Deco do
   import Ecto.Changeset
 
   # 板一枚（natadeco の「デコ」）。`slug` が URL に出る名前で、
-  # `name` が人の読む名前。まだ連合しない ── AP の Group actor を
-  # 生やすのは、板の中身が固まってからでいい。
+  # `name` が人の読む名前。AP の Group actor は `{slug}-deco@domain` ──
+  # 個人アカウントの username はハイフンを使えない(`^[a-z0-9_]+$`)ので、
+  # ハイフン入りのこの形は個人アカウントの名前空間と構造的にぶつからない。
   schema "decos" do
     field(:slug, :string)
     field(:name, :string)
     field(:description, :string)
     field(:created_by_id, :integer)
+
+    # Group actor の鍵。個人アカウントと同じ形(RSA + Ed25519)。
+    # ユーザー入力からは触れない ── cast はするが、API 層(deco.ex の
+    # capability)が受け取る attrs をあらかじめ絞ってあるので、外から
+    # 差し込めるのは create_deco/2 が内部で足す分だけ。
+    field(:public_key_pem, :string)
+    field(:public_key_jwk, :map)
+    field(:private_key_jwk, :map)
+    field(:ed25519_private_key_jwk, :map)
+    field(:ed25519_public_multibase, :string)
 
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end
@@ -25,7 +36,17 @@ defmodule SukhiFedi.Schema.Deco do
 
   def changeset(deco, attrs) do
     deco
-    |> cast(attrs, [:slug, :name, :description, :created_by_id])
+    |> cast(attrs, [
+      :slug,
+      :name,
+      :description,
+      :created_by_id,
+      :public_key_pem,
+      :public_key_jwk,
+      :private_key_jwk,
+      :ed25519_private_key_jwk,
+      :ed25519_public_multibase
+    ])
     |> update_change(:slug, &String.downcase(String.trim(&1 || "")))
     |> validate_required([:slug, :name])
     |> validate_format(:slug, @slug_format)
