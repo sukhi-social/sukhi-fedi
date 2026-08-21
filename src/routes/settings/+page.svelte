@@ -75,7 +75,7 @@
   .stack {
     display: grid;
     gap: 0.85rem;
-    max-width: 28rem;
+    max-width: 32rem;
   }
 
   label {

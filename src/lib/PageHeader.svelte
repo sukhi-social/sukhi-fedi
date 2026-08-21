@@ -18,7 +18,7 @@
 <div class="header">
   <div class="titles">
     <h1 class:tight={!!subtitle}>{title}</h1>
-    {#if subtitle}<p class="intro">{subtitle}</p>{/if}
+    {#if subtitle}<p class="muted intro">{subtitle}</p>{/if}
   </div>
   {@render actions?.()}
 </div>
