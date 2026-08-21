@@ -81,6 +81,65 @@ defmodule SukhiFedi.Integration.DecoTest do
     end
   end
 
+  describe "多言語(板・投稿)" do
+    test "板の名前・説明に、他言語を上乗せできる", %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, deco} =
+        Deco.create_deco(author, %{
+          "slug" => "multi#{n}",
+          "name" => "ひなたぼっこ",
+          "description" => "あたたかい板",
+          "name_i18n" => %{"ko" => "해바라기"},
+          "description_i18n" => %{"ko" => "따뜻한 게시판"}
+        })
+
+      assert deco.name_i18n == %{"ko" => "해바라기"}
+      assert deco.description_i18n == %{"ko" => "따뜻한 게시판"}
+
+      assert {:ok, found} = Deco.get_deco(deco.slug)
+      assert found.name_i18n == %{"ko" => "해바라기"}
+    end
+
+    test "空欄のタブは、その言語として保存しない", %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, deco} =
+        Deco.create_deco(author, %{
+          "slug" => "empty#{n}",
+          "name" => "ひなたぼっこ",
+          "name_i18n" => %{"ko" => "  ", "ja" => "無視されるはず"}
+        })
+
+      # ko は空欄でトリムすると空 → 保存しない。ja は主言語の座席なので
+      # name_i18n の対象言語(ko だけ)から外れて捨てられる。
+      assert deco.name_i18n == %{}
+    end
+
+    test "投稿の題・本文にも、他言語を上乗せできる", %{author: author, deco: deco} do
+      {:ok, post} =
+        Deco.post(author, deco.slug, %{
+          "title" => "はじめまして",
+          "status" => "こんにちは",
+          "title_i18n" => %{"ko" => "처음 뵙겠습니다"},
+          "content_i18n" => %{"ko" => "**안녕하세요**"}
+        })
+
+      assert post.title_i18n == %{"ko" => "처음 뵙겠습니다"}
+      # content_i18n は Markdown → HTML 化されて返る(notes の content_html と同じ扱い)。
+      assert post.content_html_i18n["ko"] =~ "<strong>안녕하세요</strong>"
+
+      assert {:ok, again} = Deco.get_post(post.id)
+      assert again.title_i18n == %{"ko" => "처음 뵙겠습니다"}
+    end
+
+    test "上乗せ無しなら、i18n は空地図のまま", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "ふつう", "status" => "ふつう"})
+      assert post.title_i18n == %{}
+      assert post.content_html_i18n == %{}
+    end
+  end
+
   describe "Group actor(連合)" do
     test "作ると鍵一式が付く", %{deco: deco} do
       assert {:ok, %SukhiFedi.Schema.Deco{} = record} = Deco.get_deco_record(deco.slug)

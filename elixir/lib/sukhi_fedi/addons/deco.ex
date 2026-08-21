@@ -175,15 +175,16 @@ defmodule SukhiFedi.Addons.Deco do
 
   defp write(account_id, deco_id, params) when is_integer(account_id) do
     params = stringify(params)
+    {i18n, note_params} = Map.split(params, ["title_i18n", "content_i18n"])
 
     with :ok <- check_pace(account_id) do
       # note を先に作り、そのあと板に結ぶ。note づくりは Notes 側の
       # トランザクション（outbox 込み）なので、こちらでは包めない。
       # 結びに失敗したら note は消す ── どこにも属さない投稿を残さない。
-      case Notes.create_status(account_id, Map.put(params, "visibility", "public")) do
+      case Notes.create_status(account_id, Map.put(note_params, "visibility", "public")) do
         {:ok, note} ->
           %DecoNote{}
-          |> DecoNote.changeset(%{deco_id: deco_id, note_id: note.id})
+          |> DecoNote.changeset(Map.merge(%{"deco_id" => deco_id, "note_id" => note.id}, i18n))
           |> Repo.insert()
           |> case do
             {:ok, dn} ->
@@ -355,7 +356,9 @@ defmodule SukhiFedi.Addons.Deco do
       id: d.id,
       slug: d.slug,
       name: d.name,
+      name_i18n: d.name_i18n || %{},
       description: d.description,
+      description_i18n: d.description_i18n || %{},
       post_count: post_count,
       created_at: d.created_at
     }
@@ -366,11 +369,21 @@ defmodule SukhiFedi.Addons.Deco do
       id: n.id,
       deco_id: dn.deco_id,
       title: n.title,
+      title_i18n: dn.title_i18n || %{},
       content_html: Note.html(n),
+      content_html_i18n: render_i18n_html(dn.content_i18n),
       author: author_view(author),
       created_at: n.created_at,
       reply_count: reply_count(n)
     }
+  end
+
+  # content_i18n は生の Markdown(notes.content と同じ形)。読むときだけ
+  # HTML 化する ── 書くときに二重に持たせない。
+  defp render_i18n_html(nil), do: %{}
+
+  defp render_i18n_html(map) when is_map(map) do
+    Map.new(map, fn {lang, text} -> {lang, SukhiFedi.Markdown.to_html(text)} end)
   end
 
   # 板の上に出る「その人」。表示名だけだと同じ名前が並んだときに見分け

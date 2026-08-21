@@ -51,7 +51,11 @@ defmodule SukhiApi.Capabilities.Deco do
   def create_deco(req) do
     with {:ok, admin} <- AdminAuth.require_admin(req) do
       body = decode_body(req)
-      call(:create_deco, [admin, take(body, ["slug", "name", "description"])], &ok(201, &1))
+      call(
+        :create_deco,
+        [admin, take(body, ["slug", "name", "description", "name_i18n", "description_i18n"])],
+        &ok(201, &1)
+      )
     else
       {:error, :forbidden} -> ok(403, %{error: "admin_required"})
     end
@@ -90,7 +94,11 @@ defmodule SukhiApi.Capabilities.Deco do
   def post(req) do
     with %{} = viewer <- viewer(req) do
       body = decode_body(req)
-      call(:post, [viewer, req[:path_params]["slug"], take(body, ["title", "status"])], &ok(201, &1))
+      call(
+        :post,
+        [viewer, req[:path_params]["slug"], take(body, ["title", "status", "title_i18n", "content_i18n"])],
+        &ok(201, &1)
+      )
     else
       _ -> ok(403, %{error: "this endpoint requires a user-bound token"})
     end
@@ -99,7 +107,11 @@ defmodule SukhiApi.Capabilities.Deco do
   def reply(req) do
     with %{} = viewer <- viewer(req) do
       body = decode_body(req)
-      call(:reply, [viewer, req[:path_params]["id"], take(body, ["status"])], &ok(201, &1))
+      call(
+        :reply,
+        [viewer, req[:path_params]["id"], take(body, ["status", "content_i18n"])],
+        &ok(201, &1)
+      )
     else
       _ -> ok(403, %{error: "this endpoint requires a user-bound token"})
     end

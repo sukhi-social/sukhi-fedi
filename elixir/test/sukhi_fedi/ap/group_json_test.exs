@@ -74,6 +74,24 @@ defmodule SukhiFedi.AP.GroupJsonTest do
            ]
   end
 
+  test "build_group/1 emits nameMap/summaryMap when i18n is set, omits it when not" do
+    bare = GroupJson.build_group(%Deco{slug: "hinata", name: "ひなた", description: "説明"})
+    refute Map.has_key?(bare, "nameMap")
+    refute Map.has_key?(bare, "summaryMap")
+
+    translated =
+      GroupJson.build_group(%Deco{
+        slug: "hinata",
+        name: "ひなた",
+        description: "説明",
+        name_i18n: %{"ko" => "해바라기"},
+        description_i18n: %{"ko" => "따뜻한 게시판"}
+      })
+
+    assert translated["nameMap"] == %{"ja" => "ひなた", "ko" => "해바라기"}
+    assert translated["summaryMap"] == %{"ja" => "説明", "ko" => "따뜻한 게시판"}
+  end
+
   test "actor_uri/1 and deco_username/1 accept a struct or a slug" do
     assert GroupJson.actor_uri("hinata") == "https://test.example/users/hinata-deco"
     assert GroupJson.actor_uri(%Deco{slug: "hinata"}) == "https://test.example/users/hinata-deco"

@@ -60,6 +60,17 @@ defmodule SukhiFedi.AP.GroupJson do
       }
     }
     |> maybe_put_assertion_method(deco, actor_uri)
+    |> maybe_put_lang_map("nameMap", deco.name, deco.name_i18n)
+    |> maybe_put_lang_map("summaryMap", deco.description, deco.description_i18n)
+  end
+
+  # AS2 の nameMap/summaryMap(FEP 抜きの素の仕様語彙)。主言語(ja)＋
+  # 上乗せぶんを一枚の地図にする ── 他言語が無ければ出さない(bare な
+  # actor のまま)。
+  defp maybe_put_lang_map(map, _key, _primary, i18n) when i18n in [nil, %{}], do: map
+
+  defp maybe_put_lang_map(map, key, primary, i18n) do
+    Map.put(map, key, Map.put(i18n, "ja", primary || ""))
   end
 
   defp maybe_put_assertion_method(map, %Deco{ed25519_public_multibase: mb}, actor_uri)

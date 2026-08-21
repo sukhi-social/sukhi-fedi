@@ -9,13 +9,45 @@ defmodule SukhiFedi.Schema.DecoNote do
     field(:deco_id, :integer)
     field(:note_id, :integer)
 
+    # 題・本文の、もう一つの言語ぶん(生の Markdown、HTML 化は読むとき)。
+    # notes 側は連合するので単一言語のまま ── ここは natadeco の読み側
+    # だけで使う上乗せ。
+    field(:title_i18n, :map)
+    field(:content_i18n, :map)
+
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end
 
+  # title/content(主言語=ja)の上乗せに使える言語。deco.ex と同じ理由で
+  # ja は入れない。
+  @i18n_overlay_langs ~w(ko)
+
   def changeset(deco_note, attrs) do
     deco_note
-    |> cast(attrs, [:deco_id, :note_id])
+    |> cast(attrs, [:deco_id, :note_id, :title_i18n, :content_i18n])
     |> validate_required([:deco_id, :note_id])
     |> unique_constraint(:note_id)
+    |> validate_i18n_map(:title_i18n, 120)
+    |> validate_i18n_map(:content_i18n, 10_000)
+  end
+
+  defp validate_i18n_map(changeset, field, max_len) do
+    case get_change(changeset, field) do
+      nil ->
+        changeset
+
+      map when is_map(map) ->
+        cleaned =
+          map
+          |> Map.take(@i18n_overlay_langs)
+          |> Enum.reject(fn {_k, v} -> is_nil(v) or String.trim(to_string(v)) == "" end)
+          |> Map.new()
+
+        if Enum.any?(cleaned, fn {_k, v} -> String.length(to_string(v)) > max_len end) do
+          add_error(changeset, field, "は#{max_len}文字までです")
+        else
+          put_change(changeset, field, cleaned)
+        end
+    end
   end
 end
