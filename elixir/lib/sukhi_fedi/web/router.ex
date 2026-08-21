@@ -504,19 +504,17 @@ defmodule SukhiFedi.Web.Router do
 
   # natadeco の板の直リンク / リロード。web-natadeco の SPA も同じ shell
   # (priv/static/index.html) を返すやり方で、JS が URL を読んで描く。
-  # `/:slug` はここまでの一段路の中で最後 ── favicon 等の具体的な
-  # 一段路より後ろに置かないと、それらを飲み込んでしまう。
   get "/posts/:id" do
     serve_spa(conn)
   end
 
-  # 投稿ページ。`new` は deco の slug として予約済み(SukhiFedi.Schema.Deco
-  # の @reserved)なので、どの板の名前とも衝突しない。
-  get "/:slug/new" do
+  # 板は `/d/` の下に一本化 ── これで板の slug が他のどの一段路
+  # (login・settings・api 等)とも衝突しなくなった。
+  get "/d/:slug/new" do
     serve_spa(conn)
   end
 
-  get "/:slug" do
+  get "/d/:slug" do
     serve_spa(conn)
   end
 

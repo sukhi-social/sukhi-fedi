@@ -53,9 +53,9 @@ defmodule SukhiFedi.Integration.DecoTest do
                Deco.create_deco(author, %{"slug" => "ダメ な スラグ", "name" => "板"})
     end
 
-    test "API の道とぶつかる名前は断る", %{author: author} do
+    test "紛らわしい名前は断る", %{author: author} do
       assert {:error, {:validation, %{slug: _}}} =
-               Deco.create_deco(author, %{"slug" => "posts", "name" => "板"})
+               Deco.create_deco(author, %{"slug" => "admin", "name" => "板"})
     end
 
     test "一覧は名前順 ── 数の多い順ではなく", %{author: author} do

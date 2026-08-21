@@ -17,10 +17,11 @@ defmodule SukhiFedi.Schema.Deco do
 
   @slug_format ~r/\A[a-z0-9][a-z0-9_-]{0,29}\z/
 
-  # API の道と同じ形になってしまう名前。`/api/v1/deco/posts/:id` が
-  # 先に噛むので、`posts` という板は開けても誰も辿り着けない。
-  # 立てられてから気づくより、立てる前に断るほうが親切。
-  @reserved ~w(posts post new api admin)
+  # 板はどれも `/d/:slug` の下に居るので、`posts` や `new` のような
+  # 名前ももう他の一段路とぶつからない(以前は `/:slug` が直下にあって
+  # 予約が要った)。`api`・`admin` だけは、衝突ではなく紛らわしさ
+  # そのものを避けたくて残す。
+  @reserved ~w(api admin)
 
   def changeset(deco, attrs) do
     deco
