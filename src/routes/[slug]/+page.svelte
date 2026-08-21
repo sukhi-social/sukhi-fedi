@@ -61,26 +61,31 @@
   {#if posts.length === 0}
     <p class="muted empty">まだ、なにもありません。最初の一つに、なれます。</p>
   {:else}
-    <ul class="list">
-      {#each posts as post (post.id)}
-        <li class="card">
-          <div class="head">
-            {#if post.title}
-              <a class="title" href="/posts/{post.id}">{post.title}</a>
-            {/if}
-            <Author author={post.author} at={when(post.created_at)} />
-          </div>
-          <div class="body">{@html post.content_html}</div>
-          <p class="muted">
-            {#if post.reply_count > 0}
-              <a href="/posts/{post.id}">{post.reply_count} のつづき</a>
-            {:else}
-              <a href="/posts/{post.id}">ひらく</a>
-            {/if}
-          </p>
-        </li>
-      {/each}
-    </ul>
+    <div class="table-wrap">
+      <table class="board-table">
+        <thead>
+          <tr>
+            <th class="num">番号</th>
+            <th>タイトル</th>
+            <th>作成者</th>
+            <th class="date">作成日</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each posts as post, i (post.id)}
+            <tr>
+              <td class="num muted">{deco.post_count - i}</td>
+              <td class="title-cell">
+                <a href="/posts/{post.id}">{post.title || '(無題)'}</a>
+                {#if post.reply_count > 0}<span class="muted count">{post.reply_count}</span>{/if}
+              </td>
+              <td><Author author={post.author} compact /></td>
+              <td class="date muted">{when(post.created_at)}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
 
     {#if done}
       <p class="muted end">ここまでです。</p>
@@ -98,26 +103,69 @@
     text-decoration: none;
   }
 
-  .list {
-    list-style: none;
+  /* 表がはみ出すときは、ページごと横に伸ばさず、表だけ横スクロール
+     させる ── 本文は測り(46rem)の中で読みやすいまま。 */
+  .table-wrap {
     margin: 0 0 1.25rem;
-    padding: 0;
-    display: grid;
-    gap: 0.75rem;
+    overflow-x: auto;
   }
 
-  .head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.6rem;
-    text-decoration: none;
-    margin-bottom: 0.5rem;
+  .board-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
   }
 
-  .title {
+  .board-table th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--ink-soft);
+    font-size: 0.78rem;
+    padding: 0 0.6rem 0.5rem;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  .board-table td {
+    padding: 0.6rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+
+  .board-table tbody tr:hover {
+    background: var(--paper-raised);
+  }
+
+  .board-table th.num,
+  .board-table td.num {
+    text-align: right;
+    width: 3rem;
+  }
+
+  .title-cell a {
     font-weight: 600;
     text-decoration: none;
+  }
+
+  .title-cell a:hover {
+    text-decoration: underline;
+  }
+
+  .count {
+    margin-left: 0.35rem;
+    font-size: 0.78rem;
+  }
+
+  .date {
+    white-space: nowrap;
+  }
+
+  /* 番号は、いちばん削っても困らない列。狭い画面ではそこだけ落とす。 */
+  @media (max-width: 640px) {
+    .board-table th.num,
+    .board-table td.num {
+      display: none;
+    }
   }
 
   .empty,

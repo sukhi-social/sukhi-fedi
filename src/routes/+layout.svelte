@@ -3,6 +3,7 @@
   import '../app.css';
   import { isLoggedIn, signOutServer } from '$lib/auth';
   import { currentTheme, toggleTheme } from '$lib/theme';
+  import BoardNav from '$lib/BoardNav.svelte';
 
   let { children } = $props();
 
@@ -65,9 +66,12 @@
   </div>
 </header>
 
-<main class="measure">
-  {@render children()}
-</main>
+<div class="shell">
+  <BoardNav />
+  <main class="measure">
+    {@render children()}
+  </main>
+</div>
 
 <style>
   header {
@@ -140,9 +144,24 @@
     color: var(--ink);
   }
 
+  .shell {
+    display: flex;
+    align-items: flex-start;
+  }
+
   main {
+    flex: 1;
+    min-width: 0;
     padding-top: 1.75rem;
     padding-bottom: 3rem;
     min-height: 40vh;
+  }
+
+  /* サイドバーが下のバーに変わって場所を空けたぶん、本文が
+     隠れないよう底に余白を足す。 */
+  @media (max-width: 680px) {
+    main {
+      padding-bottom: 5rem;
+    }
   }
 </style>

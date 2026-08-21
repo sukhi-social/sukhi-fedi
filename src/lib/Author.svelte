@@ -3,7 +3,10 @@
 
   // 板の上に立つ、その人。表示名を大きく、ハンドルを小さく ── 同じ
   // 表示名が並んだときに、どちらか分かるように両方出す。
-  let { author, at }: { author: Author; at?: string } = $props();
+  //
+  // compact: 表の列など、狭いところ用。ハンドルと時刻は削って、
+  // アバター＋名前だけにする。
+  let { author, at, compact = false }: { author: Author; at?: string; compact?: boolean } = $props();
 </script>
 
 <span class="who">
@@ -13,7 +16,9 @@
     <span class="avatar blank" aria-hidden="true"></span>
   {/if}
   <span class="name">{author.display_name}</span>
-  <span class="muted">@{author.acct}{at ? ` · ${at}` : ''}</span>
+  {#if !compact}
+    <span class="muted">@{author.acct}{at ? ` · ${at}` : ''}</span>
+  {/if}
 </span>
 
 <style>
