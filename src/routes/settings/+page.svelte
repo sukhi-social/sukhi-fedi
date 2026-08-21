@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { getCurrentAccount, updateProfile, signedIn, type CurrentAccount } from '$lib/api';
+  import PageHeader from '$lib/PageHeader.svelte';
 
   let account = $state<CurrentAccount | null>(null);
   let loading = $state(true);
@@ -45,15 +46,13 @@
   }
 </script>
 
-<h1>プロフィール</h1>
+<PageHeader title="プロフィール" subtitle={account ? `@${account.acct}` : undefined} />
 
 {#if loading}
   <p class="muted">よみこみ中</p>
 {:else if !account}
   <p class="muted">読めませんでした。<a href="/login">入りなおして</a>ください。</p>
 {:else}
-  <p class="muted intro">@{account.acct}</p>
-
   <form class="card stack" onsubmit={save}>
     <label>
       <span class="muted">表示する名前</span>
@@ -73,15 +72,6 @@
 {/if}
 
 <style>
-  h1 {
-    font-size: 1.4rem;
-    margin: 0 0 0.25rem;
-  }
-
-  .intro {
-    margin: 0 0 1.25rem;
-  }
-
   .stack {
     display: grid;
     gap: 0.85rem;

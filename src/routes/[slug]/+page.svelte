@@ -2,6 +2,7 @@
   import { page } from '$app/state';
   import { getDeco, listPosts, signedIn, when, type Deco, type Post } from '$lib/api';
   import Author from '$lib/Author.svelte';
+  import PageHeader from '$lib/PageHeader.svelte';
 
   const slug = $derived(page.params.slug ?? '');
 
@@ -43,15 +44,13 @@
   <p class="muted">{error ?? 'この板はありません'}</p>
   <p><a href="/">デコの一覧へ</a></p>
 {:else}
-  <div class="top">
-    <div>
-      <h1>{deco.name}</h1>
-      {#if deco.description}<p class="muted intro">{deco.description}</p>{/if}
-    </div>
-    {#if signedIn()}
-      <a class="btn" href="/{slug}/new">書く</a>
-    {/if}
-  </div>
+  <PageHeader title={deco.name} subtitle={deco.description}>
+    {#snippet actions()}
+      {#if signedIn()}
+        <a class="btn write-btn" href="/{slug}/new">書く</a>
+      {/if}
+    {/snippet}
+  </PageHeader>
 
   {#if !signedIn()}
     <p class="muted">読むのは誰でも。書くには、<a href="/login?next=/{slug}/new">入って</a>ください。</p>
@@ -94,27 +93,7 @@
 {/if}
 
 <style>
-  h1 {
-    font-size: 1.4rem;
-    margin: 0 0 0.25rem;
-  }
-
-  /* .top 自体が下の余白(1.25rem)を持つので、中の最後の子(intro)は
-     自分の margin を持たない ── flex item は子の margin を外に
-     collapse しないので、両方に付けると二重に空いてしまう。 */
-  .intro {
-    margin: 0;
-  }
-
-  .top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1.25rem;
-  }
-
-  .top .btn {
+  .write-btn {
     flex: none;
     text-decoration: none;
   }

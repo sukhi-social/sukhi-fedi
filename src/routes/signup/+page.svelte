@@ -8,6 +8,7 @@
     isLoggedIn
   } from '$lib/auth';
   import Hinata from '$lib/Hinata.svelte';
+  import PageHeader from '$lib/PageHeader.svelte';
 
   let phase = $state<'form' | 'code' | 'warmth' | 'working'>('form');
 
@@ -72,7 +73,7 @@
   }
 </script>
 
-<h1>はじめる</h1>
+<PageHeader title="はじめる" />
 
 {#if phase === 'form'}
   <Hinata>
@@ -146,10 +147,6 @@
 {/if}
 
 <style>
-  h1 {
-    font-size: 1.4rem;
-    margin: 0 0 1.25rem;
-  }
 
   .stack {
     display: grid;

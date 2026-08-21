@@ -4,6 +4,7 @@
   import { getDeco, createPost, signedIn, type Deco } from '$lib/api';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
   import { loadDraft, saveDraft, clearDraft, hasSeenComposeTip, markComposeTipSeen } from '$lib/composeDraft';
+  import PageHeader from '$lib/PageHeader.svelte';
 
   const slug = $derived(page.params.slug ?? '');
 
@@ -68,7 +69,7 @@
   <p class="muted">この板は見つかりませんでした</p>
   <p><a href="/">デコの一覧へ</a></p>
 {:else}
-  <h1>{deco.name} に書く</h1>
+  <PageHeader title="{deco.name} に書く" />
 
   {#if showTip}
     <p class="tip">
@@ -110,11 +111,6 @@
 {/if}
 
 <style>
-  h1 {
-    font-size: 1.4rem;
-    margin: 0 0 1.25rem;
-  }
-
   .stack {
     display: grid;
     gap: 0.85rem;

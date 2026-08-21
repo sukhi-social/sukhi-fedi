@@ -1,5 +1,6 @@
 <script lang="ts">
   import { listDecos, createDeco, getCurrentAccount, type Deco } from '$lib/api';
+  import PageHeader from '$lib/PageHeader.svelte';
 
   let decos = $state<Deco[]>([]);
   let loading = $state(true);
@@ -43,8 +44,7 @@
   }
 </script>
 
-<h1>デコ</h1>
-<p class="muted intro">板が「デコ」です。好きなところに座ってください。</p>
+<PageHeader title="デコ" subtitle="板が「デコ」です。好きなところに座ってください。" />
 
 {#if loading}
   <p class="muted">よみこみ中</p>
@@ -90,15 +90,6 @@
 {/if}
 
 <style>
-  h1 {
-    font-size: 1.4rem;
-    margin: 0 0 0.25rem;
-  }
-
-  .intro {
-    margin: 0 0 1.25rem;
-  }
-
   .list {
     list-style: none;
     margin: 0 0 1.25rem;

@@ -8,6 +8,7 @@
     requestEmailLoginCode,
     startLogin
   } from '$lib/auth';
+  import PageHeader from '$lib/PageHeader.svelte';
 
   // メールのコードを先頭に ── 合言葉を持たないアカウントもあるので。
   let method = $state<'email' | 'password'>('email');
@@ -85,7 +86,7 @@
   }
 </script>
 
-<h1>入る</h1>
+<PageHeader title="入る" />
 
 <div class="tabs">
   <button
@@ -145,10 +146,6 @@
 <p class="prose-small"><a href="/signup">はじめての方はこちら</a></p>
 
 <style>
-  h1 {
-    font-size: 1.4rem;
-    margin: 0 0 1.25rem;
-  }
 
   .tabs {
     display: flex;
