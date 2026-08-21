@@ -1,5 +1,6 @@
 <script lang="ts">
   import { listDecos, createDeco, getCurrentAccount, type Deco } from '$lib/api';
+  import { t } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
   let decos = $state<Deco[]>([]);
@@ -21,7 +22,7 @@
   $effect(() => {
     listDecos()
       .then((d) => (decos = d))
-      .catch(() => (error = '板の一覧が読めませんでした'))
+      .catch(() => (error = t().home.loadError))
       .finally(() => (loading = false));
 
     getCurrentAccount().then((a) => (isAdmin = a?.isAdmin ?? false));
@@ -37,26 +38,26 @@
       slug = name = description = '';
       opening = false;
     } catch {
-      error = 'その名前では立てられませんでした（すでにある名前か、使えない形かも）';
+      error = t().home.createError;
     } finally {
       saving = false;
     }
   }
 </script>
 
-<PageHeader title="デコ" subtitle="板が「デコ」です。好きなところに座ってください。" />
+<PageHeader title={t().home.title} subtitle={t().home.subtitle} />
 
 {#if loading}
-  <p class="muted">よみこみ中</p>
+  <p class="muted">{t().common.loading}</p>
 {:else if decos.length === 0}
-  <p class="muted">まだ、どの板もありません。</p>
+  <p class="muted">{t().home.empty}</p>
 {:else}
   <ul class="list">
     {#each decos as deco (deco.id)}
       <li class="card">
-        <a class="name" href="/{deco.slug}">{deco.name}</a>
+        <a class="name" href="/d/{deco.slug}">{deco.name}</a>
         {#if deco.description}<p class="desc">{deco.description}</p>{/if}
-        <p class="muted">{deco.post_count} 件</p>
+        <p class="muted">{t().home.postCount(deco.post_count)}</p>
       </li>
     {/each}
   </ul>
@@ -68,24 +69,24 @@
   {#if opening}
     <form class="card open" onsubmit={open}>
       <label>
-        <span class="muted">名前</span>
+        <span class="muted">{t().home.fields.name}</span>
         <input type="text" bind:value={name} required maxlength="60" />
       </label>
       <label>
-        <span class="muted">URL に出る名前（英小文字・数字・- _）</span>
+        <span class="muted">{t().home.fields.slug}</span>
         <input type="text" bind:value={slug} required pattern="[a-z0-9][a-z0-9_\-]&#123;0,29&#125;" />
       </label>
       <label>
-        <span class="muted">どんな板か（なくてもいい）</span>
+        <span class="muted">{t().home.fields.description}</span>
         <textarea bind:value={description} rows="2" maxlength="2000"></textarea>
       </label>
       <div class="row">
-        <button class="btn" type="submit" disabled={saving}>立てる</button>
-        <button class="btn ghost" type="button" onclick={() => (opening = false)}>やめる</button>
+        <button class="btn" type="submit" disabled={saving}>{t().home.submit}</button>
+        <button class="btn ghost" type="button" onclick={() => (opening = false)}>{t().home.cancel}</button>
       </div>
     </form>
   {:else}
-    <button class="btn" type="button" onclick={() => (opening = true)}>板を立てる</button>
+    <button class="btn" type="button" onclick={() => (opening = true)}>{t().home.openForm}</button>
   {/if}
 {/if}
 

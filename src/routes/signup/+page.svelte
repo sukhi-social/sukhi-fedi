@@ -7,6 +7,7 @@
     setWarmthNote,
     isLoggedIn
   } from '$lib/auth';
+  import { t } from '$lib/i18n.svelte';
   import Hinata from '$lib/Hinata.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
@@ -33,10 +34,10 @@
     error = null;
     try {
       await requestSignupEmailCode(email);
-      notice = `${email} にコードを送りました`;
+      notice = t().signup.codeSent(email);
       phase = 'code';
     } catch (e) {
-      error = 'コードを送れませんでした';
+      error = t().signup.errorSendFailed;
     } finally {
       busy = false;
     }
@@ -50,18 +51,18 @@
     try {
       const proof = await confirmSignupEmailCode(email, code);
       phase = 'working';
-      const t = await signup(username, proof, password || undefined);
-      token = t.access_token;
+      const created = await signup(username, proof, password || undefined);
+      token = created.access_token;
       phase = 'warmth';
       busy = false;
     } catch (e) {
       busy = false;
       phase = 'code';
       const msg = e instanceof Error ? e.message : '';
-      if (msg === 'email_taken') error = 'そのメールアドレスは、もう使われています';
-      else if (msg === 'email_proof_invalid') error = 'コードが古いか、違っています';
-      else if (msg.includes('validation')) error = 'ユーザー名か、コードを見直してください';
-      else error = '作れませんでした';
+      if (msg === 'email_taken') error = t().signup.errorEmailTaken;
+      else if (msg === 'email_proof_invalid') error = t().signup.errorCodeInvalid;
+      else if (msg.includes('validation')) error = t().signup.errorValidation;
+      else error = t().signup.errorGeneric;
     }
   }
 
@@ -73,17 +74,17 @@
   }
 </script>
 
-<PageHeader title="はじめる" />
+<PageHeader title={t().signup.title} />
 
 {#if phase === 'form'}
   <Hinata>
-    <p>ようこそ。ひなたです。</p>
-    <p>ここで、あなたのことを少し教えてください。</p>
+    <p>{t().signup.welcome}</p>
+    <p>{t().signup.intro}</p>
   </Hinata>
 
   <form class="card stack" onsubmit={sendCode}>
     <label>
-      <span class="muted">@ハンドル(英小文字・数字・_、あとから変えられません)</span>
+      <span class="muted">{t().signup.handle}</span>
       <input
         type="text"
         value={username}
@@ -94,33 +95,33 @@
       />
     </label>
     <label>
-      <span class="muted">メールアドレス</span>
+      <span class="muted">{t().signup.email}</span>
       <input type="email" bind:value={email} required autocomplete="email" />
-      <span class="muted small">アカウントをなくしたとき、ここから帰ってこられます。</span>
+      <span class="muted small">{t().signup.emailHint}</span>
     </label>
     <label>
-      <span class="muted">合言葉(なくてもいい ── メールのコードだけで入れます)</span>
+      <span class="muted">{t().signup.password}</span>
       <input type="password" bind:value={password} autocomplete="new-password" minlength="8" />
     </label>
-    <button class="btn" type="submit" disabled={busy}>コードを送る</button>
+    <button class="btn" type="submit" disabled={busy}>{t().signup.sendCode}</button>
   </form>
 {:else if phase === 'code'}
   <form class="card stack" onsubmit={confirmAndCreate}>
     {#if notice}<p class="muted">{notice}</p>{/if}
     <label>
-      <span class="muted">6桁のコード</span>
+      <span class="muted">{t().signup.code}</span>
       <input type="text" bind:value={code} required inputmode="numeric" pattern="[0-9]{'{6}'}" autofocus />
     </label>
-    <button class="btn" type="submit" disabled={busy}>つくる</button>
+    <button class="btn" type="submit" disabled={busy}>{t().signup.create}</button>
   </form>
 {:else if phase === 'warmth'}
   <Hinata>
-    <p>さいごに。</p>
+    <p>{t().signup.warmthTitle}</p>
     <p>
-      ひなたは、みんなに「あたたかい」ことを聞いています。<br />
-      あたたかい場所がいいと、信じているから。
+      {t().signup.warmthBody1}<br />
+      {t().signup.warmthBody2}
     </p>
-    <p>あなたにとって、今、あたたかいと感じるものは何ですか?</p>
+    <p>{t().signup.warmthQuestion}</p>
   </Hinata>
 
   <form
@@ -131,19 +132,19 @@
     }}
   >
     <label>
-      <span class="muted">もしよければ、一言でも、どうぞ。</span>
-      <input type="text" bind:value={warmth} maxlength="140" placeholder="こたえなくても、いいです" />
+      <span class="muted">{t().signup.warmthField}</span>
+      <input type="text" bind:value={warmth} maxlength="140" placeholder={t().signup.warmthPlaceholder} />
     </label>
-    <button class="btn" type="submit" disabled={busy}>{busy ? 'すすんでいます…' : 'ナタデコへ'}</button>
+    <button class="btn" type="submit" disabled={busy}>{busy ? t().signup.finishing : t().signup.finish}</button>
   </form>
 {:else}
-  <p class="muted">つくっています…</p>
+  <p class="muted">{t().signup.creating}</p>
 {/if}
 
 {#if error}<p class="error">{error}</p>{/if}
 
 {#if phase === 'form'}
-  <p class="prose-small"><a href="/login">もうアカウントがある方はこちら</a></p>
+  <p class="prose-small"><a href="/login">{t().signup.loginLink}</a></p>
 {/if}
 
 <style>

@@ -3,6 +3,7 @@
   import '../app.css';
   import { isLoggedIn, signOutServer } from '$lib/auth';
   import { currentTheme, toggleTheme } from '$lib/theme';
+  import { t, getLang, toggleLang, langNames } from '$lib/i18n.svelte';
   import BoardNav from '$lib/BoardNav.svelte';
 
   let { children } = $props();
@@ -21,6 +22,10 @@
     theme = toggleTheme();
   }
 
+  function flipLang() {
+    toggleLang();
+  }
+
   async function signOut() {
     await signOutServer();
     signedIn = false;
@@ -30,13 +35,16 @@
 
 <header>
   <div class="measure bar">
-    <a class="mark" href="/">ナタデコ</a>
+    <a class="mark" href="/">{t().siteName}</a>
     <span class="spacer"></span>
+    <button class="lang-toggle" type="button" onclick={flipLang}>
+      {langNames[getLang() === 'ja' ? 'ko' : 'ja']}
+    </button>
     <button
       class="theme-toggle"
       type="button"
       onclick={flipTheme}
-      aria-label={theme === 'dark' ? '明るい色にする' : '暗い色にする'}
+      aria-label={theme === 'dark' ? t().themeToggle.toLight : t().themeToggle.toDark}
     >
       {#if theme === 'dark'}
         <!-- 月 -->
@@ -58,10 +66,10 @@
       {/if}
     </button>
     {#if signedIn}
-      <a class="nav-action ghost" href="/settings">プロフィール</a>
-      <button class="linklike nav-action" type="button" onclick={signOut}>出る</button>
+      <a class="nav-action ghost" href="/settings">{t().nav.profile}</a>
+      <button class="linklike nav-action" type="button" onclick={signOut}>{t().nav.signOut}</button>
     {:else}
-      <a class="nav-action" href="/login">入る</a>
+      <a class="nav-action" href="/login">{t().nav.signIn}</a>
     {/if}
   </div>
 </header>
@@ -125,6 +133,23 @@
 
   .nav-action.ghost {
     background: transparent;
+  }
+
+  .lang-toggle {
+    font-family: var(--font-round);
+    font-weight: 700;
+    font-size: 0.8rem;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.3rem 0.75rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+
+  .lang-toggle:hover {
+    border-color: var(--sun);
+    color: var(--ink);
   }
 
   .theme-toggle {

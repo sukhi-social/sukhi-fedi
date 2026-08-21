@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { listDecos, type Deco } from '$lib/api';
+  import { t } from '$lib/i18n.svelte';
 
   // どの板からでも、他の板へすぐ移れるように。Zulip の左の stream 一覧
   // と同じ役目 ── 広い画面ではサイドバー、狭い画面では下のバーに
@@ -16,10 +17,10 @@
   const activeSlug = $derived(page.params.slug ?? null);
 </script>
 
-<nav class="board-nav" aria-label="板の一覧">
-  <a class="item home" href="/" class:active={!activeSlug}>ホーム</a>
+<nav class="board-nav" aria-label={t().nav.boardList}>
+  <a class="item home" href="/" class:active={!activeSlug}>{t().nav.home}</a>
   {#each decos as deco (deco.id)}
-    <a class="item" href="/{deco.slug}" class:active={deco.slug === activeSlug}>{deco.name}</a>
+    <a class="item" href="/d/{deco.slug}" class:active={deco.slug === activeSlug}>{deco.name}</a>
   {/each}
 </nav>
 

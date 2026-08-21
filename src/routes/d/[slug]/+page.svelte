@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { getDeco, listPosts, signedIn, when, type Deco, type Post } from '$lib/api';
+  import { t } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
@@ -22,7 +23,7 @@
         posts = p;
         done = p.length < 30;
       })
-      .catch(() => (error = 'この板は見つかりませんでした'))
+      .catch(() => (error = t().board.notFound))
       .finally(() => (loading = false));
   });
 
@@ -39,36 +40,39 @@
 </script>
 
 {#if loading}
-  <p class="muted">よみこみ中</p>
+  <p class="muted">{t().common.loading}</p>
 {:else if !deco}
-  <p class="muted">{error ?? 'この板はありません'}</p>
-  <p><a href="/">デコの一覧へ</a></p>
+  <p class="muted">{error ?? t().board.notFoundFallback}</p>
+  <p><a href="/">{t().common.toDecoList}</a></p>
 {:else}
   <PageHeader title={deco.name} subtitle={deco.description}>
     {#snippet actions()}
       {#if signedIn()}
-        <a class="btn write-btn" href="/{slug}/new">書く</a>
+        <a class="btn write-btn" href="/d/{slug}/new">{t().board.write}</a>
       {/if}
     {/snippet}
   </PageHeader>
 
   {#if !signedIn()}
-    <p class="muted">読むのは誰でも。書くには、<a href="/login?next=/{slug}/new">入って</a>ください。</p>
+    <p class="muted">
+      {t().board.readOnly.prefix}<a href="/login?next=/d/{slug}/new">{t().board.readOnly.link}</a
+      >{t().board.readOnly.suffix}
+    </p>
   {/if}
 
   {#if error}<p class="error">{error}</p>{/if}
 
   {#if posts.length === 0}
-    <p class="muted empty">まだ、なにもありません。最初の一つに、なれます。</p>
+    <p class="muted empty">{t().board.empty}</p>
   {:else}
     <div class="table-wrap">
       <table class="board-table">
         <thead>
           <tr>
-            <th class="num">番号</th>
-            <th>タイトル</th>
-            <th>作成者</th>
-            <th class="date">作成日</th>
+            <th class="num">{t().board.colNum}</th>
+            <th>{t().board.colTitle}</th>
+            <th>{t().board.colAuthor}</th>
+            <th class="date">{t().board.colDate}</th>
           </tr>
         </thead>
         <tbody>
@@ -76,7 +80,7 @@
             <tr>
               <td class="num muted">{deco.post_count - i}</td>
               <td class="title-cell">
-                <a href="/posts/{post.id}">{post.title || '(無題)'}</a>
+                <a href="/posts/{post.id}">{post.title || t().board.untitled}</a>
                 {#if post.reply_count > 0}<span class="muted count">{post.reply_count}</span>{/if}
               </td>
               <td><Author author={post.author} compact /></td>
@@ -88,13 +92,13 @@
     </div>
 
     {#if done}
-      <p class="muted end">ここまでです。</p>
+      <p class="muted end">{t().board.end}</p>
     {:else}
-      <button class="btn" type="button" onclick={more}>もっと読む</button>
+      <button class="btn" type="button" onclick={more}>{t().board.more}</button>
     {/if}
   {/if}
 
-  <p class="back"><a href="/">デコの一覧へ</a></p>
+  <p class="back"><a href="/">{t().common.toDecoList}</a></p>
 {/if}
 
 <style>

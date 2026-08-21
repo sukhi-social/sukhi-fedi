@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { getPost, createReply, signedIn, when, type Post } from '$lib/api';
+  import { t } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
 
@@ -33,7 +34,7 @@
     loading = true;
     getPost(target)
       .then((p) => (post = p))
-      .catch(() => (error = 'この投稿は見つかりませんでした'))
+      .catch(() => (error = t().postDetail.notFound))
       .finally(() => (loading = false));
   });
 
@@ -48,7 +49,7 @@
       post = { ...post, replies: [...(post.replies ?? []), made] };
       text = '';
     } catch {
-      error = '書けませんでした';
+      error = t().postDetail.error;
     } finally {
       posting = false;
     }
@@ -56,9 +57,9 @@
 </script>
 
 {#if loading}
-  <p class="muted">よみこみ中</p>
+  <p class="muted">{t().common.loading}</p>
 {:else if !post}
-  <p class="muted">{error ?? 'この投稿はありません'}</p>
+  <p class="muted">{error ?? t().postDetail.notFoundFallback}</p>
 {:else}
   <article class="card">
     <div class="head">
@@ -67,7 +68,7 @@
     </div>
     <div class="body">{@html post.content_html}</div>
     {#if signedIn()}
-      <button type="button" class="linklike" onclick={() => post && quote(post)}>引用して返信する</button>
+      <button type="button" class="linklike" onclick={() => post && quote(post)}>{t().postDetail.quote}</button>
     {/if}
   </article>
 
@@ -78,7 +79,7 @@
           <p><Author author={r.author} at={when(r.created_at)} /></p>
           <div class="body">{@html r.content_html}</div>
           {#if signedIn()}
-            <button type="button" class="linklike" onclick={() => quote(r)}>引用して返信する</button>
+            <button type="button" class="linklike" onclick={() => quote(r)}>{t().postDetail.quote}</button>
           {/if}
         </li>
       {/each}
@@ -92,14 +93,17 @@
         bind:value={text}
         bind:this={textEl}
         rows="3"
-        placeholder="つづきを、どうぞ"
+        placeholder={t().postDetail.replyPlaceholder}
         use:autoresize
         use:submitOnMetaEnter
       ></textarea>
-      <button class="btn" type="submit" disabled={posting || !text.trim()}>おくる</button>
+      <button class="btn" type="submit" disabled={posting || !text.trim()}>{t().postDetail.send}</button>
     </form>
   {:else}
-    <p class="muted">読むのは誰でも。書くには、<a href="/login">入って</a>ください。</p>
+    <p class="muted">
+      {t().postDetail.readOnly.prefix}<a href="/login">{t().postDetail.readOnly.link}</a
+      >{t().postDetail.readOnly.suffix}
+    </p>
   {/if}
 
   {#if error}<p class="error">{error}</p>{/if}

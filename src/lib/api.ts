@@ -4,6 +4,8 @@
 // 同じ origin に並べて置くので、入口（ログイン）は一つでいい。natadeco
 // のためにもう一本、認証の道を作らない。
 
+import { getLang } from '$lib/i18n.svelte';
+
 export type Deco = {
   id: number;
   slug: string;
@@ -139,6 +141,16 @@ export const updateProfile = (body: { display_name?: string; note?: string }) =>
 export function when(iso: string): string {
   const then = new Date(iso).getTime();
   const mins = Math.floor((Date.now() - then) / 60000);
+  const lang = getLang();
+  if (lang === 'ko') {
+    if (mins < 1) return '지금';
+    if (mins < 60) return `${mins}분 전`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}시간 전`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}일 전`;
+    return new Date(iso).toLocaleDateString('ko-KR');
+  }
   if (mins < 1) return 'いま';
   if (mins < 60) return `${mins} 分前`;
   const hours = Math.floor(mins / 60);

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { getCurrentAccount, updateProfile, signedIn, type CurrentAccount } from '$lib/api';
+  import { t } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
   let account = $state<CurrentAccount | null>(null);
@@ -39,32 +40,35 @@
       account = { ...account!, ...updated };
       saved = true;
     } catch {
-      error = '保存できませんでした';
+      error = t().settings.error;
     } finally {
       saving = false;
     }
   }
 </script>
 
-<PageHeader title="プロフィール" subtitle={account ? `@${account.acct}` : undefined} />
+<PageHeader title={t().settings.title} subtitle={account ? `@${account.acct}` : undefined} />
 
 {#if loading}
-  <p class="muted">よみこみ中</p>
+  <p class="muted">{t().common.loading}</p>
 {:else if !account}
-  <p class="muted">読めませんでした。<a href="/login">入りなおして</a>ください。</p>
+  <p class="muted">
+    {t().settings.loadError.prefix}<a href="/login">{t().settings.loadError.link}</a
+    >{t().settings.loadError.suffix}
+  </p>
 {:else}
   <form class="card stack" onsubmit={save}>
     <label>
-      <span class="muted">表示する名前</span>
+      <span class="muted">{t().settings.displayName}</span>
       <input type="text" bind:value={displayName} maxlength="100" />
     </label>
     <label>
-      <span class="muted">自己紹介(なくてもいい)</span>
+      <span class="muted">{t().settings.note}</span>
       <textarea bind:value={note} rows="4" maxlength="1024"></textarea>
     </label>
     <div class="row">
-      <button class="btn" type="submit" disabled={saving}>{saving ? 'ほぞんしています…' : 'ほぞんする'}</button>
-      {#if saved}<span class="muted">ほぞんしました</span>{/if}
+      <button class="btn" type="submit" disabled={saving}>{saving ? t().settings.saving : t().settings.save}</button>
+      {#if saved}<span class="muted">{t().settings.saved}</span>{/if}
     </div>
   </form>
 

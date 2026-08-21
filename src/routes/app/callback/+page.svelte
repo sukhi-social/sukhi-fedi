@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { completeLogin } from '$lib/auth';
+  import { t } from '$lib/i18n.svelte';
 
   let error = $state<string | null>(null);
 
@@ -11,11 +12,11 @@
     const err = params.get('error');
 
     if (err) {
-      error = `サーバから: ${err}`;
+      error = t().callback.serverError(err);
       return;
     }
     if (!code || !state) {
-      error = 'コードが見当たりません';
+      error = t().callback.noCode;
       return;
     }
 
@@ -25,15 +26,15 @@
       sessionStorage.removeItem('nd.next');
       window.location.assign(next && next.startsWith('/') ? next : '/');
     } catch (e) {
-      error = e instanceof Error ? e.message : '入れませんでした';
+      error = e instanceof Error ? e.message : t().callback.failedTitle;
     }
   });
 </script>
 
 {#if error}
-  <h1>入れませんでした</h1>
+  <h1>{t().callback.failedTitle}</h1>
   <p class="muted">{error}</p>
-  <p><a href="/">デコの一覧へ</a></p>
+  <p><a href="/">{t().common.toDecoList}</a></p>
 {:else}
-  <p class="muted">入っています…</p>
+  <p class="muted">{t().callback.working}</p>
 {/if}

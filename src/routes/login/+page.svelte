@@ -8,6 +8,7 @@
     requestEmailLoginCode,
     startLogin
   } from '$lib/auth';
+  import { t } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
   // メールのコードを先頭に ── 合言葉を持たないアカウントもあるので。
@@ -36,7 +37,7 @@
     try {
       await startLogin();
     } catch {
-      error = '入れませんでした';
+      error = t().login.errorGeneric;
     }
   }
 
@@ -49,7 +50,7 @@
       await loginWithPassword(username, password);
       await finishLogin();
     } catch (e) {
-      error = e instanceof Error && e.message === 'invalid' ? '名前か合言葉が違います' : '入れませんでした';
+      error = e instanceof Error && e.message === 'invalid' ? t().login.errorInvalid : t().login.errorGeneric;
     } finally {
       busy = false;
     }
@@ -62,10 +63,10 @@
     error = null;
     try {
       await requestEmailLoginCode(email);
-      notice = `${email} にコードを送りました`;
+      notice = t().login.codeSent(email);
       phase = 'code';
     } catch {
-      error = '送れませんでした';
+      error = t().login.errorSendFailed;
     } finally {
       busy = false;
     }
@@ -80,13 +81,13 @@
       await loginWithEmailCode(email, code);
       await finishLogin();
     } catch {
-      error = 'コードが違うか、古くなっています';
+      error = t().login.errorCodeInvalid;
       busy = false;
     }
   }
 </script>
 
-<PageHeader title="入る" />
+<PageHeader title={t().login.title} />
 
 <div class="tabs">
   <button
@@ -97,7 +98,7 @@
       method = 'email';
       phase = 'first';
       error = null;
-    }}>メールのコード</button
+    }}>{t().login.tabEmail}</button
   >
   <button
     class="tab"
@@ -106,44 +107,44 @@
     onclick={() => {
       method = 'password';
       error = null;
-    }}>合言葉</button
+    }}>{t().login.tabPassword}</button
   >
 </div>
 
 {#if method === 'password'}
   <form class="card stack" onsubmit={submitPassword}>
     <label>
-      <span class="muted">@ハンドル</span>
+      <span class="muted">{t().login.handle}</span>
       <input type="text" bind:value={username} required autocomplete="username" />
     </label>
     <label>
-      <span class="muted">合言葉</span>
+      <span class="muted">{t().login.password}</span>
       <input type="password" bind:value={password} required autocomplete="current-password" />
     </label>
-    <button class="btn" type="submit" disabled={busy}>入る</button>
+    <button class="btn" type="submit" disabled={busy}>{t().login.submit}</button>
   </form>
 {:else if phase === 'first'}
   <form class="card stack" onsubmit={sendCode}>
     <label>
-      <span class="muted">メールアドレス</span>
+      <span class="muted">{t().login.email}</span>
       <input type="email" bind:value={email} required autocomplete="email" />
     </label>
-    <button class="btn" type="submit" disabled={busy}>コードを送る</button>
+    <button class="btn" type="submit" disabled={busy}>{t().login.sendCode}</button>
   </form>
 {:else}
   <form class="card stack" onsubmit={submitCode}>
     {#if notice}<p class="muted">{notice}</p>{/if}
     <label>
-      <span class="muted">6桁のコード</span>
+      <span class="muted">{t().login.code}</span>
       <input type="text" bind:value={code} required inputmode="numeric" pattern="[0-9]{'{6}'}" autofocus />
     </label>
-    <button class="btn" type="submit" disabled={busy}>入る</button>
+    <button class="btn" type="submit" disabled={busy}>{t().login.submit}</button>
   </form>
 {/if}
 
 {#if error}<p class="error">{error}</p>{/if}
 
-<p class="prose-small"><a href="/signup">はじめての方はこちら</a></p>
+<p class="prose-small"><a href="/signup">{t().login.signupLink}</a></p>
 
 <style>
 

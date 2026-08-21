@@ -4,6 +4,7 @@
   import { getDeco, createPost, signedIn, type Deco } from '$lib/api';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
   import { loadDraft, saveDraft, clearDraft, hasSeenComposeTip, markComposeTipSeen } from '$lib/composeDraft';
+  import { t } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
   const slug = $derived(page.params.slug ?? '');
@@ -21,7 +22,7 @@
 
   $effect(() => {
     if (!signedIn()) {
-      void goto(`/login?next=/${slug}/new`);
+      void goto(`/login?next=/d/${slug}/new`);
       return;
     }
     const s = slug;
@@ -57,57 +58,57 @@
       clearDraft(slug);
       await goto(`/posts/${made.id}`);
     } catch {
-      error = '書けませんでした';
+      error = t().newPost.error;
       posting = false;
     }
   }
 </script>
 
 {#if loading}
-  <p class="muted">よみこみ中</p>
+  <p class="muted">{t().common.loading}</p>
 {:else if notFound || !deco}
-  <p class="muted">この板は見つかりませんでした</p>
-  <p><a href="/">デコの一覧へ</a></p>
+  <p class="muted">{t().newPost.notFound}</p>
+  <p><a href="/">{t().common.toDecoList}</a></p>
 {:else}
-  <PageHeader title="{deco.name} に書く" />
+  <PageHeader title={t().newPost.title(deco.name)} />
 
   {#if showTip}
     <p class="tip">
-      書きかけは、自動でここに残ります。あわてなくて大丈夫です。
-      <button type="button" class="linklike" onclick={() => (showTip = false)}>とじる</button>
+      {t().newPost.tip}
+      <button type="button" class="linklike" onclick={() => (showTip = false)}>{t().newPost.tipClose}</button>
     </p>
   {/if}
 
   <form class="card stack" onsubmit={write}>
     <label>
-      <span class="muted">題</span>
+      <span class="muted">{t().newPost.fieldTitle}</span>
       <input type="text" bind:value={title} required maxlength="120" autofocus />
     </label>
     <label>
-      <span class="muted">本文</span>
+      <span class="muted">{t().newPost.fieldBody}</span>
       <textarea
         class="body-input"
         bind:value={text}
         rows="6"
-        placeholder="なにか、どうぞ"
+        placeholder={t().newPost.bodyPlaceholder}
         use:autoresize
         use:submitOnMetaEnter
       ></textarea>
       <span class="muted small">
-        **太字**・[リンク](url)・#タグ・@名前 が使えます。Cmd/Ctrl + Enter でも送れます。
+        {t().newPost.formatHint}
       </span>
     </label>
     <div class="row">
       <button class="btn" type="submit" disabled={posting || !title.trim() || !text.trim()}
-        >{posting ? 'おくっています…' : '書く'}</button
+        >{posting ? t().newPost.submitting : t().newPost.submit}</button
       >
-      <span class="muted">あなたの名前で出ます</span>
+      <span class="muted">{t().newPost.postedAs}</span>
     </div>
   </form>
 
   {#if error}<p class="error">{error}</p>{/if}
 
-  <p class="back"><a href="/{slug}">{deco.name} にもどる</a></p>
+  <p class="back"><a href="/d/{slug}">{t().newPost.back(deco.name)}</a></p>
 {/if}
 
 <style>
