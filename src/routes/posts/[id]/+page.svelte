@@ -1,8 +1,9 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { getPost, createReply, signedIn, when, type Post } from '$lib/api';
+  import { getPost, createReply, signedIn, when, localized, type Post } from '$lib/api';
   import { t } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
+  import LangTabs from '$lib/LangTabs.svelte';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
 
   const id = $derived(page.params.id ?? '');
@@ -12,6 +13,8 @@
   let error = $state<string | null>(null);
 
   let text = $state('');
+  let textKo = $state('');
+  let replyLang = $state<'ja' | 'ko'>('ja');
   let posting = $state(false);
   let textEl = $state<HTMLTextAreaElement | null>(null);
 
@@ -38,16 +41,28 @@
       .finally(() => (loading = false));
   });
 
+  // どちらの言語で返信してもいい ── 日本語欄が必須、ではない。
+  const jaFilled = $derived(!!text.trim());
+  const koFilled = $derived(!!textKo.trim());
+  const canReply = $derived(jaFilled || koFilled);
+
   async function reply(e: SubmitEvent) {
     e.preventDefault();
-    if (!text.trim() || !post) return;
+    if (!canReply || !post) return;
     posting = true;
     error = null;
     try {
-      const made = await createReply(post.id, { status: text });
+      const made = await createReply(
+        post.id,
+        jaFilled
+          ? { status: text, content_i18n: koFilled ? { ko: textKo.trim() } : undefined }
+          : { status: textKo }
+      );
       // つづきは下に積む ── 掲示板は、上から下へ読むので。
       post = { ...post, replies: [...(post.replies ?? []), made] };
       text = '';
+      textKo = '';
+      replyLang = 'ja';
     } catch {
       error = t().postDetail.error;
     } finally {
@@ -63,10 +78,10 @@
 {:else}
   <article class="card">
     <div class="head">
-      {#if post.title}<h1>{post.title}</h1>{/if}
+      {#if post.title}<h1>{localized(post.title, post.title_i18n)}</h1>{/if}
       <p><Author author={post.author} at={when(post.created_at)} /></p>
     </div>
-    <div class="body">{@html post.content_html}</div>
+    <div class="body">{@html localized(post.content_html, post.content_html_i18n)}</div>
     {#if signedIn()}
       <button type="button" class="linklike" onclick={() => post && quote(post)}>{t().postDetail.quote}</button>
     {/if}
@@ -77,7 +92,7 @@
       {#each post.replies as r (r.id)}
         <li class="card reply">
           <p><Author author={r.author} at={when(r.created_at)} /></p>
-          <div class="body">{@html r.content_html}</div>
+          <div class="body">{@html localized(r.content_html, r.content_html_i18n)}</div>
           {#if signedIn()}
             <button type="button" class="linklike" onclick={() => quote(r)}>{t().postDetail.quote}</button>
           {/if}
@@ -88,16 +103,27 @@
 
   {#if signedIn()}
     <form class="card write" onsubmit={reply}>
-      <textarea
-        class="body-input"
-        bind:value={text}
-        bind:this={textEl}
-        rows="3"
-        placeholder={t().postDetail.replyPlaceholder}
-        use:autoresize
-        use:submitOnMetaEnter
-      ></textarea>
-      <button class="btn" type="submit" disabled={posting || !text.trim()}>{t().postDetail.send}</button>
+      <LangTabs bind:active={replyLang} />
+      {#if replyLang === 'ja'}
+        <textarea
+          class="body-input"
+          bind:value={text}
+          bind:this={textEl}
+          rows="3"
+          placeholder={t().postDetail.replyPlaceholder}
+          use:autoresize
+          use:submitOnMetaEnter
+        ></textarea>
+      {:else}
+        <textarea
+          class="body-input"
+          bind:value={textKo}
+          rows="3"
+          placeholder={t().postDetail.replyPlaceholder}
+          use:autoresize
+        ></textarea>
+      {/if}
+      <button class="btn" type="submit" disabled={posting || !canReply}>{t().postDetail.send}</button>
     </form>
   {:else}
     <p class="muted">

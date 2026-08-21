@@ -1,7 +1,8 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { listDecos, type Deco } from '$lib/api';
+  import { listDecos, localized, type Deco } from '$lib/api';
   import { t } from '$lib/i18n.svelte';
+  import DecoBadge from '$lib/DecoBadge.svelte';
 
   // どの板からでも、他の板へすぐ移れるように。Zulip の左の stream 一覧
   // と同じ役目 ── 広い画面ではサイドバー、狭い画面では下のバーに
@@ -20,7 +21,10 @@
 <nav class="board-nav" aria-label={t().nav.boardList}>
   <a class="item home" href="/" class:active={!activeSlug}>{t().nav.home}</a>
   {#each decos as deco (deco.id)}
-    <a class="item" href="/d/{deco.slug}" class:active={deco.slug === activeSlug}>{deco.name}</a>
+    <a class="item" href="/d/{deco.slug}" class:active={deco.slug === activeSlug}>
+      <span class="item-name">{localized(deco.name, deco.name_i18n)}</span>
+      <DecoBadge />
+    </a>
   {/each}
 </nav>
 
@@ -36,15 +40,22 @@
   }
 
   .item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
     padding: 0.4rem 0.65rem;
     border-radius: var(--radius);
     color: var(--ink-soft);
     text-decoration: none;
     font-size: 0.88rem;
-    white-space: nowrap;
+  }
+
+  .item-name {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
 
   .item:hover {

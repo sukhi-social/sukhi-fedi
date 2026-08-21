@@ -1,11 +1,12 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { getDeco, createPost, signedIn, type Deco } from '$lib/api';
+  import { getDeco, createPost, signedIn, localized, type Deco } from '$lib/api';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
   import { loadDraft, saveDraft, clearDraft, hasSeenComposeTip, markComposeTipSeen } from '$lib/composeDraft';
   import { t } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
+  import LangTabs from '$lib/LangTabs.svelte';
 
   const slug = $derived(page.params.slug ?? '');
 
@@ -15,6 +16,9 @@
 
   let title = $state('');
   let text = $state('');
+  let titleKo = $state('');
+  let textKo = $state('');
+  let lang = $state<'ja' | 'ko'>('ja');
   let posting = $state(false);
   let error = $state<string | null>(null);
 
@@ -32,6 +36,8 @@
     if (draft) {
       title = draft.title;
       text = draft.text;
+      titleKo = draft.titleKo ?? '';
+      textKo = draft.textKo ?? '';
     }
 
     showTip = !hasSeenComposeTip();
@@ -45,16 +51,33 @@
 
   // 打つたびに、そのまま下書きへ。書きかけを失くさないように。
   $effect(() => {
-    if (slug) saveDraft(slug, { title, text });
+    if (slug) saveDraft(slug, { title, text, titleKo, textKo });
   });
+
+  // どちらの言語で書いてもいい ── 日本語欄が必須、ではない。埋まって
+  // いるほうがそのまま主(連合される側)になる。両方埋めれば、片方が
+  // もう一方に添えられる。
+  const jaComplete = $derived(!!title.trim() && !!text.trim());
+  const koComplete = $derived(!!titleKo.trim() && !!textKo.trim());
+  const canSubmit = $derived(jaComplete || koComplete);
 
   async function write(e: SubmitEvent) {
     e.preventDefault();
-    if (!title.trim() || !text.trim() || posting) return;
+    if (!canSubmit || posting) return;
     posting = true;
     error = null;
     try {
-      const made = await createPost(slug, { title: title.trim(), status: text });
+      const made = await createPost(
+        slug,
+        jaComplete
+          ? {
+              title: title.trim(),
+              status: text,
+              title_i18n: koComplete ? { ko: titleKo.trim() } : undefined,
+              content_i18n: koComplete ? { ko: textKo.trim() } : undefined
+            }
+          : { title: titleKo.trim(), status: textKo }
+      );
       clearDraft(slug);
       await goto(`/posts/${made.id}`);
     } catch {
@@ -70,7 +93,7 @@
   <p class="muted">{t().newPost.notFound}</p>
   <p><a href="/">{t().common.toDecoList}</a></p>
 {:else}
-  <PageHeader title={t().newPost.title(deco.name)} />
+  <PageHeader title={t().newPost.title(localized(deco.name, deco.name_i18n))} />
 
   {#if showTip}
     <p class="tip">
@@ -80,35 +103,56 @@
   {/if}
 
   <form class="card stack" onsubmit={write}>
-    <label>
-      <span class="muted">{t().newPost.fieldTitle}</span>
-      <input type="text" bind:value={title} required maxlength="120" autofocus />
-    </label>
-    <label>
-      <span class="muted">{t().newPost.fieldBody}</span>
-      <textarea
-        class="body-input"
-        bind:value={text}
-        rows="6"
-        placeholder={t().newPost.bodyPlaceholder}
-        use:autoresize
-        use:submitOnMetaEnter
-      ></textarea>
-      <span class="muted small">
-        {t().newPost.formatHint}
-      </span>
-    </label>
+    <LangTabs bind:active={lang} />
+
+    {#if lang === 'ja'}
+      <label>
+        <span class="muted">{t().newPost.fieldTitle}</span>
+        <input type="text" bind:value={title} maxlength="120" autofocus />
+      </label>
+      <label>
+        <span class="muted">{t().newPost.fieldBody}</span>
+        <textarea
+          class="body-input"
+          bind:value={text}
+          rows="6"
+          placeholder={t().newPost.bodyPlaceholder}
+          use:autoresize
+          use:submitOnMetaEnter
+        ></textarea>
+        <span class="muted small">
+          {t().newPost.formatHint}
+        </span>
+      </label>
+    {:else}
+      <label>
+        <span class="muted">{t().newPost.fieldTitle}</span>
+        <input type="text" bind:value={titleKo} maxlength="120" />
+      </label>
+      <label>
+        <span class="muted">{t().newPost.fieldBody}</span>
+        <textarea class="body-input" bind:value={textKo} rows="6" placeholder={t().newPost.bodyPlaceholder}
+        ></textarea>
+        <span class="muted small">
+          {t().newPost.formatHint}
+        </span>
+      </label>
+    {/if}
+
     <div class="row">
-      <button class="btn" type="submit" disabled={posting || !title.trim() || !text.trim()}
+      <button class="btn" type="submit" disabled={posting || !canSubmit}
         >{posting ? t().newPost.submitting : t().newPost.submit}</button
       >
       <span class="muted">{t().newPost.postedAs}</span>
     </div>
+    {#if !canSubmit && (title.trim() || text.trim() || titleKo.trim() || textKo.trim())}
+      <p class="muted small">{t().newPost.needOneLang}</p>
+    {/if}
   </form>
 
   {#if error}<p class="error">{error}</p>{/if}
 
-  <p class="back"><a href="/d/{slug}">{t().newPost.back(deco.name)}</a></p>
+  <p class="back"><a href="/d/{slug}">{t().newPost.back(localized(deco.name, deco.name_i18n))}</a></p>
 {/if}
 
 <style>

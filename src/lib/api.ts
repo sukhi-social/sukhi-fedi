@@ -10,7 +10,9 @@ export type Deco = {
   id: number;
   slug: string;
   name: string;
+  name_i18n: Record<string, string>;
   description: string | null;
+  description_i18n: Record<string, string>;
   post_count: number;
   created_at: string;
 };
@@ -26,12 +28,24 @@ export type Post = {
   id: number;
   deco_id: number;
   title: string | null;
+  title_i18n: Record<string, string>;
   content_html: string;
+  content_html_i18n: Record<string, string>;
   author: Author;
   created_at: string;
   reply_count: number;
   replies?: Post[];
 };
+
+/**
+ * 主言語(ja)＋上乗せ(例: ko)から、いまの表示言語に合うほうを返す。
+ * 訳が無ければ主言語のまま ── 「無ければ隠す」ではなく「無ければ元」。
+ */
+export function localized(primary: string | null, i18n: Record<string, string> | undefined): string {
+  const lang = getLang();
+  if (lang === 'ja') return primary ?? '';
+  return i18n?.[lang] || primary || '';
+}
 
 export type CurrentAccount = {
   username: string;
@@ -96,14 +110,28 @@ export function listPosts(slug: string, beforeId?: number) {
 
 export const getPost = (id: number | string) => req<Post>('GET', `/api/v1/deco/posts/${id}`);
 
-export const createPost = (slug: string, body: { title?: string; status: string }) =>
-  req<Post>('POST', `/api/v1/deco/${encodeURIComponent(slug)}/posts`, body);
+export const createPost = (
+  slug: string,
+  body: {
+    title?: string;
+    status: string;
+    title_i18n?: Record<string, string>;
+    content_i18n?: Record<string, string>;
+  }
+) => req<Post>('POST', `/api/v1/deco/${encodeURIComponent(slug)}/posts`, body);
 
-export const createReply = (id: number | string, body: { status: string }) =>
-  req<Post>('POST', `/api/v1/deco/posts/${id}/replies`, body);
+export const createReply = (
+  id: number | string,
+  body: { status: string; content_i18n?: Record<string, string> }
+) => req<Post>('POST', `/api/v1/deco/posts/${id}/replies`, body);
 
-export const createDeco = (body: { slug: string; name: string; description?: string }) =>
-  req<Deco>('POST', '/api/v1/deco', body);
+export const createDeco = (body: {
+  slug: string;
+  name: string;
+  description?: string;
+  name_i18n?: Record<string, string>;
+  description_i18n?: Record<string, string>;
+}) => req<Deco>('POST', '/api/v1/deco', body);
 
 /**
  * いまログインしている人の、素の姿。板を立てる権限(admin かどうか)は

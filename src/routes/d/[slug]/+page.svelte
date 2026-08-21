@@ -1,9 +1,10 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { getDeco, listPosts, signedIn, when, type Deco, type Post } from '$lib/api';
+  import { getDeco, listPosts, signedIn, when, localized, type Deco, type Post } from '$lib/api';
   import { t } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
+  import DecoBadge from '$lib/DecoBadge.svelte';
 
   const slug = $derived(page.params.slug ?? '');
 
@@ -45,7 +46,11 @@
   <p class="muted">{error ?? t().board.notFoundFallback}</p>
   <p><a href="/">{t().common.toDecoList}</a></p>
 {:else}
-  <PageHeader title={deco.name} subtitle={deco.description}>
+  <PageHeader
+    title={localized(deco.name, deco.name_i18n)}
+    subtitle={deco.description ? localized(deco.description, deco.description_i18n) : null}
+  >
+    {#snippet titleExtra()}<DecoBadge />{/snippet}
     {#snippet actions()}
       {#if signedIn()}
         <a class="btn write-btn" href="/d/{slug}/new">{t().board.write}</a>
@@ -80,7 +85,7 @@
             <tr>
               <td class="num muted">{deco.post_count - i}</td>
               <td class="title-cell">
-                <a href="/posts/{post.id}">{post.title || t().board.untitled}</a>
+                <a href="/posts/{post.id}">{localized(post.title, post.title_i18n) || t().board.untitled}</a>
                 {#if post.reply_count > 0}<span class="muted count">{post.reply_count}</span>{/if}
               </td>
               <td><Author author={post.author} compact /></td>

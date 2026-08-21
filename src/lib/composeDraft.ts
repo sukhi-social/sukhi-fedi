@@ -4,7 +4,7 @@
 
 import { browser } from '$app/environment';
 
-export type Draft = { title: string; text: string };
+export type Draft = { title: string; text: string; titleKo: string; textKo: string };
 
 const key = (slug: string) => `nd.draft.${slug}`;
 
@@ -21,7 +21,7 @@ export function loadDraft(slug: string): Draft | null {
 
 export function saveDraft(slug: string, draft: Draft): void {
   if (!browser) return;
-  if (!draft.title.trim() && !draft.text.trim()) {
+  if (!draft.title.trim() && !draft.text.trim() && !draft.titleKo.trim() && !draft.textKo.trim()) {
     clearDraft(slug);
     return;
   }

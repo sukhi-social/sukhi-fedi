@@ -45,7 +45,7 @@ type Dict = {
   siteName: string;
   themeToggle: { toLight: string; toDark: string };
   nav: { boardList: string; home: string; profile: string; signOut: string; signIn: string };
-  common: { loading: string; toDecoList: string };
+  common: { loading: string; toDecoList: string; optional: string };
   home: {
     title: string;
     subtitle: string;
@@ -57,6 +57,7 @@ type Dict = {
     submit: string;
     cancel: string;
     createError: string;
+    needOneLang: string;
   };
   board: {
     notFound: string;
@@ -86,6 +87,7 @@ type Dict = {
     postedAs: string;
     error: string;
     back: (name: string) => string;
+    needOneLang: string;
   };
   postDetail: {
     notFound: string;
@@ -163,7 +165,7 @@ const ja: Dict = {
   siteName: 'ナタデコ',
   themeToggle: { toLight: '明るい色にする', toDark: '暗い色にする' },
   nav: { boardList: '板の一覧', home: 'ホーム', profile: 'プロフィール', signOut: '出る', signIn: '入る' },
-  common: { loading: 'よみこみ中', toDecoList: 'デコの一覧へ' },
+  common: { loading: 'よみこみ中', toDecoList: 'デコの一覧へ', optional: 'なくてもいい' },
   home: {
     title: 'デコ',
     subtitle: '板が「デコ」です。好きなところに座ってください。',
@@ -178,7 +180,8 @@ const ja: Dict = {
     },
     submit: '立てる',
     cancel: 'やめる',
-    createError: 'その名前では立てられませんでした（すでにある名前か、使えない形かも）'
+    createError: 'その名前では立てられませんでした（すでにある名前か、使えない形かも）',
+    needOneLang: 'どちらかの言語で、名前を書いてください。'
   },
   board: {
     notFound: 'この板は見つかりませんでした',
@@ -207,7 +210,8 @@ const ja: Dict = {
     submitting: 'おくっています…',
     postedAs: 'あなたの名前で出ます',
     error: '書けませんでした',
-    back: (name) => `${name} にもどる`
+    back: (name) => `${name} にもどる`,
+    needOneLang: 'どちらかの言語で、題と本文を両方書いてください。'
   },
   postDetail: {
     notFound: 'この投稿は見つかりませんでした',
@@ -285,7 +289,7 @@ const ko: Dict = {
   siteName: '나타데코',
   themeToggle: { toLight: '밝게 하기', toDark: '어둡게 하기' },
   nav: { boardList: '데코 목록', home: '홈', profile: '프로필', signOut: '나가기', signIn: '들어가기' },
-  common: { loading: '불러오는 중', toDecoList: '데코 목록으로' },
+  common: { loading: '불러오는 중', toDecoList: '데코 목록으로', optional: '안 적어도 돼요' },
   home: {
     title: '데코',
     subtitle: "게시판을 '데코'라고 불러요. 마음에 드는 곳에 앉아 보세요.",
@@ -300,7 +304,8 @@ const ko: Dict = {
     },
     submit: '만들기',
     cancel: '취소',
-    createError: '그 이름으로는 만들 수 없었어요 (이미 있는 이름이거나, 쓸 수 없는 형식일 수도 있어요)'
+    createError: '그 이름으로는 만들 수 없었어요 (이미 있는 이름이거나, 쓸 수 없는 형식일 수도 있어요)',
+    needOneLang: '한쪽 언어로, 이름을 적어주세요.'
   },
   board: {
     notFound: '이 데코를 찾을 수 없었어요',
@@ -329,7 +334,8 @@ const ko: Dict = {
     submitting: '보내는 중…',
     postedAs: '당신의 이름으로 올라가요',
     error: '쓸 수 없었어요',
-    back: (name) => `${name}(으)로 돌아가기`
+    back: (name) => `${name}(으)로 돌아가기`,
+    needOneLang: '한쪽 언어로, 제목과 내용을 모두 적어주세요.'
   },
   postDetail: {
     notFound: '이 글을 찾을 수 없었어요',

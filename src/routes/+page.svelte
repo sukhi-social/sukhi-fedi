@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { listDecos, createDeco, getCurrentAccount, type Deco } from '$lib/api';
+  import { listDecos, createDeco, getCurrentAccount, localized, type Deco } from '$lib/api';
   import { t } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
+  import LangTabs from '$lib/LangTabs.svelte';
+  import DecoBadge from '$lib/DecoBadge.svelte';
 
   let decos = $state<Deco[]>([]);
   let loading = $state(true);
@@ -17,6 +19,9 @@
   let slug = $state('');
   let name = $state('');
   let description = $state('');
+  let nameKo = $state('');
+  let descriptionKo = $state('');
+  let lang = $state<'ja' | 'ko'>('ja');
   let saving = $state(false);
 
   $effect(() => {
@@ -28,14 +33,33 @@
     getCurrentAccount().then((a) => (isAdmin = a?.isAdmin ?? false));
   });
 
+  // どちらの言語で立ててもいい ── 日本語欄が必須、ではない。埋まって
+  // いるほうの名前がそのまま主になる。
+  const jaComplete = $derived(!!name.trim());
+  const koComplete = $derived(!!nameKo.trim());
+  const canSubmit = $derived(jaComplete || koComplete);
+
   async function open(e: SubmitEvent) {
     e.preventDefault();
+    if (!canSubmit || saving) return;
     saving = true;
     error = null;
     try {
-      const made = await createDeco({ slug, name, description: description || undefined });
+      const made = await createDeco(
+        jaComplete
+          ? {
+              slug,
+              name,
+              description: description || undefined,
+              name_i18n: koComplete ? { ko: nameKo.trim() } : undefined,
+              description_i18n:
+                koComplete && descriptionKo.trim() ? { ko: descriptionKo.trim() } : undefined
+            }
+          : { slug, name: nameKo.trim(), description: descriptionKo || undefined }
+      );
       decos = [...decos, made].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-      slug = name = description = '';
+      slug = name = description = nameKo = descriptionKo = '';
+      lang = 'ja';
       opening = false;
     } catch {
       error = t().home.createError;
@@ -55,8 +79,11 @@
   <ul class="list">
     {#each decos as deco (deco.id)}
       <li class="card">
-        <a class="name" href="/d/{deco.slug}">{deco.name}</a>
-        {#if deco.description}<p class="desc">{deco.description}</p>{/if}
+        <a class="name" href="/d/{deco.slug}">{localized(deco.name, deco.name_i18n)}</a>
+        <DecoBadge />
+        {#if deco.description}
+          <p class="desc">{localized(deco.description, deco.description_i18n)}</p>
+        {/if}
         <p class="muted">{t().home.postCount(deco.post_count)}</p>
       </li>
     {/each}
@@ -69,21 +96,39 @@
   {#if opening}
     <form class="card open" onsubmit={open}>
       <label>
-        <span class="muted">{t().home.fields.name}</span>
-        <input type="text" bind:value={name} required maxlength="60" />
-      </label>
-      <label>
         <span class="muted">{t().home.fields.slug}</span>
         <input type="text" bind:value={slug} required pattern="[a-z0-9][a-z0-9_\-]&#123;0,29&#125;" />
       </label>
-      <label>
-        <span class="muted">{t().home.fields.description}</span>
-        <textarea bind:value={description} rows="2" maxlength="2000"></textarea>
-      </label>
+
+      <LangTabs bind:active={lang} />
+
+      {#if lang === 'ja'}
+        <label>
+          <span class="muted">{t().home.fields.name}</span>
+          <input type="text" bind:value={name} maxlength="60" />
+        </label>
+        <label>
+          <span class="muted">{t().home.fields.description}</span>
+          <textarea bind:value={description} rows="2" maxlength="2000"></textarea>
+        </label>
+      {:else}
+        <label>
+          <span class="muted">{t().home.fields.name}</span>
+          <input type="text" bind:value={nameKo} maxlength="60" />
+        </label>
+        <label>
+          <span class="muted">{t().home.fields.description}</span>
+          <textarea bind:value={descriptionKo} rows="2" maxlength="2000"></textarea>
+        </label>
+      {/if}
+
       <div class="row">
-        <button class="btn" type="submit" disabled={saving}>{t().home.submit}</button>
+        <button class="btn" type="submit" disabled={saving || !canSubmit}>{t().home.submit}</button>
         <button class="btn ghost" type="button" onclick={() => (opening = false)}>{t().home.cancel}</button>
       </div>
+      {#if !canSubmit && (name.trim() || nameKo.trim())}
+        <p class="muted small">{t().home.needOneLang}</p>
+      {/if}
     </form>
   {:else}
     <button class="btn" type="button" onclick={() => (opening = true)}>{t().home.openForm}</button>
@@ -108,6 +153,10 @@
 
   .desc {
     margin: 0.35rem 0 0;
+  }
+
+  .small {
+    font-size: 0.78rem;
   }
 
   .open {
