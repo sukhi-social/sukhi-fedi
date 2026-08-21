@@ -147,7 +147,7 @@
 <style>
   h1 {
     font-size: 1.4rem;
-    margin: 0 0 1rem;
+    margin: 0 0 1.25rem;
   }
 
   .tabs {

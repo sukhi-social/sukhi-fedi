@@ -99,8 +99,11 @@
     margin: 0 0 0.25rem;
   }
 
+  /* .top 自体が下の余白(1.25rem)を持つので、中の最後の子(intro)は
+     自分の margin を持たない ── flex item は子の margin を外に
+     collapse しないので、両方に付けると二重に空いてしまう。 */
   .intro {
-    margin: 0 0 1.25rem;
+    margin: 0;
   }
 
   .top {

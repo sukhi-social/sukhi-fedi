@@ -96,12 +96,12 @@
   }
 
   .intro {
-    margin: 0 0 1.5rem;
+    margin: 0 0 1.25rem;
   }
 
   .list {
     list-style: none;
-    margin: 0 0 1.5rem;
+    margin: 0 0 1.25rem;
     padding: 0;
     display: grid;
     gap: 0.75rem;
