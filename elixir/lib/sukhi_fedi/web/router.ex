@@ -502,6 +502,11 @@ defmodule SukhiFedi.Web.Router do
     serve_static(conn, ["hinata.png"])
   end
 
+  # signup で見せる、もう一枚のひなた。
+  get "/hinata-signup.png" do
+    serve_static(conn, ["hinata-signup.png"])
+  end
+
   # scope が `/` になるよう、ルート直下から配る。中身は static/ にある
   # 手書きの一枚(依存なし)。
   get "/service-worker.js" do
