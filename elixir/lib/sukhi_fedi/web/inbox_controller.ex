@@ -68,32 +68,37 @@ defmodule SukhiFedi.Web.InboxController do
             # keeps its notes off the home/public surfaces downstream.
             send_resp(conn, 202, "")
 
-          not proof_acceptable?(raw_json) ->
-            # FEP-8b32: the body carries an Object Integrity Proof we can
-            # check and it does not check out. Downgrade safety — a broken
-            # proof must not silently fall through to HTTP-signature-only
-            # handling.
-            send_resp(conn, 401, JSON.encode!(%{error: "object integrity proof failed"}))
-
           true ->
-            # The signature checks out. Record *who* signed (the key owner's
-            # host) so Instructions can refuse to act on an activity whose
-            # claimed `actor` lives on a different host than the signer.
-            signer_host = signer_host(verify_result)
+            # FEP-8b32 runs after the suspension gate so a suspended peer
+            # can never make us fetch their key document.
+            case proof_verdict(raw_json) do
+              :failed ->
+                # The body carries an Object Integrity Proof we can check
+                # and it does not check out. Downgrade safety — a broken
+                # proof must not silently fall through to
+                # HTTP-signature-only handling.
+                send_resp(conn, 401, JSON.encode!(%{error: "object integrity proof failed"}))
 
-            # Genuine original ⇒ archive to the `inbound` bucket off the hot
-            # path (Q10), right after verify and before the instruction
-            # parser, so a parse failure can't lose the record.
-            maybe_archive_inbound(raw_body, raw_json, headers, conn)
+              verdict ->
+                # The signature checks out. Record *who* signed (the key owner's
+                # host) so Instructions can refuse to act on an activity whose
+                # claimed `actor` lives on a different host than the signer.
+                signer_host = signer_host(verify_result)
 
-            case FedifyClient.inbox(inbox_payload) do
-              {:ok, instruction} ->
-                Instructions.execute(instruction, signer_host)
-                maybe_enqueue_follower_sync(raw_json, sync_header)
-                send_resp(conn, 202, "")
+                # Genuine original ⇒ archive to the `inbound` bucket off the hot
+                # path (Q10), right after verify and before the instruction
+                # parser, so a parse failure can't lose the record.
+                maybe_archive_inbound(raw_body, raw_json, headers, conn)
 
-              {:error, reason} ->
-                send_resp(conn, 400, JSON.encode!(%{error: inspect(reason)}))
+                case FedifyClient.inbox(inbox_payload) do
+                  {:ok, instruction} ->
+                    Instructions.execute(instruction, signer_host, verdict == :author_signed)
+                    maybe_enqueue_follower_sync(raw_json, sync_header)
+                    send_resp(conn, 202, "")
+
+                  {:error, reason} ->
+                    send_resp(conn, 400, JSON.encode!(%{error: inspect(reason)}))
+                end
             end
         end
 
@@ -108,28 +113,36 @@ defmodule SukhiFedi.Web.InboxController do
     end
   end
 
-  # FEP-8b32 gate: a present-and-checkable proof must verify; absence (or
-  # a cryptosuite we don't implement) falls back to the HTTP signature,
-  # which already authenticated the request above.
-  defp proof_acceptable?(raw_json) when is_map(raw_json) do
+  # FEP-8b32 verdict, and the one place it is read:
+  #
+  #   :author_signed — a proof verified. `Oip.verify_inbound/1` binds the
+  #     proof key's `controller` to the activity's own `actor`, so this
+  #     says the *author* signed these exact bytes. Unlike the HTTP
+  #     signature, that survives being forwarded by a third party, which
+  #     is what lets a relayed post be believed without re-fetching it.
+  #   :unproven — no proof, or only cryptosuites we don't implement. The
+  #     HTTP signature (already checked above) is all we have.
+  #   :failed — a proof we *can* check did not check out.
+  @spec proof_verdict(term()) :: :author_signed | :unproven | :failed
+  defp proof_verdict(raw_json) when is_map(raw_json) do
     case SukhiFedi.Fedi.Oip.verify_inbound(raw_json) do
       :ok ->
-        true
+        :author_signed
 
       :no_proof ->
-        true
+        :unproven
 
       :no_checkable_proof ->
         Logger.info("inbox: only unsupported-cryptosuite proofs on #{raw_json["id"]}; relying on the HTTP signature")
-        true
+        :unproven
 
       {:error, reason} ->
         Logger.warning("inbox: object integrity proof failed (#{inspect(reason)}) on #{raw_json["id"]}")
-        false
+        :failed
     end
   end
 
-  defp proof_acceptable?(_), do: true
+  defp proof_verdict(_), do: :unproven
 
   # The instance policy for the activity's actor host (the one place that
   # decision lives is `Moderation.instance_policy/1`). `:reject` is the only

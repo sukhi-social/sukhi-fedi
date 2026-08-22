@@ -116,6 +116,8 @@ sukhi-fedi/
 │   │   │                                    bookmark/pin + counts/viewer flags
 │   │   ├── timelines.ex                   # home / public timeline クエリ
 │   │   ├── social.ex                      # follow / unfollow / relationships
+│   │   ├── relays.ex                      # リレー購読: as:Public への
+│   │   │                                    Follow と、accepted な集合
 │   │   ├── federation/
 │   │   │   ├── actor_fetcher.ex           # リモートactor取得 + ETSキャッシュ
 │   │   │   └── fedify_client.ex           # NATS Micro クライアント → Bun
@@ -126,7 +128,8 @@ sukhi-fedi/
 │   │   │   └── outbox_event.ex            # `outbox` テーブル
 │   │   ├── cache/ets.ex                   # ETS TTLキャッシュ
 │   │   ├── ap/                            # ActivityPub ヘルパー
-│   │   │   └── instructions.ex            # inboxアクティビティのディスパッチャ
+│   │   │   ├── instructions.ex            # inboxアクティビティのディスパッチャ
+│   │   │   └── instructions/relayed.ex    # リレーが転送してきたもの
 │   │   ├── addons/                        # ファーストパーティのアドオン
 │   │   │   ├── nodeinfo_monitor.ex + nodeinfo_monitor/
 │   │   │   ├── streaming.ex + streaming/
@@ -517,6 +520,49 @@ DB書き込み + （時々）Oban ジョブ（例えば Accept を返送）
 objectミラーを掃除したり、`Undo(Follow)`でfollow行を消したりする。
 DMは`visibility = "direct"`のローカルnoteにマテリアライズされて、
 会話の参加者も記録される。
+
+**分かっているのは、署名した人であって、actor ではない。**
+`execute/3` は HTTP 署名の鍵の持ち主のホストを取って、アクティビティの
+`actor` と突き合わせる。同じホストなら、中身はその actor 自身の言葉
+だから、全部のハンドラが走る。違うホストなら転送されてきたもので、
+自分で resolve と再取得をやり直すハンドラだけが走る。
+
+ひとつだけ、転送されても消えないものがある。**FEP-8b32 の
+Object Integrity Proof**。`Fedi.Oip.verify_inbound/1` は inbox の
+POST ごとに走り（suspend の判定より後なので、停止中のピアに鍵を
+取りに行かされることはない）、proof の鍵の `controller` が
+アクティビティ自身の `actor` であることまで確かめる。壊れた proof は
+401 — HTTP 署名だけの扱いに黙って落とすことはしない。通った proof は
+`author_signed?` として下へ渡る。転送された中身について持てる、
+たったひとつの事実 — 誰が運んできたにせよ、著者がこのバイト列に
+署名した、ということ。
+
+**リレー。** リレーの購読は、`as:Public` への外向き `Follow`
+（`SukhiFedi.Relays`、管理は `/admin/relays`、署名するのは参加した
+管理者本人 — このサーバーにインスタンス actor は無い）。リレーが
+`Accept` を返したら、その inbox は外向きの配達先に加わり
+（`Relays.get_active_inbox_urls/0`、読むのは delivery ノード）、その
+ホストは受け側の *出どころ* として通される（`Relays.accepted_host?/1`）。
+リレーが転送してくるものは全部、上の「転送されてきた」枝に落ちるので、
+`AP.Instructions.Relayed` が信じかたを決める:
+
+* `author_signed?` なら、中身はそのまま著者の言葉なので、公開の
+  `Create` は `Instructions.Mirror` に直接渡す — 往復なし。いま
+  proof を付けてくるのは fedify 系だけなので、速い道ではあるけれど、
+  まだ多数派の道ではない。
+* そうでなければ、ミラーする前に origin から取り直す。転送 1 件につき
+  署名付き GET が 1 回 — これが「リレーは知らせを運ぶだけで、権威は
+  持たない」ことの値段。
+
+`Announce` に付いた proof は Announce を保証するだけで、指している
+note のことは何も言わないので、そちらは常に取りに行く。転送された
+`Update`/`Delete` はどちらの道でも捨てる。削除は取りに行っても
+確かめられない（404 は、origin が一時的に壊れているときにも返る）し、
+署名された文書は誰にでも再送できるから — どちらもリレーに持たせて
+いいボタンではない。ミラーした note が出るのは連合の公開タイムライン
+で、誰かのホームには入らないし、メンション通知も立てない。ローカルの
+誰かに向いたメンションは、著者のサーバーがその人の inbox に直接
+配達してきて、そっちが信頼される道を通るから。
 
 ### 6.3 WebFinger（ローカルアクター探索）
 
