@@ -24,6 +24,12 @@ export type Author = {
   avatar_url: string | null;
 };
 
+export type Emoji = {
+  shortcode: string;
+  url: string;
+  static_url?: string | null;
+};
+
 export type Post = {
   id: number;
   deco_id: number;
@@ -35,6 +41,7 @@ export type Post = {
   created_at: string;
   reply_count: number;
   local_only: boolean;
+  emojis: Emoji[];
   replies?: Post[];
 };
 

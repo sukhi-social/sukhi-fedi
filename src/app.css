@@ -225,6 +225,16 @@ textarea:focus {
   margin-bottom: 0;
 }
 
+/* 本文に差し込むカスタム絵文字(lib/emoji.ts)。文字に乗る大きさに
+   ── sukhi-fedi 本体の web と同じ値。 */
+.body img.custom-emoji {
+  height: 1.3em;
+  width: auto;
+  vertical-align: text-bottom;
+  object-fit: contain;
+  display: inline-block;
+}
+
 /* 見出し・箇条書き。書けるだけで、見た目に差が出なければ「実現できて
    いる」とは言えないので、ここで効かせる。h1/h2 は上の全体ルールで
    丸ゴシック+太字は付くが、大きさと余白まではまだ ── 記事の中では

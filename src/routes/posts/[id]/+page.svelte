@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { getPost, createReply, signedIn, when, localized, type Post, type Visibility } from '$lib/api';
+  import { renderEmojis } from '$lib/emoji';
   import { t, getLang } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
@@ -89,7 +90,7 @@
         {#if post.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
       </p>
     </div>
-    <div class="body">{@html localized(post.content_html, post.content_html_i18n)}</div>
+    <div class="body">{@html renderEmojis(localized(post.content_html, post.content_html_i18n), post.emojis)}</div>
     {#if signedIn()}
       <button type="button" class="linklike" onclick={() => post && quote(post)}>{t().postDetail.quote}</button>
     {/if}
@@ -103,7 +104,7 @@
             <Author author={r.author} at={when(r.created_at)} />
             {#if r.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
           </p>
-          <div class="body">{@html localized(r.content_html, r.content_html_i18n)}</div>
+          <div class="body">{@html renderEmojis(localized(r.content_html, r.content_html_i18n), r.emojis)}</div>
           {#if signedIn()}
             <button type="button" class="linklike" onclick={() => quote(r)}>{t().postDetail.quote}</button>
           {/if}
