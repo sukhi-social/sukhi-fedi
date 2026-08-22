@@ -1,30 +1,60 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { t } from '$lib/i18n.svelte';
 
-  // ひなたの一言。絵はまだ無い ── 余白として空けてあるだけ。トグルは
-  // 出さない(消せる絵が無いのに「見せてもいいですか」は変なので)。
+  // ひなたの一言。絵は、押すまでは色と耳の線だけ ── 一度見せたら、
+  // 次からもそのまま(localStorage)。毎回訊くのは、それはそれで
+  // わずらわしいので。
   let { children }: { children?: Snippet } = $props();
+
+  const REVEAL_KEY = 'nd.hinataRevealed';
+
+  function loadRevealed(): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      return localStorage.getItem(REVEAL_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  let revealed = $state(loadRevealed());
+
+  function reveal() {
+    revealed = true;
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(REVEAL_KEY, '1');
+    } catch {
+      /* 保存できなくても、この場では見せる */
+    }
+  }
 </script>
 
 <div class="hinata">
-  <div class="portrait-wrap" aria-hidden="true">
-    <div class="portrait"></div>
-    <!-- こころクリニックの猫ロゴを参考に、線一本だけの耳。絵の代わりに
-         「誰かが居る」感じを持たせる試作 ── まだ仮。 -->
-    <svg class="ears" viewBox="0 0 48 48" fill="none">
-      <path
-        d="M12 16 C 12 9, 17 6, 20 12"
-        stroke="var(--sun)"
-        stroke-width="2"
-        stroke-linecap="round"
-      />
-      <path
-        d="M36 16 C 36 9, 31 6, 28 12"
-        stroke="var(--sun)"
-        stroke-width="2"
-        stroke-linecap="round"
-      />
-    </svg>
+  <div class="portrait-wrap">
+    {#if revealed}
+      <img class="portrait-img" src="/hinata.png" alt="" />
+    {:else}
+      <button type="button" class="portrait" onclick={reveal} aria-label={t().hinata.reveal}>
+        <!-- こころクリニックの猫ロゴを参考に、線一本だけの耳。絵の代わりに
+             「誰かが居る」感じを持たせる、見せる前の姿。 -->
+        <svg class="ears" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <path
+            d="M12 16 C 12 9, 17 6, 20 12"
+            stroke="var(--sun)"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <path
+            d="M36 16 C 36 9, 31 6, 28 12"
+            stroke="var(--sun)"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+    {/if}
   </div>
   <div class="words">
     {@render children?.()}
@@ -39,8 +69,7 @@
     margin-bottom: 1.4rem;
   }
 
-  /* 絵の来る場所。いまは、あたたかい色の丸に、線一本の耳だけ ──
-     絵が無くても「居る」感じを持たせたい。用意でき次第、ここに差し込む。 */
+  /* 絵の来る場所。押すまでは、あたたかい色の丸に、線一本の耳だけ。 */
   .portrait-wrap {
     position: relative;
     flex: none;
@@ -51,8 +80,23 @@
   .portrait {
     width: 100%;
     height: 100%;
+    padding: 0;
     border-radius: 50%;
     background: var(--blush);
+    border: 1px solid var(--sun);
+    cursor: pointer;
+  }
+
+  .portrait:hover {
+    border-color: var(--ink-soft);
+  }
+
+  .portrait-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: top;
     border: 1px solid var(--sun);
   }
 
