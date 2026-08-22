@@ -7,7 +7,7 @@
     setWarmthNote,
     isLoggedIn
   } from '$lib/auth';
-  import { t } from '$lib/i18n.svelte';
+  import { t, getLang } from '$lib/i18n.svelte';
   import Hinata from '$lib/Hinata.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
@@ -18,6 +18,15 @@
   let password = $state('');
   let code = $state('');
   let warmth = $state('');
+  let agreed = $state(false);
+
+  // 利用規約・プライバシーは、どちらも signup=true(下に「読みました」で
+  // /signup に戻れる)へ。sukhi-fedi 本体の signup ページと同じ型 ──
+  // 誘いの一文と、実際に作るボタンの脇の同意チェック、両方に置く。
+  const termsHref = $derived(getLang() === 'ko' ? '/terms?signup=true&lang=ko' : '/terms?signup=true');
+  const privacyHref = $derived(getLang() === 'ko' ? '/privacy?signup=true&lang=ko' : '/privacy?signup=true');
+  const termsAnchor = $derived(`<a href="${termsHref}">${t().footer.terms}</a>`);
+  const privacyAnchor = $derived(`<a href="${privacyHref}">${t().footer.privacy}</a>`);
 
   let token = $state('');
 
@@ -82,6 +91,8 @@
     <p>{t().signup.intro}</p>
   </Hinata>
 
+  <p class="read-first">{@html t().signup.readFirst(termsAnchor)}</p>
+
   <form class="card stack" onsubmit={sendCode}>
     <label>
       <span class="muted">{t().signup.handle}</span>
@@ -103,7 +114,11 @@
       <span class="muted">{t().signup.password}</span>
       <input type="password" bind:value={password} autocomplete="new-password" minlength="8" />
     </label>
-    <button class="btn" type="submit" disabled={busy}>{t().signup.sendCode}</button>
+    <label class="agree">
+      <input type="checkbox" bind:checked={agreed} required />
+      <span>{@html t().signup.agree(termsAnchor, privacyAnchor)}</span>
+    </label>
+    <button class="btn" type="submit" disabled={busy || !agreed}>{t().signup.sendCode}</button>
   </form>
 {:else if phase === 'code'}
   <form class="card stack" onsubmit={confirmAndCreate}>
@@ -158,6 +173,33 @@
   label {
     display: grid;
     gap: 0.3rem;
+  }
+
+  /* いきなり規約に飛ばさない、はじめの誘い。sukhi-fedi 本体の signup
+     ページと同じ、やわらかい囲み。 */
+  .read-first {
+    max-width: 24rem;
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.9rem;
+    background: var(--sun-soft);
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  /* 同意チェック ── 箱と文を横に、文頭にそろえる。 */
+  .agree {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .agree input[type='checkbox'] {
+    margin-top: 0.2rem;
+    flex: none;
+    width: auto;
   }
 
   .small {

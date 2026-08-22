@@ -120,6 +120,8 @@ type Dict = {
     title: string;
     welcome: string;
     intro: string;
+    readFirst: (link: string) => string;
+    agree: (terms: string, privacy: string) => string;
     handle: string;
     email: string;
     emailHint: string;
@@ -248,6 +250,8 @@ const ja: Dict = {
     title: 'はじめる',
     welcome: 'ようこそ。ひなたです。',
     intro: 'ここで、あなたのことを少し教えてください。',
+    readFirst: (link) => `はじめる前に、大事なことを${link}に書いておきました。ひと目、見ていってください。`,
+    agree: (terms, privacy) => `${terms}と${privacy}に同意します`,
     handle: '@ハンドル(英小文字・数字・_、あとから変えられません)',
     email: 'メールアドレス',
     emailHint: 'アカウントをなくしたとき、ここから帰ってこられます。',
@@ -381,6 +385,8 @@ const ko: Dict = {
     title: '시작하기',
     welcome: '어서 오세요. 히나타예요.',
     intro: '여기서, 당신에 대해 조금 알려주세요.',
+    readFirst: (link) => `시작하기 전에, 중요한 이야기를 ${link}에 적어 두었어요. 한번 봐 주세요.`,
+    agree: (terms, privacy) => `${terms}과 ${privacy}에 동의해요`,
     handle: '@아이디 (영문 소문자·숫자·_, 나중에 바꿀 수 없어요)',
     email: '이메일 주소',
     emailHint: '계정을 잃어버렸을 때, 여기로 돌아올 수 있어요.',
