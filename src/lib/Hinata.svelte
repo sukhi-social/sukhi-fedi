@@ -37,9 +37,7 @@
   </div>
   <div class="portrait-wrap">
     {#if revealed}
-      <!-- 絵の右の縁が、そのまま柱の縁 ── この箱の右端に絵の右端を
-           ぴったり合わせて、柱の向こうから覗いているように見せる。
-           押せば隠せる(トグル)。 -->
+      <!-- 押せば隠せる(トグル)。 -->
       <button type="button" class="portrait-img-btn" onclick={toggle} aria-label={t().hinata.hide}>
         <img class="portrait-img" src="/hinata.png" alt="" />
       </button>
@@ -67,14 +65,8 @@
 </div>
 
 <style>
-  /* ひなたは右下から覗く ── 絵の右端をこの箱の右端にぴったり合わせて、
-     右の境界そのものを柱に見立てる。文字は絵の下に潜り込まないよう、
-     右と下に絵の分の余白をあける。 */
   .hinata {
-    position: relative;
     margin-bottom: 1.4rem;
-    padding-right: 4.5rem;
-    padding-bottom: 6.5rem;
   }
 
   .words {
@@ -89,10 +81,20 @@
     margin-bottom: 0;
   }
 
+  /* 画面の左下に固定 ── ページの中身とは別枠で、スクロールしても
+     そこに居る。BoardNav が下バーに変わる画面幅では、その上に
+     出るよう底を上げる。 */
   .portrait-wrap {
-    position: absolute;
-    right: 0;
-    bottom: 0;
+    position: fixed;
+    left: 1rem;
+    bottom: 1rem;
+    z-index: 15;
+  }
+
+  @media (max-width: 680px) {
+    .portrait-wrap {
+      bottom: 4.5rem;
+    }
   }
 
   /* 押すまでは、あたたかい色の丸に、線一本の耳だけ。 */
@@ -129,7 +131,7 @@
 
   .portrait-img {
     display: block;
-    height: 7.5rem;
+    height: 13rem;
     width: auto;
   }
 </style>
