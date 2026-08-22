@@ -48,6 +48,7 @@ type Dict = {
   common: { loading: string; toDecoList: string; optional: string };
   home: {
     title: string;
+    separator: string;
     subtitle: string;
     loadError: string;
     empty: string;
@@ -159,6 +160,7 @@ type Dict = {
     failedTitle: string;
     working: string;
   };
+  footer: { terms: string; privacy: string };
 };
 
 const ja: Dict = {
@@ -168,6 +170,7 @@ const ja: Dict = {
   common: { loading: 'よみこみ中', toDecoList: 'デコの一覧へ', optional: 'なくてもいい' },
   home: {
     title: 'デコ',
+    separator: ' ',
     subtitle: '板が「デコ」です。好きなところに座ってください。',
     loadError: '板の一覧が読めませんでした',
     empty: 'まだ、どの板もありません。',
@@ -282,7 +285,8 @@ const ja: Dict = {
     noCode: 'コードが見当たりません',
     failedTitle: '入れませんでした',
     working: '入っています…'
-  }
+  },
+  footer: { terms: '利用規約', privacy: 'プライバシーポリシー' }
 };
 
 const ko: Dict = {
@@ -292,6 +296,7 @@ const ko: Dict = {
   common: { loading: '불러오는 중', toDecoList: '데코 목록으로', optional: '안 적어도 돼요' },
   home: {
     title: '데코',
+    separator: ' ',
     subtitle: "게시판을 '데코'라고 불러요. 마음에 드는 곳에 앉아 보세요.",
     loadError: '데코 목록을 불러오지 못했어요',
     empty: '아직 만들어진 데코가 없어요.',
@@ -406,7 +411,8 @@ const ko: Dict = {
     noCode: '코드를 찾을 수 없어요',
     failedTitle: '들어갈 수 없었어요',
     working: '들어가는 중…'
-  }
+  },
+  footer: { terms: '이용약관', privacy: '개인정보 처리방침' }
 };
 
 const dicts: Record<Lang, Dict> = { ja, ko };

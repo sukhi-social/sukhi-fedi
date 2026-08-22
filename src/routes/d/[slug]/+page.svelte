@@ -46,7 +46,7 @@
   <p><a href="/">{t().common.toDecoList}</a></p>
 {:else}
   <PageHeader
-    title="{localized(deco.name, deco.name_i18n)} {t().home.title}"
+    title="{localized(deco.name, deco.name_i18n)}{t().home.separator}{t().home.title}"
     subtitle={deco.description ? localized(deco.description, deco.description_i18n) : null}
   >
     {#snippet actions()}

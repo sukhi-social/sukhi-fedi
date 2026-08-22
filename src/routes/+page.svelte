@@ -79,7 +79,9 @@
     {#each decos as deco (deco.id)}
       <li class="card">
         <a class="name" href="/d/{deco.slug}"
-          >{localized(deco.name, deco.name_i18n)} <span class="deco-suffix">{t().home.title}</span></a
+          >{localized(deco.name, deco.name_i18n)}{t().home.separator}<span class="deco-suffix"
+            >{t().home.title}</span
+          ></a
         >
         {#if deco.description}
           <p class="desc">{localized(deco.description, deco.description_i18n)}</p>
@@ -135,6 +137,12 @@
   {/if}
 {/if}
 
+<footer class="legal-foot">
+  <a href={getLang() === 'ko' ? '/terms?lang=ko' : '/terms'}>{t().footer.terms}</a>
+  <span class="sep" aria-hidden="true">·</span>
+  <a href={getLang() === 'ko' ? '/privacy?lang=ko' : '/privacy'}>{t().footer.privacy}</a>
+</footer>
+
 <style>
   .list {
     list-style: none;
@@ -153,7 +161,7 @@
 
   .deco-suffix {
     font-weight: 400;
-    font-size: 0.85rem;
+    font-size: 1.05rem;
     color: var(--ink-soft);
   }
 
@@ -190,5 +198,29 @@
     background: var(--sun-soft);
     border-radius: var(--radius);
     padding: 0.6rem 0.9rem;
+  }
+
+  /* 一覧のいちばん下に、利用規約とプライバシーへの静かな入り口。
+     罫線でそっと切って、字は muted・中央に(sukhi-fedi の timeline
+     フッターと同じ型)。 */
+  .legal-foot {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+
+  .legal-foot a {
+    color: var(--ink-soft);
+  }
+
+  .legal-foot a:hover {
+    color: var(--ink);
+  }
+
+  .legal-foot .sep {
+    margin-inline: 0.5rem;
   }
 </style>

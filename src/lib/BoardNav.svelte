@@ -21,7 +21,7 @@
   <a class="item home" href="/" class:active={!activeSlug}>{t().nav.home}</a>
   {#each decos as deco (deco.id)}
     <a class="item" href="/d/{deco.slug}" class:active={deco.slug === activeSlug}
-      >{localized(deco.name, deco.name_i18n)} {t().home.title}</a
+      >{localized(deco.name, deco.name_i18n)}{t().home.separator}{t().home.title}</a
     >
   {/each}
 </nav>
