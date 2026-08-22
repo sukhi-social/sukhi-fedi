@@ -32,8 +32,13 @@
 </script>
 
 <div class="hinata">
+  <div class="words">
+    {@render children?.()}
+  </div>
   <div class="portrait-wrap">
     {#if revealed}
+      <!-- 絵の右の縁が、そのまま柱の縁 ── この箱の右端に絵の右端を
+           ぴったり合わせて、柱の向こうから覗いているように見せる。 -->
       <img class="portrait-img" src="/hinata.png" alt="" />
     {:else}
       <button type="button" class="portrait" onclick={reveal} aria-label={t().hinata.reveal}>
@@ -56,30 +61,42 @@
       </button>
     {/if}
   </div>
-  <div class="words">
-    {@render children?.()}
-  </div>
 </div>
 
 <style>
+  /* ひなたは右下から覗く ── 絵の右端をこの箱の右端にぴったり合わせて、
+     右の境界そのものを柱に見立てる。文字は絵の下に潜り込まないよう、
+     右と下に絵の分の余白をあける。 */
   .hinata {
-    display: flex;
-    gap: 1rem;
-    align-items: flex-start;
+    position: relative;
     margin-bottom: 1.4rem;
+    padding-right: 4.5rem;
+    padding-bottom: 6.5rem;
   }
 
-  /* 絵の来る場所。押すまでは、あたたかい色の丸に、線一本の耳だけ。 */
+  .words {
+    font-family: var(--font-round);
+  }
+
+  .words :global(p) {
+    margin: 0 0 0.4rem;
+  }
+
+  .words :global(p:last-child) {
+    margin-bottom: 0;
+  }
+
   .portrait-wrap {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+  }
+
+  /* 押すまでは、あたたかい色の丸に、線一本の耳だけ。 */
+  .portrait {
     position: relative;
-    flex: none;
     width: 3rem;
     height: 3rem;
-  }
-
-  .portrait {
-    width: 100%;
-    height: 100%;
     padding: 0;
     border-radius: 50%;
     background: var(--blush);
@@ -91,15 +108,6 @@
     border-color: var(--ink-soft);
   }
 
-  .portrait-img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-    object-position: top;
-    border: 1px solid var(--sun);
-  }
-
   .ears {
     position: absolute;
     inset: 0;
@@ -108,16 +116,9 @@
     overflow: visible;
   }
 
-  .words {
-    padding-top: 0.3rem;
-    font-family: var(--font-round);
-  }
-
-  .words :global(p) {
-    margin: 0 0 0.4rem;
-  }
-
-  .words :global(p:last-child) {
-    margin-bottom: 0;
+  .portrait-img {
+    display: block;
+    height: 7.5rem;
+    width: auto;
   }
 </style>
