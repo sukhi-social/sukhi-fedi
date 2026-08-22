@@ -69,6 +69,17 @@ defmodule SukhiDelivery.Outbox.ConsumerTest do
                Consumer.dispatch("sns.outbox.note.created", %{"account_id" => "not-an-int"})
     end
 
+    test "note.created with local_only: true → :local_only, never touches DB" do
+      # deco の「ローカル」投稿。account_id が実在しなくても、DB を
+      # 引く前に短絡することを確かめる(malformed account_id のケースと
+      # 同じ理由 ── ここで落ちたら本物のクラッシュと見分けがつかない)。
+      assert :local_only =
+               Consumer.dispatch("sns.outbox.note.created", %{
+                 "account_id" => "not-an-int",
+                 "local_only" => true
+               })
+    end
+
     test "vote.created missing fields → :missing_fields (no crash, no DB)" do
       assert :missing_fields = Consumer.dispatch("sns.outbox.vote.created", %{})
     end

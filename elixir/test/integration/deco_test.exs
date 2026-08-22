@@ -10,6 +10,8 @@ defmodule SukhiFedi.Integration.DecoTest do
 
   use SukhiFedi.IntegrationCase, async: false
 
+  import Ecto.Query
+
   @moduletag :integration
 
   alias SukhiFedi.Addons.Deco
@@ -267,6 +269,48 @@ defmodule SukhiFedi.Integration.DecoTest do
     test "板の投稿でないものには、ぶら下げられない", %{author: author} do
       {:ok, plain} = SukhiFedi.Notes.create_status(author.id, %{"status" => "ふつうの投稿"})
       assert {:error, :not_found} = Deco.reply(author, plain.id, %{"status" => "レス"})
+    end
+  end
+
+  describe "公開範囲(全域/ローカル)" do
+    test "何も指定しなければ全域(local_only は false)", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "ふつう", "status" => "ふつう"})
+      assert post.local_only == false
+
+      dn = SukhiFedi.Repo.get_by(SukhiFedi.Schema.DecoNote, note_id: post.id)
+      assert dn.local_only == false
+    end
+
+    test "visibility: local を指定すると local_only になる", %{author: author, deco: deco} do
+      {:ok, post} =
+        Deco.post(author, deco.slug, %{"title" => "うちだけ", "status" => "うちだけ", "visibility" => "local"})
+
+      assert post.local_only == true
+
+      # notes.visibility 自体は "public" のまま ── 見える範囲は変えず、
+      # 連合に出すかどうかだけを変える。
+      note = SukhiFedi.Repo.get(SukhiFedi.Schema.Note, post.id)
+      assert note.visibility == "public"
+    end
+
+    test "outbox イベントにも local_only が乗る ── 配達側が見る場所", %{author: author, deco: deco} do
+      {:ok, post} =
+        Deco.post(author, deco.slug, %{"title" => "だまって", "status" => "だまって", "visibility" => "local"})
+
+      ev =
+        SukhiFedi.Repo.one!(
+          from(e in SukhiFedi.Schema.OutboxEvent,
+            where: e.subject == "sns.outbox.note.created" and e.aggregate_id == ^to_string(post.id)
+          )
+        )
+
+      assert ev.payload["local_only"] == true
+    end
+
+    test "レスにも公開範囲を選べる", %{author: author, deco: deco} do
+      {:ok, parent} = Deco.post(author, deco.slug, %{"title" => "おはなし", "status" => "本文"})
+      {:ok, reply} = Deco.reply(author, parent.id, %{"status" => "うちだけの返事", "visibility" => "local"})
+      assert reply.local_only == true
     end
   end
 

@@ -173,9 +173,13 @@ defmodule SukhiFedi.Addons.Deco do
   @new_account_window_h 24
   @new_account_min_gap_s 20
 
+  # 板で選べる公開範囲は二つだけ ── 全域(連合に出す)か、ローカル
+  # (natadeco の中だけ)。他の値・未指定は全域扱い。
   defp write(account_id, deco_id, params) when is_integer(account_id) do
     params = stringify(params)
-    {i18n, note_params} = Map.split(params, ["title_i18n", "content_i18n"])
+    {i18n, rest} = Map.split(params, ["title_i18n", "content_i18n"])
+    local_only? = Map.get(rest, "visibility") == "local"
+    note_params = Map.put(rest, "local_only", local_only?)
 
     with :ok <- check_pace(account_id) do
       # note を先に作り、そのあと板に結ぶ。note づくりは Notes 側の
@@ -184,7 +188,9 @@ defmodule SukhiFedi.Addons.Deco do
       case Notes.create_status(account_id, Map.put(note_params, "visibility", "public")) do
         {:ok, note} ->
           %DecoNote{}
-          |> DecoNote.changeset(Map.merge(%{"deco_id" => deco_id, "note_id" => note.id}, i18n))
+          |> DecoNote.changeset(
+            Map.merge(%{"deco_id" => deco_id, "note_id" => note.id, "local_only" => local_only?}, i18n)
+          )
           |> Repo.insert()
           |> case do
             {:ok, dn} ->
@@ -374,7 +380,8 @@ defmodule SukhiFedi.Addons.Deco do
       content_html_i18n: render_i18n_html(dn.content_i18n),
       author: author_view(author),
       created_at: n.created_at,
-      reply_count: reply_count(n)
+      reply_count: reply_count(n),
+      local_only: dn.local_only || false
     }
   end
 

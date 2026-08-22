@@ -82,6 +82,11 @@ defmodule SukhiFedi.Notes.Create do
   def create_status(account_id, params) when is_integer(account_id) do
     visibility = normalize_visibility(params[:visibility] || params["visibility"] || "public")
 
+    # deco 発の「連合に出さない」指定。notes.visibility は変えず
+    # (公開のまま local API/timeline から普通に読める)、出前だけを
+    # 止める ── outbox payload に載せるだけで、notes 側には持たせない。
+    local_only? = !!(params[:local_only] || params["local_only"])
+
     if visibility == "direct" do
       create_direct_status(account_id, params)
     else
@@ -132,7 +137,8 @@ defmodule SukhiFedi.Notes.Create do
             media: media,
             quote_of_ap_id: n.quote_of_ap_id,
             in_reply_to_ap_id: n.in_reply_to_ap_id,
-            emojis: n.emojis || []
+            emojis: n.emojis || [],
+            local_only: local_only?
           }
         end
       )

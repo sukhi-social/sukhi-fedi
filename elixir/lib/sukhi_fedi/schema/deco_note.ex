@@ -15,6 +15,10 @@ defmodule SukhiFedi.Schema.DecoNote do
     field(:title_i18n, :map)
     field(:content_i18n, :map)
 
+    # 連合に出すかどうか。notes.visibility は "public" のまま
+    # ── これは deco 独自の、配達側だけが見る上乗せ。
+    field(:local_only, :boolean, default: false)
+
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end
 
@@ -25,7 +29,7 @@ defmodule SukhiFedi.Schema.DecoNote do
 
   def changeset(deco_note, attrs) do
     deco_note
-    |> cast(attrs, [:deco_id, :note_id, :title_i18n, :content_i18n])
+    |> cast(attrs, [:deco_id, :note_id, :title_i18n, :content_i18n, :local_only])
     |> validate_required([:deco_id, :note_id])
     |> unique_constraint(:note_id)
     |> validate_i18n_map(:title_i18n, 120)

@@ -115,6 +115,8 @@ defmodule SukhiDelivery.Outbox.Consumer do
 
   # ── handlers ─────────────────────────────────────────────────────────────
 
+  defp handle_note_created(%{"local_only" => true}), do: :local_only
+
   defp handle_note_created(%{"account_id" => account_id} = p) do
     case actor_for(account_id) do
       nil ->

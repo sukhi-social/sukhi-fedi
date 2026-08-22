@@ -96,7 +96,11 @@ defmodule SukhiApi.Capabilities.Deco do
       body = decode_body(req)
       call(
         :post,
-        [viewer, req[:path_params]["slug"], take(body, ["title", "status", "title_i18n", "content_i18n"])],
+        [
+          viewer,
+          req[:path_params]["slug"],
+          take(body, ["title", "status", "title_i18n", "content_i18n", "visibility"])
+        ],
         &ok(201, &1)
       )
     else
@@ -109,7 +113,7 @@ defmodule SukhiApi.Capabilities.Deco do
       body = decode_body(req)
       call(
         :reply,
-        [viewer, req[:path_params]["id"], take(body, ["status", "content_i18n"])],
+        [viewer, req[:path_params]["id"], take(body, ["status", "content_i18n", "visibility"])],
         &ok(201, &1)
       )
     else
