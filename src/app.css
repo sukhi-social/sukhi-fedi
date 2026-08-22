@@ -251,6 +251,17 @@ textarea:focus {
   margin-top: 0;
 }
 
+/* h1/h2 は上の全体ルールで丸ゴシックが付くが、ここは投稿の中身
+   (書いた人の文章)なので、本文と同じ BIZ UDP に戻す ── 丸ゴシックは
+   「ナタデコ」の名前・デコ名・ボタンやタブの文字など、定型の文字
+   だけに残す。h3/h4 も同様。 */
+.body h1,
+.body h2,
+.body h3,
+.body h4 {
+  font-family: inherit;
+}
+
 .body h1 {
   font-size: 1.25rem;
 }
@@ -261,7 +272,6 @@ textarea:focus {
 
 .body h3,
 .body h4 {
-  font-family: var(--font-round);
   font-weight: 700;
   letter-spacing: 0.02em;
   font-size: 1.05rem;
