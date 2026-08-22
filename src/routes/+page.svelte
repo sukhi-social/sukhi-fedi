@@ -1,9 +1,8 @@
 <script lang="ts">
   import { listDecos, createDeco, getCurrentAccount, localized, type Deco } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
+  import { t, getLang } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
-  import DecoBadge from '$lib/DecoBadge.svelte';
 
   let decos = $state<Deco[]>([]);
   let loading = $state(true);
@@ -21,7 +20,7 @@
   let description = $state('');
   let nameKo = $state('');
   let descriptionKo = $state('');
-  let lang = $state<'ja' | 'ko'>('ja');
+  let lang = $state<'ja' | 'ko'>(getLang());
   let saving = $state(false);
 
   $effect(() => {
@@ -59,7 +58,7 @@
       );
       decos = [...decos, made].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
       slug = name = description = nameKo = descriptionKo = '';
-      lang = 'ja';
+      lang = getLang();
       opening = false;
     } catch {
       error = t().home.createError;
@@ -79,8 +78,9 @@
   <ul class="list">
     {#each decos as deco (deco.id)}
       <li class="card">
-        <a class="name" href="/d/{deco.slug}">{localized(deco.name, deco.name_i18n)}</a>
-        <DecoBadge />
+        <a class="name" href="/d/{deco.slug}"
+          >{localized(deco.name, deco.name_i18n)} <span class="deco-suffix">{t().home.title}</span></a
+        >
         {#if deco.description}
           <p class="desc">{localized(deco.description, deco.description_i18n)}</p>
         {/if}
@@ -149,6 +149,12 @@
     font-weight: 700;
     font-size: 1.05rem;
     text-decoration: none;
+  }
+
+  .deco-suffix {
+    font-weight: 400;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
   }
 
   .desc {

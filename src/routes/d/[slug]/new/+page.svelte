@@ -4,7 +4,7 @@
   import { getDeco, createPost, signedIn, localized, type Deco } from '$lib/api';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
   import { loadDraft, saveDraft, clearDraft, hasSeenComposeTip, markComposeTipSeen } from '$lib/composeDraft';
-  import { t } from '$lib/i18n.svelte';
+  import { t, getLang } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
 
@@ -18,7 +18,7 @@
   let text = $state('');
   let titleKo = $state('');
   let textKo = $state('');
-  let lang = $state<'ja' | 'ko'>('ja');
+  let lang = $state<'ja' | 'ko'>(getLang());
   let posting = $state(false);
   let error = $state<string | null>(null);
 

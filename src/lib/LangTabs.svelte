@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { langNames } from '$lib/i18n.svelte';
-  import { t } from '$lib/i18n.svelte';
+  import { langNames, getLang } from '$lib/i18n.svelte';
 
-  // 主言語(ja、必須)と、上乗せの言語(ko、なくてもいい)を切り替える
-  // タブ。データはどちらのタブも常に持ったまま ── 見えているほうだけ
-  // 消えるのではなく、両方いつでも書ける。
-  let { active = $bindable('ja') }: { active?: 'ja' | 'ko' } = $props();
+  // 日本語・韓国語、どちらを主に書くかを切り替えるタブ ── どちらかが
+  // 必須でどちらかが「なくてもいい」上乗せ、ではなく対等。データは
+  // どちらのタブも常に持ったまま(見えているほうだけ消えたりしない)。
+  // 初期表示は、いまのサイトの表示言語に合わせる ── 韓国語で見ている
+  // 人には、韓国語のタブが最初から開く。
+  let { active = $bindable(getLang()) }: { active?: 'ja' | 'ko' } = $props();
 </script>
 
 <div class="tabs" role="tablist">
@@ -27,7 +28,7 @@
     aria-selected={active === 'ko'}
     onclick={() => (active = 'ko')}
   >
-    {langNames.ko}<span class="muted small">({t().common.optional})</span>
+    {langNames.ko}
   </button>
 </div>
 
@@ -54,10 +55,5 @@
     background: var(--sun-soft);
     border-color: var(--sun);
     color: var(--ink);
-  }
-
-  .small {
-    font-size: 0.72rem;
-    margin-left: 0.3rem;
   }
 </style>

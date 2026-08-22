@@ -11,22 +11,17 @@
   let {
     title,
     subtitle,
-    titleExtra,
     actions
   }: {
     title: string;
     subtitle?: string | null;
-    titleExtra?: Snippet;
     actions?: Snippet;
   } = $props();
 </script>
 
 <div class="header">
   <div class="titles">
-    <h1 class:tight={!!subtitle}>
-      {title}
-      {#if titleExtra}<span class="title-extra">{@render titleExtra()}</span>{/if}
-    </h1>
+    <h1 class:tight={!!subtitle}>{title}</h1>
     {#if subtitle}<p class="muted intro">{subtitle}</p>{/if}
   </div>
   {@render actions?.()}
@@ -44,11 +39,6 @@
   h1 {
     font-size: 1.4rem;
     margin: 0;
-  }
-
-  .title-extra {
-    margin-left: 0.4rem;
-    vertical-align: middle;
   }
 
   h1.tight {

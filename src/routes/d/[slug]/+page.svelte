@@ -4,7 +4,6 @@
   import { t } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
-  import DecoBadge from '$lib/DecoBadge.svelte';
 
   const slug = $derived(page.params.slug ?? '');
 
@@ -47,10 +46,9 @@
   <p><a href="/">{t().common.toDecoList}</a></p>
 {:else}
   <PageHeader
-    title={localized(deco.name, deco.name_i18n)}
+    title="{localized(deco.name, deco.name_i18n)} {t().home.title}"
     subtitle={deco.description ? localized(deco.description, deco.description_i18n) : null}
   >
-    {#snippet titleExtra()}<DecoBadge />{/snippet}
     {#snippet actions()}
       {#if signedIn()}
         <a class="btn write-btn" href="/d/{slug}/new">{t().board.write}</a>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { getPost, createReply, signedIn, when, localized, type Post } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
+  import { t, getLang } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
@@ -14,7 +14,7 @@
 
   let text = $state('');
   let textKo = $state('');
-  let replyLang = $state<'ja' | 'ko'>('ja');
+  let replyLang = $state<'ja' | 'ko'>(getLang());
   let posting = $state(false);
   let textEl = $state<HTMLTextAreaElement | null>(null);
 
@@ -62,7 +62,7 @@
       post = { ...post, replies: [...(post.replies ?? []), made] };
       text = '';
       textKo = '';
-      replyLang = 'ja';
+      replyLang = getLang();
     } catch {
       error = t().postDetail.error;
     } finally {
