@@ -90,10 +90,24 @@ defmodule SukhiFedi.Notes.Create do
     if visibility == "direct" do
       create_direct_status(account_id, params)
     else
+      content = params[:status] || params["status"] || ""
+
+      # 本文の @メンションは、これまで DM でしか実配達先に解決していな
+      # かった(公開投稿は文字列のまま、フォロワー以外には届かない)。
+      # ここで actor_uri のリストにして outbox へ渡す ── webfinger/actor
+      # fetch はここ(書き込みの瞬間)で一度だけ。本人宛のセルフメンション
+      # は除く。
+      mention_actor_uris =
+        content
+        |> resolve_mention_recipients()
+        |> Enum.reject(&(&1.account_id == account_id))
+        |> Enum.map(& &1.actor_uri)
+        |> Enum.uniq()
+
       attrs =
         %{
           account_id: account_id,
-          content: params[:status] || params["status"] || "",
+          content: content,
           # 題は掲示板（deco）から来る。Mastodon の status には無い欄で、
           # 取り込んだ Article と同じ `notes.title` に入る ── 題つきの
           # 投稿の置き場を二つ作らないため。
@@ -138,7 +152,8 @@ defmodule SukhiFedi.Notes.Create do
             quote_of_ap_id: n.quote_of_ap_id,
             in_reply_to_ap_id: n.in_reply_to_ap_id,
             emojis: n.emojis || [],
-            local_only: local_only?
+            local_only: local_only?,
+            mention_actor_uris: mention_actor_uris
           }
         end
       )
