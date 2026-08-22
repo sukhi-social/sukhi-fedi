@@ -144,7 +144,7 @@
 
 {#if error}<p class="error">{error}</p>{/if}
 
-<p class="prose-small"><a href="/signup">{t().login.signupLink}</a></p>
+<p class="prose-small"><a href="/hello">{t().login.signupLink}</a></p>
 
 <style>
 
