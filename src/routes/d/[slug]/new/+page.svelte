@@ -1,12 +1,13 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { getDeco, createPost, signedIn, localized, type Deco } from '$lib/api';
+  import { getDeco, createPost, signedIn, localized, type Deco, type Visibility } from '$lib/api';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
   import { loadDraft, saveDraft, clearDraft, hasSeenComposeTip, markComposeTipSeen } from '$lib/composeDraft';
   import { t, getLang } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
+  import VisibilityPicker from '$lib/VisibilityPicker.svelte';
 
   const slug = $derived(page.params.slug ?? '');
 
@@ -19,6 +20,7 @@
   let titleKo = $state('');
   let textKo = $state('');
   let lang = $state<'ja' | 'ko'>(getLang());
+  let visibility = $state<Visibility>('public');
   let posting = $state(false);
   let error = $state<string | null>(null);
 
@@ -74,9 +76,10 @@
               title: title.trim(),
               status: text,
               title_i18n: koComplete ? { ko: titleKo.trim() } : undefined,
-              content_i18n: koComplete ? { ko: textKo.trim() } : undefined
+              content_i18n: koComplete ? { ko: textKo.trim() } : undefined,
+              visibility
             }
-          : { title: titleKo.trim(), status: textKo }
+          : { title: titleKo.trim(), status: textKo, visibility }
       );
       clearDraft(slug);
       await goto(`/posts/${made.id}`);
@@ -104,6 +107,7 @@
 
   <form class="card stack" onsubmit={write}>
     <LangTabs bind:active={lang} />
+    <VisibilityPicker bind:active={visibility} />
 
     {#if lang === 'ja'}
       <label>

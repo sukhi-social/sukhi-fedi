@@ -161,6 +161,7 @@ type Dict = {
     working: string;
   };
   footer: { terms: string; privacy: string };
+  visibility: { public: string; local: string; hint: string; badge: string };
 };
 
 const ja: Dict = {
@@ -286,7 +287,13 @@ const ja: Dict = {
     failedTitle: '入れませんでした',
     working: '入っています…'
   },
-  footer: { terms: '利用規約', privacy: 'プライバシーポリシー' }
+  footer: { terms: '利用規約', privacy: 'プライバシーポリシー' },
+  visibility: {
+    public: '全域',
+    local: 'ローカル',
+    hint: '全域は連合(他のサーバー)にも届きます。ローカルは natadeco の中だけ。',
+    badge: 'ローカル'
+  }
 };
 
 const ko: Dict = {
@@ -412,7 +419,13 @@ const ko: Dict = {
     failedTitle: '들어갈 수 없었어요',
     working: '들어가는 중…'
   },
-  footer: { terms: '이용약관', privacy: '개인정보 처리방침' }
+  footer: { terms: '이용약관', privacy: '개인정보 처리방침' },
+  visibility: {
+    public: '전역',
+    local: '로컬',
+    hint: '전역은 연합(다른 서버)에도 전달돼요. 로컬은 natadeco 안에서만 보여요.',
+    badge: '로컬'
+  }
 };
 
 const dicts: Record<Lang, Dict> = { ja, ko };

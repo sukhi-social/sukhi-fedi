@@ -34,8 +34,11 @@ export type Post = {
   author: Author;
   created_at: string;
   reply_count: number;
+  local_only: boolean;
   replies?: Post[];
 };
+
+export type Visibility = 'public' | 'local';
 
 /**
  * 主言語(ja)＋上乗せ(例: ko)から、いまの表示言語に合うほうを返す。
@@ -117,12 +120,13 @@ export const createPost = (
     status: string;
     title_i18n?: Record<string, string>;
     content_i18n?: Record<string, string>;
+    visibility?: Visibility;
   }
 ) => req<Post>('POST', `/api/v1/deco/${encodeURIComponent(slug)}/posts`, body);
 
 export const createReply = (
   id: number | string,
-  body: { status: string; content_i18n?: Record<string, string> }
+  body: { status: string; content_i18n?: Record<string, string>; visibility?: Visibility }
 ) => req<Post>('POST', `/api/v1/deco/posts/${id}/replies`, body);
 
 export const createDeco = (body: {

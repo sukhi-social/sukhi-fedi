@@ -1,9 +1,10 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { getPost, createReply, signedIn, when, localized, type Post } from '$lib/api';
+  import { getPost, createReply, signedIn, when, localized, type Post, type Visibility } from '$lib/api';
   import { t, getLang } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
+  import VisibilityPicker from '$lib/VisibilityPicker.svelte';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
 
   const id = $derived(page.params.id ?? '');
@@ -15,6 +16,7 @@
   let text = $state('');
   let textKo = $state('');
   let replyLang = $state<'ja' | 'ko'>(getLang());
+  let visibility = $state<Visibility>('public');
   let posting = $state(false);
   let textEl = $state<HTMLTextAreaElement | null>(null);
 
@@ -55,14 +57,15 @@
       const made = await createReply(
         post.id,
         jaFilled
-          ? { status: text, content_i18n: koFilled ? { ko: textKo.trim() } : undefined }
-          : { status: textKo }
+          ? { status: text, content_i18n: koFilled ? { ko: textKo.trim() } : undefined, visibility }
+          : { status: textKo, visibility }
       );
       // つづきは下に積む ── 掲示板は、上から下へ読むので。
       post = { ...post, replies: [...(post.replies ?? []), made] };
       text = '';
       textKo = '';
       replyLang = getLang();
+      visibility = 'public';
     } catch {
       error = t().postDetail.error;
     } finally {
@@ -79,7 +82,10 @@
   <article class="card">
     <div class="head">
       {#if post.title}<h1>{localized(post.title, post.title_i18n)}</h1>{/if}
-      <p><Author author={post.author} at={when(post.created_at)} /></p>
+      <p>
+        <Author author={post.author} at={when(post.created_at)} />
+        {#if post.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
+      </p>
     </div>
     <div class="body">{@html localized(post.content_html, post.content_html_i18n)}</div>
     {#if signedIn()}
@@ -91,7 +97,10 @@
     <ul class="list">
       {#each post.replies as r (r.id)}
         <li class="card reply">
-          <p><Author author={r.author} at={when(r.created_at)} /></p>
+          <p>
+            <Author author={r.author} at={when(r.created_at)} />
+            {#if r.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
+          </p>
           <div class="body">{@html localized(r.content_html, r.content_html_i18n)}</div>
           {#if signedIn()}
             <button type="button" class="linklike" onclick={() => quote(r)}>{t().postDetail.quote}</button>
@@ -104,6 +113,7 @@
   {#if signedIn()}
     <form class="card write" onsubmit={reply}>
       <LangTabs bind:active={replyLang} />
+      <VisibilityPicker bind:active={visibility} />
       {#if replyLang === 'ja'}
         <textarea
           class="body-input"
@@ -146,6 +156,15 @@
 
   .head {
     margin-bottom: 0.75rem;
+  }
+
+  .local-badge {
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    margin-left: 0.4rem;
   }
 
   .linklike {
