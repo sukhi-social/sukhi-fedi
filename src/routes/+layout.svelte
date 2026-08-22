@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { page } from '$app/state';
   import '../app.css';
   import { isLoggedIn, signOutServer } from '$lib/auth';
   import { currentTheme, toggleTheme } from '$lib/theme';
@@ -8,9 +9,13 @@
 
   let { children } = $props();
 
-  // ログイン状態はページ遷移ごとに読み直す ── ここではただの
-  // 表示用の一枚なので、複雑な状態管理は要らない。
-  let signedIn = $state(isLoggedIn());
+  // ログイン状態はページ遷移ごとに読み直す ── goto() はレイアウトを
+  // 作り直さないので、page.url を読んでおいて遷移のたびに
+  // 再チェックする(表示用の一枚だけの、いちばん軽いやりかた)。
+  let signedIn = $derived.by(() => {
+    page.url;
+    return isLoggedIn();
+  });
 
   // 端末の設定のままかもしれないので、実際の色は client 側で読む。
   let theme = $state<'light' | 'dark'>('light');
@@ -28,7 +33,6 @@
 
   async function signOut() {
     await signOutServer();
-    signedIn = false;
     window.location.assign('/');
   }
 </script>
