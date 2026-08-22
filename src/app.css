@@ -84,6 +84,11 @@ body {
     sans-serif;
   line-height: 1.75;
   font-size: 16px;
+  /* BIZ UDPGothic は字面(文字そのものの大きさ)が大きめの UD 書体
+     ── 伝わるデザインの読みやすさガイド(yomiyasuku4)が「文字
+     サイズの5%程度の字間を」と言っている値の、地の文向けにやや
+     控えめにした版。無いと、詰まっていっぱいいっぱいに見える。 */
+  letter-spacing: 0.03em;
 }
 
 a {
@@ -126,7 +131,9 @@ h2 {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 1.1rem 1.25rem;
+  /* 字間を足した(BIZ UDPGothic 対応)ぶん、箱の余白も少し足す ──
+     字だけ詰め直して枠がそのままだと、かえって窮屈さが目立つ。 */
+  padding: 1.3rem 1.5rem;
 }
 
 button,
