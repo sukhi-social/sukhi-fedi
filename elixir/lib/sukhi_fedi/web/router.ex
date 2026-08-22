@@ -534,6 +534,12 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  # 加入の前に、ひなたが一言。/login の「はじめての方はこちら」が
+  # ここへ通す。
+  get "/hello" do
+    serve_spa(conn)
+  end
+
   get "/api/nodeinfo" do
     if nodeinfo_monitor_enabled?(),
       do: ViewerController.nodeinfo_lookup(conn, []),
