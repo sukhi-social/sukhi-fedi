@@ -74,7 +74,14 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family:
-    ui-sans-serif, system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    'BIZ UDPGothic',
+    'Nanum Gothic',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Hiragino Sans',
+    'Noto Sans JP',
+    sans-serif;
   line-height: 1.75;
   font-size: 16px;
 }
