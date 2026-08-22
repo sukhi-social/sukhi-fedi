@@ -504,8 +504,18 @@ defmodule SukhiFedi.Web.Router do
 
   # natadeco の板の直リンク / リロード。web-natadeco の SPA も同じ shell
   # (priv/static/index.html) を返すやり方で、JS が URL を読んで描く。
+  #
+  # 連合側(Mastodon/Misskey)がこの URL を「返信先」として解決しようと
+  # すると、`Accept: application/activity+json` で来る ── その場合は
+  # SPA を返さず、本当の ap_id(/users/:name/notes/:id)へ回す。他の
+  # 投稿からこの URL を貼るだけで、外から返信できて、それが板の
+  # コメントとして出てくるようにするための入り口。
   get "/posts/:id" do
-    serve_spa(conn)
+    if wants_activity_json?(conn) do
+      redirect_to_ap_object(conn, conn.path_params["id"])
+    else
+      serve_spa(conn)
+    end
   end
 
   # 板は `/d/` の下に一本化 ── これで板の slug が他のどの一段路
@@ -674,6 +684,31 @@ defmodule SukhiFedi.Web.Router do
 
   defp put_path_param(conn, key, value) do
     %{conn | path_params: Map.put(conn.path_params, key, value)}
+  end
+
+  defp wants_activity_json?(conn) do
+    conn
+    |> get_req_header("accept")
+    |> List.first()
+    |> then(fn
+      accept when is_binary(accept) ->
+        String.contains?(accept, "application/activity+json") or
+          String.contains?(accept, "application/ld+json")
+
+      _ ->
+        false
+    end)
+  end
+
+  defp redirect_to_ap_object(conn, id_raw) do
+    with {id, ""} <- Integer.parse(id_raw || ""),
+         {:ok, ap_id} <- SukhiFedi.Addons.Deco.ap_id_for_post(id) do
+      conn
+      |> put_resp_header("location", ap_id)
+      |> send_resp(302, "")
+    else
+      _ -> send_resp(conn, 404, "")
+    end
   end
 
   defp serve_spa(conn) do

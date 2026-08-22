@@ -258,7 +258,7 @@ defmodule SukhiFedi.Addons.Deco do
 
       last_reply_at =
         from(r in Note,
-          where: not is_nil(r.in_reply_to_ap_id),
+          where: not is_nil(r.in_reply_to_ap_id) and r.visibility == "public",
           group_by: r.in_reply_to_ap_id,
           select: %{parent_ap_id: r.in_reply_to_ap_id, at: max(r.created_at)}
         )
@@ -312,6 +312,33 @@ defmodule SukhiFedi.Addons.Deco do
   defp to_utc(%NaiveDateTime{} = t), do: DateTime.from_naive!(t, "Etc/UTC")
   defp to_utc(%DateTime{} = t), do: t
 
+  @doc """
+  投稿の本当の(AP の)ap_id。`/posts/:id` は人向けの見た目のいい URL
+  で、連合が本当に見るべき場所(`/users/:name/notes/:id`)とは別 ──
+  外から「返信」しようとした人が正しい場所に辿り着けるよう、
+  `Accept: application/activity+json` で来た `/posts/:id` をここへ
+  回す(router.ex)。公開の板の投稿だけ答える。
+  """
+  @spec ap_id_for_post(integer() | String.t()) :: {:ok, String.t()} | {:error, :not_found}
+  def ap_id_for_post(note_id) do
+    id = to_int(note_id)
+
+    result =
+      Repo.one(
+        from(dn in DecoNote,
+          join: n in Note,
+          on: n.id == dn.note_id,
+          where: dn.note_id == ^id and n.visibility == "public",
+          select: n
+        )
+      )
+
+    case result && ap_id_of(result) do
+      nil -> {:error, :not_found}
+      ap_id -> {:ok, ap_id}
+    end
+  end
+
   @doc "一件と、そのレス（古い順 ── 掲示板は上から下へ読むので）。"
   @spec get_post(integer() | String.t()) :: {:ok, map()} | {:error, :not_found}
   def get_post(note_id) do
@@ -331,27 +358,32 @@ defmodule SukhiFedi.Addons.Deco do
         {:error, :not_found}
 
       {note, dn, author} ->
-        {:ok, Map.put(post_view(note, dn, author), :replies, replies_of(note))}
+        {:ok, Map.put(post_view(note, dn, author), :replies, replies_of(note, dn.deco_id))}
     end
   end
 
-  defp replies_of(%Note{} = parent) do
+  # 連合越しの返信も、板の下に出す。「書いた道」は問わない ──
+  # in_reply_to_ap_id が親を指していれば、それが素の Deco.reply/3 で
+  # 書かれたものでも、他所のサーバーから普通に届いた返信(inbox 経由の
+  # mirror、deco_notes の行は無い)でも、同じスレッドとして並べる。
+  # 公開でないもの(フォロワー限定・DM)は板には出さない。
+  defp replies_of(%Note{} = parent, deco_id) do
     case ap_id_of(parent) do
       nil ->
         []
 
       ap_id ->
         from(n in Note,
-          join: dn in DecoNote,
+          left_join: dn in DecoNote,
           on: dn.note_id == n.id,
           join: a in Account,
           on: a.id == n.account_id,
-          where: n.in_reply_to_ap_id == ^ap_id,
+          where: n.in_reply_to_ap_id == ^ap_id and n.visibility == "public",
           order_by: [asc: n.id],
           select: {n, dn, a}
         )
         |> Repo.all()
-        |> Enum.map(fn {n, dn, a} -> post_view(n, dn, a) end)
+        |> Enum.map(fn {n, dn, a} -> post_view(n, dn, a, deco_id) end)
     end
   end
 
@@ -370,7 +402,14 @@ defmodule SukhiFedi.Addons.Deco do
     }
   end
 
-  defp post_view(%Note{} = n, %DecoNote{} = dn, %Account{} = author) do
+  # `dn` は無いことがある ── 連合の返信は普通の inbox 経由で mirror
+  # されるだけで、deco_notes の一行は付かない(deco_notes は
+  # write/3 が板に書いたときだけ作る)。親と同じ板に属することは
+  # in_reply_to_ap_id の一致だけで足りるので、行が無くても弾かない。
+  # そのぶん `deco_id` は呼び出し側から親のを渡してもらう。
+  defp post_view(note, dn, author, fallback_deco_id \\ nil)
+
+  defp post_view(%Note{} = n, %DecoNote{} = dn, %Account{} = author, _fallback) do
     %{
       id: n.id,
       deco_id: dn.deco_id,
@@ -383,6 +422,22 @@ defmodule SukhiFedi.Addons.Deco do
       created_at: n.created_at,
       reply_count: reply_count(n),
       local_only: dn.local_only || false
+    }
+  end
+
+  defp post_view(%Note{} = n, nil, %Account{} = author, fallback_deco_id) do
+    %{
+      id: n.id,
+      deco_id: fallback_deco_id,
+      title: n.title,
+      title_i18n: %{},
+      content_html: Note.html(n),
+      content_html_i18n: %{},
+      emojis: n.emojis || [],
+      author: author_view(author),
+      created_at: n.created_at,
+      reply_count: reply_count(n),
+      local_only: false
     }
   end
 
@@ -406,6 +461,7 @@ defmodule SukhiFedi.Addons.Deco do
     }
   end
 
+  # replies_of/2 と同じ範囲(deco_notes の有無を問わない、公開のみ)。
   defp reply_count(%Note{} = n) do
     case ap_id_of(n) do
       nil ->
@@ -414,9 +470,7 @@ defmodule SukhiFedi.Addons.Deco do
       ap_id ->
         Repo.one(
           from(r in Note,
-            join: dn in DecoNote,
-            on: dn.note_id == r.id,
-            where: r.in_reply_to_ap_id == ^ap_id,
+            where: r.in_reply_to_ap_id == ^ap_id and r.visibility == "public",
             select: count(r.id)
           )
         ) || 0
