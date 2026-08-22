@@ -22,19 +22,18 @@
   let posting = $state(false);
   let textEl = $state<HTMLTextAreaElement | null>(null);
   let textElKo = $state<HTMLTextAreaElement | null>(null);
+  let formEl = $state<HTMLFormElement | null>(null);
 
-  // 本文は HTML(すでに描画済み)なので、引用に使うぶんだけタグを
-  // 剥がして短く切る。多段のスレッドは組まない ── 「誰への返信か」は
-  // 引用という、みんなに見える形で足りると判断した。
-  function quoteSnippet(html: string): string {
-    const plain = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    return plain.length > 60 ? `${plain.slice(0, 60)}…` : plain;
-  }
+  // 返信先。null なら投稿そのもの ── これが既定(直接返信)。レスの
+  // 「返信する」を押すと、そのレス自身に向けて直接ぶら下がる。引用で
+  // 「誰への返信か」を本文に埋め込むのはもうしない ── in_reply_to が
+  // ちゃんと持つので。
+  let replyTarget = $state<{ id: number; label: string } | null>(null);
 
-  function quote(target: { author: { display_name: string; acct: string }; content_html: string }) {
-    const line = `> **${target.author.display_name}** (@${target.author.acct}): ${quoteSnippet(target.content_html)}\n\n`;
-    text = text ? `${line}${text}` : line;
-    textEl?.focus();
+  function startReply(target: { id: number; label: string }) {
+    replyTarget = target;
+    formEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    (replyLang === 'ja' ? textEl : textElKo)?.focus();
   }
 
   $effect(() => {
@@ -58,17 +57,20 @@
     error = null;
     try {
       const made = await createReply(
-        post.id,
+        replyTarget?.id ?? post.id,
         jaFilled
           ? { status: text, content_i18n: koFilled ? { ko: textKo.trim() } : undefined, visibility }
           : { status: textKo, visibility }
       );
-      // つづきは下に積む ── 掲示板は、上から下へ読むので。
+      // つづきは下に積む ── 掲示板は、上から下へ読むので。表示は平ら
+      // なまま(スレッドを何段にも組まない)、誰への返信かは
+      // in_reply_to が持っている。
       post = { ...post, replies: [...(post.replies ?? []), made] };
       text = '';
       textKo = '';
       replyLang = getLang();
       visibility = 'public';
+      replyTarget = null;
     } catch {
       error = t().postDetail.error;
     } finally {
@@ -92,7 +94,12 @@
     </div>
     <div class="body">{@html renderEmojis(localized(post.content_html, post.content_html_i18n), post.emojis)}</div>
     {#if signedIn()}
-      <button type="button" class="linklike" onclick={() => post && quote(post)}>{t().postDetail.quote}</button>
+      <button
+        type="button"
+        class="linklike"
+        onclick={() => post && startReply({ id: post.id, label: post.author.display_name })}
+        >{t().postDetail.reply}</button
+      >
     {/if}
   </article>
 
@@ -106,7 +113,12 @@
           </p>
           <div class="body">{@html renderEmojis(localized(r.content_html, r.content_html_i18n), r.emojis)}</div>
           {#if signedIn()}
-            <button type="button" class="linklike" onclick={() => quote(r)}>{t().postDetail.quote}</button>
+            <button
+              type="button"
+              class="linklike"
+              onclick={() => startReply({ id: r.id, label: r.author.display_name })}
+              >{t().postDetail.reply}</button
+            >
           {/if}
         </li>
       {/each}
@@ -114,7 +126,15 @@
   {/if}
 
   {#if signedIn()}
-    <form class="card write" onsubmit={reply}>
+    <form class="card write" bind:this={formEl} onsubmit={reply}>
+      {#if replyTarget}
+        <p class="reply-target">
+          {t().postDetail.replyingTo(replyTarget.label)}
+          <button type="button" class="linklike" onclick={() => (replyTarget = null)}
+            >{t().postDetail.cancelReply}</button
+          >
+        </p>
+      {/if}
       <LangTabs bind:active={replyLang} />
       <VisibilityPicker bind:active={visibility} />
       {#if replyLang === 'ja'}
@@ -218,6 +238,22 @@
     gap: 0.7rem;
     justify-items: start;
     margin-top: 1.25rem;
+  }
+
+  .reply-target {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.4rem 0.7rem;
+    background: var(--sun-soft);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+
+  .reply-target .linklike {
+    margin-top: 0;
   }
 
   .write textarea {

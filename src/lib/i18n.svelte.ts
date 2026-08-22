@@ -93,7 +93,9 @@ type Dict = {
   postDetail: {
     notFound: string;
     notFoundFallback: string;
-    quote: string;
+    reply: string;
+    replyingTo: (name: string) => string;
+    cancelReply: string;
     replyPlaceholder: string;
     send: string;
     readOnly: TwoPart;
@@ -223,7 +225,9 @@ const ja: Dict = {
   postDetail: {
     notFound: 'この投稿は見つかりませんでした',
     notFoundFallback: 'この投稿はありません',
-    quote: '引用して返信する',
+    reply: '返信する',
+    replyingTo: (name) => `${name}に、返信中`,
+    cancelReply: 'やめる',
     replyPlaceholder: 'つづきを、どうぞ',
     send: 'おくる',
     readOnly: { prefix: '読むのは誰でも。書くには、', link: '入って', suffix: 'ください。' },
@@ -358,7 +362,9 @@ const ko: Dict = {
   postDetail: {
     notFound: '이 글을 찾을 수 없었어요',
     notFoundFallback: '이런 글은 없어요',
-    quote: '인용해서 답글 달기',
+    reply: '답글 달기',
+    replyingTo: (name) => `${name}님에게 답글 다는 중`,
+    cancelReply: '그만두기',
     replyPlaceholder: '이어서, 편하게 적어보세요',
     send: '보내기',
     readOnly: { prefix: '누구나 읽을 수 있어요. 답글을 쓰려면 ', link: '들어가', suffix: ' 주세요.' },
