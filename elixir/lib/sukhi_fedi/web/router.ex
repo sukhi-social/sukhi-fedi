@@ -752,9 +752,18 @@ defmodule SukhiFedi.Web.Router do
 
   # override と baked のうち、両方あれば mtime が新しいほう、片方しか
   # 無ければそれ、どちらも無ければ nil を返す。
+  #
+  # natadeco は sukhi-fedi と同じ combined image を相乗りしているので、
+  # baked 側には(natadeco が一度も使うつもりのない)sukhi 自身の
+  # フロントエンドが常に焼き込まれている。mtime 勝負のままだと、
+  # combined を焼き直すたびに baked の mtime が新しくなり、override の
+  # 再同期を一手間忘れただけで sukhi の画面に差し戻ってしまう(実際に
+  # 起きた)。`STATIC_OVERRIDE_ONLY=true` で baked 側を最初から候補から
+  # 外せるようにして、「どちらの画面を出すか」を mtime 任せではなく
+  # 明示に決められるようにする。
   defp pick_fresher(override_root, baked_root, relative) do
     override_ok = safe_regular?(override_root, relative)
-    baked_ok = safe_regular?(baked_root, relative)
+    baked_ok = not override_only?() and safe_regular?(baked_root, relative)
 
     cond do
       override_ok and baked_ok ->
@@ -772,6 +781,8 @@ defmodule SukhiFedi.Web.Router do
         nil
     end
   end
+
+  defp override_only?, do: System.get_env("STATIC_OVERRIDE_ONLY") == "true"
 
   defp mtime(path) do
     case File.stat(path, time: :posix) do
