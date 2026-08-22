@@ -148,22 +148,47 @@ defmodule SukhiFedi.Addons.Deco do
 
   defp title_missing, do: {:error, {:validation, %{title: ["を入れてください"]}}}
 
-  @doc "板の投稿に、ぶら下げる。板は親の投稿から引く。"
+  @doc """
+  板の投稿に、ぶら下げる。返信先は板の投稿そのものでも、その下の
+  レス(自分のでも、連合越しに届いたものでも)でもいい ── 「誰に
+  向けた返信か」は in_reply_to_id がそのまま持つので、深さは問わない。
+  返信先自身に deco_notes の行が無い(連合越しの mirror)ときは、
+  親をたどってどの板の話かを探す。
+  """
   @spec reply(Account.t() | integer(), integer() | String.t(), map()) ::
           {:ok, map()} | {:error, :not_found | atom() | {:validation, map()}}
   def reply(author, note_id, params) do
-    case Repo.get_by(DecoNote, note_id: to_int(note_id)) do
+    with %Note{} = target <- Repo.get(Note, to_int(note_id)),
+         deco_id when not is_nil(deco_id) <- deco_id_for_thread(target) do
+      write(
+        id_of(author),
+        deco_id,
+        Map.put(stringify(params), "in_reply_to_id", parent_ref(target))
+      )
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  # 返信先そのものに deco_notes の行があればそれ。無ければ(連合越しの
+  # mirror)そのまた親をたどって、いちばん近い板の行を探す。無限ループ
+  # を避けるため、たどる深さに上限を付ける。
+  @max_thread_walk 20
+  defp deco_id_for_thread(note), do: deco_id_for_thread(note, @max_thread_walk)
+  defp deco_id_for_thread(_note, 0), do: nil
+
+  defp deco_id_for_thread(%Note{id: id, in_reply_to_ap_id: parent_ap_id}, hops_left) do
+    case Repo.get_by(DecoNote, note_id: id) do
+      %DecoNote{deco_id: deco_id} ->
+        deco_id
+
       nil ->
-        {:error, :not_found}
-
-      %DecoNote{deco_id: deco_id, note_id: parent_id} ->
-        parent = Repo.get(Note, parent_id)
-
-        write(
-          id_of(author),
-          deco_id,
-          Map.put(stringify(params), "in_reply_to_id", parent_ref(parent))
-        )
+        with ap_id when is_binary(ap_id) <- parent_ap_id,
+             %Note{} = parent <- Repo.get_by(Note, ap_id: ap_id) do
+          deco_id_for_thread(parent, hops_left - 1)
+        else
+          _ -> nil
+        end
     end
   end
 
@@ -489,8 +514,13 @@ defmodule SukhiFedi.Addons.Deco do
     Repo.one(from(dn in DecoNote, where: dn.deco_id == ^deco_id, select: count(dn.id))) || 0
   end
 
+  # ap_id があればそれを渡す ── bare id だと resolve_in_reply_to_ap_id/1
+  # が「ローカルの note」と決め打ちして合成してしまい、連合越しの
+  # mirror(レス先が実は他所の投稿)を取り違える。ap_id なら、それが
+  # 自分のドメインの URL でも NoteFetcher.fetch_and_mirror/1 が
+  # notes.ap_id を先に引くので、余計な fetch にはならない。
+  defp parent_ref(%Note{ap_id: ap_id}) when is_binary(ap_id), do: ap_id
   defp parent_ref(%Note{id: id}), do: id
-  defp parent_ref(nil), do: nil
 
   # 呼び出し側は Account を持っていたり、id だけ持っていたりする
   # （`Notes.favourite/2` などの兄弟と同じ受け方に揃えてある）。
