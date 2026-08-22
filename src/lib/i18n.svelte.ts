@@ -162,6 +162,7 @@ type Dict = {
   };
   footer: { terms: string; privacy: string };
   visibility: { public: string; local: string; hint: string; badge: string };
+  toolbar: { bold: string; italic: string; link: string; list: string; quote: string };
 };
 
 const ja: Dict = {
@@ -293,7 +294,8 @@ const ja: Dict = {
     local: 'ローカル',
     hint: '全域は連合(他のサーバー)にも届きます。ローカルは natadeco の中だけ。',
     badge: 'ローカル'
-  }
+  },
+  toolbar: { bold: '太字', italic: '斜体', link: 'リンク', list: 'リスト', quote: '引用' }
 };
 
 const ko: Dict = {
@@ -425,7 +427,8 @@ const ko: Dict = {
     local: '로컬',
     hint: '전역은 연합(다른 서버)에도 전달돼요. 로컬은 natadeco 안에서만 보여요.',
     badge: '로컬'
-  }
+  },
+  toolbar: { bold: '굵게', italic: '기울임', link: '링크', list: '목록', quote: '인용' }
 };
 
 const dicts: Record<Lang, Dict> = { ja, ko };

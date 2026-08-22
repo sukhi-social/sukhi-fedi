@@ -5,6 +5,7 @@
   import Author from '$lib/Author.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
   import VisibilityPicker from '$lib/VisibilityPicker.svelte';
+  import MarkdownToolbar from '$lib/MarkdownToolbar.svelte';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
 
   const id = $derived(page.params.id ?? '');
@@ -19,6 +20,7 @@
   let visibility = $state<Visibility>('public');
   let posting = $state(false);
   let textEl = $state<HTMLTextAreaElement | null>(null);
+  let textElKo = $state<HTMLTextAreaElement | null>(null);
 
   // 本文は HTML(すでに描画済み)なので、引用に使うぶんだけタグを
   // 剥がして短く切る。多段のスレッドは組まない ── 「誰への返信か」は
@@ -115,6 +117,7 @@
       <LangTabs bind:active={replyLang} />
       <VisibilityPicker bind:active={visibility} />
       {#if replyLang === 'ja'}
+        <MarkdownToolbar bind:value={text} el={textEl} />
         <textarea
           class="body-input"
           bind:value={text}
@@ -125,9 +128,11 @@
           use:submitOnMetaEnter
         ></textarea>
       {:else}
+        <MarkdownToolbar bind:value={textKo} el={textElKo} />
         <textarea
           class="body-input"
           bind:value={textKo}
+          bind:this={textElKo}
           rows="3"
           placeholder={t().postDetail.replyPlaceholder}
           use:autoresize

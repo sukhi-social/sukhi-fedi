@@ -8,6 +8,7 @@
   import PageHeader from '$lib/PageHeader.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
   import VisibilityPicker from '$lib/VisibilityPicker.svelte';
+  import MarkdownToolbar from '$lib/MarkdownToolbar.svelte';
 
   const slug = $derived(page.params.slug ?? '');
 
@@ -23,6 +24,9 @@
   let visibility = $state<Visibility>('public');
   let posting = $state(false);
   let error = $state<string | null>(null);
+
+  let textEl = $state<HTMLTextAreaElement | null>(null);
+  let textElKo = $state<HTMLTextAreaElement | null>(null);
 
   let showTip = $state(false);
 
@@ -116,9 +120,11 @@
       </label>
       <label>
         <span class="muted">{t().newPost.fieldBody}</span>
+        <MarkdownToolbar bind:value={text} el={textEl} />
         <textarea
           class="body-input"
           bind:value={text}
+          bind:this={textEl}
           rows="6"
           placeholder={t().newPost.bodyPlaceholder}
           use:autoresize
@@ -135,7 +141,13 @@
       </label>
       <label>
         <span class="muted">{t().newPost.fieldBody}</span>
-        <textarea class="body-input" bind:value={textKo} rows="6" placeholder={t().newPost.bodyPlaceholder}
+        <MarkdownToolbar bind:value={textKo} el={textElKo} />
+        <textarea
+          class="body-input"
+          bind:value={textKo}
+          bind:this={textElKo}
+          rows="6"
+          placeholder={t().newPost.bodyPlaceholder}
         ></textarea>
         <span class="muted small">
           {t().newPost.formatHint}
