@@ -167,7 +167,7 @@ type Dict = {
   footer: { terms: string; privacy: string };
   visibility: { public: string; local: string; hint: string; badge: string };
   toolbar: { bold: string; italic: string; link: string; list: string; quote: string; heading: string };
-  hinata: { reveal: string };
+  hinata: { reveal: string; hide: string };
   hello: { title: string; greeting: string; ask: string; hint: string; start: string };
 };
 
@@ -306,12 +306,12 @@ const ja: Dict = {
     badge: 'ローカル'
   },
   toolbar: { bold: '太字', italic: '斜体', link: 'リンク', list: 'リスト', quote: '引用', heading: '見出し' },
-  hinata: { reveal: 'ひなたを見てみる' },
+  hinata: { reveal: 'ひなたを見てみる', hide: 'ひなたを隠す' },
   hello: {
     title: 'はじめる前に',
     greeting: 'ようこそ。ひなたです。',
-    ask: '姿を見せていいですか?',
-    hint: 'よかったら、下の丸を押してみてください。押さなくても、もちろん大丈夫です。',
+    ask: '姿は、見せています。',
+    hint: '隠したくなったら、下の丸を押してみてください。いつでも戻せます。',
     start: 'はじめる'
   }
 };
@@ -451,12 +451,12 @@ const ko: Dict = {
     badge: '로컬'
   },
   toolbar: { bold: '굵게', italic: '기울임', link: '링크', list: '목록', quote: '인용', heading: '제목' },
-  hinata: { reveal: '히나타를 보기' },
+  hinata: { reveal: '히나타를 보기', hide: '히나타를 숨기기' },
   hello: {
     title: '시작하기 전에',
     greeting: '어서 오세요. 히나타예요.',
-    ask: '모습을 보여드려도 될까요?',
-    hint: '괜찮으시다면, 아래 동그라미를 눌러봐 주세요. 안 누르셔도 물론 괜찮아요.',
+    ask: '모습을, 보여드리고 있어요.',
+    hint: '숨기고 싶어지면, 아래 동그라미를 눌러봐 주세요. 언제든 되돌릴 수 있어요.',
     start: '시작하기'
   }
 };

@@ -2,31 +2,31 @@
   import type { Snippet } from 'svelte';
   import { t } from '$lib/i18n.svelte';
 
-  // ひなたの一言。絵は、押すまでは色と耳の線だけ ── 一度見せたら、
-  // 次からもそのまま(localStorage)。毎回訊くのは、それはそれで
-  // わずらわしいので。
+  // ひなたの一言。絵は既定で見せる。隠したい人だけ、丸を押して隠す
+  // ── どちらもトグルで行き来できて、選んだ状態は次からも覚えている
+  // (localStorage)。
   let { children }: { children?: Snippet } = $props();
 
-  const REVEAL_KEY = 'nd.hinataRevealed';
+  const HIDDEN_KEY = 'nd.hinataHidden';
 
   function loadRevealed(): boolean {
-    if (typeof localStorage === 'undefined') return false;
+    if (typeof localStorage === 'undefined') return true;
     try {
-      return localStorage.getItem(REVEAL_KEY) === '1';
+      return localStorage.getItem(HIDDEN_KEY) !== '1';
     } catch {
-      return false;
+      return true;
     }
   }
 
   let revealed = $state(loadRevealed());
 
-  function reveal() {
-    revealed = true;
+  function toggle() {
+    revealed = !revealed;
     if (typeof localStorage === 'undefined') return;
     try {
-      localStorage.setItem(REVEAL_KEY, '1');
+      localStorage.setItem(HIDDEN_KEY, revealed ? '0' : '1');
     } catch {
-      /* 保存できなくても、この場では見せる */
+      /* 保存できなくても、この場では切り替わる */
     }
   }
 </script>
@@ -38,10 +38,13 @@
   <div class="portrait-wrap">
     {#if revealed}
       <!-- 絵の右の縁が、そのまま柱の縁 ── この箱の右端に絵の右端を
-           ぴったり合わせて、柱の向こうから覗いているように見せる。 -->
-      <img class="portrait-img" src="/hinata.png" alt="" />
+           ぴったり合わせて、柱の向こうから覗いているように見せる。
+           押せば隠せる(トグル)。 -->
+      <button type="button" class="portrait-img-btn" onclick={toggle} aria-label={t().hinata.hide}>
+        <img class="portrait-img" src="/hinata.png" alt="" />
+      </button>
     {:else}
-      <button type="button" class="portrait" onclick={reveal} aria-label={t().hinata.reveal}>
+      <button type="button" class="portrait" onclick={toggle} aria-label={t().hinata.reveal}>
         <!-- こころクリニックの猫ロゴを参考に、線一本だけの耳。絵の代わりに
              「誰かが居る」感じを持たせる、見せる前の姿。 -->
         <svg class="ears" viewBox="0 0 48 48" fill="none" aria-hidden="true">
@@ -114,6 +117,14 @@
     width: 100%;
     height: 100%;
     overflow: visible;
+  }
+
+  .portrait-img-btn {
+    display: block;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
   }
 
   .portrait-img {
