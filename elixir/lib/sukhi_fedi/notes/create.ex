@@ -96,13 +96,21 @@ defmodule SukhiFedi.Notes.Create do
       # かった(公開投稿は文字列のまま、フォロワー以外には届かない)。
       # ここで actor_uri のリストにして outbox へ渡す ── webfinger/actor
       # fetch はここ(書き込みの瞬間)で一度だけ。本人宛のセルフメンション
-      # は除く。
+      # は除く。DM側と違い、公開投稿にとってメンションはあくまで添え物
+      # ── 解決に失敗しても投稿そのものは通す(他の fetch 失敗時と同じ、
+      # 「落ちたら諦める」の方針)。
       mention_actor_uris =
-        content
-        |> resolve_mention_recipients()
-        |> Enum.reject(&(&1.account_id == account_id))
-        |> Enum.map(& &1.actor_uri)
-        |> Enum.uniq()
+        try do
+          content
+          |> resolve_mention_recipients()
+          |> Enum.reject(&(&1.account_id == account_id))
+          |> Enum.map(& &1.actor_uri)
+          |> Enum.uniq()
+        rescue
+          error ->
+            Logger.warning("mention resolution failed, posting without it: #{Exception.message(error)}")
+            []
+        end
 
       attrs =
         %{
