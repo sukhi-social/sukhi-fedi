@@ -197,3 +197,61 @@ textarea:focus {
 .body blockquote p:last-child {
   margin-bottom: 0;
 }
+
+/* 見出し・箇条書き。書けるだけで、見た目に差が出なければ「実現できて
+   いる」とは言えないので、ここで効かせる。h1/h2 は上の全体ルールで
+   丸ゴシック+太字は付くが、大きさと余白まではまだ ── 記事の中では
+   投稿の題(h1 相当)より下の階層として使うので、h1 は控えめに。
+   段組みが伝わるデザイン(https://tsutawarudesign.com/yomiyasuku4.html)
+   の「見出しは太字のゴシック体・左揃え」にそう。 */
+.body h1,
+.body h2,
+.body h3,
+.body h4 {
+  margin: 1.1em 0 0.5em;
+  text-align: left;
+}
+
+.body h1:first-child,
+.body h2:first-child,
+.body h3:first-child,
+.body h4:first-child {
+  margin-top: 0;
+}
+
+.body h1 {
+  font-size: 1.25rem;
+}
+
+.body h2 {
+  font-size: 1.15rem;
+}
+
+.body h3,
+.body h4 {
+  font-family: var(--font-round);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 1.05rem;
+}
+
+/* 箇条書き。ぶら下げ(2行目以降が本文の頭に揃う)はブラウザの既定の
+   ままで満たせている ── ここでは行間・項目間だけ整える。 */
+.body ul,
+.body ol {
+  margin: 0 0 0.75em;
+  padding-left: 1.4em;
+}
+
+.body li {
+  margin-bottom: 0.3em;
+}
+
+.body li:last-child {
+  margin-bottom: 0;
+}
+
+.body li > ul,
+.body li > ol {
+  margin-top: 0.3em;
+}

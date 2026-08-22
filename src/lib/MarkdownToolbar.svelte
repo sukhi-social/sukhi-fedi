@@ -55,9 +55,31 @@
       ta.setSelectionRange(lineStart, lineStart + prefixed.length);
     });
   }
+
+  // 見出しは、複数行にまたがらない(リスト・引用とはちがう) ──
+  // カーソルのある一行だけに付ける。もう付いていたら外す(押し直せる)。
+  function toggleHeading(prefix: string) {
+    const ta = el;
+    if (!ta) return;
+    const start = ta.selectionStart ?? 0;
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    const nl = value.indexOf('\n', lineStart);
+    const lineEnd = nl === -1 ? value.length : nl;
+    const line = value.slice(lineStart, lineEnd);
+    const newLine = line.startsWith(prefix) ? line.slice(prefix.length) : prefix + line;
+
+    value = value.slice(0, lineStart) + newLine + value.slice(lineEnd);
+
+    const cursor = lineStart + newLine.length;
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(cursor, cursor);
+    });
+  }
 </script>
 
 <div class="toolbar" role="toolbar">
+  <button type="button" title={t().toolbar.heading} onclick={() => toggleHeading('## ')}> H </button>
   <button type="button" title={t().toolbar.bold} onclick={() => wrap('**', '**', t().toolbar.bold)}>
     <strong>B</strong>
   </button>
