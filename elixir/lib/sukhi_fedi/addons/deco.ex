@@ -378,6 +378,7 @@ defmodule SukhiFedi.Addons.Deco do
       title_i18n: dn.title_i18n || %{},
       content_html: Note.html(n),
       content_html_i18n: render_i18n_html(dn.content_i18n),
+      emojis: n.emojis || [],
       author: author_view(author),
       created_at: n.created_at,
       reply_count: reply_count(n),

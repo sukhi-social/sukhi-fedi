@@ -185,6 +185,18 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert listed.id == post.id
     end
 
+    test "本文のカスタム絵文字は emojis に乗って返る", %{author: author, deco: deco} do
+      {:ok, _} = SukhiFedi.CustomEmojis.register(%{shortcode: "blobfox_#{deco.id}", image_url: "https://example.test/blobfox.png"})
+
+      {:ok, post} =
+        Deco.post(author, deco.slug, %{
+          "title" => "絵文字",
+          "status" => "やあ :blobfox_#{deco.id}:"
+        })
+
+      assert [%{"shortcode" => "blobfox_" <> _, "url" => "https://example.test/blobfox.png"}] = post.emojis
+    end
+
     test "題が無いと断る ── 一覧に並ぶのは題だけなので", %{author: author, deco: deco} do
       assert {:error, {:validation, %{title: _}}} =
                Deco.post(author, deco.slug, %{"status" => "ぽつり"})
