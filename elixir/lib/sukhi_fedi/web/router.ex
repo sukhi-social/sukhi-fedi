@@ -496,6 +496,12 @@ defmodule SukhiFedi.Web.Router do
     serve_static(conn, ["manifest.webmanifest"])
   end
 
+  # natadeco の web-natadeco 側だけが使う画像(ひなたの肖像)。他の
+  # favicon 等と同じ、明示の一枚もの。
+  get "/hinata.png" do
+    serve_static(conn, ["hinata.png"])
+  end
+
   # scope が `/` になるよう、ルート直下から配る。中身は static/ にある
   # 手書きの一枚(依存なし)。
   get "/service-worker.js" do
