@@ -32,7 +32,7 @@
     flex-direction: column;
     gap: 0.15rem;
     flex: none;
-    width: 11rem;
+    width: var(--sidebar-w);
     padding: 1.5rem 0.6rem;
     border-right: 1px solid var(--line);
   }

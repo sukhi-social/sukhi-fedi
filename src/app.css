@@ -19,6 +19,10 @@
 
   --font-round: 'M PLUS Rounded 1c', ui-rounded, 'Hiragino Maru Gothic ProN', sans-serif;
 
+  /* BoardNav の幅。+layout.svelte がメイン列をこの分だけ寄せて、
+     ヘッダーの中央と揃えるのに使う ── 数を二箇所に離して持たない。 */
+  --sidebar-w: 11rem;
+
   color-scheme: light dark;
 }
 

@@ -186,6 +186,20 @@
     min-height: 40vh;
   }
 
+  /* main は .measure(幅46rem・margin:0 auto) だけど、その auto は
+     サイドバーを除いた残り幅の中で中央寄せするだけ ── ヘッダーの
+     .measure は画面全体を基準に中央寄せなので、サイドバーの半分ぶん
+     右にずれて、ヘッダーの下の文字と縦の線が揃わなかった。画面幅
+     全体を基準に計算し直して、その分だけ左マージンを足す(狭い画面
+     ではサイドバー幅ぶんが足りずマイナスになるので、既定の余白
+     1.25rem を下回らないようにする)。 */
+  @media (min-width: 681px) {
+    main.measure {
+      margin-left: max(1.25rem, calc((100vw - 46rem) / 2 - var(--sidebar-w)));
+      margin-right: auto;
+    }
+  }
+
   /* サイドバーが下のバーに変わって場所を空けたぶん、本文が
      隠れないよう底に余白を足す。 */
   @media (max-width: 680px) {
