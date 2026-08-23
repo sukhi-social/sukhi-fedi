@@ -12,7 +12,9 @@ defmodule SukhiFedi.Web.PluginPlug do
   Operationally:
 
     * plugin node list read from `config :sukhi_fedi, :plugin_nodes`
-    * first reachable node wins; unreachable nodes are skipped
+    * first reachable node wins; unreachable nodes are skipped. This
+      node itself counts as reachable — the combined release runs the
+      plugin app in the same BEAM.
     * `:rpc.call/5` with a 5s timeout
     * if nothing is reachable or the call fails, 503 is returned to
       the client
@@ -154,8 +156,17 @@ defmodule SukhiFedi.Web.PluginPlug do
   defp resolve_nodes(list) when is_list(list), do: list
 
   defp reachable(nodes) do
-    Enum.find(nodes, fn node ->
-      node in Node.list() or Node.connect(node) == true
+    Enum.find(nodes, fn
+      # The plugin app running in *this* BEAM — the combined release,
+      # and `make dev`. `:rpc.call/5` addressed at the local node is a
+      # local call, so it lands whether or not distribution is up;
+      # asking `Node.connect/1` would answer false on an unnamed node
+      # and 503 a plugin that is right here.
+      n when n == node() ->
+        true
+
+      n ->
+        n in Node.list() or Node.connect(n) == true
     end)
   end
 

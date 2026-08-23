@@ -19,6 +19,28 @@ defmodule SukhiFedi.Web.PluginPlugTest do
     end
   end
 
+  describe "call/2 with the plugin app in this very BEAM" do
+    # combined/ assembles :sukhi_fedi + :sukhi_delivery + :sukhi_api into
+    # one release, and `make dev` runs the same shape locally — so the
+    # node holding the plugin app is this node. Node.connect/1 answers
+    # false for an unnamed node, which used to 503 a plugin sitting right
+    # here; :rpc.call/5 at the local node needs no distribution at all.
+    defmodule Here do
+      def handle(%{path: path}), do: {:ok, %{status: 200, body: path, headers: []}}
+    end
+
+    test "the local node counts as reachable and the call lands" do
+      conn =
+        conn(:get, "/api/v1/instance")
+        |> Map.put(:body_params, %{})
+
+      result = PluginPlug.call(conn, PluginPlug.init(nodes: [node()], module: Here))
+
+      assert result.status == 200
+      assert result.resp_body == "/api/v1/instance"
+    end
+  end
+
   describe "call/2 with unreachable nodes" do
     test "returns 503 when all configured nodes refuse to connect" do
       conn =

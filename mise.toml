@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Toolchain for this repo, so a checkout builds the same way everywhere
+# and doesn't ride whatever `latest` happens to mean in a global mise
+# config. These match the base images the Dockerfiles build with
+# (`elixir:1.20-alpine`, `node:20-alpine`) — keep them in step when
+# bumping. node is here because the SPA under web/ is built by npm, and
+# `make dev-web` / `make test-e2e` / `make push-static` all need it.
+[tools]
+erlang = "28.4.1"
+elixir = "1.20.0-otp-28"
+node = "20"

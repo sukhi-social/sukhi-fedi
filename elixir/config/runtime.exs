@@ -220,3 +220,12 @@ if config_env() == :prod do
   config :sukhi_fedi, Oban,
     queues: [monitor: String.to_integer(System.get_env("OBAN_MONITOR_CONCURRENCY", "5"))]
 end
+
+# Dev runs the whole system as one BEAM (`make dev` boots combined/,
+# which assembles gateway + delivery + api), so the api plugin node is
+# this node. runtime.exs is evaluated inside the booting VM, so node()
+# is already the real name here — including :nonode@nohost when nobody
+# asked for distribution, which PluginPlug accepts for the local node.
+if config_env() == :dev do
+  config :sukhi_fedi, :plugin_nodes, [node()]
+end
