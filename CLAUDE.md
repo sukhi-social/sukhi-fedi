@@ -13,8 +13,13 @@ checklist in CODE_STYLE.md §7.
 
 Practical notes:
 
-- Tests: `make test-pglite` (no docker). Local `mix` needs
-  `mise exec elixir@1.20.0 --` (shell default is 1.19.5).
+- Toolchain: `mise.toml` pins Elixir/OTP to what the Dockerfile
+  builds with. `mise trust` once per checkout, then plain `mix`
+  is the right version — no per-command prefix.
+- Entry points all live in the Makefile — `make` lists them.
+  `make dev` runs the whole thing locally with no Docker.
+- Tests: `make test` (unit, every layer), `make test-pglite`
+  (DB integration, no docker).
 - TypeScript in `bun/` is checked with `bun run check` (type-only).
 - Every source file starts with
   `# SPDX-License-Identifier: AGPL-3.0-or-later`.
