@@ -502,6 +502,47 @@ defmodule SukhiFedi.Integration.DecoTest do
     end
   end
 
+  describe "レスの通知" do
+    test "レスが付くと、返信先を書いた人に mention 通知が立つ", %{deco: deco} do
+      n = System.unique_integer([:positive])
+      {:ok, poster} = LocalAccounts.create_admin("poster_#{n}", "long-enough-pass")
+      {:ok, replier} = LocalAccounts.create_admin("replier_#{n}", "long-enough-pass")
+
+      {:ok, post} = Deco.post(poster, deco.slug, %{"title" => "おはなし", "status" => "本文"})
+      {:ok, reply} = Deco.reply(replier, post.id, %{"status" => "うんうん"})
+
+      [notif] = SukhiFedi.Notifications.list(poster.id, [])
+      assert notif.type == "mention"
+      assert notif.from_account_id == replier.id
+      assert notif.note_id == reply.id
+    end
+
+    test "自分のレスに自分で返信しても、通知は立たない", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "ひとりごと", "status" => "本文"})
+      {:ok, _reply} = Deco.reply(author, post.id, %{"status" => "うんうん"})
+
+      assert SukhiFedi.Notifications.list(author.id, []) == []
+    end
+
+    test "レスのレスは、直接の返信先の人に通知が立つ(根の投稿の人ではなく)", %{deco: deco} do
+      n = System.unique_integer([:positive])
+      {:ok, poster} = LocalAccounts.create_admin("root_#{n}", "long-enough-pass")
+      {:ok, first_replier} = LocalAccounts.create_admin("first_#{n}", "long-enough-pass")
+      {:ok, second_replier} = LocalAccounts.create_admin("second_#{n}", "long-enough-pass")
+
+      {:ok, post} = Deco.post(poster, deco.slug, %{"title" => "おはなし", "status" => "本文"})
+      {:ok, first} = Deco.reply(first_replier, post.id, %{"status" => "ひとつめ"})
+      {:ok, _second} = Deco.reply(second_replier, first.id, %{"status" => "ふたつめ"})
+
+      # first_replier 宛(second の返信)は一件。poster 宛は最初の返信の
+      # ぶんが一件のまま(second の返信では増えない ── 根の投稿の人では
+      # なく、直接の返信先である first_replier に通知が行ったので)。
+      assert [_] = SukhiFedi.Notifications.list(first_replier.id, [])
+      assert [%{from_account_id: from_id}] = SukhiFedi.Notifications.list(poster.id, [])
+      assert from_id == first_replier.id
+    end
+  end
+
   describe "できたばかりのアカウントの、投稿ペース" do
     test "束にしては書けない ── 古参なら制限されない", %{author: author, deco: deco} do
       n = System.unique_integer([:positive])

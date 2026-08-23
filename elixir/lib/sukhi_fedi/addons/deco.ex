@@ -22,7 +22,7 @@ defmodule SukhiFedi.Addons.Deco do
 
   import Ecto.Query
 
-  alias SukhiFedi.{Notes, Repo}
+  alias SukhiFedi.{Notes, Notifications, Repo}
   alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
   alias SukhiFedi.Notes.Create, as: NotesCreate
   alias SukhiFedi.Notes.Ids
@@ -165,10 +165,29 @@ defmodule SukhiFedi.Addons.Deco do
         deco_id,
         Map.put(stringify(params), "in_reply_to_id", parent_ref(target))
       )
+      |> notify_reply_author(target, id_of(author))
     else
       _ -> {:error, :not_found}
     end
   end
+
+  # 返信が付いたら、返信先を書いた人に知らせる ── 種別は "mention" を
+  # 借りる(Mastodon の通知種別に「板のレス」という専用枠が無いのと、
+  # 直接ポケットを鳴らしてよい tier に既に入っているのが "mention" だけ
+  # なので、WebPush.deliverable?/3 側の一覧は増やさずに済む)。
+  # 自分自身への返信は Notifications.create/1 が黙って無視する。
+  defp notify_reply_author({:ok, %{id: reply_note_id}} = result, %Note{account_id: recipient_id}, from_account_id) do
+    Notifications.create(%{
+      account_id: recipient_id,
+      from_account_id: from_account_id,
+      type: "mention",
+      note_id: reply_note_id
+    })
+
+    result
+  end
+
+  defp notify_reply_author(result, _target, _from_account_id), do: result
 
   # 返信先そのものに deco_notes の行があればそれ。無ければ(連合越しの
   # mirror)そのまた親をたどって、いちばん近い板の行を探す。無限ループ

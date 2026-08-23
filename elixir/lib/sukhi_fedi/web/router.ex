@@ -492,6 +492,16 @@ defmodule SukhiFedi.Web.Router do
     serve_static(conn, ["icon-512.png"])
   end
 
+  # PWA インストール用のもう一段(192px)と、Android の adaptive icon
+  # 向け(セーフゾーン込みで描いてある)。natadeco だけが今のところ使う。
+  get "/icon-192.png" do
+    serve_static(conn, ["icon-192.png"])
+  end
+
+  get "/icon-maskable-512.png" do
+    serve_static(conn, ["icon-maskable-512.png"])
+  end
+
   get "/manifest.webmanifest" do
     serve_static(conn, ["manifest.webmanifest"])
   end
