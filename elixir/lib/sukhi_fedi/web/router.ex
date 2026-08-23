@@ -755,7 +755,7 @@ defmodule SukhiFedi.Web.Router do
     with {id, ""} <- Integer.parse(id_raw || ""),
          {:ok, post} <- SukhiFedi.Addons.Deco.get_post(id) do
       conn
-      |> put_resp_content_type("text/markdown; charset=utf-8")
+      |> put_resp_content_type("text/markdown")
       |> send_resp(200, render_post_markdown(post))
     else
       _ -> send_resp(conn, 404, "not found")
