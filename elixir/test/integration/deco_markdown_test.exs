@@ -68,6 +68,20 @@ defmodule SukhiFedi.Integration.DecoMarkdownTest do
     refute conn |> get_resp_header("content-type") |> List.first() |> to_string() =~ "text/markdown"
   end
 
+  test "text/markdown を text/html より先に積む Accept(実測: Claude Code の WebFetch)は Markdown 優先とみなす",
+       %{author: author, deco: deco} do
+    {:ok, post} = Deco.post(author, deco.slug, %{"title" => "WebFetch向け", "status" => "…"})
+
+    conn =
+      get("/posts/#{post.id}", [
+        {"accept", "text/markdown, text/html, */*"},
+        {"user-agent", "Claude-User (claude-code/2.1.238; +https://support.anthropic.com/)"}
+      ])
+
+    assert conn.status == 200
+    assert conn |> get_resp_header("content-type") |> hd() =~ "text/markdown"
+  end
+
   test "既知の LLM クローラの User-Agent なら、Accept が html でも Markdown を返す",
        %{author: author, deco: deco} do
     {:ok, post} = Deco.post(author, deco.slug, %{"title" => "クローラ向け", "status" => "…"})

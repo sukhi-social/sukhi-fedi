@@ -742,13 +742,22 @@ defmodule SukhiFedi.Web.Router do
   # (`text/html,application/xhtml+xml,...`)ので、それが無ければ
   # ブラウザではないとみなす。よく知られた LLM/クローラの User-Agent は、
   # Accept が html を騙っていても markdown を返す側に倒す。
-  @llm_user_agent_pattern ~r/GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-Web|anthropic-ai|PerplexityBot|Perplexity-User|Google-Extended|GoogleOther|CCBot|Bytespider|Applebot-Extended|Amazonbot|meta-externalagent|Diffbot/i
+  #
+  # 実測(Claude Code の WebFetch)で分かったこと: `Accept: text/markdown,
+  # text/html, */*` のように、markdown を html より先に(=優先して)
+  # 積みつつ、フォールバックで html も受け付けると正直に書いてくる
+  # クライアントがいる。「html が無ければ非ブラウザ」だけだと、
+  # このケースを html 優先だと誤判定してしまう ── text/markdown が
+  # Accept に入っているだけで、素直に markdown 優先とみなす。
+  @llm_user_agent_pattern ~r/GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-User|Claude-Web|anthropic-ai|PerplexityBot|Perplexity-User|Google-Extended|GoogleOther|CCBot|Bytespider|Applebot-Extended|Amazonbot|meta-externalagent|Diffbot/i
 
   defp wants_markdown?(conn) do
     ua = conn |> get_req_header("user-agent") |> List.first() || ""
     accept = conn |> get_req_header("accept") |> List.first() || ""
 
-    String.match?(ua, @llm_user_agent_pattern) or not String.contains?(accept, "text/html")
+    String.match?(ua, @llm_user_agent_pattern) or
+      String.contains?(accept, "text/markdown") or
+      not String.contains?(accept, "text/html")
   end
 
   defp serve_post_markdown(conn, id_raw) do
