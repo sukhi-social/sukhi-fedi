@@ -367,6 +367,141 @@ defmodule SukhiFedi.Integration.DecoTest do
     end
   end
 
+  describe "直す" do
+    test "直す前の下書きに、元の生の文が(HTML化もエスケープもされず)返る", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "山括弧", "status" => "1 < 2 & 3 > 0"})
+
+      assert post.content == "1 < 2 & 3 > 0"
+      assert post.content_html =~ "1 &lt; 2 &amp; 3 &gt; 0"
+    end
+
+    test "自分の投稿を直せる ── 本文も題も", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "もとの題", "status" => "もとの本文"})
+
+      assert {:ok, updated} =
+               Deco.update_post(author, post.id, %{"title" => "なおした題", "status" => "なおした本文"})
+
+      assert updated.title == "なおした題"
+      assert updated.content_html =~ "なおした本文"
+
+      assert {:ok, again} = Deco.get_post(post.id)
+      assert again.title == "なおした題"
+      assert again.content_html =~ "なおした本文"
+    end
+
+    test "レスも直せる（題は要らない）", %{author: author, deco: deco} do
+      {:ok, parent} = Deco.post(author, deco.slug, %{"title" => "おはなし", "status" => "本文"})
+      {:ok, reply} = Deco.reply(author, parent.id, %{"status" => "うんうん"})
+
+      assert {:ok, updated} = Deco.update_post(author, reply.id, %{"status" => "やっぱりそうだね"})
+      assert updated.content_html =~ "やっぱりそうだね"
+    end
+
+    test "もう一つの言語ぶんも直せる", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "はじめまして", "status" => "こんにちは"})
+
+      assert {:ok, updated} =
+               Deco.update_post(author, post.id, %{
+                 "title_i18n" => %{"ko" => "다시 왔어요"},
+                 "content_i18n" => %{"ko" => "**다시 씀**"}
+               })
+
+      assert updated.title_i18n == %{"ko" => "다시 왔어요"}
+      assert updated.content_html_i18n["ko"] =~ "<strong>다시 씀</strong>"
+      # 直した欄だけ変わって、主言語はそのまま。
+      assert updated.title == "はじめまして"
+      assert updated.content_html =~ "こんにちは"
+    end
+
+    test "他人の投稿は直せない ── :forbidden", %{author: author, deco: deco} do
+      n = System.unique_integer([:positive])
+      {:ok, someone_else} = LocalAccounts.create_admin("other_#{n}", "long-enough-pass")
+
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "わたしの", "status" => "わたしの本文"})
+
+      assert {:error, :forbidden} =
+               Deco.update_post(someone_else, post.id, %{"status" => "のっとった"})
+
+      # 中身は変わっていない。
+      assert {:ok, unchanged} = Deco.get_post(post.id)
+      assert unchanged.content_html =~ "わたしの本文"
+    end
+
+    test "無い投稿は :not_found", %{author: author} do
+      assert {:error, :not_found} = Deco.update_post(author, 999_999_999, %{"status" => "…"})
+    end
+
+    test "題を空にはできない ── 一覧に並ぶのは題だけなので", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題あり", "status" => "本文"})
+
+      assert {:error, {:validation, %{title: _}}} =
+               Deco.update_post(author, post.id, %{"title" => "   "})
+
+      assert {:ok, unchanged} = Deco.get_post(post.id)
+      assert unchanged.title == "題あり"
+    end
+
+    test "全域の投稿を直すと Update(Note) の配達が積まれる", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "ひろく", "status" => "もと"})
+      {:ok, _} = Deco.update_post(author, post.id, %{"status" => "なおした"})
+
+      assert SukhiFedi.Repo.exists?(
+               from(e in SukhiFedi.Schema.OutboxEvent,
+                 where: e.subject == "sns.outbox.note.updated" and e.aggregate_id == ^to_string(post.id)
+               )
+             )
+    end
+
+    test "ローカル限定の投稿を直しても、配達は積まれない", %{author: author, deco: deco} do
+      {:ok, post} =
+        Deco.post(author, deco.slug, %{"title" => "うちだけ", "status" => "もと", "visibility" => "local"})
+
+      {:ok, _} = Deco.update_post(author, post.id, %{"status" => "なおした"})
+
+      refute SukhiFedi.Repo.exists?(
+               from(e in SukhiFedi.Schema.OutboxEvent,
+                 where: e.subject == "sns.outbox.note.updated" and e.aggregate_id == ^to_string(post.id)
+               )
+             )
+    end
+  end
+
+  describe "消す" do
+    test "自分の投稿を消せる ── deco_notes の行も一緒に消える", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "きえる", "status" => "…"})
+
+      assert :ok = Deco.delete_post(author, post.id)
+
+      assert {:error, :not_found} = Deco.get_post(post.id)
+      refute SukhiFedi.Repo.get(SukhiFedi.Schema.Note, post.id)
+      refute SukhiFedi.Repo.get_by(SukhiFedi.Schema.DecoNote, note_id: post.id)
+    end
+
+    test "自分のレスも消せる", %{author: author, deco: deco} do
+      {:ok, parent} = Deco.post(author, deco.slug, %{"title" => "おはなし", "status" => "本文"})
+      {:ok, reply} = Deco.reply(author, parent.id, %{"status" => "うんうん"})
+
+      assert :ok = Deco.delete_post(author, reply.id)
+
+      assert {:ok, opened} = Deco.get_post(parent.id)
+      assert opened.replies == []
+    end
+
+    test "他人の投稿は消せない ── :forbidden", %{author: author, deco: deco} do
+      n = System.unique_integer([:positive])
+      {:ok, someone_else} = LocalAccounts.create_admin("deleter_#{n}", "long-enough-pass")
+
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "わたしの", "status" => "わたしの本文"})
+
+      assert {:error, :forbidden} = Deco.delete_post(someone_else, post.id)
+      assert {:ok, _} = Deco.get_post(post.id)
+    end
+
+    test "無い投稿は :not_found", %{author: author} do
+      assert {:error, :not_found} = Deco.delete_post(author, 999_999_999)
+    end
+  end
+
   describe "できたばかりのアカウントの、投稿ペース" do
     test "束にしては書けない ── 古参なら制限されない", %{author: author, deco: deco} do
       n = System.unique_integer([:positive])

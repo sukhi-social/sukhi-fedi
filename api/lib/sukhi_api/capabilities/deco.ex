@@ -10,6 +10,8 @@ defmodule SukhiApi.Capabilities.Deco do
       GET  /api/v1/deco/:slug/posts        その板の投稿（親だけ）
       POST /api/v1/deco/:slug/posts        書く                  write:statuses
       GET  /api/v1/deco/posts/:id          一件＋ぶら下がり
+      PATCH /api/v1/deco/posts/:id         直す(自分のだけ)      write:statuses
+      DELETE /api/v1/deco/posts/:id        消す(自分のだけ)      write:statuses
       POST /api/v1/deco/posts/:id/replies  ぶら下げる            write:statuses
 
   投稿には書いた人がついてくる（`author`: 表示名・acct・アイコン）。
@@ -32,6 +34,8 @@ defmodule SukhiApi.Capabilities.Deco do
       {:get, "/api/v1/deco", &index/1},
       {:post, "/api/v1/deco", &create_deco/1, scope: "write:statuses"},
       {:get, "/api/v1/deco/posts/:id", &show_post/1},
+      {:patch, "/api/v1/deco/posts/:id", &update_post/1, scope: "write:statuses"},
+      {:delete, "/api/v1/deco/posts/:id", &delete_post/1, scope: "write:statuses"},
       {:post, "/api/v1/deco/posts/:id/replies", &reply/1, scope: "write:statuses"},
       {:get, "/api/v1/deco/:slug", &show/1},
       {:delete, "/api/v1/deco/:slug", &delete_deco/1, scope: "write:statuses"},
@@ -121,6 +125,38 @@ defmodule SukhiApi.Capabilities.Deco do
     end
   end
 
+  # 自分の投稿・レスだけ直せる ── 他人のものは gateway が :forbidden を
+  # 返すので、下の call/3 が 403 に変える。
+  def update_post(req) do
+    with %{} = viewer <- viewer(req) do
+      body = decode_body(req)
+
+      call(
+        :update_post,
+        [viewer, req[:path_params]["id"], take(body, ["title", "status", "title_i18n", "content_i18n"])],
+        &ok(200, &1)
+      )
+    else
+      _ -> ok(403, %{error: "this endpoint requires a user-bound token"})
+    end
+  end
+
+  # 自分の投稿・レスだけ消せる ── 取り消せない。delete_deco と同じ形
+  # (裸の :ok/:error を返す gateway 関数なので、下の call/3 は使わない)。
+  def delete_post(req) do
+    with %{} = viewer <- viewer(req) do
+      case GatewayRpc.call(@gateway, :delete_post, [viewer, req[:path_params]["id"]]) do
+        {:ok, :ok} -> ok(204, %{})
+        {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+        {:ok, {:error, :forbidden}} -> ok(403, %{error: "forbidden"})
+        {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
+        _ -> ok(500, %{error: "internal_error"})
+      end
+    else
+      _ -> ok(403, %{error: "this endpoint requires a user-bound token"})
+    end
+  end
+
   # ── 配線 ─────────────────────────────────────────────────────────────
 
   # gateway の返りは三通り（生の値／{:ok, _}／{:error, _}）。掲示板の
@@ -129,6 +165,7 @@ defmodule SukhiApi.Capabilities.Deco do
     case GatewayRpc.call(@gateway, fun, args) do
       {:ok, {:ok, value}} -> on_ok.(value)
       {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+      {:ok, {:error, :forbidden}} -> ok(403, %{error: "forbidden"})
       {:ok, {:error, {:validation, errors}}} -> ok(422, %{error: "validation", detail: errors})
       {:ok, {:error, reason}} -> ok(422, %{error: to_string(reason)})
       {:ok, value} when is_list(value) -> on_ok.(value)

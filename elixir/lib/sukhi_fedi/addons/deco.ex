@@ -262,6 +262,95 @@ defmodule SukhiFedi.Addons.Deco do
     )
   end
 
+  # ── 直す ─────────────────────────────────────────────────────────────
+
+  @doc """
+  自分の投稿・レスを直す。他人のものは断る(`{:error, :forbidden}`)。
+  渡した欄だけ差し替える ── `status` は本文(`notes.content`)、`title` は
+  根の投稿の題、`title_i18n`/`content_i18n` はもう一つの言語ぶん。
+
+  連合に出ている(local_only でない)ものは `Notes.enqueue_update/1` で
+  Update(Note) を配り直す ── フォロワー側の控えも新しくなる。
+  """
+  @spec update_post(Account.t() | integer(), integer() | String.t(), map()) ::
+          {:ok, map()} | {:error, :not_found | :forbidden | {:validation, map()}}
+  def update_post(author, note_id, params) do
+    account_id = id_of(author)
+
+    case fetch_owned(to_int(note_id), account_id) do
+      {:ok, {note, dn, account}} -> do_update(note, dn, account, stringify(params))
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  自分の投稿・レスを消す。他人のものは断る(`{:error, :forbidden}`)。
+  `deco_notes` の行は外部キー(`on_delete: :delete_all`)で一緒に消える。
+  federated Delete の配達は `Notes.delete_note/2` がそのまま持っている。
+  """
+  @spec delete_post(Account.t() | integer(), integer() | String.t()) ::
+          :ok | {:error, :not_found | :forbidden}
+  def delete_post(author, note_id) do
+    with {:ok, {note, _dn, _account}} <- fetch_owned(to_int(note_id), id_of(author)),
+         {:ok, _deleted} <- Notes.delete_note(note.account_id, note.id) do
+      :ok
+    end
+  end
+
+  defp fetch_owned(id, account_id) do
+    case Repo.one(
+           from(dn in DecoNote,
+             join: n in Note,
+             on: n.id == dn.note_id,
+             join: a in Account,
+             on: a.id == n.account_id,
+             where: dn.note_id == ^id,
+             select: {n, dn, a}
+           )
+         ) do
+      nil -> {:error, :not_found}
+      {%Note{account_id: ^account_id} = n, dn, a} -> {:ok, {n, dn, a}}
+      {%Note{}, _dn, _a} -> {:error, :forbidden}
+    end
+  end
+
+  defp do_update(note, dn, account, params) do
+    with :ok <- validate_title(params) do
+      note_attrs = %{} |> maybe_put("content", params["status"]) |> maybe_put("title", params["title"])
+      dn_attrs = Map.take(params, ["title_i18n", "content_i18n"])
+
+      Repo.transaction(fn ->
+        with {:ok, note} <- maybe_update(note, note_attrs),
+             {:ok, dn} <- maybe_update(dn, dn_attrs) do
+          {note, dn}
+        else
+          {:error, cs} -> Repo.rollback(cs)
+        end
+      end)
+      |> case do
+        {:ok, {updated_note, updated_dn}} ->
+          unless updated_dn.local_only, do: NotesCreate.enqueue_update(updated_note.id)
+          {:ok, post_view(updated_note, updated_dn, account)}
+
+        {:error, %Ecto.Changeset{} = cs} ->
+          {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+      end
+    end
+  end
+
+  defp validate_title(%{"title" => t}) do
+    if is_binary(t) and String.trim(t) != "", do: :ok, else: title_missing()
+  end
+
+  defp validate_title(_params), do: :ok
+
+  defp maybe_update(struct, attrs) when map_size(attrs) == 0, do: {:ok, struct}
+  defp maybe_update(%Note{} = note, attrs), do: note |> Note.changeset(attrs) |> Repo.update()
+  defp maybe_update(%DecoNote{} = dn, attrs), do: dn |> DecoNote.changeset(attrs) |> Repo.update()
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, val), do: Map.put(map, key, val)
+
   # ── 読む ─────────────────────────────────────────────────────────────
 
   @doc """
@@ -440,6 +529,13 @@ defmodule SukhiFedi.Addons.Deco do
       deco_id: dn.deco_id,
       title: n.title,
       title_i18n: dn.title_i18n || %{},
+      # 直すときの下書き欄に、いま書いてあるものをそのまま出すため
+      # (HTML から Markdown は戻せない)。ローカルの投稿は notes.content
+      # がエスケープ済みの生 Markdown なので戻す ── 連合越しの mirror は
+      # 元から HTML そのものなので触らない(自分の投稿として直せることも
+      # 無い)。
+      content: raw_content(n),
+      content_i18n: dn.content_i18n || %{},
       content_html: Note.html(n),
       content_html_i18n: render_i18n_html(dn.content_i18n),
       emojis: n.emojis || [],
@@ -456,6 +552,8 @@ defmodule SukhiFedi.Addons.Deco do
       deco_id: fallback_deco_id,
       title: n.title,
       title_i18n: %{},
+      content: raw_content(n),
+      content_i18n: %{},
       content_html: Note.html(n),
       content_html_i18n: %{},
       emojis: n.emojis || [],
@@ -465,6 +563,9 @@ defmodule SukhiFedi.Addons.Deco do
       local_only: false
     }
   end
+
+  defp raw_content(%Note{domain: nil, content: content}), do: SukhiFedi.HTML.unescape(content)
+  defp raw_content(%Note{content: content}), do: content
 
   # content_i18n は生の Markdown(notes.content と同じ形)。読むときだけ
   # HTML 化する ── 書くときに二重に持たせない。

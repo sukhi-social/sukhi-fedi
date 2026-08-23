@@ -115,6 +115,15 @@ defmodule SukhiApi.Capabilities.DecoTest do
     Router.handle(%{method: "DELETE", path: path, headers: [{"authorization", "Bearer t"}]})
   end
 
+  defp patch(path, body) do
+    Router.handle(%{
+      method: "PATCH",
+      path: path,
+      headers: [{"authorization", "Bearer t"}, {"content-type", "application/json"}],
+      body: JSON.encode!(body)
+    })
+  end
+
   defp stub(pairs), do: Application.put_env(:sukhi_api, :fake_deco, Map.new(pairs))
 
   describe "読む（誰でも）" do
@@ -200,6 +209,50 @@ defmodule SukhiApi.Capabilities.DecoTest do
 
       {:ok, resp} = post("/api/v1/deco/posts/42/replies", %{status: "うんうん"})
       assert resp.status == 201
+    end
+
+    test "自分の投稿を直す" do
+      stub([{{:update_post, [@viewer, "42", %{"status" => "なおした"}]}, {:ok, @post}}])
+
+      {:ok, resp} = patch("/api/v1/deco/posts/42", %{status: "なおした"})
+      assert resp.status == 200
+    end
+
+    test "他人の投稿は 403" do
+      stub([{{:update_post, [@viewer, "42", %{"status" => "のっとった"}]}, {:error, :forbidden}}])
+
+      {:ok, resp} = patch("/api/v1/deco/posts/42", %{status: "のっとった"})
+      assert resp.status == 403
+      assert %{"error" => "forbidden"} = JSON.decode!(resp.body)
+    end
+
+    test "無い投稿を直そうとすると 404" do
+      stub([{{:update_post, [@viewer, "999", %{"status" => "…"}]}, {:error, :not_found}}])
+
+      {:ok, resp} = patch("/api/v1/deco/posts/999", %{status: "…"})
+      assert resp.status == 404
+    end
+
+    test "自分の投稿を消す" do
+      stub([{{:delete_post, [@viewer, "42"]}, :ok}])
+
+      {:ok, resp} = delete("/api/v1/deco/posts/42")
+      assert resp.status == 204
+    end
+
+    test "他人の投稿は消せない ── 403" do
+      stub([{{:delete_post, [@viewer, "42"]}, {:error, :forbidden}}])
+
+      {:ok, resp} = delete("/api/v1/deco/posts/42")
+      assert resp.status == 403
+      assert %{"error" => "forbidden"} = JSON.decode!(resp.body)
+    end
+
+    test "無い投稿を消そうとすると 404" do
+      stub([{{:delete_post, [@viewer, "999"]}, {:error, :not_found}}])
+
+      {:ok, resp} = delete("/api/v1/deco/posts/999")
+      assert resp.status == 404
     end
 
     test "板を立てるのは admin だけ" do
