@@ -1,11 +1,19 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Combined release shell: gateway (:sukhi_fedi) + delivery
-# (:sukhi_delivery) in one BEAM for small single-box deployments.
-# No code lives here — both apps stay separate projects and keep their
-# own boundaries (ARCHITECTURE.md §2); this project only assembles one
-# release out of the two. The 2-VM deployment keeps building from
-# elixir/ and delivery/ exactly as before.
+# (:sukhi_delivery) + api (:sukhi_api) in one BEAM for single-box
+# deployments. No code lives here — the three apps stay separate
+# projects and keep their own boundaries (ARCHITECTURE.md §2); this
+# project only assembles one release out of them. The multi-VM
+# deployment keeps building from elixir/, delivery/ and api/ exactly
+# as before.
+#
+# §2's rules 1-6 hold unchanged: only the process count differs. In
+# particular rule 6 (Mastodon/Misskey REST runs on the api plugin
+# node, reached via `:rpc`) still holds literally — `:rpc.call/5`
+# with the local node is a local call. The entrypoint points
+# PLUGIN_NODES and GATEWAY_NODE at this release's own node so both
+# directions resolve to self.
 defmodule SukhiCombined.MixProject do
   use Mix.Project
 
@@ -30,7 +38,8 @@ defmodule SukhiCombined.MixProject do
   defp deps do
     [
       {:sukhi_fedi, path: "../elixir"},
-      {:sukhi_delivery, path: "../delivery"}
+      {:sukhi_delivery, path: "../delivery"},
+      {:sukhi_api, path: "../api"}
     ]
   end
 
@@ -39,7 +48,8 @@ defmodule SukhiCombined.MixProject do
       combined: [
         applications: [
           sukhi_fedi: :permanent,
-          sukhi_delivery: :permanent
+          sukhi_delivery: :permanent,
+          sukhi_api: :permanent
         ]
       ]
     ]

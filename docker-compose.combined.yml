@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Override for small single-box deployments (≈1 core / 2 GB): run
-# gateway + delivery as ONE BEAM (the `combined` release) instead of
-# two containers. Usage:
+# gateway + delivery + api as ONE BEAM (the `combined` release) instead
+# of three containers. Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.combined.yml up -d
 #
-# - The `gateway` service keeps its name (anubis / cloudflared / api
-#   routing stay untouched) but boots the combined image, which runs
-#   both OTP apps. ARCHITECTURE.md §2 boundaries are module-level and
+# - The `gateway` service keeps its name (anubis / cloudflared routing
+#   stays untouched) but boots the combined image, which runs all three
+#   OTP apps. ARCHITECTURE.md §2 boundaries are module-level and
 #   survive the merge; only the process topology changes.
-# - `delivery` is moved to a disabled profile — its env lives on the
-#   gateway service below.
-# - Unlike the 1 GB x64-freetier override, the api node stays on:
-#   2 GB has room for the Mastodon/Misskey REST surface.
+# - `delivery` and `api` move to a disabled profile — their env lives
+#   on the gateway service below. §2 rule 6 still holds: PLUGIN_NODES
+#   and GATEWAY_NODE point at the gateway's own node, so the `:rpc`
+#   hop stays in the code and just lands locally.
 # - Caveat: DB_POOL_SIZE is read by BOTH repos in the combined VM
 #   (gateway and delivery each open a pool of that size).
 #
@@ -90,6 +90,10 @@ services:
       OBAN_MONITOR_CONCURRENCY: "2"
       FINCH_POOL_SIZE: "16"
       FINCH_POOL_COUNT: "2"
+      # api is in this BEAM now, so both directions of the :rpc resolve
+      # to self. Overrides the base compose's `api@api`.
+      PLUGIN_NODES: gateway@elixir
+      GATEWAY_NODE: gateway@elixir
     deploy:
       resources:
         limits:
@@ -103,10 +107,6 @@ services:
   bun:
     profiles: ["disabled"]
 
+  # Folded into the combined release above — no separate BEAM.
   api:
-    environment:
-      <<: *erl_small
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    profiles: ["disabled"]

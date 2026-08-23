@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Combined (gateway + delivery in one BEAM) container entrypoint.
+# Combined (gateway + delivery + api in one BEAM) container entrypoint.
 # Same contract as the gateway's: run all pending migrations, then
 # hand off to the release boot script. Delivery never migrates —
 # schema stays gateway-owned even when the apps share a VM.
@@ -24,6 +24,21 @@ fi
 
 COOKIE_FP=$(printf '%s' "${RELEASE_COOKIE:-(unset)}" | sha256sum | head -c 16)
 echo "[entrypoint] combined cookie_fp=$COOKIE_FP"
+
+# gateway ↔ api は :rpc で話す(ARCHITECTURE §2 rule 6)。この release では
+# 両方が同じ BEAM に居るので、互いの「相手のノード名」は自分自身になる。
+# `:=` なので明示された env が必ず勝つ ─ 別 container の api を持つ既存の
+# compose(PLUGIN_NODES=api@api)は、ここを一切通らない。
+#
+# 自前で決めるときは sname の hostname 推測を避けて長い名前で固定する。
+# 外から届く必要はない一本なので loopback で足りる。
+: "${RELEASE_DISTRIBUTION:=name}"
+: "${RELEASE_NODE:=combined@127.0.0.1}"
+export RELEASE_DISTRIBUTION RELEASE_NODE
+: "${PLUGIN_NODES:=$RELEASE_NODE}"
+: "${GATEWAY_NODE:=$RELEASE_NODE}"
+export PLUGIN_NODES GATEWAY_NODE
+echo "[entrypoint] node=$RELEASE_NODE plugin_nodes=$PLUGIN_NODES"
 
 /app/bin/combined eval 'SukhiFedi.Release.migrate_all()'
 exec /app/bin/combined start

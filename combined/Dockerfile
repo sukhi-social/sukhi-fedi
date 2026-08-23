@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Combined image: gateway + delivery in one BEAM, for small single-box
+# Combined image: gateway + delivery + api in one BEAM, for single-box
 # deployments. Build context is the repo root (like elixir/Dockerfile):
 #   docker build -f combined/Dockerfile .
 # The SPA stage and runtime stage mirror elixir/Dockerfile — the
@@ -32,6 +32,7 @@ ENV CC="sccache gcc" CXX="sccache g++"
 COPY VERSION ./VERSION
 COPY elixir/mix.exs elixir/mix.lock elixir/
 COPY delivery/mix.exs delivery/mix.lock delivery/
+COPY api/mix.exs api/mix.lock api/
 COPY combined/mix.exs combined/
 
 RUN mix local.hex --force && mix local.rebar --force
@@ -47,7 +48,7 @@ RUN --mount=type=cache,target=/sccache,id=sukhi-fedi-combined-sccache,sharing=lo
     sh -c ' \
       set -eu; \
       rm -rf ./_build; \
-      # combined has path-deps on ../elixir and ../delivery, so `mix
+      # combined has path-deps on ../elixir, ../delivery and ../api, so `mix
       # deps.get` already leaves a partial ./_build scaffold behind —
       # without this rm, `cp -a` nests (src into an existing dst)
       # instead of replacing, and the restore silently does nothing.
@@ -66,6 +67,8 @@ COPY elixir/priv elixir/priv
 COPY elixir/rel elixir/rel
 COPY delivery/config delivery/config
 COPY delivery/lib delivery/lib
+COPY api/config api/config
+COPY api/lib api/lib
 COPY combined/config combined/config
 
 # Same SPA embedding as elixir/Dockerfile, into the gateway's priv/.
@@ -91,10 +94,11 @@ COPY --from=build /repo/combined/_build/prod/rel/combined ./
 COPY combined/rel/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# The combined runtime.exs reads both projects' runtime configs from
-# here (same relative layout as the repo).
+# The combined runtime.exs reads all three projects' runtime configs
+# from here (same relative layout as the repo).
 COPY elixir/config/runtime.exs /app/runtime-configs/elixir/config/runtime.exs
 COPY delivery/config/runtime.exs /app/runtime-configs/delivery/config/runtime.exs
+COPY api/config/runtime.exs /app/runtime-configs/api/config/runtime.exs
 ENV RUNTIME_CONFIG_DIR=/app/runtime-configs
 
 ENV MIX_ENV=prod

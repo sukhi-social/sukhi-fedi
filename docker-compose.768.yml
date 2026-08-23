@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Override for a ~768 MB / 1-core single-box deployment. Layer it on the
-# base AND the combined override (combined gives gateway+delivery in one
-# BEAM; this file tightens the memory split, drops the api node, and
-# drops the Bun fedify sidecar):
+# base AND the combined override (combined gives gateway+delivery+api in
+# one BEAM; this file tightens the memory split and drops the Bun fedify
+# sidecar):
 #   docker compose \
 #     -f docker-compose.yml \
 #     -f docker-compose.combined.yml \
@@ -83,6 +83,13 @@ services:
         limits:
           memory: 40M
 
-  # No room for the REST plugin node in this budget.
+  # Already disabled by the combined override — the REST surface rides
+  # inside the combined BEAM now. Kept explicit so this file still reads
+  # as a complete picture of what runs.
+  #
+  # NOTE: the 259 MiB peak quoted in the header was measured (2026-06-12)
+  # on a combined BEAM of gateway+delivery only. Folding :sukhi_api in
+  # adds its modules and per-request processes to the same VM; the 384M
+  # cap has not been re-measured against that.
   api:
     profiles: ["disabled"]
