@@ -521,11 +521,20 @@ defmodule SukhiFedi.Web.Router do
   # SPA を返さず、本当の ap_id(/users/:name/notes/:id)へ回す。他の
   # 投稿からこの URL を貼るだけで、外から返信できて、それが板の
   # コメントとして出てくるようにするための入り口。
+  #
+  # ブラウザ以外(LLM のクローラ等、JS を実行しない/しないクライアント)
+  # が直接見に来たときは、空の SPA shell を返しても中身が見えない ──
+  # その場合は投稿をそのまま Markdown で返す。
   get "/posts/:id" do
-    if wants_activity_json?(conn) do
-      redirect_to_ap_object(conn, conn.path_params["id"])
-    else
-      serve_spa(conn)
+    cond do
+      wants_activity_json?(conn) ->
+        redirect_to_ap_object(conn, conn.path_params["id"])
+
+      wants_markdown?(conn) ->
+        serve_post_markdown(conn, conn.path_params["id"])
+
+      true ->
+        serve_spa(conn)
     end
   end
 
@@ -726,6 +735,42 @@ defmodule SukhiFedi.Web.Router do
     else
       _ -> send_resp(conn, 404, "")
     end
+  end
+
+  # 素の HTTP クライアント(curl・スクリプト・多くの LLM クローラ)は
+  # `Accept` に text/html を積まない ── ブラウザはほぼ必ず積む
+  # (`text/html,application/xhtml+xml,...`)ので、それが無ければ
+  # ブラウザではないとみなす。よく知られた LLM/クローラの User-Agent は、
+  # Accept が html を騙っていても markdown を返す側に倒す。
+  @llm_user_agent_pattern ~r/GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-Web|anthropic-ai|PerplexityBot|Perplexity-User|Google-Extended|GoogleOther|CCBot|Bytespider|Applebot-Extended|Amazonbot|meta-externalagent|Diffbot/i
+
+  defp wants_markdown?(conn) do
+    ua = conn |> get_req_header("user-agent") |> List.first() || ""
+    accept = conn |> get_req_header("accept") |> List.first() || ""
+
+    String.match?(ua, @llm_user_agent_pattern) or not String.contains?(accept, "text/html")
+  end
+
+  defp serve_post_markdown(conn, id_raw) do
+    with {id, ""} <- Integer.parse(id_raw || ""),
+         {:ok, post} <- SukhiFedi.Addons.Deco.get_post(id) do
+      conn
+      |> put_resp_content_type("text/markdown; charset=utf-8")
+      |> send_resp(200, render_post_markdown(post))
+    else
+      _ -> send_resp(conn, 404, "not found")
+    end
+  end
+
+  defp render_post_markdown(post) do
+    parts = [
+      "# #{post.title || "(無題)"}\n\n@#{post.author.acct} · #{DateTime.to_iso8601(post.created_at)}\n\n#{post.content}\n"
+      | Enum.map(post.replies, fn r ->
+          "\n---\n\n@#{r.author.acct} · #{DateTime.to_iso8601(r.created_at)}\n\n#{r.content}\n"
+        end)
+    ]
+
+    Enum.join(parts)
   end
 
   defp serve_spa(conn) do
