@@ -84,6 +84,7 @@ ssh "$BOX" "docker run --rm \
   -e npm_config_cache=/tmp/npm \
   -e MIX_ENV=prod \
   -e SUKHI_RELEASE_VERSION='$VERSION' \
+  -e SUKHI_STATIC_SOURCE=release \
   -v \$HOME/sukhi-build:/repo \
   -w /repo \
   $BUILDER bash -euo pipefail -c '

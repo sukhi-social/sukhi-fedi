@@ -5,7 +5,8 @@
 .DEFAULT_GOAL := help
 .PHONY: help setup dev dev-web test test-elixir test-delivery test-api test-web \
         test-pglite test-e2e check check-presets up down preflight \
-        push-static push-styles release release-images push-deployex-config
+        push-static push-styles clear-static static-status \
+        release release-images push-deployex-config
 
 # The toolchain lives in mise.toml (elixir / erlang / node). mise puts
 # those on PATH through a *shell* hook, which make's own /bin/sh never
@@ -95,23 +96,47 @@ preflight:  ## pre-deploy verification (see infra/preflight.sh)
 DEPLOY_HOST ?=
 DEPLOY_USER ?= rocky
 STATIC_DIR  ?= /var/lib/sukhi-fedi/static
+DOMAIN      ?= sukhi.f3liz.casa
 
-# Rebuild the SPA locally and rsync the result to the host override
-# dir. Gateway serves /static/* and /_app/* from there before falling
-# back to the image-baked priv/static, so this lands instantly ─ no
-# image rebuild, no container reboot. Same for `make push-styles`
-# which is the lighter "only the raw token CSS" variant.
+# Rebuild the SPA locally and rsync it to the host override dir. The app
+# serves /static/* and /_app/* from there, so this lands on the next
+# request — no release, no restart. `make push-styles` is the lighter
+# "only the raw token CSS" variant.
+#
+# Which of the two trees answers is decided by *when each was built*, not
+# by file mtimes: `npm run build` leaves a .static-build.json behind and
+# it rides along in the rsync. So a later `make release` supersedes this
+# push, on purpose. To keep a push in place across releases, set
+# STATIC_OVERRIDE=prefer on the deployex accessory. See
+# docs/static-override.md.
 #
 # `--delete --exclude=styles` 一行が肝。styles/ は build 出力に居な
 # いので、素朴に --delete をかけると styles/ ごと吹き飛ばしてしまい
 # /login の素のCSSがその瞬間に行方不明になる。styles/ は別の
 # rsync で別途同期する役割なので、build rsync の delete 対象から
-# 外しておく。
+# 外しておく。emojis/ も同じ(あちらは実行時に増える)。
 push-static:  ## build the SPA and rsync it to the host override dir
-	cd web && $(RUN) npm run build
+	cd web && SUKHI_STATIC_SOURCE=push $(RUN) npm run build
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(STATIC_DIR) && sudo chown $(DEPLOY_USER) $(STATIC_DIR)"
 	rsync -av --delete --exclude=styles --exclude=emojis web/build/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/
 	rsync -av --delete web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
+	@$(MAKE) --no-print-directory static-status
+
+# Take the push back off. emojis/ stays — nothing bakes those, they are
+# uploaded at runtime and the override dir is where they live.
+clear-static:  ## remove the pushed SPA/CSS, falling back to the release's
+	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "find $(STATIC_DIR) -mindepth 1 -maxdepth 1 ! -name emojis -exec rm -rf {} +"
+	@$(MAKE) --no-print-directory static-status
+
+# Which tree is actually answering. This is the question that went
+# unasked for ten days while `push-static` quietly did nothing.
+static-status:  ## ask the live site which static tree is answering
+	@echo "host $(STATIC_DIR):"
+	@ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "ls -1 $(STATIC_DIR) 2>/dev/null | sed 's/^/  /'; cat $(STATIC_DIR)/.static-build.json 2>/dev/null | sed 's/^/  /' || echo '  (no .static-build.json — pushed by hand?)'"
+	@echo "serving:"
+	@curl -sS -D- -o /dev/null https://$(DOMAIN)/static/index.html 2>/dev/null \
+	  | grep -i '^x-static-source' | sed 's/^/  /' \
+	  || echo "  (set DOMAIN=<host> to ask a live site)"
 
 push-styles:  ## rsync only the raw token CSS (server-rendered pages)
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(STATIC_DIR)/styles && sudo chown -R $(DEPLOY_USER) $(STATIC_DIR)"

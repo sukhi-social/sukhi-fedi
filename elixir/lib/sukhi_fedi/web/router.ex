@@ -798,18 +798,16 @@ defmodule SukhiFedi.Web.Router do
     # asking for old chunk names and never sees a new SPA push. Force
     # revalidation on the shell; the chunks themselves are
     # cache-forever-safe because their URL changes per build.
-    override_root = System.get_env("STATIC_OVERRIDE_DIR", "/app/priv/static-override")
-    baked_root = Path.join([:code.priv_dir(:sukhi_fedi), "static"])
+    case SukhiFedi.Web.StaticFiles.resolve("index.html") do
+      {source, index} ->
+        conn
+        |> put_resp_content_type("text/html; charset=utf-8")
+        |> put_resp_header("cache-control", "no-cache, must-revalidate")
+        |> put_static_source(source)
+        |> send_file(200, index)
 
-    index = pick_fresher(override_root, baked_root, "index.html")
-
-    if index do
-      conn
-      |> put_resp_content_type("text/html; charset=utf-8")
-      |> put_resp_header("cache-control", "no-cache, must-revalidate")
-      |> send_file(200, index)
-    else
-      send_resp(conn, 404, "frontend not built — run `cd web && npm run build`")
+      nil ->
+        send_resp(conn, 404, "frontend not built — run `cd web && npm run build`")
     end
   end
 
@@ -818,26 +816,18 @@ defmodule SukhiFedi.Web.Router do
       send_resp(conn, 400, "")
     else
       relative = Path.join(path_segments)
-      # `:code.priv_dir/1` returns the versioned release path
-      # (/app/lib/sukhi_fedi-<vsn>/priv), which would force the
-      # deploy.yml bind-mount target to change on every release.
-      # Read the override location from env instead — defaults to the
-      # container's /app/priv/static-override, where the kamal
-      # accessory bind-mounts the host's /var/lib/sukhi-fedi/static.
-      override_root = System.get_env("STATIC_OVERRIDE_DIR", "/app/priv/static-override")
-      baked_root = Path.join([:code.priv_dir(:sukhi_fedi), "static"])
 
-      # 両方に同じ path があるときは mtime が新しいほうを返す。
-      # 以前は override 先勝ちだったので、古い `make push-static` の
-      # 残骸が新しい kamal deploy の baked を覆い隠す事故があった。
-      case pick_fresher(override_root, baked_root, relative) do
+      # baked と override のどちらを出すか ─ 決め方は
+      # SukhiFedi.Web.StaticFiles の moduledoc に。
+      case SukhiFedi.Web.StaticFiles.resolve(relative) do
         nil ->
           send_resp(conn, 404, "")
 
-        full ->
+        {source, full} ->
           conn
           |> put_resp_content_type(content_type_for(full))
           |> put_static_cache_control(relative)
+          |> put_static_source(source)
           |> send_file(200, full)
       end
     end
@@ -860,52 +850,11 @@ defmodule SukhiFedi.Web.Router do
     end
   end
 
-  defp safe_regular?(root, relative) do
-    full = Path.join(root, relative)
-
-    String.starts_with?(Path.expand(full), Path.expand(root)) and File.regular?(full)
-  end
-
-  # override と baked のうち、両方あれば mtime が新しいほう、片方しか
-  # 無ければそれ、どちらも無ければ nil を返す。
-  #
-  # natadeco は sukhi-fedi と同じ combined image を相乗りしているので、
-  # baked 側には(natadeco が一度も使うつもりのない)sukhi 自身の
-  # フロントエンドが常に焼き込まれている。mtime 勝負のままだと、
-  # combined を焼き直すたびに baked の mtime が新しくなり、override の
-  # 再同期を一手間忘れただけで sukhi の画面に差し戻ってしまう(実際に
-  # 起きた)。`STATIC_OVERRIDE_ONLY=true` で baked 側を最初から候補から
-  # 外せるようにして、「どちらの画面を出すか」を mtime 任せではなく
-  # 明示に決められるようにする。
-  defp pick_fresher(override_root, baked_root, relative) do
-    override_ok = safe_regular?(override_root, relative)
-    baked_ok = not override_only?() and safe_regular?(baked_root, relative)
-
-    cond do
-      override_ok and baked_ok ->
-        override_path = Path.join(override_root, relative)
-        baked_path = Path.join(baked_root, relative)
-        if mtime(override_path) >= mtime(baked_path), do: override_path, else: baked_path
-
-      override_ok ->
-        Path.join(override_root, relative)
-
-      baked_ok ->
-        Path.join(baked_root, relative)
-
-      true ->
-        nil
-    end
-  end
-
-  defp override_only?, do: System.get_env("STATIC_OVERRIDE_ONLY") == "true"
-
-  defp mtime(path) do
-    case File.stat(path, time: :posix) do
-      {:ok, %File.Stat{mtime: t}} -> t
-      _ -> 0
-    end
-  end
+  # どちらの木が答えたかを一目で見えるように。今回の取り違えが 10 日
+  # 見つからなかったのは、外から確かめる方法が無かったからでもある。
+  #   curl -sI https://.../static/index.html | grep x-static-source
+  defp put_static_source(conn, source),
+    do: put_resp_header(conn, "x-static-source", to_string(source))
 
   # `/uploads/<key>` を S3 backend (rustfs) から proxy する。avatar /
   # 添付などはすべてここを通る。key は upload パイプラインが生成する
