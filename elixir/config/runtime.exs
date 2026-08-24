@@ -15,6 +15,17 @@ end
 # to offline analysis. Generate with `openssl rand -hex 32`.
 config :sukhi_fedi, :metrics_token, System.get_env("METRICS_TOKEN")
 
+# Whether signup needs an invite code.
+#   INVITE_REQUIRED=true  (default) — invite-only, as sukhi grew up.
+#   INVITE_REQUIRED=false           — anyone may register.
+# The mailbox is still proven either way: an address is how somebody
+# finds their way back after losing the account. Codes keep working
+# when the door is open — an invited newcomer still follows whoever
+# invited them.
+config :sukhi_fedi,
+       :invite_required,
+       System.get_env("INVITE_REQUIRED", "true") != "false"
+
 # WebTransport のエッジ（karutte, webtransport.f3liz.casa）。`WT_TICKET_KEY` は入場チケットを
 # 署名する Ed25519 の秘密鍵（生 32 バイト seed の base64）。公開鍵は karutte の `:ticket_pubkey`
 # に置く。未設定なら `/api/wt` は 503（発券しない）。
@@ -208,4 +219,13 @@ if config_env() == :prod do
   # `:plugins` (Cron) are inherited unchanged.
   config :sukhi_fedi, Oban,
     queues: [monitor: String.to_integer(System.get_env("OBAN_MONITOR_CONCURRENCY", "5"))]
+end
+
+# Dev runs the whole system as one BEAM (`make dev` boots combined/,
+# which assembles gateway + delivery + api), so the api plugin node is
+# this node. runtime.exs is evaluated inside the booting VM, so node()
+# is already the real name here — including :nonode@nohost when nobody
+# asked for distribution, which PluginPlug accepts for the local node.
+if config_env() == :dev do
+  config :sukhi_fedi, :plugin_nodes, [node()]
 end

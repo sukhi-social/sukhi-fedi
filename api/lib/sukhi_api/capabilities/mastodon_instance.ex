@@ -45,7 +45,7 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
       urls: %{},
       languages: ["en", "ja"],
       registrations: true,
-      approval_required: false,
+      approval_required: invite_required?(),
       invites_enabled: true,
       stats: %{user_count: 0, status_count: 0, domain_count: 0},
       contact_account: nil,
@@ -109,7 +109,7 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
       },
       registrations: %{
         enabled: true,
-        approval_required: false,
+        approval_required: invite_required?(),
         message: nil
       },
       contact: %{email: "", account: nil},
@@ -117,6 +117,20 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
     }
 
     json(200, body)
+  end
+
+  # Whether a newcomer needs an invite code. Mastodon has no field for
+  # "invite-only", and `approval_required` is the nearest one clients
+  # already read: either way it means *you cannot simply sign up*.
+  # Reported so our own signup form can drop the code field when the
+  # door is open — the gateway decides, the client reads. Unreachable
+  # gateway falls back to the latched answer: better to ask for a code
+  # that turns out unnecessary than to hide a field that is required.
+  defp invite_required? do
+    case SukhiApi.GatewayRpc.call(SukhiFedi.Config, :invite_required?, []) do
+      {:ok, v} when is_boolean(v) -> v
+      _ -> true
+    end
   end
 
   # nil when no keypair is configured — which is how a client learns that

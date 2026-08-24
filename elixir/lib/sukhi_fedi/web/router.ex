@@ -492,14 +492,76 @@ defmodule SukhiFedi.Web.Router do
     serve_static(conn, ["icon-512.png"])
   end
 
+  # PWA インストール用のもう一段(192px)と、Android の adaptive icon
+  # 向け(セーフゾーン込みで描いてある)。natadeco だけが今のところ使う。
+  get "/icon-192.png" do
+    serve_static(conn, ["icon-192.png"])
+  end
+
+  get "/icon-maskable-512.png" do
+    serve_static(conn, ["icon-maskable-512.png"])
+  end
+
   get "/manifest.webmanifest" do
     serve_static(conn, ["manifest.webmanifest"])
+  end
+
+  # natadeco の web-natadeco 側だけが使う画像(ひなたの肖像)。他の
+  # favicon 等と同じ、明示の一枚もの。
+  get "/hinata.png" do
+    serve_static(conn, ["hinata.png"])
+  end
+
+  # signup で見せる、もう一枚のひなた。
+  get "/hinata-signup.png" do
+    serve_static(conn, ["hinata-signup.png"])
   end
 
   # scope が `/` になるよう、ルート直下から配る。中身は static/ にある
   # 手書きの一枚(依存なし)。
   get "/service-worker.js" do
     serve_static(conn, ["service-worker.js"])
+  end
+
+  # natadeco の板の直リンク / リロード。web-natadeco の SPA も同じ shell
+  # (priv/static/index.html) を返すやり方で、JS が URL を読んで描く。
+  #
+  # 連合側(Mastodon/Misskey)がこの URL を「返信先」として解決しようと
+  # すると、`Accept: application/activity+json` で来る ── その場合は
+  # SPA を返さず、本当の ap_id(/users/:name/notes/:id)へ回す。他の
+  # 投稿からこの URL を貼るだけで、外から返信できて、それが板の
+  # コメントとして出てくるようにするための入り口。
+  #
+  # ブラウザ以外(LLM のクローラ等、JS を実行しない/しないクライアント)
+  # が直接見に来たときは、空の SPA shell を返しても中身が見えない ──
+  # その場合は投稿をそのまま Markdown で返す。
+  get "/posts/:id" do
+    cond do
+      wants_activity_json?(conn) ->
+        redirect_to_ap_object(conn, conn.path_params["id"])
+
+      wants_markdown?(conn) ->
+        serve_post_markdown(conn, conn.path_params["id"])
+
+      true ->
+        serve_spa(conn)
+    end
+  end
+
+  # 板は `/d/` の下に一本化 ── これで板の slug が他のどの一段路
+  # (login・settings・api 等)とも衝突しなくなった。
+  get "/d/:slug/new" do
+    serve_spa(conn)
+  end
+
+  get "/d/:slug" do
+    serve_spa(conn)
+  end
+
+  # 加入の前に、ひなたが一言。/login の「はじめての方はこちら」が
+  # ここへ通す。
+  get "/hello" do
+    serve_spa(conn)
   end
 
   get "/api/nodeinfo" do
@@ -660,24 +722,92 @@ defmodule SukhiFedi.Web.Router do
     %{conn | path_params: Map.put(conn.path_params, key, value)}
   end
 
+  defp wants_activity_json?(conn) do
+    conn
+    |> get_req_header("accept")
+    |> List.first()
+    |> then(fn
+      accept when is_binary(accept) ->
+        String.contains?(accept, "application/activity+json") or
+          String.contains?(accept, "application/ld+json")
+
+      _ ->
+        false
+    end)
+  end
+
+  defp redirect_to_ap_object(conn, id_raw) do
+    with {id, ""} <- Integer.parse(id_raw || ""),
+         {:ok, ap_id} <- SukhiFedi.Addons.Deco.ap_id_for_post(id) do
+      conn
+      |> put_resp_header("location", ap_id)
+      |> send_resp(302, "")
+    else
+      _ -> send_resp(conn, 404, "")
+    end
+  end
+
+  # 素の HTTP クライアント(curl・スクリプト・多くの LLM クローラ)は
+  # `Accept` に text/html を積まない ── ブラウザはほぼ必ず積む
+  # (`text/html,application/xhtml+xml,...`)ので、それが無ければ
+  # ブラウザではないとみなす。よく知られた LLM/クローラの User-Agent は、
+  # Accept が html を騙っていても markdown を返す側に倒す。
+  #
+  # 実測(Claude Code の WebFetch)で分かったこと: `Accept: text/markdown,
+  # text/html, */*` のように、markdown を html より先に(=優先して)
+  # 積みつつ、フォールバックで html も受け付けると正直に書いてくる
+  # クライアントがいる。「html が無ければ非ブラウザ」だけだと、
+  # このケースを html 優先だと誤判定してしまう ── text/markdown が
+  # Accept に入っているだけで、素直に markdown 優先とみなす。
+  @llm_user_agent_pattern ~r/GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-User|Claude-Web|anthropic-ai|PerplexityBot|Perplexity-User|Google-Extended|GoogleOther|CCBot|Bytespider|Applebot-Extended|Amazonbot|meta-externalagent|Diffbot/i
+
+  defp wants_markdown?(conn) do
+    ua = conn |> get_req_header("user-agent") |> List.first() || ""
+    accept = conn |> get_req_header("accept") |> List.first() || ""
+
+    String.match?(ua, @llm_user_agent_pattern) or
+      String.contains?(accept, "text/markdown") or
+      not String.contains?(accept, "text/html")
+  end
+
+  defp serve_post_markdown(conn, id_raw) do
+    with {id, ""} <- Integer.parse(id_raw || ""),
+         {:ok, post} <- SukhiFedi.Addons.Deco.get_post(id) do
+      conn
+      |> put_resp_content_type("text/markdown")
+      |> send_resp(200, render_post_markdown(post))
+    else
+      _ -> send_resp(conn, 404, "not found")
+    end
+  end
+
+  defp render_post_markdown(post) do
+    parts = [
+      "# #{post.title || "(無題)"}\n\n@#{post.author.acct} · #{DateTime.to_iso8601(post.created_at)}\n\n#{post.content}\n"
+      | Enum.map(post.replies, fn r ->
+          "\n---\n\n@#{r.author.acct} · #{DateTime.to_iso8601(r.created_at)}\n\n#{r.content}\n"
+        end)
+    ]
+
+    Enum.join(parts)
+  end
+
   defp serve_spa(conn) do
     # index.html refers to content-hashed chunks (`_app/immutable/...`).
     # If a CDN (Cloudflare here) caches the HTML, the browser keeps
     # asking for old chunk names and never sees a new SPA push. Force
     # revalidation on the shell; the chunks themselves are
     # cache-forever-safe because their URL changes per build.
-    override_root = System.get_env("STATIC_OVERRIDE_DIR", "/app/priv/static-override")
-    baked_root = Path.join([:code.priv_dir(:sukhi_fedi), "static"])
+    case SukhiFedi.Web.StaticFiles.resolve("index.html") do
+      {source, index} ->
+        conn
+        |> put_resp_content_type("text/html; charset=utf-8")
+        |> put_resp_header("cache-control", "no-cache, must-revalidate")
+        |> put_static_source(source)
+        |> send_file(200, index)
 
-    index = pick_fresher(override_root, baked_root, "index.html")
-
-    if index do
-      conn
-      |> put_resp_content_type("text/html; charset=utf-8")
-      |> put_resp_header("cache-control", "no-cache, must-revalidate")
-      |> send_file(200, index)
-    else
-      send_resp(conn, 404, "frontend not built — run `cd web && npm run build`")
+      nil ->
+        send_resp(conn, 404, "frontend not built — run `cd web && npm run build`")
     end
   end
 
@@ -686,26 +816,18 @@ defmodule SukhiFedi.Web.Router do
       send_resp(conn, 400, "")
     else
       relative = Path.join(path_segments)
-      # `:code.priv_dir/1` returns the versioned release path
-      # (/app/lib/sukhi_fedi-<vsn>/priv), which would force the
-      # deploy.yml bind-mount target to change on every release.
-      # Read the override location from env instead — defaults to the
-      # container's /app/priv/static-override, where the kamal
-      # accessory bind-mounts the host's /var/lib/sukhi-fedi/static.
-      override_root = System.get_env("STATIC_OVERRIDE_DIR", "/app/priv/static-override")
-      baked_root = Path.join([:code.priv_dir(:sukhi_fedi), "static"])
 
-      # 両方に同じ path があるときは mtime が新しいほうを返す。
-      # 以前は override 先勝ちだったので、古い `make push-static` の
-      # 残骸が新しい kamal deploy の baked を覆い隠す事故があった。
-      case pick_fresher(override_root, baked_root, relative) do
+      # baked と override のどちらを出すか ─ 決め方は
+      # SukhiFedi.Web.StaticFiles の moduledoc に。
+      case SukhiFedi.Web.StaticFiles.resolve(relative) do
         nil ->
           send_resp(conn, 404, "")
 
-        full ->
+        {source, full} ->
           conn
           |> put_resp_content_type(content_type_for(full))
           |> put_static_cache_control(relative)
+          |> put_static_source(source)
           |> send_file(200, full)
       end
     end
@@ -728,41 +850,11 @@ defmodule SukhiFedi.Web.Router do
     end
   end
 
-  defp safe_regular?(root, relative) do
-    full = Path.join(root, relative)
-
-    String.starts_with?(Path.expand(full), Path.expand(root)) and File.regular?(full)
-  end
-
-  # override と baked のうち、両方あれば mtime が新しいほう、片方しか
-  # 無ければそれ、どちらも無ければ nil を返す。
-  defp pick_fresher(override_root, baked_root, relative) do
-    override_ok = safe_regular?(override_root, relative)
-    baked_ok = safe_regular?(baked_root, relative)
-
-    cond do
-      override_ok and baked_ok ->
-        override_path = Path.join(override_root, relative)
-        baked_path = Path.join(baked_root, relative)
-        if mtime(override_path) >= mtime(baked_path), do: override_path, else: baked_path
-
-      override_ok ->
-        Path.join(override_root, relative)
-
-      baked_ok ->
-        Path.join(baked_root, relative)
-
-      true ->
-        nil
-    end
-  end
-
-  defp mtime(path) do
-    case File.stat(path, time: :posix) do
-      {:ok, %File.Stat{mtime: t}} -> t
-      _ -> 0
-    end
-  end
+  # どちらの木が答えたかを一目で見えるように。今回の取り違えが 10 日
+  # 見つからなかったのは、外から確かめる方法が無かったからでもある。
+  #   curl -sI https://.../static/index.html | grep x-static-source
+  defp put_static_source(conn, source),
+    do: put_resp_header(conn, "x-static-source", to_string(source))
 
   # `/uploads/<key>` を S3 backend (rustfs) から proxy する。avatar /
   # 添付などはすべてここを通る。key は upload パイプラインが生成する

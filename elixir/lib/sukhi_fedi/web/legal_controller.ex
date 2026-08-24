@@ -177,7 +177,7 @@ defmodule SukhiFedi.Web.LegalController do
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="index,follow">
-    <title>#{title} · sukhi.f3liz.casa</title>
+    <title>#{title} · #{SukhiFedi.Config.domain!()}</title>
     <style>#{@css}#{font}</style>
     </head>
     <body>

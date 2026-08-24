@@ -84,3 +84,10 @@ if config_env() == :prod do
       config :sukhi_api, :enabled_capabilities, mods
   end
 end
+
+# Dev counterpart of the gateway's :plugin_nodes — one BEAM, so the
+# gateway this node reaches back into is itself. Overrides the
+# `gateway@elixir` default in config.exs.
+if config_env() == :dev do
+  config :sukhi_api, :gateway_node, node()
+end

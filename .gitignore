@@ -28,3 +28,7 @@ config/tls/
 .claude/
 # Julia analysis tooling — resolved on demand via Pkg.instantiate()
 analysis/Manifest.toml
+
+# Local dev sidecars (make dev)
+.pglite-dev/
+.nats-dev/

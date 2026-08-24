@@ -58,8 +58,9 @@ mix sukhi.migrate       # walks core + enabled addons' migration dirs
 iex -S mix
 ```
 
-Note: the project needs Elixir 1.20; if your shell default is older, prefix
-mix with `mise exec elixir@1.20.0 --`.
+Note: `mise.toml` at the repo root pins Elixir/OTP to the versions the
+Dockerfile builds with. Run `mise trust` once in the checkout and plain
+`mix` picks them up — no per-command prefix.
 
 ### 3. The `fedify` service
 

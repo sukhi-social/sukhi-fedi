@@ -25,7 +25,32 @@ document and the code. Read it first.
   Mastodon-API MVP push; pick anything off it
 - [`SETUP.md`](SETUP.md) — self-host deployment with docker compose + Watchtower
 
-## Quick start — try it locally
+## Quick start — no Docker
+
+```bash
+make dev        # http://localhost:4000
+make dev-web    # http://localhost:5173, in a second terminal
+```
+
+`make dev` starts an embedded Postgres (PGlite — Postgres compiled to WASM,
+run by bun, persisted in `.pglite-dev/`), runs the migrations, and boots
+gateway + delivery + api as **one BEAM** with an IEx shell. Nothing to
+install beyond the toolchain in `mise.toml` (`mise trust` once) and bun.
+
+NATS carries streaming and the outbound-federation relay; `make dev` starts
+`nats-server` when it's on PATH and says so when it isn't (`brew install
+nats-server nats`). PGlite runs on a single connection on purpose — its
+socket multiplexer breaks Postgrex inside transactions, so a wider pool can
+read but not post. Point `DB_PORT` at a real Postgres for the full thing.
+See `scripts/dev.sh`.
+
+To get a first account, from the IEx shell `make dev` drops you into:
+
+```elixir
+SukhiFedi.Release.create_admin("you", "a-long-passphrase")
+```
+
+## Quick start with Docker — the full stack
 
 Build the app images from source and run the whole stack on your machine. No
 published images needed — only Postgres and NATS come from upstream bases.
@@ -59,31 +84,28 @@ Federating with other servers needs a public domain + TLS and is out of scope
 for a local trial. For a real self-host deploy — pulling published images, with
 Anubis and Watchtower — see [`SETUP.md`](SETUP.md).
 
-For frontend work, run the Vite dev server separately (`cd web && npm run dev`
+For frontend work, run the Vite dev server separately (`make dev-web`
 → http://localhost:5173, proxies API calls to the gateway).
 
 ## Running tests
 
 ```bash
-# Elixir gateway unit tests (hermetic, no live deps)
-cd elixir && mix test --no-start
+make test          # every layer's unit tests (elixir / delivery / api / web)
+make test-pglite   # the DB integration suite, on embedded PGlite — no Docker
+make test-e2e      # cross-browser SPA smoke (Playwright)
+make check         # linters and type checks
+```
 
-# Elixir delivery unit tests
-cd delivery && mix test --no-start
+`make` on its own lists every target. Each layer is also its own target
+(`make test-api`, …) when you want just one.
 
-# Bun tests
-cd bun && bun test
+Two things `make test` does not cover: the retired Bun worker (`cd bun &&
+bun test`, `bun run check`), and the integration tests that need NATS or S3
+rather than only Postgres — those want the Docker stack:
 
-# Type check (bun-agnostic via tsc)
-cd bun && bun run check
-
-# Web SPA — type check and end-to-end
-cd web && npm run check
-cd web && npm run test:e2e   # Playwright
-
-# Integration tests (needs docker-compose.test.yml stack)
-docker-compose -f docker-compose.test.yml up -d
-cd elixir && mix test --only integration
+```bash
+docker compose -f docker-compose.test.yml up -d
+cd elixir && MIX_ENV=test mix sukhi.migrate && mix test --only integration
 ```
 
 ## Architecture at a glance

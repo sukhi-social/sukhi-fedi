@@ -5,6 +5,7 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
   @moduletag :integration
 
   alias SukhiFedi.{CustomEmojis, Notes, Repo}
+  alias SukhiFedi.Schema.Account
   alias SukhiFedi.Schema.CustomEmoji
 
   describe "register/1 and get_local/1" do
@@ -133,5 +134,11 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
       assert emoji.category == "ZipPack"
       assert String.starts_with?(emoji.image_url, "data:image/png;base64,")
     end
+  end
+
+  # Same helper social_test.exs and conversations_test.exs each carry.
+  defp create_account!(username) do
+    %Account{username: username, display_name: username, summary: ""}
+    |> Repo.insert!()
   end
 end

@@ -5,10 +5,11 @@
 ## 動かす
 
 ```
-cd web
-npm install
-npm run dev        # http://localhost:5173 — gateway は :4000 に居る前提
+make dev-web       # http://localhost:5173 — gateway は :4000 に居る前提
 ```
+
+gateway 側は repo ルートで `make dev`（Docker 要らず）。node は `mise.toml`
+が持っているので、`npm` を自分で入れる必要はない。
 
 dev server は `/api`, `/oauth`, `/login`, `/.well-known` を `http://localhost:4000`
 （Elixir gateway）に proxy する。gateway 側の起動は repo のルート README を参照。

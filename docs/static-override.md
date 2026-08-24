@@ -1,75 +1,137 @@
 # 静的ファイルの即時差し替え
 
-CSS や SPA の小さな修正のたびに CI ビルド + image push + accessory
-reboot(計 3-5 分)を待つのは辛いので、gateway 側に host 由来の
+CSS や SPA の小さな修正のたびに release を焼くのは辛いので、host 由来の
 override dir を一枚かぶせている。仕組みは単純:
 
 ```
-gateway container
-  ├── /app/lib/sukhi_fedi-<vsn>/priv/static/   ← image にビルド時に焼き込まれたもの
-  └── /app/priv/static-override/               ← ホストの /var/lib/sukhi-fedi/static を read-only bind
+deployex container（アプリの走る場所）
+  ├── <release>/lib/sukhi_fedi-<vsn>/priv/static/   ← baked: release に焼かれたもの
+  └── /app/priv/static-override/                    ← pushed: /var/lib/sukhi-fedi/static の read-only bind
 ```
 
 baked path は `:code.priv_dir/1` が release version 込みで返すので、
-override は version に依らない固定パスにして deploy.yml を毎回直さ
-ずに済むようにしている(`STATIC_OVERRIDE_DIR` 環境変数で上書きも
-可能)。
+override は version に依らない固定パスにしてある(`STATIC_OVERRIDE_DIR`
+で変えられる。baked 側も `STATIC_BAKED_DIR` で ─ テスト用)。
 
-`SukhiFedi.Web.Router.serve_static/2` は **override を先に見て、無ければ
-baked を返す**。だから:
-
-- override を空にしておけば、image 単体で完結する(初回 deploy の安心)
-- override に CSS を 1 個置けば、その path だけ即時で差し替わる
-- override を消せば、baked-in に戻る
-
-## ローカルから差し替える
-
-`Makefile` に二つ target がある:
+## 差し替える
 
 ```sh
-# SPA まるごと(npm run build → rsync)
-make push-static
+export DEPLOY_HOST=<箱>
 
-# CSS だけ(src/styles/*.css → host:/styles/)
-make push-styles
+make push-static     # SPA まるごと(npm run build → rsync)
+make push-styles     # server-rendered ページ用の生 CSS だけ
+make clear-static    # push を剥がして release のものに戻す
+make static-status   # いまどちらが答えているか
 ```
 
-どちらも `scp/rsync` でファイルを置くだけ。BEAM の reload は不要 ─
-`File.read!` のキャッシュは無いので、次の HTTP リクエストから新しい
-内容が返る。
+BEAM の reload は要らない。ファイルを置いた次のリクエストから変わる。
 
-接続先を変えるなら env で:
+## どちらが答えるか ── ビルドの日付で決まる
+
+`npm run build` が `.static-build.json` を吐く(`web/scripts/static-manifest.mjs`)。
+
+```json
+{ "built_at": 1756032000, "built_at_iso": "...", "source": "push" }
+```
+
+これは **build/ の中身と一緒に旅をする** ── image に COPY されても、
+release の tarball に入っても、rsync で箱に渡っても、ついてくる。
+サーバはこの `built_at` を比べて、**新しく焼かれたほうの木**を使う。
+比較は木ごと(ファイルごとではなく)なので、index.html とそれが名指す
+chunk が別のビルドから混ざることがない。
+
+だから既定では、`make release` は `make push-static` を上書きする。
+それが正しい ── release のほうが新しく焼かれているので。
+
+`x-static-source` ヘッダにどちらを返したかが出る:
 
 ```sh
-DEPLOY_HOST=192.0.2.10 DEPLOY_USER=ubuntu make push-styles
+curl -sI https://sukhi.f3liz.casa/static/index.html | grep x-static-source
+#=> x-static-source: baked
 ```
+
+### 押し切りたいとき
+
+deployex accessory の env で:
+
+| `STATIC_OVERRIDE` | 動き |
+|---|---|
+| `auto`（既定） | 新しく焼かれたほうが勝つ |
+| `prefer` | push があれば、日付に関わらず push が勝つ |
+| `only` | push しか見ない。無ければ 404(baked へ落ちない) |
+
+`STATIC_OVERRIDE_ONLY=true` は `only` と同じ(natadeco がこれ)。
+
+### ビルドが作らないもの
+
+`styles/` と `emojis/` はどの SPA ビルドの出力でもない ── 前者は手で、
+後者は絵文字インポータが置く。ビルドの日付が語れる対象ではないので、
+**どのモードでも override 側が優先される**。変えるなら
+`STATIC_OVERRIDE_ALWAYS`(カンマ区切りの prefix)。
+
+### なぜ mtime をやめたか
+
+もともとは override 先勝ちだった。古い `push-static` の残骸が新しい
+deploy を覆い隠す事故があって、mtime が新しいほうを選ぶようにした。
+
+ところが DeployEx は deploy のたびに release の tarball を展開する。
+展開されたファイルの mtime は必ず「いま」になるので、**baked が永久に
+勝ち、push が二度と効かなくなった**。2026-08-24 に気づくまで、10 日ぶん
+効いていなかった ── しかも外から確かめる方法が無かったので、気づき
+ようがなかった。
+
+mtime は「どちらが新しいか」を答えているように見えて、実際には
+「どちらが最近ファイルシステムに書かれたか」しか答えない。知りたかった
+のは別のことだった。だからビルド自身に言わせて、`x-static-source` で
+外から見えるようにした。
 
 ## ホスト側の初回セットアップ
 
-初回だけ host に dir を作る必要がある(`make push-static` が自動でやる
-が、手作業なら):
+`make push-static` が自動でやるが、手作業なら:
 
 ```sh
 ssh rocky@host 'sudo mkdir -p /var/lib/sukhi-fedi/static && sudo chown rocky /var/lib/sukhi-fedi/static'
 ```
 
-deploy.yml の `accessories.gateway.options.volume` がこの host path を
-bind しているので、accessory boot 時に自動でマウントされる。
+deploy.yml の `accessories.deployex.volumes` がこの host path を bind
+している。
 
 ## いつ使わないか
 
-- `mix.exs` や `.ex` ファイルを触ったら、これでは反映されない
-  ─ image rebuild + `kamal accessory reboot gateway` が必要
-- `priv/repo/migrations/` を増やしたら同じく reboot 必要
-- `botPolicies.yaml` や `imprint.md` は anubis image に焼かれている
-  ので、Anubis 側で同じ override 機構を作るか、image rebuild
+- `.ex` を触ったら、これでは反映されない ─ `make release`
+- migration を足したら同じく `make release`
+- `botPolicies.yaml` / `imprint.md` は anubis image に焼かれているので、
+  Anubis 側で同じ override 機構を作るか image rebuild
 
 ## 安全のために
 
-- override mount は `:ro` で読み取り専用 ─ コンテナ内のバグで上書き
-  されない
-- `serve_static/2` の path-traversal guard はそのまま生きる ─ override
-  でも `..` は弾く
+- override mount は `:ro` ─ コンテナ内のバグで上書きされない
+- path-traversal guard は override 側にも効く ─ `..` は弾く
+
+## ファイルの mode に気をつける
+
+**アプリは root ではない uid(10002)で動いている。** override dir は
+host 側で `rocky` が持っているので、置くファイルは *others から読める*
+必要がある。読めないファイルがあると、`stat` は通る(ディレクトリの実行
+権だけで足りる)ので **200 のヘッダを送ってから本体が eacces で落ちる**
+── クライアントには 502、ログには 200 が並ぶ。
+
+2026-08-24 に実際に起きた: 絵文字 983 個が zip から mode 0700 で入って
+いて、DeployEx への切り替えでアプリが root をやめた瞬間から 9 時間、
+全部 502 だった。古い gateway は root だったので権限を無視できていた。
+
+いまは二重に防いである:
+
+- `push-static` / `push-styles` の rsync が `--chmod=D755,F644` を付ける
+- アプリは *読めるかどうか* を見て選ぶ(`File.stat` の `:access`)。読めない
+  ファイルは最初から候補にならないので、baked に落ちるか 404 になる ──
+  途中で切れた 200 にはならない
+
+手で置いたときは:
+
+```sh
+ssh rocky@host 'sudo chmod -R a+rX /var/lib/sukhi-fedi/static'
+```
 
 ## 抜け穴(やらかしやすい二つ)
 
@@ -82,13 +144,14 @@ SPA は Vite が CSS を bundle して `_app/immutable/assets/<hash>.css`
 
 `/static/styles/app.css` を読むのは **server-rendered な /login と
 /oauth/authorize の consent 画面だけ**。SPA 側のスタイルを直したい
-ときは `make push-static`(`npm run build` + rsync 一式)が必要。
+ときは `make push-static`。
 
 ### 2. `rsync --delete` が `styles/` を吹き飛ばす
 
 `web/build/` の出力に `styles/` は含まれない(あれは別管理)。
 だから素朴に `rsync -av --delete web/build/ host:STATIC_DIR/` を
 やると、host 側の `styles/` まで削られて /login が裸 HTML になる。
+`emojis/` も同じ。
 
-Makefile の `push-static` は `--exclude=styles` を付けてこれを
+`push-static` は `--exclude=styles --exclude=emojis` を付けてこれを
 避けている。手で rsync するときも同じ exclude を忘れない。

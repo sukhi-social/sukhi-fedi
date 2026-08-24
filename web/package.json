@@ -9,6 +9,7 @@
     "prebuild": "node scripts/copy-twemoji.mjs",
     "predev": "node scripts/copy-twemoji.mjs",
     "build": "vite build",
+    "postbuild": "node scripts/static-manifest.mjs",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test:e2e": "playwright test"

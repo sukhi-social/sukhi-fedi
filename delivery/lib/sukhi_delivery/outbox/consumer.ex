@@ -115,13 +115,28 @@ defmodule SukhiDelivery.Outbox.Consumer do
 
   # ── handlers ─────────────────────────────────────────────────────────────
 
+  defp handle_note_created(%{"local_only" => true}), do: :local_only
+
   defp handle_note_created(%{"account_id" => account_id} = p) do
     case actor_for(account_id) do
       nil ->
         :no_actor
 
       %{actor_uri: actor_uri} ->
-        recipients = followers_inboxes(actor_uri) ++ relay_inboxes()
+        # 返信は親の書いた人に、本文の @メンションはその人自身に届くように
+        # ── これまではフォロワー+リレーだけで、フォローし合っていない
+        # 相手には(返信もメンションも)何も届いていなかった。
+        reply_inbox = note_author_inbox(p["in_reply_to_ap_id"])
+
+        mention_inboxes =
+          (p["mention_actor_uris"] || [])
+          |> Enum.map(&inbox_for_actor_uri/1)
+          |> Enum.reject(&is_nil/1)
+
+        recipients =
+          (followers_inboxes(actor_uri) ++ relay_inboxes() ++ reply_inbox ++ mention_inboxes)
+          |> Enum.uniq()
+
         note_id = p["note_id"]
         ap_id = note_ap_id(actor_uri, note_id)
         activity_id = "#{ap_id}/activity"

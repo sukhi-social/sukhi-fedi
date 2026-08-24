@@ -36,6 +36,24 @@ defmodule SukhiFedi.HTML do
   @spec escape(term()) :: term()
   def escape(text) when is_binary(text), do: Plug.HTML.html_escape(text)
   def escape(other), do: other
+
+  @doc """
+  Reverse `escape/1` ── gives back what the author actually typed, for
+  re-opening it in an edit box. `&amp;` decodes last so a literal `&lt;`
+  the author typed (escaped to `&amp;lt;`) round-trips instead of
+  colliding with the `<` produced by decoding `&lt;` first.
+  """
+  @spec unescape(term()) :: term()
+  def unescape(text) when is_binary(text) do
+    text
+    |> String.replace("&lt;", "<")
+    |> String.replace("&gt;", ">")
+    |> String.replace("&quot;", "\"")
+    |> String.replace("&#39;", "'")
+    |> String.replace("&amp;", "&")
+  end
+
+  def unescape(other), do: other
 end
 
 defmodule SukhiFedi.HTML.Scrubber do
