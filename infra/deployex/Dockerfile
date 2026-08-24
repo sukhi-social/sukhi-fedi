@@ -72,7 +72,13 @@ RUN chmod +x /usr/local/bin/deployex-entrypoint \
  && mkdir -p /var/lib/deployex /var/log/deployex /var/log/monitored-apps /etc/deployex \
  && chown deployex:deployex /var/lib/deployex /var/log/deployex /var/log/monitored-apps
 
-ENV LANG=C.UTF-8 \
+# SHELL is not decoration: erlexec's port program reads it to decide how
+# to launch children, and exits 4 without it — which surfaces as DeployEx
+# dying at boot on `failed to start child: :exec`. Upstream's systemd
+# unit sets it; a container has no systemd to do that for us.
+ENV SHELL=/bin/bash \
+    LANG=C.UTF-8 \
+    LC_CTYPE=C.UTF-8 \
     DEPLOYEX_CONFIG_YAML_PATH=/etc/deployex/deployex.yaml \
     DEPLOYEX_OTP_TLS_CERT_PATH=/var/lib/deployex/certs
 

@@ -81,14 +81,13 @@ applications:
     # combined/rel/env.sh.eex puts the cookie back. So none of that is
     # repeated here, and no secret is written to a file on the box.
     #
-    # What *is* here is the handful of knobs that must reach the app and
-    # only the app. ERL_FLAGS in the container environment would be
-    # picked up by DeployEx's own VM as well.
-    env:
-      - key: ERL_FLAGS
-        value: "+S 2:2 +SDcpu 2:2 +SDio 2 +sbwt none +sbwtdcpu none +sbwtdio none +MBas aobf +MHas aobf"
-      - key: ERL_FULLSWEEP_AFTER
-        value: "20"
+    # There is deliberately no `env:` block here. DeployEx builds one
+    # `export A=1 B=2` line out of it and never quotes the values, so
+    # anything with a space in it (ERL_FLAGS, for one) turns into a shell
+    # syntax error and the app dies before it starts. Everything the app
+    # needs therefore goes through the container environment instead —
+    # including ERL_FLAGS, which DeployEx's own VM then inherits too.
+    # On a two-core box that is the right shape anyway.
 
     # Migrations are pre_commands in current.json, written by
     # bin/release-on-box.sh — they belong with the version they migrate
