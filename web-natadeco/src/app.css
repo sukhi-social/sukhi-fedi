@@ -1,0 +1,316 @@
+/* ナタデコの地の色。oklch(明るさ 彩度 色相) で組んである。
+   色相は二つだけ ── 75(紙・文字・陽、暖色の一系統)と 40(ひなたの
+   「ほっぺ」、--blush 一箇所だけの差し色)。同じ色相のまま明るさと
+   彩度だけを段階的に動かしているので、見た目がばらけない。
+   熱くも、冷たくもない ── 紙と、日向の色を基準にする。夜は暗くする
+   けれど、青には振らない。灯りを落とした部屋の紙、くらいのつもり。
+   コントラストは計算で確認済み(下の値、明暗どちらも WCAG AA 以上)。 */
+:root {
+  --paper: oklch(97% 0.02 75);
+  --paper-raised: oklch(99% 0.012 75);
+  --ink: oklch(35% 0.045 75); /* paper比 10.46:1 */
+  --ink-soft: oklch(52% 0.05 75); /* paper比 5.09:1 */
+  --line: oklch(91% 0.035 75);
+  --sun: oklch(77% 0.13 75);
+  --sun-soft: oklch(93% 0.05 75);
+  --blush: oklch(80% 0.09 40);
+  --radius: 16px;
+  --shadow: 0 2px 14px -6px oklch(55% 0.09 75 / 22%);
+
+  --font-round: 'M PLUS Rounded 1c', ui-rounded, 'Hiragino Maru Gothic ProN', sans-serif;
+
+  /* BoardNav の幅。+layout.svelte がメイン列をこの分だけ寄せて、
+     ヘッダーの中央と揃えるのに使う ── 数を二箇所に離して持たない。 */
+  --sidebar-w: 11rem;
+
+  color-scheme: light dark;
+}
+
+/* 端末の設定に従う既定。/settings のトグルで明示に選んだ人は
+   [data-theme] のほうが勝つ(下)。色相はライトと同じ 75 / 40 のまま、
+   明るさだけ反転させる。 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: oklch(22% 0.02 75);
+    /* 元は 27%(paper 比 1.15:1)で、カードがページに沈んで見える、
+       と hinata に指摘されて測り直した(paper 比 1.36:1)。 */
+    --paper-raised: oklch(32% 0.025 75);
+    --ink: oklch(93% 0.025 75); /* paper比 14.13:1 */
+    --ink-soft: oklch(76% 0.04 75); /* paper比 8.05:1 */
+    /* raised 比 1.51:1 になるよう合わせて上げた(元は raised と
+       ほぼ同じ暗さで、縁がほとんど見えていなかった)。 */
+    --line: oklch(42% 0.035 75);
+    --sun: oklch(77% 0.13 75);
+    --sun-soft: oklch(32% 0.055 75);
+    --blush: oklch(62% 0.09 40);
+    --shadow: 0 2px 16px -6px oklch(0% 0 0 / 40%);
+  }
+}
+
+/* 明示に「暗く」を選んだ人 ── 端末が明るい設定でも、これが勝つ。 */
+:root[data-theme='dark'] {
+  --paper: oklch(22% 0.02 75);
+  --paper-raised: oklch(32% 0.025 75);
+  --ink: oklch(93% 0.025 75);
+  --ink-soft: oklch(76% 0.04 75);
+  --line: oklch(42% 0.035 75);
+  --sun: oklch(77% 0.13 75);
+  --sun-soft: oklch(32% 0.055 75);
+  --blush: oklch(62% 0.09 40);
+  --shadow: 0 2px 16px -6px rgb(0 0 0 / 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family:
+    'BIZ UDPGothic',
+    'Nanum Gothic',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Hiragino Sans',
+    'Noto Sans JP',
+    sans-serif;
+  line-height: 1.75;
+  font-size: 16px;
+  /* BIZ UDPGothic は字面(文字そのものの大きさ)が大きめの UD 書体
+     ── 伝わるデザインの読みやすさガイド(yomiyasuku4)が「文字
+     サイズの5%程度の字間を」と言っている値の、地の文向けにやや
+     控えめにした版。無いと、詰まっていっぱいいっぱいに見える。 */
+  letter-spacing: 0.03em;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-color: var(--sun);
+}
+
+h1,
+h2 {
+  font-family: var(--font-round);
+  font-weight: 700;
+  /* 参考にした「友好的・自然」系のサイトが軒並み見出しの字間を広めに
+     取っていたので合わせた ── 詰まった印象を減らして、空気を通す。 */
+  letter-spacing: 0.04em;
+}
+
+/* 一行の長さ。読みやすさの上限で、画面が広くても伸ばさない。
+   16px 基準で 46rem ≒ 全角46字ぶん ── 日本語組版の要件(jlreq)の
+   実装(LaTeX の jlreq クラス)が既定にしている40字と、その代替の45字の、
+   ちょうど上のあたり。ラテン文字の側でも Bringhurst の「1行45〜75字、
+   理想は66字」の帯の中に収まる。 */
+.measure {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+.muted {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  /* 字間を足した(BIZ UDPGothic 対応)ぶん、箱の余白も少し足す ──
+     字だけ詰め直して枠がそのままだと、かえって窮屈さが目立つ。 */
+  padding: 1.3rem 1.5rem;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.btn {
+  font-family: var(--font-round);
+  font-weight: 700;
+  background: var(--sun-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.5rem 1.3rem;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--sun);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input[type='text'],
+input[type='email'],
+input[type='password'],
+textarea {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 0.6);
+  padding: 0.55rem 0.8rem;
+}
+
+input[type='text']:focus,
+input[type='email']:focus,
+input[type='password']:focus,
+textarea:focus {
+  outline: 3px solid var(--sun-soft);
+  outline-offset: 1px;
+  border-color: var(--sun);
+}
+
+/* 投稿本文の中身（サーバが組んだ HTML）。
+   :global() は Svelte の <style> の中でだけ意味を持つ ── ここは
+   +layout.svelte から plain import された、ふつうの CSS ファイルなので
+   :global(p) は不正なセレクタとして無視されていた(既定の 1em マージン
+   が代わりに効いていた)。ここで直す。
+
+   行送りは、ページ全体の line-height(1.75、上の body で設定)を
+   そのまま継いでいるが、ここは UI の文字(ボタン・ラベル)ではなく
+   「読む」ための文字なので、あえて自分の値を持たせる ── 日本語組版
+   処理の要件(jlreq)を実装した LaTeX の jlreq クラスが行送りの既定に
+   している「文字サイズの1.7倍」に、そのまま合わせた。段落間は、
+   行送り1行ぶんより少し狭い 0.75em ── 空行を丸ごと1行分空けるより
+   軽く、それでいて段落の切れ目は迷わずわかる、くらいの幅。 */
+.body {
+  line-height: 1.7;
+}
+
+.body p {
+  margin: 0 0 0.75em;
+}
+
+.body p:last-child {
+  margin-bottom: 0;
+}
+
+.body blockquote {
+  margin: 0.75em 0;
+  padding: 0.4em 0.9em;
+  border-left: 3px solid var(--sun);
+  background: var(--sun-soft);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--ink-soft);
+}
+
+.body blockquote p {
+  margin: 0 0 0.4em;
+}
+
+.body blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* 本文に差し込むカスタム絵文字(lib/emoji.ts)。文字に乗る大きさに
+   ── sukhi-fedi 本体の web と同じ値。 */
+.body img.custom-emoji {
+  height: 1.3em;
+  width: auto;
+  vertical-align: text-bottom;
+  object-fit: contain;
+  display: inline-block;
+}
+
+/* 見出し・箇条書き。書けるだけで、見た目に差が出なければ「実現できて
+   いる」とは言えないので、ここで効かせる。h1/h2 は上の全体ルールで
+   丸ゴシック+太字は付くが、大きさと余白まではまだ ── 記事の中では
+   投稿の題(h1 相当)より下の階層として使うので、h1 は控えめに。
+   段組みが伝わるデザイン(https://tsutawarudesign.com/yomiyasuku4.html)
+   の「見出しは太字のゴシック体・左揃え」にそう。上下の余白を
+   1.1em/0.5em と非対称にしているのは狙って ── 見出しの上を広く・
+   下を狭くすると、見出しとその下の本文が一つのまとまりに見え、前の
+   段落とはちゃんと切れる。活版の時代からある組版の基本(space before
+   > space after)で、jlreq も見出しは前の続き物と区別する扱いを
+   求めている。 */
+.body h1,
+.body h2,
+.body h3,
+.body h4 {
+  margin: 1.1em 0 0.5em;
+  text-align: left;
+}
+
+.body h1:first-child,
+.body h2:first-child,
+.body h3:first-child,
+.body h4:first-child {
+  margin-top: 0;
+}
+
+/* h1/h2 は上の全体ルールで丸ゴシックが付くが、ここは投稿の中身
+   (書いた人の文章)なので、本文と同じ BIZ UDP に戻す ── 丸ゴシックは
+   「ナタデコ」の名前・デコ名・ボタンやタブの文字など、定型の文字
+   だけに残す。h3/h4 も同様。 */
+.body h1,
+.body h2,
+.body h3,
+.body h4 {
+  font-family: inherit;
+}
+
+.body h1 {
+  font-size: 1.25rem;
+}
+
+.body h2 {
+  font-size: 1.15rem;
+}
+
+.body h3,
+.body h4 {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 1.05rem;
+}
+
+/* 箇条書き。ぶら下げ(2行目以降が本文の頭に揃う)はブラウザの既定の
+   ままで満たせている ── ここでは行間・項目間だけ整える。 */
+.body ul,
+.body ol {
+  margin: 0 0 0.75em;
+  padding-left: 1.4em;
+}
+
+.body li {
+  margin-bottom: 0.3em;
+}
+
+.body li:last-child {
+  margin-bottom: 0;
+}
+
+.body li > ul,
+.body li > ol {
+  margin-top: 0.3em;
+}

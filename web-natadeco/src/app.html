@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ナタデコ</title>
+    <script>
+      // 描画の前に、前回選んだ色(あれば)を当てる ── あとから切り替えると
+      // 一瞬ちらつくので。選んでいなければ何もしない(端末の設定のまま)。
+      try {
+        var t = localStorage.getItem('nd.theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <!-- 見出し・ボタン・タブは丸ゴシック。本文は Morisawa の UD(ユニバーサル
+         デザイン)フォント、BIZ UDPゴシック ── 濁点・字のふところを広めに
+         取った、読み間違いの少なさで評判の書体。OFL で無料・商用可、
+         自分のサイトにも入れやすい。ハングルは収録が無いので、ナ
+         ヌムゴシック(나눔고딕)を続けて指定 ── フォントスタックは
+         文字ごとにフォールバックするので、ハングルの字だけ自然に
+         こちらへ回る。どちらも無ければ system sans に落ちる。 -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Nanum+Gothic:wght@400;700&family=M+PLUS+Rounded+1c:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div>%sveltekit.body%</div>
+  </body>
+</html>
