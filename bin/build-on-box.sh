@@ -19,9 +19,9 @@
 #   kamal accessory reboot deployex      # deployex を焼き直したとき
 #   kamal deploy --skip-push --version=<いま動いている版>   # anubis のとき
 #
-# gateway / delivery / api / bun の entry は残してあるが、これを焼いても箱では
-# 何も動かない ── 止めてある旧 accessory への戻り道のためだけに置いてある。
-# 旧 accessory を deploy.yml から消すときに、一緒に消す。
+# gateway / delivery / api の entry は消した(旧 accessory も同日に削除)。戻したく
+# なったら sukhi-deploy 側の revert と一緒に、この case にも戻す ── image 自体は
+# 箱の registry に残っている。combined は compose 自前ホスト用の image なので残す。
 #
 # 公開 multi-arch image は今までどおり .github/workflows/release.yml が ghcr に
 # 出し続ける。これは「自分の箱に出す」専用 ── arm64 単一・loopback registry。
@@ -44,10 +44,9 @@ PREFIX="${IMAGE_PREFIX:-sukhi-fedi}"
 build_one() {
   local name="$1" ctx file push=true
   case "$name" in
-    gateway)        ctx="."               file="elixir/Dockerfile"          ;;
+    # combined は compose で自前ホストする人が焼く image。箱では使わない
+    # (箱は tarball 経由)が、手元で確かめたいときのために残してある。
     combined)       ctx="."               file="combined/Dockerfile"        ;;
-    delivery)       ctx="delivery"        file="delivery/Dockerfile"        ;;
-    api)            ctx="."               file="api/Dockerfile"             ;;
     bun)            ctx="bun"             file="bun/Dockerfile"             ;;
     nats-bootstrap) ctx="infra/nats"      file="infra/nats/Dockerfile"      ;;
     anubis)         ctx="config/anubis"   file="config/anubis/Dockerfile"   ;;
