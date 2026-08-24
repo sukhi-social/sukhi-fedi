@@ -116,6 +116,7 @@ cd elixir && MIX_ENV=test mix sukhi.migrate && mix test --only integration
 | API        | REST plugin node (`:sukhi_api` BEAM app); Mastodon/Misskey client APIs, `:rpc`-invoked from the gateway, capabilities auto-register |
 | Delivery   | Outbox.Relay, Oban delivery & federation queues, outbound inbox POSTs    |
 | Web        | SvelteKit SSG SPA (`web/`); built to static files, served by the gateway from `priv/static` |
+| Web (natadeco) | natadeco.com's own frontend (`web-natadeco/`), for the `deco` board addon. A second site running this server, not a second server — it lives here because it is the addon's only client and the two have to change together. Builds with bun; `make push-natadeco` |
 | Bun        | NATS Micro service (JSON-LD build, HTTP Signature, verify) — **retired** (v0.3.0), now served natively by `SukhiFedi.Fedi`; no compose stack starts it (`disabled` profile), kept for rollback & golden fixtures |
 | PostgreSQL | System of record; shared `outbox` / `delivery_receipts` / `oban_jobs`    |
 | NATS       | JetStream `OUTBOX` + `DOMAIN_EVENTS`; Micro service `fedify`             |

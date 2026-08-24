@@ -6,7 +6,8 @@
 .PHONY: help setup dev dev-web test test-elixir test-delivery test-api test-web \
         test-pglite test-e2e check check-presets up down preflight \
         push-static push-styles clear-static static-status \
-        release release-images push-deployex-config
+        release release-images push-deployex-config \
+        push-natadeco natadeco-images
 
 # The toolchain lives in mise.toml (elixir / erlang / node). mise puts
 # those on PATH through a *shell* hook, which make's own /bin/sh never
@@ -31,6 +32,8 @@ setup:  ## fetch every project's dependencies
 	@command -v nats-server >/dev/null 2>&1 || echo "note: nats-server is missing — 'make dev' runs without streaming (brew install nats-server nats)"
 	for d in elixir delivery api combined; do (cd $$d && $(RUN) mix deps.get); done
 	cd web && $(RUN) npm install --no-audit --no-fund
+	@command -v bun >/dev/null 2>&1 && (cd web-natadeco && bun install) \
+	  || echo "note: skipping web-natadeco (needs bun)"
 
 # ── Running it locally ──────────────────────────────────────────────────────
 
@@ -146,6 +149,29 @@ static-status:  ## ask the live site which static tree is answering
 push-styles:  ## rsync only the raw token CSS (server-rendered pages)
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(STATIC_DIR)/styles && sudo chown -R $(DEPLOY_USER) $(STATIC_DIR)"
 	rsync -av --delete --chmod=D755,F644 web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
+
+# ── natadeco ────────────────────────────────────────────────────────────────
+# natadeco.com rides this repo's deco addon and its combined image, but has
+# a frontend of its own (web-natadeco/, brought in 2026-08-25). It is not on
+# DeployEx: its version still travels as an image.
+#
+# It builds with bun, not npm — its own lockfile, left as it was. Unifying
+# the two package managers is a separate decision from moving the code.
+NATADECO_STATIC_DIR ?= /var/lib/natadeco/static
+
+push-natadeco:  ## build web-natadeco and rsync it to natadeco's override dir
+	cd web-natadeco && bun run build
+	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(NATADECO_STATIC_DIR) && sudo chown $(DEPLOY_USER) $(NATADECO_STATIC_DIR)"
+	rsync -av --delete --chmod=D755,F644 web-natadeco/build/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(NATADECO_STATIC_DIR)/
+
+# natadeco's backend. The combined image is its web role and it still runs a
+# separate api node, so both images move together.
+natadeco-images:  ## (re)build natadeco's combined + api images on the box
+	IMAGE_PREFIX=natadeco bash bin/build-on-box.sh combined api
+	@echo
+	@echo "next, in ~/repos/natadeco-deploy:"
+	@echo "  kamal deploy --skip-push --version=v0   # web role"
+	@echo "  kamal accessory reboot api"
 
 # Bake a release tarball on the box and hand it to DeployEx, which swaps
 # the running BEAM for it. No image, no registry, no container restart —
