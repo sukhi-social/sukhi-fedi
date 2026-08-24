@@ -70,6 +70,10 @@ COPY delivery/lib delivery/lib
 COPY api/config api/config
 COPY api/lib api/lib
 COPY combined/config combined/config
+# rel/env.sh.eex becomes releases/<vsn>/env.sh — the cookie check and the
+# "the api plugin node is this node" defaults live there, so a release
+# assembled without it boots with neither.
+COPY combined/rel combined/rel
 
 # Same SPA embedding as elixir/Dockerfile, into the gateway's priv/.
 COPY --from=spa /spa/build /spa-build
