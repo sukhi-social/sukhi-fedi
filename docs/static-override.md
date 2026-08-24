@@ -108,6 +108,31 @@ deploy.yml の `accessories.deployex.volumes` がこの host path を bind
 - override mount は `:ro` ─ コンテナ内のバグで上書きされない
 - path-traversal guard は override 側にも効く ─ `..` は弾く
 
+## ファイルの mode に気をつける
+
+**アプリは root ではない uid(10002)で動いている。** override dir は
+host 側で `rocky` が持っているので、置くファイルは *others から読める*
+必要がある。読めないファイルがあると、`stat` は通る(ディレクトリの実行
+権だけで足りる)ので **200 のヘッダを送ってから本体が eacces で落ちる**
+── クライアントには 502、ログには 200 が並ぶ。
+
+2026-08-24 に実際に起きた: 絵文字 983 個が zip から mode 0700 で入って
+いて、DeployEx への切り替えでアプリが root をやめた瞬間から 9 時間、
+全部 502 だった。古い gateway は root だったので権限を無視できていた。
+
+いまは二重に防いである:
+
+- `push-static` / `push-styles` の rsync が `--chmod=D755,F644` を付ける
+- アプリは *読めるかどうか* を見て選ぶ(`File.stat` の `:access`)。読めない
+  ファイルは最初から候補にならないので、baked に落ちるか 404 になる ──
+  途中で切れた 200 にはならない
+
+手で置いたときは:
+
+```sh
+ssh rocky@host 'sudo chmod -R a+rX /var/lib/sukhi-fedi/static'
+```
+
 ## 抜け穴(やらかしやすい二つ)
 
 ### 1. SPA の CSS は `/static/styles/` 経由では更新できない

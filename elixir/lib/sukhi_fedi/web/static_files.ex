@@ -68,8 +68,8 @@ defmodule SukhiFedi.Web.StaticFiles do
     override = override_root()
     baked = baked_root()
 
-    in_override = safe_regular?(override, relative)
-    in_baked = mode() != :only and safe_regular?(baked, relative)
+    in_override = servable?(override, relative)
+    in_baked = mode() != :only and servable?(baked, relative)
 
     cond do
       in_override and in_baked ->
@@ -161,9 +161,26 @@ defmodule SukhiFedi.Web.StaticFiles do
     end
   end
 
-  defp safe_regular?(root, relative) do
+  # "Is it there" is not the question — "can we actually send it" is.
+  #
+  # This used to be `File.regular?/1`, which stats, and stat only needs the
+  # directories above a file to be walkable. A file we cannot open passed
+  # that check, so the response went out with 200 and its body then died
+  # mid-flight on eacces; the client saw a 502 while the log said 200. It
+  # happened for real: 983 emoji files arrived from a zip at mode 0700 and
+  # the container stopped running as root, so for nine hours every one of
+  # them was a 502 that looked like a success from the inside.
+  #
+  # `File.stat/1` already knows — `:access` is computed against the running
+  # user — and it is the same syscall we were making anyway.
+  defp servable?(root, relative) do
     full = Path.join(root, relative)
 
-    String.starts_with?(Path.expand(full), Path.expand(root)) and File.regular?(full)
+    with true <- String.starts_with?(Path.expand(full), Path.expand(root)),
+         {:ok, %File.Stat{type: :regular, access: access}} <- File.stat(full) do
+      access in [:read, :read_write]
+    else
+      _ -> false
+    end
   end
 end

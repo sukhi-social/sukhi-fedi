@@ -110,6 +110,11 @@ DOMAIN      ?= sukhi.f3liz.casa
 # STATIC_OVERRIDE=prefer on the deployex accessory. See
 # docs/static-override.md.
 #
+# `--chmod=D755,F644` も要る。ここに置くものは全部 HTTP で配る公開
+# ファイルで、アプリは root ではない uid で動いている ── 手元の umask
+# や zip の中の mode がそのまま渡ると、読めないファイルが並ぶ(絵文字
+# 983 個が 0700 で来て、9時間 502 を返していた)。
+#
 # `--delete --exclude=styles` 一行が肝。styles/ は build 出力に居な
 # いので、素朴に --delete をかけると styles/ ごと吹き飛ばしてしまい
 # /login の素のCSSがその瞬間に行方不明になる。styles/ は別の
@@ -118,8 +123,8 @@ DOMAIN      ?= sukhi.f3liz.casa
 push-static:  ## build the SPA and rsync it to the host override dir
 	cd web && SUKHI_STATIC_SOURCE=push $(RUN) npm run build
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(STATIC_DIR) && sudo chown $(DEPLOY_USER) $(STATIC_DIR)"
-	rsync -av --delete --exclude=styles --exclude=emojis web/build/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/
-	rsync -av --delete web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
+	rsync -av --delete --chmod=D755,F644 --exclude=styles --exclude=emojis web/build/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/
+	rsync -av --delete --chmod=D755,F644 web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
 	@$(MAKE) --no-print-directory static-status
 
 # Take the push back off. emojis/ stays — nothing bakes those, they are
@@ -140,7 +145,7 @@ static-status:  ## ask the live site which static tree is answering
 
 push-styles:  ## rsync only the raw token CSS (server-rendered pages)
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(STATIC_DIR)/styles && sudo chown -R $(DEPLOY_USER) $(STATIC_DIR)"
-	rsync -av --delete web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
+	rsync -av --delete --chmod=D755,F644 web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
 
 # Bake a release tarball on the box and hand it to DeployEx, which swaps
 # the running BEAM for it. No image, no registry, no container restart —

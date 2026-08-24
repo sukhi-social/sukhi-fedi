@@ -160,6 +160,21 @@ defmodule SukhiFedi.Web.StaticFilesTest do
     end
   end
 
+  # 983 emoji files came out of a zip at mode 0700, and the container
+  # stopped running as root. `File.regular?` only stats, so every one of
+  # them answered 200 and then died on eacces halfway through the body —
+  # a 502 to the client, a success in the log.
+  test "a file it cannot read is not offered", %{override: o, baked: b} do
+    unreadable = write(o, "index.html", "pushed")
+    File.chmod!(unreadable, 0o000)
+    write(b, "index.html", "baked")
+
+    # As root, modes mean nothing and there is no case to make.
+    if File.read(unreadable) == {:error, :eacces} do
+      assert {:baked, _} = StaticFiles.resolve("index.html")
+    end
+  end
+
   test "will not walk out of either tree", %{override: o} do
     write(o, "index.html", "pushed")
     File.write!(Path.join(Path.dirname(o), "secret"), "no")
