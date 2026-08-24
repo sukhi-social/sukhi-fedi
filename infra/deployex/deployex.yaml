@@ -64,15 +64,21 @@ applications:
   - name: "combined"
     language: "elixir"
 
-    # One. Bandit binds :4000 from application.ex, not from PORT, so a
-    # second replica would fight the first for the port. It also means a
-    # deploy has a gap — the same gap `kamal accessory reboot gateway`
-    # has today, so nothing got worse. Making the port configurable is
-    # what would buy zero-downtime rolls; not today.
+    # One, and no port juggling.
+    #
+    # DeployEx deploys by starting the new BEAM before stopping the old,
+    # and its usual answer to the overlap is `replica_ports` — hand each
+    # instance a different port and let something in front (nginx, in
+    # upstream's own examples) list them all. anubis has a single TARGET
+    # and cannot, so the app shares one port instead: the listener sets
+    # SO_REUSEPORT, both instances hold :4000 for the seconds they
+    # overlap, and anubis never has to know. See the `endpoint` comment
+    # in elixir/lib/sukhi_fedi/application.ex.
+    #
+    # That also makes replicas > 1 possible now — the kernel would
+    # balance across them — but each replica is another Oban node and
+    # another metrics sampler, so it is a decision, not a free knob.
     replicas: 1
-    replica_ports:
-      - key: PORT
-        base: 4000
 
     # Everything else the app needs (DB_*, SECRET_KEY_BASE, ERLANG_COOKIE,
     # S3_*, SMTP_*, VAPID_*, DOMAIN …) is inherited from this container's

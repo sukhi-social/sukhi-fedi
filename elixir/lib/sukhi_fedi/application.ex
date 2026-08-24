@@ -11,7 +11,6 @@ defmodule SukhiFedi.Application do
     core_children = [
       SukhiFedi.PromEx,
       SukhiFedi.Repo,
-      {Bandit, plug: SukhiFedi.Web.Router, port: 4000},
       {Gnat.ConnectionSupervisor, nats_connection_settings()},
       SukhiFedi.Cache.Ets,
       # 画像プロキシの AVIF 裏 encode(一枚ずつ)。結果を Cache.Ets の
@@ -42,7 +41,7 @@ defmodule SukhiFedi.Application do
       SukhiFedi.WtRelayTelemetry
     ]
 
-    children = core_children ++ SukhiFedi.Addon.Registry.children()
+    children = core_children ++ SukhiFedi.Addon.Registry.children() ++ [endpoint()]
 
     opts = [strategy: :one_for_one, name: SukhiFedi.Supervisor]
     result = Supervisor.start_link(children, opts)
@@ -53,6 +52,32 @@ defmodule SukhiFedi.Application do
     Task.start(fn -> SukhiFedi.Addons.Media.Bootstrap.ensure_bucket() end)
 
     result
+  end
+
+  # The HTTP listener. Last in the tree, and willing to share its port.
+  #
+  # Last, because opening :4000 is what tells the world we are ready.
+  # Everything the router reaches — the repo, the caches, NATS, the
+  # addons — is already up by the time we get here, so a boot that is
+  # going to fail has failed before a single request could land on it.
+  #
+  # Sharing, because DeployEx swaps versions by starting the new BEAM
+  # *before* stopping the old one. Without SO_REUSEPORT the newcomer
+  # dies on eaddrinuse and the deploy can never complete; with it, the
+  # kernel hands new connections to either instance during the seconds
+  # they overlap, and to the survivor after. Both are the same app
+  # against the same database, which is what running two replicas would
+  # mean anyway.
+  #
+  # What it costs: a stale VM nobody reaped would quietly take a share
+  # of traffic instead of loudly refusing to start. DeployEx kills the
+  # process it replaces, so that would be a supervision failure rather
+  # than an ordinary day.
+  defp endpoint do
+    {Bandit,
+     plug: SukhiFedi.Web.Router,
+     port: 4000,
+     thousand_island_options: [transport_options: [reuseport: true]]}
   end
 
   defp fedi_consumer_settings do
