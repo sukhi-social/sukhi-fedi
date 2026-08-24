@@ -6,14 +6,22 @@
 # 127.0.0.1:5000 に push できないため ── techo で確認済み）。committed なツリーを
 # git archive で箱に送り、箱で docker build → loopback registry に push する。
 #
+# **アプリの版はもうここを通らない。** 2026-08-24 から、gateway/delivery/api は
+# DeployEx の中の一つの release になって、版は tarball で運ばれる ──
+# `make release`(bin/release-on-box.sh)。この script に残っているのは「めったに
+# 変わらない土台」だけ。
+#
 # 使い方:
-#   bin/build-on-box.sh                  # 既定: gateway delivery api bun を焼く
-#   bin/build-on-box.sh gateway          # 一つだけ（CPU 競合を抑えたいとき）
+#   bin/build-on-box.sh                  # 既定: builder deployex を焼く
 #   bin/build-on-box.sh anubis           # config/anubis を変えたとき
-#   bin/build-on-box.sh gateway delivery api bun nats-bootstrap anubis  # 全部
+#   bin/build-on-box.sh nats-bootstrap   # infra/nats を変えたとき
 # その後:
-#   kamal accessory reboot gateway       # 箱が :v0 を pull し直して再起動
-#   kamal deploy --skip-push             # anubis(web role) を焼いたとき
+#   kamal accessory reboot deployex      # deployex を焼き直したとき
+#   kamal deploy --skip-push --version=<いま動いている版>   # anubis のとき
+#
+# gateway / delivery / api / bun の entry は残してあるが、これを焼いても箱では
+# 何も動かない ── 止めてある旧 accessory への戻り道のためだけに置いてある。
+# 旧 accessory を deploy.yml から消すときに、一緒に消す。
 #
 # 公開 multi-arch image は今までどおり .github/workflows/release.yml が ghcr に
 # 出し続ける。これは「自分の箱に出す」専用 ── arm64 単一・loopback registry。
@@ -67,7 +75,7 @@ build_one() {
     && docker push '$img:$SHA'"
 }
 
-if [ "$#" -eq 0 ]; then set -- gateway delivery api bun; fi
+if [ "$#" -eq 0 ]; then set -- builder deployex; fi
 
 # image を焼くためのツリーは ~/sukhi-images。アプリの release を焼く
 # ~/sukhi-build とは別にする ── あちらは _build/deps が住み続ける場所で、
