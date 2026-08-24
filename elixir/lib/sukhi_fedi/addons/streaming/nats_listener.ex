@@ -7,14 +7,50 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
+  @subject "stream.new_post"
+
   @impl true
   def init(_) do
-    {:ok, _sub} = Gnat.sub(:gnat, self(), "stream.new_post")
-    {:ok, %{}}
+    # Subscribing in init/1 meant this listener could take the whole
+    # application down with it. Gnat.ConnectionSupervisor connects
+    # asynchronously, so `:gnat` is not always there yet by the time the
+    # addon children start — and when it isn't, Gnat.sub does not return
+    # an error, it exits. On 2026-08-24 a deploy hit exactly that: the
+    # first boot died on `failed_to_start_child: NatsListener` and only
+    # the supervisor above us retrying saved it.
+    #
+    # So: try in a continue, retry on failure, and let the app finish
+    # booting either way. Same shape as SukhiFedi.WtRelayTelemetry.
+    {:ok, %{subscribed: false}, {:continue, :subscribe}}
   end
 
   @impl true
-  def handle_info({:msg, %{topic: "stream.new_post", body: body}}, state) do
+  def handle_continue(:subscribe, state), do: {:noreply, try_subscribe(state)}
+
+  defp try_subscribe(%{subscribed: true} = state), do: state
+
+  defp try_subscribe(state) do
+    case Gnat.sub(:gnat, self(), @subject) do
+      {:ok, _sub} -> %{state | subscribed: true}
+      _ -> schedule_resubscribe(state)
+    end
+  rescue
+    _ -> schedule_resubscribe(state)
+  catch
+    # :gnat がプロセスごと居ないとき、Gnat.sub は例外でなく exit(noproc)
+    # ─ rescue では受からない。
+    :exit, _ -> schedule_resubscribe(state)
+  end
+
+  defp schedule_resubscribe(state) do
+    Process.send_after(self(), :resubscribe, 2_000)
+    state
+  end
+
+  @impl true
+  def handle_info(:resubscribe, state), do: {:noreply, try_subscribe(state)}
+
+  def handle_info({:msg, %{topic: @subject, body: body}}, state) do
     case JSON.decode(body) do
       {:ok, %{"object" => object, "actor_id" => actor_id}} ->
         broadcast_to_feeds(object, actor_id)
@@ -65,6 +101,10 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
     Gnat.pub(:gnat, subject, JSON.encode!(object))
   rescue
     _ -> :ok
+  catch
+    # ここも sub と同じ ─ :gnat が居ないと exit(noproc) で来るので、rescue
+    # だけでは「落とさない」と書いてあるのに落ちていた。
+    :exit, _ -> :ok
   end
 
   defp local_actor?(actor_id) do
