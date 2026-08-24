@@ -5,7 +5,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help setup dev dev-web test test-elixir test-delivery test-api test-web \
         test-pglite test-e2e check check-presets up down preflight \
-        push-static push-styles
+        push-static push-styles release release-images push-deployex-config
 
 # The toolchain lives in mise.toml (elixir / erlang / node). mise puts
 # those on PATH through a *shell* hook, which make's own /bin/sh never
@@ -116,3 +116,24 @@ push-static:  ## build the SPA and rsync it to the host override dir
 push-styles:  ## rsync only the raw token CSS (server-rendered pages)
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(STATIC_DIR)/styles && sudo chown -R $(DEPLOY_USER) $(STATIC_DIR)"
 	rsync -av --delete web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
+
+# Bake a release tarball on the box and hand it to DeployEx, which swaps
+# the running BEAM for it. No image, no registry, no container restart —
+# the app version is data now. See bin/release-on-box.sh.
+release:  ## build a release on the box and deploy it (DeployEx)
+	@bash bin/release-on-box.sh
+
+# The two images the box needs but that almost never change: the toolchain
+# that bakes releases, and DeployEx itself. Run after touching
+# infra/builder/, infra/deployex/Dockerfile, or the toolchain pins.
+release-images:  ## (re)build the builder + deployex images on the box
+	@bash bin/build-on-box.sh builder deployex
+
+# How the app runs — replicas, thresholds, paths — lives in a file on the
+# host, not in the image. DeployEx re-reads it and applies the reloadable
+# parts without a restart.
+DEPLOYEX_DIR ?= /var/lib/sukhi-fedi/deployex
+
+push-deployex-config:  ## rsync infra/deployex/deployex.yaml to the box
+	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(DEPLOYEX_DIR) && sudo chown $(DEPLOY_USER) $(DEPLOYEX_DIR)"
+	rsync -av infra/deployex/deployex.yaml $(DEPLOY_USER)@$(DEPLOY_HOST):$(DEPLOYEX_DIR)/

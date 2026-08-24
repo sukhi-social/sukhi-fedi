@@ -34,22 +34,34 @@ PREFIX="${IMAGE_PREFIX:-sukhi-fedi}"
 
 # name → context / dockerfile。release.yml の matrix と同じ context/file。
 build_one() {
-  local name="$1" ctx file
+  local name="$1" ctx file push=true
   case "$name" in
-    gateway)        ctx="."             file="elixir/Dockerfile"        ;;
-    combined)       ctx="."             file="combined/Dockerfile"      ;;
-    delivery)       ctx="delivery"      file="delivery/Dockerfile"      ;;
-    api)            ctx="."             file="api/Dockerfile"           ;;
-    bun)            ctx="bun"           file="bun/Dockerfile"           ;;
-    nats-bootstrap) ctx="infra/nats"    file="infra/nats/Dockerfile"    ;;
-    anubis)         ctx="config/anubis" file="config/anubis/Dockerfile" ;;
+    gateway)        ctx="."               file="elixir/Dockerfile"          ;;
+    combined)       ctx="."               file="combined/Dockerfile"        ;;
+    delivery)       ctx="delivery"        file="delivery/Dockerfile"        ;;
+    api)            ctx="."               file="api/Dockerfile"             ;;
+    bun)            ctx="bun"             file="bun/Dockerfile"             ;;
+    nats-bootstrap) ctx="infra/nats"      file="infra/nats/Dockerfile"      ;;
+    anubis)         ctx="config/anubis"   file="config/anubis/Dockerfile"   ;;
+    # DeployEx とその中で動くアプリの土台。年に数回しか変わらない ── アプリ
+    # の版は image ではなく tarball で運ぶ(bin/release-on-box.sh)。
+    deployex)       ctx="infra/deployex"  file="infra/deployex/Dockerfile"  ;;
+    # builder は kamal が触らない(箱の docker run から直に使う)ので registry
+    # に置かない。1GB 超を loopback registry に積む意味が無い。
+    builder)        ctx="infra/builder"   file="infra/builder/Dockerfile"   push=false ;;
     *) echo "unknown image: $name" >&2; return 1 ;;
   esac
   local img="$REG/$PREFIX-$name"
+  if ! $push; then
+    img="$PREFIX-$name"
+    echo "→ build $name  (context=$ctx file=$file, local only)"
+    ssh "$BOX" "cd ~/sukhi-images && docker build -f '$file' -t '$img:v0' '$ctx'"
+    return
+  fi
   echo "→ build + push $name  (context=$ctx file=$file)"
   # 順番に焼く＝CPU を一度に食い尽くさない。:v0 は accessory が pin する rolling、
   # :$SHA は anubis の kamal deploy --skip-push が拾う immutable。
-  ssh "$BOX" "cd ~/sukhi-build \
+  ssh "$BOX" "cd ~/sukhi-images \
     && docker build --label service=$PREFIX -f '$file' -t '$img:v0' -t '$img:$SHA' '$ctx' \
     && docker push '$img:v0' \
     && docker push '$img:$SHA'"
@@ -57,8 +69,11 @@ build_one() {
 
 if [ "$#" -eq 0 ]; then set -- gateway delivery api bun; fi
 
+# image を焼くためのツリーは ~/sukhi-images。アプリの release を焼く
+# ~/sukhi-build とは別にする ── あちらは _build/deps が住み続ける場所で、
+# ここは毎回まるごと消して展開し直すから(bin/release-on-box.sh 参照)。
 echo "→ ship committed tree (HEAD=$SHA) to box"
-git archive HEAD | ssh "$BOX" 'rm -rf ~/sukhi-build && mkdir -p ~/sukhi-build && tar -x -C ~/sukhi-build'
+git archive HEAD | ssh "$BOX" 'rm -rf ~/sukhi-images && mkdir -p ~/sukhi-images && tar -x -C ~/sukhi-images'
 
 echo "→ login registry on box"
 echo "$REGPASS" | ssh "$BOX" "docker login $REG -u $REGUSER --password-stdin >/dev/null"

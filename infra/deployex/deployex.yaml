@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# DeployEx configuration for the sukhi.f3liz.casa box.
+#
+# This file is *not* baked into the image. It lives on the host at
+# /var/lib/sukhi-fedi/deployex/deployex.yaml and is bind-mounted read-only
+# at /etc/deployex — the whole point of the move is that changing how the
+# app runs must not mean rebuilding an image. Push it with:
+#
+#   make push-deployex-config
+#
+# DeployEx re-reads the file and applies the reloadable parts (replicas,
+# per-app env, thresholds, timeouts) without a restart. The rest — adapters,
+# paths, port, otp_version — need `kamal accessory reboot deployex`.
+
+account_name: "prod"
+hostname: "sukhi-fedi-deployex"
+port: 5001
+
+# Releases arrive as tarballs on disk, not from S3. `release_bucket` is
+# just a directory here; bin/release-on-box.sh fills it in with
+#   dist/combined/combined-<version>.tar.gz
+#   versions/combined/prod/current.json      ← "prod" is account_name
+release_adapter: "local"
+release_bucket: "/var/lib/sukhi-releases"
+
+# DEPLOYEX_SECRET_KEY_BASE / DEPLOYEX_ERLANG_COOKIE /
+# DEPLOYEX_ADMIN_HASHED_PASSWORD come straight from the container
+# environment (Kamal secrets). No AWS, no GCP. `secrets_path` is unused by
+# the env adapter but the field is read, so it stays here as a label.
+secrets_adapter: "env"
+secrets_path: "kamal-env"
+
+version: "0.9.13"
+otp_version: 28
+os_target: "ubuntu-24.04"
+
+# Generated on first boot by infra/deployex/entrypoint.sh. Both DeployEx
+# and the release it supervises read them, and nothing else can.
+otp_tls_certificates: "/var/lib/deployex/certs"
+
+install_path: "/opt/deployex"
+var_path: "/var/lib/deployex"
+log_path: "/var/log/deployex"
+monitored_app_log_path: "/var/log/monitored-apps"
+
+# Host memory: the watchdog restarts the hungriest monitored app, not
+# DeployEx. The other three types watch DeployEx's own VM; leave their
+# restarts off — this container has no systemd to bring it back, only
+# Docker's restart policy, and a needless bounce takes the app with it.
+monitoring:
+  - type: "memory"
+    enable_restart: true
+    warning_threshold_percent: 80
+    restart_threshold_percent: 92
+  - type: "atom"
+    enable_restart: false
+  - type: "process"
+    enable_restart: false
+  - type: "port"
+    enable_restart: false
+
+applications:
+  - name: "combined"
+    language: "elixir"
+
+    # One. Bandit binds :4000 from application.ex, not from PORT, so a
+    # second replica would fight the first for the port. It also means a
+    # deploy has a gap — the same gap `kamal accessory reboot gateway`
+    # has today, so nothing got worse. Making the port configurable is
+    # what would buy zero-downtime rolls; not today.
+    replicas: 1
+    replica_ports:
+      - key: PORT
+        base: 4000
+
+    # Everything else the app needs (DB_*, SECRET_KEY_BASE, ERLANG_COOKIE,
+    # S3_*, SMTP_*, VAPID_*, DOMAIN …) is inherited from this container's
+    # own environment, which Kamal fills from config/deploy.yml and
+    # .kamal/secrets. DeployEx strips only RELEASE_* on the way in, and
+    # combined/rel/env.sh.eex puts the cookie back. So none of that is
+    # repeated here, and no secret is written to a file on the box.
+    #
+    # What *is* here is the handful of knobs that must reach the app and
+    # only the app. ERL_FLAGS in the container environment would be
+    # picked up by DeployEx's own VM as well.
+    env:
+      - key: ERL_FLAGS
+        value: "+S 2:2 +SDcpu 2:2 +SDio 2 +sbwt none +sbwtdcpu none +sbwtdio none +MBas aobf +MHas aobf"
+      - key: ERL_FULLSWEEP_AFTER
+        value: "20"
+
+    # Migrations are pre_commands in current.json, written by
+    # bin/release-on-box.sh — they belong with the version they migrate
+    # to, not with the shape of the deployment. `eval` takes an Elixir
+    # expression and the string lands inside a generated /bin/sh script,
+    # so the zero-arity call is written bare: parentheses would be a
+    # shell syntax error there.
+
+    monitoring:
+      - type: "atom"
+        enable_restart: true
+      - type: "process"
+        enable_restart: true
+      - type: "port"
+        enable_restart: true
