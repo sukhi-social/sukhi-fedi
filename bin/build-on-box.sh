@@ -6,20 +6,25 @@
 # 127.0.0.1:5000 に push できないため ── techo で確認済み）。committed なツリーを
 # git archive で箱に送り、箱で docker build → loopback registry に push する。
 #
-# **アプリの版はもうここを通らない。** 2026-08-24 から、gateway/delivery/api は
-# DeployEx の中の一つの release になって、版は tarball で運ばれる ──
-# `make release`(bin/release-on-box.sh)。この script に残っているのは「めったに
-# 変わらない土台」だけ。
+# **sukhi のアプリの版は、もうここを通らない。** 2026-08-24 から
+# gateway/delivery/api は DeployEx の中の一つの release になって、版は tarball
+# で運ばれる ── `make release`(bin/release-on-box.sh)。sukhi についてこの script
+# に残っているのは「めったに変わらない土台」だけ。
+#
+# **natadeco はまだここを通る。** 同じ箱に相乗りしていて、web role が
+# natadeco-combined、accessory が natadeco-api。DeployEx へは移していない。
 #
 # 使い方:
 #   bin/build-on-box.sh                  # 既定: builder deployex を焼く
 #   bin/build-on-box.sh anubis           # config/anubis を変えたとき
 #   bin/build-on-box.sh nats-bootstrap   # infra/nats を変えたとき
+#   IMAGE_PREFIX=natadeco bin/build-on-box.sh combined api   # natadeco の版上げ
 # その後:
 #   kamal accessory reboot deployex      # deployex を焼き直したとき
-#   kamal deploy --skip-push --version=<いま動いている版>   # anubis のとき
+#   kamal deploy --skip-push --version=<いま動いている版>   # anubis / natadeco の web role
+#   kamal accessory reboot api           # natadeco の api
 #
-# gateway / delivery / api の entry は消した(旧 accessory も同日に削除)。戻したく
+# gateway / delivery の entry は消した(旧 accessory も同日に削除)。戻したく
 # なったら sukhi-deploy 側の revert と一緒に、この case にも戻す ── image 自体は
 # 箱の registry に残っている。combined は compose 自前ホスト用の image なので残す。
 #
@@ -44,9 +49,13 @@ PREFIX="${IMAGE_PREFIX:-sukhi-fedi}"
 build_one() {
   local name="$1" ctx file push=true
   case "$name" in
-    # combined は compose で自前ホストする人が焼く image。箱では使わない
-    # (箱は tarball 経由)が、手元で確かめたいときのために残してある。
+    # natadeco がこの二枚で動いている(`IMAGE_PREFIX=natadeco`)。web role が
+    # combined、accessory が api ── あちらは DeployEx へ移していないので、版は
+    # いまも image で運ぶ。combined は compose で自前ホストする人の image でも
+    # ある。sukhi の gateway/delivery を消したときに api も落としてしまって、
+    # natadeco のビルド経路を一度壊した(2026-08-25 に気づいて戻した)。
     combined)       ctx="."               file="combined/Dockerfile"        ;;
+    api)            ctx="."               file="api/Dockerfile"             ;;
     bun)            ctx="bun"             file="bun/Dockerfile"             ;;
     nats-bootstrap) ctx="infra/nats"      file="infra/nats/Dockerfile"      ;;
     anubis)         ctx="config/anubis"   file="config/anubis/Dockerfile"   ;;
