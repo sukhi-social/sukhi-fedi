@@ -220,14 +220,26 @@ defmodule SukhiFedi.AP.Instructions.Follows do
 
   defp random_hex, do: :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
 
-  @doc "When we receive Accept(Follow) where the actor is a known relay, mark it accepted."
-  def maybe_handle_relay_accept(%{"type" => "Accept", "actor" => actor_uri})
+  @doc """
+  A relay's answer to the `Follow` we sent it. `Accept` opens the
+  subscription, `Reject` closes it — the actor URI is the gate, so an
+  Accept/Reject from anyone who isn't a relay we asked updates no rows.
+  (We can't gate on the echoed Follow instead: some relays return only
+  its id, not the activity.)
+  """
+  def maybe_handle_relay_reply(%{"type" => "Accept", "actor" => actor_uri})
       when is_binary(actor_uri) do
     Relays.accept(actor_uri)
     :ok
   end
 
-  def maybe_handle_relay_accept(_), do: :ok
+  def maybe_handle_relay_reply(%{"type" => "Reject", "actor" => actor_uri})
+      when is_binary(actor_uri) do
+    Relays.reject(actor_uri)
+    :ok
+  end
+
+  def maybe_handle_relay_reply(_), do: :ok
 
   @doc """
   Inbound Accept(Follow): the remote followee accepted our outbound

@@ -139,6 +139,8 @@ sukhi-fedi/
 │   │   ├── notifications.ex               # Mastodon notifications context
 │   │   ├── conversations.ex               # DM thread index
 │   │   ├── social.ex                      # follow / unfollow / relationships
+│   │   ├── relays.ex                      # relay subscriptions: Follow of
+│   │   │                                    as:Public, the accepted set
 │   │   ├── auth/                          # login factors: TOTP (RFC 6238),
 │   │   │                                    email codes (verify + login),
 │   │   │                                    passkeys (Wax/WebAuthn), and the
@@ -157,7 +159,8 @@ sukhi-fedi/
 │   │   │   └── outbox_event.ex            # `outbox` table
 │   │   ├── cache/ets.ex                   # ETS TTL cache
 │   │   ├── ap/                            # ActivityPub helpers
-│   │   │   └── instructions.ex            # inbox activity dispatcher
+│   │   │   ├── instructions.ex            # inbox activity dispatcher
+│   │   │   └── instructions/relayed.ex    # relay-forwarded activity
 │   │   ├── addons/                        # first-party addons
 │   │   │   ├── nodeinfo_monitor.ex + nodeinfo_monitor/
 │   │   │   ├── streaming.ex + streaming/
@@ -587,6 +590,48 @@ DB writes + (sometimes) an Oban job (e.g. an Accept back)
 object mirrors and `Undo(Follow)` to remove follow rows. DMs are
 materialised into local notes with `visibility = "direct"` and
 conversation participants are recorded.
+
+**The signer, not the actor, is what we know.** `execute/3` takes the
+HTTP-signature key owner's host and compares it with the activity's
+`actor`. Same host ⇒ the inline body is the actor's own word and every
+handler runs. Different host ⇒ the activity was forwarded, and only the
+handlers that re-resolve and re-fetch on their own run.
+
+One thing does survive forwarding: a **FEP-8b32 Object Integrity
+Proof**. `Fedi.Oip.verify_inbound/1` runs on every inbox POST (after
+the suspension gate, so a suspended peer can never make us fetch their
+key) and binds the proof key's `controller` to the activity's own
+`actor`. A broken proof is a 401 — never a silent downgrade to
+HTTP-signature-only handling. A *good* one is passed down as
+`author_signed?`, the single fact about a forwarded body we can hold:
+the author signed these exact bytes, whoever carried them.
+
+**Relays.** A relay subscription is an outbound `Follow` of `as:Public`
+(`SukhiFedi.Relays`, managed at `/admin/relays`, signed by the admin
+who joined — this server has no instance actor). Once the relay answers
+`Accept`, its inbox joins the outbound fan-out
+(`Relays.get_active_inbox_urls/0`, read by the delivery node) and its
+host is admitted as an inbound *source* (`Relays.accepted_host?/1`).
+Everything a relay forwards arrives on the forwarded branch above, so
+`AP.Instructions.Relayed` decides how to believe it:
+
+* `author_signed?` ⇒ the body *is* the author's word, so a public
+  `Create` goes straight to `Instructions.Mirror` — no round trip.
+  Only fedify-family peers attach a proof today, so this is the fast
+  path, not yet the common one.
+* otherwise ⇒ fetch the object from its own origin before mirroring —
+  one signed GET per relayed activity, the price of the relay carrying
+  the notice and never the authority.
+
+A proof on an `Announce` vouches for the Announce, not for the note it
+points at, so that path always fetches. Relayed `Update`/`Delete` are
+dropped either way: a deletion cannot be verified by fetching (a 404 is
+also what a briefly broken origin returns), and a signed document can
+be replayed by anyone — neither is a button a relay should hold.
+Mirrored notes land on the federated public timeline, never a home
+feed, and never raise a mention notification: a mention meant for a
+local user is delivered to their inbox by the author's own server, and
+that copy takes the trusted path.
 
 ### 6.3 WebFinger (local actor lookup)
 

@@ -190,4 +190,31 @@ defmodule SukhiFedi.AP.Instructions.Extract do
       _ -> nil
     end
   end
+
+  @doc """
+  True when `uri` lives on this server.
+
+  Exact authority equality against our configured domain (which may
+  carry a port, e.g. `localhost:4000` in dev) — deliberately not
+  `String.contains?`, which a crafted hostname could satisfy. Default
+  ports collapse to the bare host, matching how synthesized URLs are
+  built (`"https://\#{domain}/…"`).
+  """
+  @spec own_host?(term()) :: boolean()
+  def own_host?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{host: h, port: p, scheme: s} when is_binary(h) and h != "" ->
+        authority =
+          if p == nil or {s, p} in [{"https", 443}, {"http", 80}],
+            do: h,
+            else: "#{h}:#{p}"
+
+        String.downcase(authority) == String.downcase(SukhiFedi.Config.domain!())
+
+      _ ->
+        false
+    end
+  end
+
+  def own_host?(_), do: false
 end

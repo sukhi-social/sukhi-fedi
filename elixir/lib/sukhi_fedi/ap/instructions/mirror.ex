@@ -55,7 +55,7 @@ defmodule SukhiFedi.AP.Instructions.Mirror do
            # below can't catch it) or was deliberately deleted. Without
            # this gate our own Create — delivered to a local follower's
            # inbox, or bounced back by a relay — lands as a duplicate row.
-           false <- own_host?(ap_id),
+           false <- Extract.own_host?(ap_id),
            true <- Extract.same_host?(ap_id, attributed_to),
            true <- Extract.same_host?(attributed_to, activity["actor"]),
            {:ok, %Account{id: account_id}} <- Resolve.resolve_or_ingest_actor(attributed_to) do
@@ -246,25 +246,5 @@ defmodule SukhiFedi.AP.Instructions.Mirror do
     end)
 
     :ok
-  end
-
-  # Exact authority equality against our configured domain (which may
-  # carry a port, e.g. `localhost:4000` in dev) — deliberately not
-  # `String.contains?`, which a crafted hostname could satisfy. Default
-  # ports collapse to the bare host, matching how synthesized URLs are
-  # built ("https://#{domain}/…").
-  defp own_host?(uri) do
-    case URI.parse(uri) do
-      %URI{host: h, port: p, scheme: s} when is_binary(h) and h != "" ->
-        authority =
-          if p == nil or {s, p} in [{"https", 443}, {"http", 80}],
-            do: h,
-            else: "#{h}:#{p}"
-
-        String.downcase(authority) == String.downcase(SukhiFedi.Config.domain!())
-
-      _ ->
-        false
-    end
   end
 end

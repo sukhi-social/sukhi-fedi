@@ -7,8 +7,8 @@ defmodule SukhiFedi.AP.Instructions do
   This module is the dispatcher (and the trust boundary — see
   `execute/2`); the per-activity handling lives in the submodules:
 
-    * `Instructions.Follows`   — Follow / Accept(Follow) / relay accepts
-      / Undo(Follow)
+    * `Instructions.Follows`   — Follow / Accept(Follow) / relay
+      Accept+Reject / Undo(Follow)
     * `Instructions.Quotes`    — FEP-044f QuoteRequest (auto-approve →
       QuoteAuthorization) + Accept/Reject of our outbound request
     * `Instructions.DMs`       — non-public Create(Note) → conversations
@@ -18,6 +18,8 @@ defmodule SukhiFedi.AP.Instructions do
       Undo(Announce)
     * `Instructions.Pins`      — Add/Remove on a featured collection
     * `Instructions.Migrations`— Move (account migration: re-point follows)
+    * `Instructions.Relayed`   — activity forwarded by a subscribed relay
+      (re-fetched from its origin, never trusted inline)
     * `Instructions.Extract`   — pure AP JSON extractors
     * `Instructions.Resolve`   — actor/note resolution (shadow ingest)
   """
@@ -31,7 +33,8 @@ defmodule SukhiFedi.AP.Instructions do
     Mirror,
     Pins,
     Quotes,
-    Reactions
+    Reactions,
+    Relayed
   }
 
   @doc """
@@ -42,17 +45,25 @@ defmodule SukhiFedi.AP.Instructions do
   the signer is the same host as the activity's `actor` — otherwise we are
   looking at a forwarded/relayed copy whose authority we can't verify, and
   only the handlers that re-resolve the actor and re-fetch the object
-  independently (relayed `Announce` → boost materialisation) run. The
+  independently (relayed `Announce` → boost materialisation, and
+  `Instructions.Relayed` for a subscribed relay's forward) run. The
   arity-1 form (`:internal`) is the trusted entry used by archive replay
   and tests, which never flow through the inbox.
-  """
-  @spec execute(map(), String.t() | :internal | nil) :: :ok
-  def execute(instruction, signer_host \\ :internal)
 
-  def execute(%{"action" => "save", "object" => object_data}, signer_host) do
+  `author_signed?` is the FEP-8b32 verdict from the same controller: the
+  activity carried an Object Integrity Proof that verified against a key
+  its own `actor` controls. That is the one fact about a *forwarded*
+  body we can hold — the author vouched for these bytes, whoever carried
+  them — so `Instructions.Relayed` can mirror a relayed post from the
+  body instead of fetching it back from its origin.
+  """
+  @spec execute(map(), String.t() | :internal | nil, boolean()) :: :ok
+  def execute(instruction, signer_host \\ :internal, author_signed? \\ false)
+
+  def execute(%{"action" => "save", "object" => object_data}, signer_host, author_signed?) do
     if trusted_inline_origin?(object_data, signer_host) do
       DMs.maybe_handle_dm(object_data)
-      Follows.maybe_handle_relay_accept(object_data)
+      Follows.maybe_handle_relay_reply(object_data)
       Follows.maybe_handle_follow_accept(object_data)
       Mirror.maybe_mirror_create_note(object_data)
       # FEP-044f: the quoted author accepted (or rejected) our outbound
@@ -78,6 +89,10 @@ defmodule SukhiFedi.AP.Instructions do
       # already follows the booster, so it can't be used to inject
       # arbitrary content or notifications.
       Boosts.materialize_boost(object_data)
+      # And, when the signer is a relay we subscribe to, mirror the public
+      # post it forwarded — again by re-fetching it from its own origin,
+      # so the relay carries the notice and never the authority.
+      Relayed.maybe_ingest(object_data, signer_host, author_signed?)
     end
 
     :ok
@@ -90,7 +105,8 @@ defmodule SukhiFedi.AP.Instructions do
           "reply" => reply,
           "inbox" => inbox_url
         },
-        signer_host
+        signer_host,
+        _author_signed?
       ) do
     if trusted_inline_origin?(save_data["follow"], signer_host) do
       Follows.handle_accepted_follow(save_data, reply, inbox_url)
@@ -101,7 +117,8 @@ defmodule SukhiFedi.AP.Instructions do
 
   def execute(
         %{"action" => "quote_request", "quoteRequest" => quote_request, "inbox" => inbox_url},
-        signer_host
+        signer_host,
+        _author_signed?
       ) do
     # Trust the inline request only from the requester's own server — the
     # `instrument` (their quote post) is theirs to assert. The target note
@@ -113,7 +130,7 @@ defmodule SukhiFedi.AP.Instructions do
     :ok
   end
 
-  def execute(%{"action" => "ignore"}, _signer_host) do
+  def execute(%{"action" => "ignore"}, _signer_host, _author_signed?) do
     :ok
   end
 

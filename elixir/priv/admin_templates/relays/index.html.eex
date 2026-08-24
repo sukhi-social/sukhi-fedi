@@ -1,0 +1,66 @@
+<h1>Relays</h1>
+
+<p class="muted" style="margin-top: 0;">
+  A relay fans public posts out between the servers that join it — how a
+  small box sees authors nobody here follows yet. Joining sends a Follow
+  signed by you; what the relay forwards is never trusted as written, it
+  is fetched again from the origin. Relayed posts land on the federated
+  timeline, never in anyone's home feed.
+</p>
+
+<div class="panel" style="margin-bottom: 16px;">
+  <h2 style="margin-top: 0;">Join a relay</h2>
+  <form method="post" action="/admin/relays" style="display: flex; gap: 8px;">
+    <input type="text" name="url" required placeholder="e.g. https://relay.example/actor" autocapitalize="none" style="flex: 1;">
+    <button type="submit">Join</button>
+  </form>
+  <p class="muted" style="margin: 8px 0 0;">
+    The relay's <em>actor</em> URL, not its inbox — the inbox is read from
+    the actor.
+  </p>
+</div>
+
+<div class="panel" style="padding: 0;">
+<table>
+  <thead>
+    <tr>
+      <th>Relay</th>
+      <th>State</th>
+      <th>Followed as</th>
+      <th>Joined</th>
+      <th style="width: 1%;"></th>
+    </tr>
+  </thead>
+  <tbody>
+<%= if relays == [] do %>
+    <tr><td colspan="5" class="muted" style="text-align: center; padding: 24px;">Not subscribed to any relay.</td></tr>
+<% else %>
+<%= for r <- relays do %>
+    <tr>
+      <td>
+        <strong><%= h(r.actor_uri) %></strong>
+        <div class="muted" style="font-size: 12px;"><%= h(r.inbox_uri) %></div>
+      </td>
+      <td>
+<%= case r.state do %>
+<% "accepted" -> %>
+        <span class="pill ok">accepted</span>
+<% "rejected" -> %>
+        <span class="pill suspended">rejected</span>
+<% _ -> %>
+        <span class="pill silenced">pending</span>
+<% end %>
+      </td>
+      <td class="muted"><%= h(r.follow_actor_uri) %></td>
+      <td class="muted"><%= h(DateTime.to_iso8601(r.inserted_at)) %></td>
+      <td>
+        <form method="post" action="/admin/relays/<%= r.id %>/remove" style="display: inline;">
+          <button type="submit" class="danger">Leave</button>
+        </form>
+      </td>
+    </tr>
+<% end %>
+<% end %>
+  </tbody>
+</table>
+</div>
