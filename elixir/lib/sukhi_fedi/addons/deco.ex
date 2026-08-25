@@ -51,6 +51,39 @@ defmodule SukhiFedi.Addons.Deco do
     end
   end
 
+  # 作るときの指定。既定は表札あり ── いままでの板がそうなので。
+  defp has_actor?(attrs) do
+    case Map.get(attrs, "has_actor") do
+      nil -> true
+      v -> v not in [false, "false", 0, "0"]
+    end
+  end
+
+  defp generated_keys do
+    keys = KeyGen.generate()
+
+    %{
+      "public_key_pem" => keys.public_pem,
+      "public_key_jwk" => keys.public_jwk,
+      "private_key_jwk" => keys.private_jwk,
+      "ed25519_private_key_jwk" => keys.ed25519_private_jwk,
+      "ed25519_public_multibase" => keys.ed25519_public_multibase
+    }
+  end
+
+  @doc """
+  外から引ける板だけを返す ── 表札を出していない板は、連合の側から
+  見れば「そこには何も無い」。存在まで漏らさないよう `:not_found` で
+  揃える(`get_deco_record/1` は中の道なので、そちらは素通し)。
+  """
+  @spec get_actor_record(String.t()) :: {:ok, Deco.t()} | {:error, :not_found}
+  def get_actor_record(slug) when is_binary(slug) do
+    case get_deco_record(slug) do
+      {:ok, %Deco{has_actor: true} = d} -> {:ok, d}
+      _ -> {:error, :not_found}
+    end
+  end
+
   @doc """
   素の `%Deco{}`(鍵込み)を返す ── `get_deco/1` は API 向けの view に
   削っているので、actor JSON を組むにはこちらを使う。
@@ -68,20 +101,16 @@ defmodule SukhiFedi.Addons.Deco do
   def create_deco(%Account{id: aid}, attrs), do: create_deco(aid, attrs)
 
   def create_deco(account_id, attrs) when is_integer(account_id) do
-    keys = KeyGen.generate()
+    attrs = stringify(attrs)
 
-    key_attrs = %{
-      "public_key_pem" => keys.public_pem,
-      "public_key_jwk" => keys.public_jwk,
-      "private_key_jwk" => keys.private_jwk,
-      "ed25519_private_key_jwk" => keys.ed25519_private_jwk,
-      "ed25519_public_multibase" => keys.ed25519_public_multibase
-    }
+    # 鍵は表札のある板だけが持つ。表札を出さない板は actor として
+    # 立たないので、署名する立場そのものが無い ── 使わない秘密鍵を
+    # 置いておかない。
+    key_attrs = if has_actor?(attrs), do: generated_keys(), else: %{}
 
     %Deco{}
     |> Deco.changeset(
       attrs
-      |> stringify()
       |> Map.put("created_by_id", account_id)
       |> Map.merge(key_attrs)
     )
@@ -556,6 +585,7 @@ defmodule SukhiFedi.Addons.Deco do
       description: d.description,
       description_i18n: d.description_i18n || %{},
       local_only: d.local_only || false,
+      has_actor: d.has_actor,
       post_count: post_count,
       created_at: d.created_at
     }

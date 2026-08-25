@@ -34,8 +34,10 @@
 
   // どちらの言語で立ててもいい ── 日本語欄が必須、ではない。埋まって
   // いるほうの名前がそのまま主になる。
-  // 立てるときに決める、この板の出発点。書く人は一件ごとに選び直せる。
-  let decoLocalOnly = $state(false);
+  // 立てるときに決める、この板の届きかた。二つの軸を一つの問いにして
+  // いる ── 表札(外から見つかるか)と、書いたものの出発点(どこまで届くか)。
+  // 別々にも持てるが、立てる人に二度訊くほどの違いは、まだ無い。
+  let reach = $state<'open' | 'inside'>('open');
 
   const jaComplete = $derived(!!name.trim());
   const koComplete = $derived(!!nameKo.trim());
@@ -58,11 +60,12 @@
                 koComplete && descriptionKo.trim() ? { ko: descriptionKo.trim() } : undefined
             }
           : { slug, name: nameKo.trim(), description: descriptionKo || undefined }),
-        local_only: decoLocalOnly
+        local_only: reach === 'inside',
+        has_actor: reach === 'open'
       });
       decos = [...decos, made].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
       slug = name = description = nameKo = descriptionKo = '';
-      decoLocalOnly = false;
+      reach = 'open';
       lang = getLang();
       opening = false;
     } catch {
@@ -129,11 +132,23 @@
         </label>
       {/if}
 
-      <label class="check">
-        <input type="checkbox" bind:checked={decoLocalOnly} />
-        <span>{t().decoVisibility.label}</span>
-      </label>
-      <p class="muted small">{t().decoVisibility.hint}</p>
+      <fieldset class="reach">
+        <legend class="muted">{t().decoReach.legend}</legend>
+        <label class="check">
+          <input type="radio" bind:group={reach} value="open" />
+          <span>
+            {t().decoReach.openLabel}
+            <span class="muted small">{t().decoReach.openHint}</span>
+          </span>
+        </label>
+        <label class="check">
+          <input type="radio" bind:group={reach} value="inside" />
+          <span>
+            {t().decoReach.insideLabel}
+            <span class="muted small">{t().decoReach.insideHint}</span>
+          </span>
+        </label>
+      </fieldset>
 
       <div class="row">
         <button class="btn" type="submit" disabled={saving || !canSubmit}>{t().home.submit}</button>
@@ -199,16 +214,35 @@
     gap: 0.3rem;
   }
 
+  /* 板の届きかた。選ぶのは一度きりなので、説明を選択肢の中に置く ──
+     別に注釈を出すと、どちらの話か目で追うことになる。 */
+  .reach {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.6rem 0.8rem;
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .reach legend {
+    padding: 0 0.3rem;
+  }
+
   /* 印と言葉が横に並ぶ一行 ── 他の欄は上下に組むので、ここだけ別に。 */
   .check {
     display: flex;
-    align-items: center;
+    align-items: start;
     gap: 0.5rem;
   }
 
   .check input {
     width: auto;
     min-width: 0;
+    margin-top: 0.25rem;
+  }
+
+  .check span span {
+    display: block;
   }
 
   .row {

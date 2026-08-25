@@ -15,6 +15,9 @@ export type Deco = {
   description_i18n: Record<string, string>;
   // この板は、ふつうどちらで書くか。一件ごとには書く人が選べる（既定であって錠ではない）。
   local_only: boolean;
+  // 表札 ── 外から見つけられる場所として立っているか。false なら
+  // `{slug}-deco@domain` は引けない（書いた一件は、選べば外に出る）。
+  has_actor: boolean;
   post_count: number;
   created_at: string;
 };
@@ -198,6 +201,7 @@ export const createDeco = (body: {
   name_i18n?: Record<string, string>;
   description_i18n?: Record<string, string>;
   local_only?: boolean;
+  has_actor?: boolean;
 }) => req<Deco>('POST', '/api/v1/deco', body);
 
 /**

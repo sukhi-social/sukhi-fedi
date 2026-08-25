@@ -31,6 +31,10 @@ defmodule SukhiFedi.Schema.Deco do
     # 板ごとの、公開範囲の既定。一件ごとの事実は deco_notes.local_only。
     field(:local_only, :boolean, default: false)
 
+    # 表札 ── 外から見つけられる場所として立っているか。false の板は
+    # actor も webfinger も 404 になる（鍵も持たない）。
+    field(:has_actor, :boolean, default: true)
+
     field(:name_i18n, :map)
     field(:description_i18n, :map)
 
@@ -65,7 +69,8 @@ defmodule SukhiFedi.Schema.Deco do
       :ed25519_public_multibase,
       :name_i18n,
       :description_i18n,
-      :local_only
+      :local_only,
+      :has_actor
     ])
     |> update_change(:slug, &String.downcase(String.trim(&1 || "")))
     |> validate_required([:slug, :name])

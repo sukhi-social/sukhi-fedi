@@ -99,7 +99,7 @@ defmodule SukhiFedi.Web.WebfingerController do
   end
 
   defp lookup_deco_actor(slug, username, domain) do
-    case SukhiFedi.Addons.Deco.get_deco_record(slug) do
+    case SukhiFedi.Addons.Deco.get_actor_record(slug) do
       {:error, :not_found} ->
         {:error, :not_found}
 

@@ -63,7 +63,8 @@ defmodule SukhiApi.Capabilities.Deco do
           "description",
           "name_i18n",
           "description_i18n",
-          "local_only"
+          "local_only",
+          "has_actor"
         ])],
         &ok(201, &1)
       )

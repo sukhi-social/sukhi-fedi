@@ -22,7 +22,7 @@ defmodule SukhiFedi.Web.ActorController do
   end
 
   defp show_deco(conn, slug) do
-    case SukhiFedi.Addons.Deco.get_deco_record(slug) do
+    case SukhiFedi.Addons.Deco.get_actor_record(slug) do
       {:error, :not_found} ->
         send_resp(conn, 404, JSON.encode!(%{error: "not found"}))
 

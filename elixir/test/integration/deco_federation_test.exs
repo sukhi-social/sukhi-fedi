@@ -73,6 +73,32 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
     assert page["href"] == "https://localhost:4000/d/#{deco.slug}"
   end
 
+  describe "表札を出さない板" do
+    setup do
+      n = System.unique_integer([:positive])
+
+      {:ok, author} = LocalAccounts.create_admin("deco_quiet_#{n}", "long-enough-pass")
+
+      {:ok, quiet} =
+        Deco.create_deco(author, %{
+          "slug" => "quiet#{n}",
+          "name" => "しずかな板",
+          "has_actor" => false
+        })
+
+      %{quiet: quiet}
+    end
+
+    test "actor は 404 ── 外から見れば、そこには何も無い", %{quiet: quiet} do
+      assert get_ap("/users/#{quiet.slug}-deco").status == 404
+    end
+
+    test "webfinger も見つけない", %{quiet: quiet} do
+      conn = get_ap("/.well-known/webfinger?resource=acct:#{quiet.slug}-deco@localhost:4000")
+      assert conn.status == 404
+    end
+  end
+
   test "板の slug 自体(suffix 無し)は、板の actor としては解決しない", %{deco: deco} do
     # `hinata@domain` は個人アカウントの名前空間 ── デコの actor はいつも
     # `hinata-deco@domain` の方。無いアカウントとして 404 になる。

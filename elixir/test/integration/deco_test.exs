@@ -671,4 +671,54 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert out.local_only == false
     end
   end
+  describe "表札" do
+    # 板そのものが外から見つけられるかは、書いたものが外に出るかとは別。
+    # 表札を出さない板でも、書いた人が選べばその一件は連合する ──
+    # 出ていくのは板ではなく、その人の投稿だから。
+    test "既定では表札が立つ ── いままでの板の振る舞い", %{deco: deco} do
+      assert deco.has_actor == true
+      assert {:ok, record} = Deco.get_actor_record(deco.slug)
+      assert record.public_key_pem =~ "BEGIN PUBLIC KEY"
+    end
+
+    test "表札を出さない板は鍵を持たない", %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, quiet} =
+        Deco.create_deco(author, %{
+          "slug" => "quiet#{n}",
+          "name" => "しずかな板",
+          "has_actor" => false
+        })
+
+      assert quiet.has_actor == false
+
+      assert {:ok, record} = Deco.get_deco_record(quiet.slug)
+      assert is_nil(record.public_key_pem)
+      assert is_nil(record.private_key_jwk)
+
+      # 連合の側から見れば、そこには何も無い（存在も漏らさない）。
+      assert {:error, :not_found} = Deco.get_actor_record(quiet.slug)
+    end
+
+    test "表札が無くても、選べばその一件は外に出る", %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, quiet} =
+        Deco.create_deco(author, %{
+          "slug" => "quiet#{n}",
+          "name" => "しずかな板",
+          "has_actor" => false,
+          "local_only" => true
+        })
+
+      {:ok, kept} = Deco.post(author, quiet.slug, %{"title" => "題", "status" => "本文"})
+      assert kept.local_only == true
+
+      {:ok, out} =
+        Deco.post(author, quiet.slug, %{"title" => "題", "status" => "本文", "visibility" => "public"})
+
+      assert out.local_only == false
+    end
+  end
 end
