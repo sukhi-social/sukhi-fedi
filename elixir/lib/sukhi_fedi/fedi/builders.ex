@@ -128,7 +128,7 @@ defmodule SukhiFedi.Fedi.Builders do
       "id" => p["noteId"],
       "type" => "Note",
       "attributedTo" => p["actor"],
-      "content" => p["content"],
+      "content" => titled_content(p),
       "published" => p["published"] || now(),
       "to" => audience.to,
       "cc" => audience.cc
@@ -136,6 +136,10 @@ defmodule SukhiFedi.Fedi.Builders do
     |> put_if("inReplyTo", p["inReplyToId"])
     # The author's content warning (AP `summary`) and sensitive flag were
     # never carried before, so remotes rendered CW'd / NSFW posts unwarned.
+    # 題。掲示板を持つ実装(NodeBB / PieFed / Lemmy)はここを読む。
+    # Mastodon は `Note` の `name` を一度も読まないので、向こうで題が
+    # 消える ── だから題は本文の頭にも引用として置く(`titled_content/1`)。
+    |> put_if("name", p["title"])
     |> put_if("summary", p["summary"])
     |> put_if("sensitive", p["sensitive"])
     # FEP-044f canonical `quote` (signed), plus the authorization stamp
@@ -146,6 +150,56 @@ defmodule SukhiFedi.Fedi.Builders do
     |> Map.put("interactionPolicy", @quote_policy)
   end
 
+  # 題つきの投稿は、本文の頭に「> 題 — @書いた人」を引用で置く。
+  #
+  # 保存する本文には入れない ── natadeco の画面は題も名前ももう出して
+  # いるので、そこで二度読ませない。ここ(線の上)だけで足りる。外では
+  # 題が本文の外に無い(Mastodon は `name` を読まない)し、ブーストされて
+  # 文脈から離れたときも、これが付いていれば何の話か分かる。
+  defp titled_content(p) do
+    case p["title"] do
+      t when is_binary(t) and t != "" -> title_header(t, p) <> (p["content"] || "")
+      _ -> p["content"]
+    end
+  end
+
+  defp title_header(title, p) do
+    who =
+      case {p["authorHandle"], p["authorUri"]} do
+        {h, u} when is_binary(h) and is_binary(u) ->
+          " — <a href=\"#{esc(u)}\" class=\"mention\">#{esc(h)}</a>"
+
+        _ ->
+          ""
+      end
+
+    "<blockquote><p>#{esc(title)}#{who}</p></blockquote>"
+  end
+
+  defp esc(s) do
+    s
+    |> to_string()
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
+    |> String.replace("\"", "&quot;")
+  end
+
+  # 頭に置いた `@handle` を、本物の Mention にする。付けないと向こうでは
+  # ただの文字で、押しても誰にも行き着かない。
+  #
+  # 自分宛てなので通知は増えない ── `Notes.Create.notify_local_mentions/1`
+  # は自分を弾くし、向こうから見れば書いた人は remote。
+  defp inject_author_mention(activity, %{"title" => t, "authorHandle" => h, "authorUri" => u})
+       when is_binary(t) and t != "" and is_binary(h) and is_binary(u) do
+    update_object(activity, fn object ->
+      tags = List.wrap(object["tag"] || [])
+      Map.put(object, "tag", tags ++ [%{"type" => "Mention", "href" => u, "name" => h}])
+    end)
+  end
+
+  defp inject_author_mention(activity, _), do: activity
+
   # Sign → post-sign compatibility injections → FEP-8b32 proof, then wrap
   # under `key` ("note" for Create, "update" for Update). The injections
   # land after the LD signature (parity with the historical Bun path); the
@@ -154,9 +208,10 @@ defmodule SukhiFedi.Fedi.Builders do
     with {:ok, signed} <- sign(p, activity),
          injected =
            signed
-           |> inject_misskey_content(p["content"])
+           |> inject_misskey_content(titled_content(p))
            |> inject_quote(p["quoteUrl"])
-           |> inject_attachments(p["attachments"]),
+           |> inject_attachments(p["attachments"])
+           |> inject_author_mention(p),
          {:ok, proved} <- attach_proof(injected, p) do
       {:ok, %{key => proved, "recipientInboxes" => p["recipientInboxes"]}}
     end

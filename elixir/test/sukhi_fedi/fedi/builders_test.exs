@@ -23,6 +23,68 @@ defmodule SukhiFedi.Fedi.BuildersTest do
     result
   end
 
+  describe "題つきの投稿" do
+    defp titled!(extra \\ %{}) do
+      build!(
+        "note",
+        Map.merge(
+          %{
+            "actor" => FediGolden.actor(),
+            "content" => "<p>本文</p>",
+            "recipientInboxes" => ["https://remote.test/inbox"],
+            "noteId" => "https://sukhi.test/notes/1",
+            "activityId" => "https://sukhi.test/notes/1/activity",
+            "title" => "寝過ぎた",
+            "authorHandle" => "@hinata@sukhi.test",
+            "authorUri" => "https://sukhi.test/users/hinata"
+          },
+          extra
+        )
+      )["note"]["object"]
+    end
+
+    test "題は `name` に載る ── 掲示板を持つ実装はここを読む" do
+      assert titled!()["name"] == "寝過ぎた"
+    end
+
+    test "本文の頭に「題 — @書いた人」を引用で置く" do
+      content = titled!()["content"]
+
+      assert content =~ "<blockquote>"
+      assert content =~ "寝過ぎた"
+      assert content =~ "@hinata@sukhi.test"
+      assert content =~ "https://sukhi.test/users/hinata"
+      # 本文そのものは、そのあとに続く。
+      assert content =~ "<p>本文</p>"
+      assert String.starts_with?(content, "<blockquote>")
+    end
+
+    test "書いた人は本物の Mention ── ただの文字だと、押しても誰にも行き着かない" do
+      tags = titled!()["tag"] || []
+
+      assert Enum.any?(tags, fn t ->
+               t["type"] == "Mention" and t["href"] == "https://sukhi.test/users/hinata" and
+                 t["name"] == "@hinata@sukhi.test"
+             end)
+    end
+
+    test "題の中の記号は escape される" do
+      content = titled!(%{"title" => ~s(<script>"x"&y)})["content"]
+
+      refute content =~ "<script>"
+      assert content =~ "&lt;script&gt;"
+      assert content =~ "&amp;y"
+    end
+
+    test "題が無ければ、何も足さない ── 話す板の投稿は素のまま" do
+      object = titled!(%{"title" => nil})
+
+      refute Map.has_key?(object, "name")
+      assert object["content"] == "<p>本文</p>"
+      refute Enum.any?(object["tag"] || [], &(&1["type"] == "Mention"))
+    end
+  end
+
   test "note: audience, injections, signature, envelope" do
     result =
       build!("note", %{

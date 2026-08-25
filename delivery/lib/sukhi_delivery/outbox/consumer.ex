@@ -155,6 +155,9 @@ defmodule SukhiDelivery.Outbox.Consumer do
           |> maybe_put_cw(p["cw"])
           |> maybe_put_sensitive(p["sensitive"])
           |> maybe_put_emojis(p["emojis"])
+          # 題つきの投稿は、線の上で本文の頭に「> 題 — @書いた人」を
+          # 添える。組むのは builders 側 ── ここは運ぶだけ。
+          |> maybe_put_titled(p)
 
         translate_and_fanout("note", translator_payload, actor_uri, activity_id, recipients,
           extract_note: true
@@ -916,6 +919,20 @@ defmodule SukhiDelivery.Outbox.Consumer do
 
   # A note may quote another (Misskey 引用ノート). Thread the quoted
   # AP id through to the `note` translator only when one is present.
+  # 題が無ければ何も足さない ── 話す板の投稿は素の Note のまま。
+  defp maybe_put_titled(payload, p) do
+    case p["title"] do
+      t when is_binary(t) and t != "" ->
+        payload
+        |> Map.put(:title, t)
+        |> Map.put(:authorHandle, p["author_handle"])
+        |> Map.put(:authorUri, p["author_uri"])
+
+      _ ->
+        payload
+    end
+  end
+
   defp maybe_put_quote(payload, quote_uri) when is_binary(quote_uri) and quote_uri != "" do
     Map.put(payload, :quoteUrl, quote_uri)
   end

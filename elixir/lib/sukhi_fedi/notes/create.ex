@@ -161,7 +161,13 @@ defmodule SukhiFedi.Notes.Create do
             in_reply_to_ap_id: n.in_reply_to_ap_id,
             emojis: n.emojis || [],
             local_only: local_only?,
-            mention_actor_uris: mention_actor_uris
+            mention_actor_uris: mention_actor_uris,
+            # 題と書いた人は、線の上でだけ本文の頭に添える(`Fedi.Builders`)。
+            # ここの画面は題も名前ももう出しているので、保存する本文には
+            # 入れない ── 同じことを二度書かせない。
+            title: n.title,
+            author_handle: author_handle(n),
+            author_uri: author_uri(n)
           }
         end
       )
@@ -398,6 +404,23 @@ defmodule SukhiFedi.Notes.Create do
   # A new DM thread is identified by the root note's own synthesized AP
   # id (local notes don't persist `ap_id`; it's derived on demand, same
   # convention the delivery node and AP controllers use).
+  # 線の上の引用ヘッダに添える、書いた人。ローカルの人だけを相手に
+  # するので domain は自分のもの ── 取り込んだ note がここを通ることは
+  # ない(出前は自分の投稿だけ)。
+  defp author_handle(%Note{} = n) do
+    case SukhiFedi.Repo.get(Account, n.account_id) do
+      %Account{username: u} -> "@#{u}@#{SukhiFedi.Config.domain!()}"
+      nil -> nil
+    end
+  end
+
+  defp author_uri(%Note{} = n) do
+    case SukhiFedi.Repo.get(Account, n.account_id) do
+      %Account{username: u} -> SukhiFedi.AP.ActorJson.actor_uri(u)
+      nil -> nil
+    end
+  end
+
   defp dm_conversation_ap_id(username, note_id),
     do: "https://#{SukhiFedi.Config.domain!()}/users/#{username}/notes/#{note_id}"
 
