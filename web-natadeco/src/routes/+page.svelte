@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { listDecos, createDeco, getCurrentAccount, localized, type Deco } from '$lib/api';
+  import { listDecos, createDeco, getCurrentAccount, localized, signedIn, type Deco } from '$lib/api';
   import { t, getLang } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
@@ -80,6 +80,23 @@
 </script>
 
 <PageHeader title={t().home.title} subtitle={t().home.subtitle} />
+
+{#if signedIn()}
+  <!-- 板の一覧に並ぶけれど、板ではない部屋 ── IRC でいう &bitlbee の
+       ような特殊なチャンネル。面を一枚増やさずに済むし、行き先が
+       ここ一枚にまとまる。 -->
+  <ul class="list mine">
+    <li class="card">
+      <a class="name" href="/tomo">{t().tomo.name}</a>
+      <p class="desc muted">{t().tomo.subtitle}</p>
+      <p class="muted small">{t().tomo.yoursOnly}</p>
+    </li>
+    <li class="card">
+      <a class="name" href="/notifications">{t().notices.title}</a>
+      <p class="desc muted">{t().notices.subtitle}</p>
+    </li>
+  </ul>
+{/if}
 
 {#if loading}
   <p class="muted">{t().common.loading}</p>
@@ -203,6 +220,12 @@
      --type-scale を掛けたときに地の文(1.0625rem 基準)より小さくなって
      しまい(逆転)、下の説明文より板名のほうが小さく見えていた。
      .body h2 と同じ 1.15rem に上げて、確実に地の文より大きくする。 */
+  /* 自分の部屋（ともデコ・おしらせ）。板より先に置くが、板を押しのけ
+     ないように囲いだけ少し変える ── 玄関は板の一覧のまま。 */
+  .mine .card {
+    border-style: dashed;
+  }
+
   .name {
     font-family: var(--font-round);
     font-weight: 700;

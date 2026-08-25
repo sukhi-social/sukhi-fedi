@@ -81,6 +81,161 @@ export function localized(primary: string | null, i18n: Record<string, string> |
   return i18n?.[lang] || primary || '';
 }
 
+// ── 人（fediverse 側） ─────────────────────────────────────────────
+//
+// natadeco のアカウントは本物の fediverse actor なのに、これまで画面が
+// 一枚も無かった ── 外からは追えるのに、こちらから外を見られない片道の
+// 扉になっていた。ここはその扉のこちら側。
+
+export type Person = {
+  id: string;
+  username: string;
+  acct: string;
+  display_name: string;
+  note: string;
+  avatar: string;
+  url: string;
+  followers_count: number;
+  following_count: number;
+  statuses_count: number;
+  bot: boolean;
+};
+
+export type Relationship = {
+  id: string;
+  following: boolean;
+  followed_by: boolean;
+  requested: boolean;
+};
+
+/** Mastodon の Status。友デコが受け取る形（deco の Post とは別もの）。 */
+type Status = {
+  id: string;
+  created_at: string;
+  content: string;
+  visibility: string;
+  account: Person;
+  emojis: Emoji[];
+  reactions: Reaction[];
+  in_reply_to_id: string | null;
+  parent?: { id: string; author: Author; excerpt: string } | null;
+};
+
+/**
+ * Status を、流れの一行（`Flow.svelte` が読む形）に写す。
+ *
+ * 板の投稿と友達の投稿は出どころが違うだけで、画面での姿は同じ ──
+ * 平らに、書かれた順に、返信は親を一段だけ抱えて。描きかたを二つ
+ * 持たないために、ここで形のほうを揃える。
+ */
+function fromStatus(s: Status): Post {
+  return {
+    id: s.id as unknown as number,
+    deco_id: 0,
+    title: null,
+    title_i18n: {},
+    content: '',
+    content_i18n: {},
+    content_html: s.content,
+    content_html_i18n: {},
+    author: {
+      username: s.account.username,
+      acct: s.account.acct,
+      display_name: s.account.display_name,
+      avatar_url: s.account.avatar
+    },
+    created_at: s.created_at,
+    reply_count: 0,
+    // 友デコには板の「ここだけ」の印は無い ── 出どころが板ではないので。
+    local_only: false,
+    emojis: s.emojis ?? [],
+    reactions: s.reactions ?? [],
+    parent: s.parent
+      ? { id: s.parent.id as unknown as number, author: s.parent.author, excerpt: s.parent.excerpt }
+      : null
+  };
+}
+
+/**
+ * 友デコ。追っている人が言ったことだけ ── 自分の投稿は入らない。
+ *
+ * 自分の行が自分の面に居るのは、反応の付かない自分の投稿を自分で
+ * 何度も見ることでもある。出したことは板で見えるし、会話の筋は返信が
+ * 親を抱えるので読めるし、反応が来たかは通知が持っている。
+ */
+export async function listFriends(opts: { maxId?: string; since?: Date } = {}) {
+  const q = new URLSearchParams({ exclude_self: 'true', hide_boosts: 'true', limit: '40' });
+  if (opts.maxId) q.set('max_id', opts.maxId);
+  if (opts.since) q.set('since_id', snowflakeAt(opts.since));
+  const rows = await req<Status[]>('GET', `/api/v1/timelines/home?${q}`);
+  return rows.map(fromStatus);
+}
+
+/**
+ * 読む人の時計の一瞬を、note の id と同じ物差しに直す。
+ *
+ * Mastodon のページングは id 基準なので、「今日のぶんで終わる」には
+ * 真夜中を id にして渡すしかない。id の時刻は 2024-01-01 からのミリ秒を
+ * 16 bit ずらしたもの（サーバの `SukhiFedi.Snowflake` と同じ形）。
+ * ここだけはサーバの定数を持たざるを得ない ── deco の `/flow` は
+ * 時刻をそのまま受ける口があるが、Mastodon の home には無い。
+ */
+const SNOWFLAKE_EPOCH_MS = 1704067200000;
+
+function snowflakeAt(d: Date): string {
+  return ((BigInt(d.getTime() - SNOWFLAKE_EPOCH_MS) << 16n) | 0n).toString();
+}
+
+export const getPerson = (id: string) => req<Person>('GET', `/api/v1/accounts/${id}`);
+
+/** `alice@example.tld` を、まだ知らない相手でも取りに行く（WebFinger）。 */
+export const findPerson = (q: string) =>
+  req<{ accounts: Person[] }>(
+    'GET',
+    `/api/v2/search?type=accounts&resolve=true&limit=5&q=${encodeURIComponent(q)}`
+  );
+
+export const relationships = (ids: string[]) =>
+  req<Relationship[]>(
+    'GET',
+    `/api/v1/accounts/relationships?${ids.map((i) => `id[]=${encodeURIComponent(i)}`).join('&')}`
+  );
+
+export const follow = (id: string) => req<Relationship>('POST', `/api/v1/accounts/${id}/follow`);
+export const unfollow = (id: string) => req<Relationship>('POST', `/api/v1/accounts/${id}/unfollow`);
+
+export const personPosts = (id: string) =>
+  req<Status[]>('GET', `/api/v1/accounts/${id}/statuses?limit=20`).then((r) => r.map(fromStatus));
+
+/** 友デコの中の返事。板ではなく、その人へ届く。 */
+export const replyToPerson = (inReplyToId: string, status: string) =>
+  req<Status>('POST', '/api/v1/statuses', { status, in_reply_to_id: inReplyToId });
+
+// ── 通知 ──────────────────────────────────────────────────────────
+//
+// 友デコを出すと「返事が来ても気づけない」が目に見える形になるので、
+// 一緒に置く。数は出さない（`web/src/lib/notify.ts` の ambient の考え）
+// ── 数字は圧になるし、友達が増えるほど永遠に残るので。
+
+export type Notice = {
+  id: string;
+  type: 'favourite' | 'reblog' | 'follow' | 'mention' | 'status' | 'follow_request' | 'poll' | 'update';
+  created_at: string;
+  account: Person;
+  status: { id: string; content: string; emojis?: Emoji[] } | null;
+};
+
+export const listNotices = () => req<Notice[]>('GET', '/api/v1/notifications?limit=40');
+
+/** 「ここまで読んだ」。`/api/v1/markers` は Mastodon の口をそのまま。 */
+export const getReadMarker = () =>
+  req<{ notifications?: { last_read_id: string } }>('GET', '/api/v1/markers?timeline[]=notifications')
+    .then((m) => m.notifications?.last_read_id ?? null)
+    .catch(() => null);
+
+export const setReadMarker = (lastReadId: string) =>
+  req('POST', '/api/v1/markers', { notifications: { last_read_id: lastReadId } }).catch(() => null);
+
 export type CurrentAccount = {
   username: string;
   acct: string;

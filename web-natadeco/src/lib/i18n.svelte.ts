@@ -224,6 +224,37 @@ type Dict = {
   visibility: { label: string; public: string; local: string; hint: string; badge: string };
   reactions: { add: string };
   flow: { open: string; empty: string; earlier: string; endToday: string };
+  tomo: {
+    name: string;
+    title: string;
+    subtitle: string;
+    yoursOnly: string;
+    find: string;
+    findPlaceholder: string;
+    empty: string;
+    loadError: string;
+  };
+  people: {
+    notFound: string;
+    follow: string;
+    unfollow: string;
+    requested: string;
+    noPosts: string;
+    openRemote: string;
+    backToTomo: string;
+    counts: (posts: number, following: number, followers: number) => string;
+  };
+  notices: {
+    title: string;
+    subtitle: string;
+    empty: string;
+    loadError: string;
+    favourite: (who: string) => string;
+    reblog: (who: string) => string;
+    follow: (who: string) => string;
+    mention: (who: string) => string;
+    other: (who: string) => string;
+  };
   decoKind: {
     legend: string;
     threadLabel: string;
@@ -436,6 +467,37 @@ const ja: Dict = {
     badge: 'ローカル'
   },
   reactions: { add: 'ひとつ、そえる' },
+  tomo: {
+    name: 'ともデコ',
+    title: 'ともデコ',
+    subtitle: '追っている人が、言ったこと。',
+    yoursOnly: 'ここは、あなただけの部屋です。ほかの人には見えません。',
+    find: 'さがす',
+    findPlaceholder: 'namae@example.com',
+    empty: 'まだ、だれとも。上でさがして、追ってみてください。',
+    loadError: '読めませんでした'
+  },
+  people: {
+    notFound: 'この人は見つかりませんでした',
+    follow: '追う',
+    unfollow: '追うのをやめる',
+    requested: '待っています',
+    noPosts: 'まだ、なにも見えていません。',
+    openRemote: 'むこうの家で見る',
+    backToTomo: 'ともデコにもどる',
+    counts: (p, fg, fw) => `${p} 件 · ${fg} 人を追う · ${fw} 人が追う`
+  },
+  notices: {
+    title: 'おしらせ',
+    subtitle: 'あなたに向いたこと。',
+    empty: 'まだ、なにもありません。',
+    loadError: '読めませんでした',
+    favourite: (who) => `${who} が、そえてくれました`,
+    reblog: (who) => `${who} が、ひろげてくれました`,
+    follow: (who) => `${who} が、追いはじめました`,
+    mention: (who) => `${who} が、あなたに`,
+    other: (who) => `${who} から`
+  },
   flow: {
     open: 'ひらく',
     empty: 'まだ、なにもありません。さいしょの、ひとことに、なれます。',
@@ -660,6 +722,37 @@ const ko: Dict = {
     badge: '로컬'
   },
   reactions: { add: '가볍게 남기기' },
+  tomo: {
+    name: '토모데코',
+    title: '토모데코',
+    subtitle: '팔로우한 사람들이 한 말.',
+    yoursOnly: '여기는 당신만의 자리예요. 다른 사람에게는 보이지 않아요.',
+    find: '찾기',
+    findPlaceholder: 'ireum@example.com',
+    empty: '아직 아무도 없어요. 위에서 찾아서 팔로우해 보세요.',
+    loadError: '읽지 못했어요'
+  },
+  people: {
+    notFound: '이 사람을 찾지 못했어요',
+    follow: '팔로우',
+    unfollow: '팔로우 그만두기',
+    requested: '기다리는 중',
+    noPosts: '아직 보이는 글이 없어요.',
+    openRemote: '그쪽 집에서 보기',
+    backToTomo: '토모데코로 돌아가기',
+    counts: (p, fg, fw) => `글 ${p} · 팔로잉 ${fg} · 팔로워 ${fw}`
+  },
+  notices: {
+    title: '알림',
+    subtitle: '당신에게 온 것들.',
+    empty: '아직 아무것도 없어요.',
+    loadError: '읽지 못했어요',
+    favourite: (who) => `${who} 님이 마음을 남겼어요`,
+    reblog: (who) => `${who} 님이 널리 전했어요`,
+    follow: (who) => `${who} 님이 팔로우하기 시작했어요`,
+    mention: (who) => `${who} 님이 당신에게`,
+    other: (who) => `${who} 님으로부터`
+  },
   flow: {
     open: '펼치기',
     empty: '아직 아무것도 없어요. 첫 한마디가 되어 주세요.',
