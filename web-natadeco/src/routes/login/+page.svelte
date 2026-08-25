@@ -5,9 +5,11 @@
     isLoggedIn,
     loginWithPassword,
     loginWithEmailCode,
+    loginWithPasskey,
     requestEmailLoginCode,
     startLogin
   } from '$lib/auth';
+  import { passkeySupported } from '$lib/webauthn';
   import { t } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
@@ -24,6 +26,13 @@
   let notice = $state<string | null>(null);
   let busy = $state(false);
 
+  // ブラウザに WebAuthn があるか。サーバ側ではいつも false になるので
+  // ($effect の外だと SSG のビルド時に固まる)、載ってから見る。
+  let canPasskey = $state(false);
+  $effect(() => {
+    canPasskey = passkeySupported();
+  });
+
   // 「〇〇に書くには入って」から来た人を、入ったあと元の場所へ戻す。
   // OAuth の往復(→ /oauth/authorize → /app/callback)を挟むので、
   // ここでは sessionStorage に置いておく(callback 側が読む)。
@@ -38,6 +47,24 @@
       await startLogin();
     } catch {
       error = t().login.errorGeneric;
+    }
+  }
+
+  async function submitPasskey() {
+    if (busy) return;
+    busy = true;
+    error = null;
+    try {
+      await loginWithPasskey();
+      await finishLogin();
+    } catch (e) {
+      // 認証器のダイアログを自分で閉じたときは、何も言わない ──
+      // 「やめた」に、エラーを返さない。
+      if (!(e instanceof DOMException && e.name === 'NotAllowedError')) {
+        error = t().login.passkeyFailed;
+      }
+    } finally {
+      busy = false;
     }
   }
 
@@ -88,6 +115,14 @@
 </script>
 
 <PageHeader title={t().login.title} />
+
+{#if canPasskey}
+  <div class="passkey">
+    <button class="btn" type="button" disabled={busy} onclick={submitPasskey}>
+      {t().login.passkey}
+    </button>
+  </div>
+{/if}
 
 <div class="tabs">
   <button
@@ -147,6 +182,13 @@
 <p class="prose-small"><a href="/hello">{t().login.signupLink}</a></p>
 
 <style>
+
+  /* 覚えるものが要らない道を、いちばん上に。下のタブ(メール/合言葉)は
+     そのままの並びで残す ── パスキーを持っていない人の道が、この一段で
+     遠くならないように。 */
+  .passkey {
+    margin-bottom: 1.25rem;
+  }
 
   .tabs {
     display: flex;

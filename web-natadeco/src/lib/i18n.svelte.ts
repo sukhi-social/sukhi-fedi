@@ -130,6 +130,8 @@ type Dict = {
     errorInvalid: string;
     errorSendFailed: string;
     errorCodeInvalid: string;
+    passkey: string;
+    passkeyFailed: string;
     signupLink: string;
   };
   signup: {
@@ -162,6 +164,13 @@ type Dict = {
     errorGeneric: string;
     loginLink: string;
     backToHello: string;
+    passkeyTitle: string;
+    passkeyBody1: string;
+    passkeyBody2: string;
+    passkeyAdd: string;
+    passkeyAdding: string;
+    passkeySkip: string;
+    passkeyFailed: string;
   };
   settings: {
     title: string;
@@ -177,6 +186,33 @@ type Dict = {
     notifyOff: string;
     notifyUnsupported: string;
     notifyDenied: string;
+    securityLink: string;
+  };
+  security: {
+    title: string;
+    intro: string;
+    signInAgain: TwoPart;
+    none: string;
+    unnamed: string;
+    added: (date: string) => string;
+    lastUsed: (date: string) => string;
+    neverUsed: string;
+    nickname: string;
+    add: string;
+    adding: string;
+    unsupported: string;
+    remove: string;
+    removing: string;
+    removeIntro: string;
+    password: string;
+    sendReauth: string;
+    reauthSent: string;
+    reauthCode: string;
+    cancel: string;
+    errorDup: string;
+    errorReauth: string;
+    errorGeneric: string;
+    backToSettings: string;
   };
   callback: {
     serverError: (err: string) => string;
@@ -284,6 +320,8 @@ const ja: Dict = {
     errorInvalid: '名前か合言葉が違います',
     errorSendFailed: '送れませんでした',
     errorCodeInvalid: 'コードが違うか、古くなっています',
+    passkey: 'パスキーで入る',
+    passkeyFailed: 'パスキーで入れませんでした',
     signupLink: 'はじめての方はこちら'
   },
   signup: {
@@ -315,7 +353,14 @@ const ja: Dict = {
     errorValidation: 'ユーザー名か、コードを見直してください',
     errorGeneric: '作れませんでした',
     loginLink: 'もうアカウントがある方はこちら',
-    backToHello: '「はじめる前に」へもどる'
+    backToHello: '「はじめる前に」へもどる',
+    passkeyTitle: 'この端末を、鍵にできます。',
+    passkeyBody1: '次からは、メールのコードを待たずに、指紋や顔だけで入れます。',
+    passkeyBody2: 'あとから設定でも足せるので、いまでなくても大丈夫です。',
+    passkeyAdd: 'この端末を鍵にする',
+    passkeyAdding: '登録しています…',
+    passkeySkip: 'あとで',
+    passkeyFailed: '登録できませんでした。あとから設定でできます。'
   },
   settings: {
     title: 'プロフィール',
@@ -330,7 +375,35 @@ const ja: Dict = {
     notifyOn: '自分の投稿に返信があったら、知らせます',
     notifyOff: '今は、知らせていません',
     notifyUnsupported: 'このブラウザでは、通知を使えません',
-    notifyDenied: '通知が、ブロックされています。ブラウザの設定から許可してください。'
+    notifyDenied: '通知が、ブロックされています。ブラウザの設定から許可してください。',
+    securityLink: 'パスキー(入りかたの設定)'
+  },
+  security: {
+    title: 'パスキー',
+    intro:
+      '合言葉のかわりに、この端末の指紋や顔で入れる鍵です。ひとつ登録しておくと、次からはメールのコードを待たずに入れます。',
+    signInAgain: { prefix: 'ここは、', link: '入りなおして', suffix: 'から触れます。' },
+    none: 'まだ、鍵はありません。',
+    unnamed: '名前のない鍵',
+    added: (date) => `${date} に登録`,
+    lastUsed: (date) => `さいごに使ったのは ${date}`,
+    neverUsed: 'まだ使っていません',
+    nickname: 'この鍵の名前(なくてもいい)',
+    add: 'この端末を鍵にする',
+    adding: '登録しています…',
+    unsupported: 'このブラウザでは、パスキーを使えません。',
+    remove: 'はずす',
+    removing: 'はずしています…',
+    removeIntro: 'はずす前に、本人確認をします。',
+    password: '合言葉',
+    sendReauth: '確認のコードを送る',
+    reauthSent: 'メールにコードを送りました',
+    reauthCode: '6桁のコード',
+    cancel: 'やめる',
+    errorDup: 'この端末は、もう登録されています',
+    errorReauth: '確認できませんでした',
+    errorGeneric: 'できませんでした',
+    backToSettings: 'プロフィールの設定へ'
   },
   callback: {
     serverError: (err) => `サーバから: ${err}`,
@@ -449,6 +522,8 @@ const ko: Dict = {
     errorInvalid: '아이디나 비밀번호가 맞지 않아요',
     errorSendFailed: '보낼 수 없었어요',
     errorCodeInvalid: '코드가 틀렸거나, 오래됐어요',
+    passkey: '패스키로 들어가기',
+    passkeyFailed: '패스키로 들어갈 수 없었어요',
     signupLink: '처음이신가요? 이쪽으로'
   },
   signup: {
@@ -480,7 +555,14 @@ const ko: Dict = {
     errorValidation: '아이디나 코드를 다시 확인해 주세요',
     errorGeneric: '만들 수 없었어요',
     loginLink: '이미 계정이 있으신가요? 이쪽으로',
-    backToHello: "'시작하기 전에'로 돌아가기"
+    backToHello: "'시작하기 전에'로 돌아가기",
+    passkeyTitle: '이 기기를 열쇠로 만들 수 있어요.',
+    passkeyBody1: '다음부터는 메일 코드를 기다리지 않고, 지문이나 얼굴만으로 들어올 수 있어요.',
+    passkeyBody2: '나중에 설정에서도 추가할 수 있으니, 지금이 아니어도 괜찮아요.',
+    passkeyAdd: '이 기기를 열쇠로 만들기',
+    passkeyAdding: '등록하는 중…',
+    passkeySkip: '나중에',
+    passkeyFailed: '등록할 수 없었어요. 나중에 설정에서 할 수 있어요.'
   },
   settings: {
     title: '프로필',
@@ -495,7 +577,35 @@ const ko: Dict = {
     notifyOn: '내 글에 답글이 달리면 알려드려요',
     notifyOff: '지금은 알려드리지 않아요',
     notifyUnsupported: '이 브라우저에서는 알림을 쓸 수 없어요',
-    notifyDenied: '알림이 차단되어 있어요. 브라우저 설정에서 허용해 주세요.'
+    notifyDenied: '알림이 차단되어 있어요. 브라우저 설정에서 허용해 주세요.',
+    securityLink: '패스키 (들어오는 방법)'
+  },
+  security: {
+    title: '패스키',
+    intro:
+      '비밀번호 대신, 이 기기의 지문이나 얼굴로 들어오는 열쇠예요. 하나 등록해 두면 다음부터는 메일 코드를 기다리지 않아도 돼요.',
+    signInAgain: { prefix: '여기는 ', link: '다시 들어가', suffix: '신 뒤에 만질 수 있어요.' },
+    none: '아직 열쇠가 없어요.',
+    unnamed: '이름 없는 열쇠',
+    added: (date) => `${date}에 등록`,
+    lastUsed: (date) => `마지막으로 쓴 건 ${date}`,
+    neverUsed: '아직 쓰지 않았어요',
+    nickname: '이 열쇠의 이름 (안 적어도 돼요)',
+    add: '이 기기를 열쇠로 만들기',
+    adding: '등록하는 중…',
+    unsupported: '이 브라우저에서는 패스키를 쓸 수 없어요.',
+    remove: '빼기',
+    removing: '빼는 중…',
+    removeIntro: '빼기 전에, 본인 확인을 할게요.',
+    password: '비밀번호',
+    sendReauth: '확인 코드 보내기',
+    reauthSent: '메일로 코드를 보냈어요',
+    reauthCode: '6자리 코드',
+    cancel: '그만두기',
+    errorDup: '이 기기는 이미 등록되어 있어요',
+    errorReauth: '확인하지 못했어요',
+    errorGeneric: '할 수 없었어요',
+    backToSettings: '프로필 설정으로'
   },
   callback: {
     serverError: (err) => `서버에서: ${err}`,

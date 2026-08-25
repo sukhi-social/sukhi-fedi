@@ -2,9 +2,10 @@
 // エンドポイント・同じ localStorage の鍵(sf.client / sf.token)を使う
 // ── api.ts がすでに sf.token を読んでいるので、ここで作る側になる。
 //
-// マルチアカウント・パスキー・アプリ2FA は持たない(natadeco には
-// まだ要らない)。要るときに sukhi-fedi/web/src/lib/auth.ts から
-// 同じ形で足せる。
+// マルチアカウント・アプリ2FA は持たない(natadeco にはまだ要らない)。
+// 要るときに sukhi-fedi/web/src/lib/auth.ts から同じ形で足せる。
+// パスキーは、この下のほうに在る ── 合言葉を持たない人が多い場所なので、
+// 毎回メールのコードを待たなくていい道を、いちばん最初に足した。
 
 import { browser } from '$app/environment';
 
@@ -176,6 +177,26 @@ export async function signup(
   return body as TokenSet;
 }
 
+// 加入したあと、同じ email_proof を session cookie に替える。
+// パスキーの登録口(/settings/passkeys/*)は cookie 専用なので、これを
+// 通しておかないと「加入してすぐ鍵にする」ができない ── メールを開けた
+// 証明は、合言葉を入れなおすのと同じ重さ、というのがサーバ側の決め。
+// 立たなかったら false ── 呼び元は、そのときパスキーのおさそいを
+// 出さずに黙って先へ進む(加入を止める理由には、ならないので)。
+export async function startSignupSession(emailProof: string): Promise<boolean> {
+  try {
+    const res = await fetch('/signup/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ email_proof: emailProof })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ── ログイン ─────────────────────────────────────────────────────────
 //
 // 一段目(パスワード or メールコード)は cookie を立てるだけ。そこから
@@ -216,6 +237,33 @@ export async function loginWithEmailCode(email: string, code: string): Promise<v
   if (res.ok) return;
   const body = await res.json().catch(() => ({}));
   throw new Error(body?.error ?? `email_login_failed_${res.status}`);
+}
+
+// パスキーで入る。options → ブラウザの認証器 → submit まで一息に。
+// 通れば cookie が立つので、あとはメール/合言葉の道と同じく
+// startLogin() の OAuth へ渡す。二段目は無い ── 認証器の
+// 指紋や顔が、その役をしている。
+export async function loginWithPasskey(): Promise<void> {
+  const { getPasskeyAssertion } = await import('./webauthn');
+
+  const optRes = await fetch('/login/passkey/options', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'same-origin',
+    body: '{}'
+  });
+  if (!optRes.ok) throw new Error('passkey');
+  const { ref, publicKey } = await optRes.json();
+
+  const assertion = await getPasskeyAssertion(publicKey);
+
+  const res = await fetch('/login/passkey', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ ref, ...assertion })
+  });
+  if (!res.ok) throw new Error('passkey');
 }
 
 export async function startLogin(): Promise<void> {
@@ -293,4 +341,82 @@ export async function signOutServer(): Promise<void> {
     }
   }
   clearToken();
+}
+
+// ── パスキーの管理(/settings/security) ───────────────────────────────
+//
+// 変更系は session cookie 専用。bearer は第三者アプリにも渡るので、
+// ログインの要素には触らせない、というサーバ側の決め。/auth/state だけ
+// bearer でも読めて、`manageable` が「いま cookie で触れるか」を返す。
+
+export type AuthState = {
+  // false = cookie が無い(切れた)。変更系を呼ぶ前に /login を通りなおす。
+  manageable: boolean;
+  acct: string;
+  email: string | null;
+  email_verified: boolean;
+  // false = 合言葉なし(natadeco では、こちらが標準)。鍵を外すときの
+  // 本人確認は、合言葉のかわりにメールへ届く 6 桁になる。
+  has_password: boolean;
+  totp_enabled: boolean;
+  totp_pending: boolean;
+  passkeys: Passkey[];
+};
+
+export type Passkey = {
+  id: number;
+  nickname: string | null;
+  created_at: string;
+  last_used_at: string | null;
+};
+
+// 鍵を外すときの本人確認。合言葉を持つ人は password、持たない人は
+// requestReauthCode() で届く 6 桁を reauth_code に。
+export type Reauth = { password?: string; reauth_code?: string };
+
+async function settingsPost(path: string, body: unknown): Promise<unknown> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(body ?? {})
+  });
+  const parsed = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((parsed as { error?: string })?.error ?? `failed_${res.status}`);
+  }
+  return parsed;
+}
+
+export async function fetchAuthState(): Promise<AuthState | null> {
+  const t = loadToken();
+  const res = await fetch('/auth/state', {
+    credentials: 'same-origin',
+    headers: t ? { authorization: `Bearer ${t.access_token}` } : {}
+  });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`auth_state_failed_${res.status}`);
+  return (await res.json()) as AuthState;
+}
+
+// 本人確認のコードを、登録ずみの確認済みメールへ送る。
+export async function requestReauthCode(): Promise<void> {
+  await settingsPost('/settings/reauth/request', {});
+}
+
+// パスキー登録: options → 認証器 → 登録、まで。
+export async function registerPasskey(nickname: string): Promise<void> {
+  const { createPasskey } = await import('./webauthn');
+
+  const { ref, publicKey } = (await settingsPost('/settings/passkeys/options', {})) as {
+    ref: string;
+    publicKey: Parameters<typeof createPasskey>[0];
+  };
+
+  const payload = await createPasskey(publicKey);
+  await settingsPost('/settings/passkeys', { ref, nickname, ...payload });
+}
+
+export async function deletePasskey(id: number, reauth: Reauth): Promise<void> {
+  await settingsPost(`/settings/passkeys/${id}/delete`, reauth);
 }

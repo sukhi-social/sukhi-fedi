@@ -121,6 +121,8 @@
     {/if}
     {#if pushError}<p class="error">{pushError}</p>{/if}
   </div>
+
+  <p class="prose-small"><a href="/settings/security">{t().settings.securityLink}</a></p>
 {/if}
 
 <style>
@@ -154,6 +156,10 @@
 
   .small {
     font-size: 0.85rem;
+  }
+
+  .prose-small {
+    margin-top: 1.25rem;
   }
 
   /* Hinata.svelte のスイッチ(/hello)と同じ寸法 ── 同じ役目の UI は

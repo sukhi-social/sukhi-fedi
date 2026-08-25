@@ -5,13 +5,16 @@
     confirmSignupEmailCode,
     signup,
     setWarmthNote,
+    startSignupSession,
+    registerPasskey,
     isLoggedIn
   } from '$lib/auth';
+  import { passkeySupported } from '$lib/webauthn';
   import { t, getLang } from '$lib/i18n.svelte';
   import Hinata from '$lib/Hinata.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
-  let phase = $state<'form' | 'code' | 'warmth' | 'working'>('form');
+  let phase = $state<'form' | 'code' | 'passkey' | 'warmth' | 'working'>('form');
 
   let username = $state('');
   let email = $state('');
@@ -29,6 +32,11 @@
   const privacyAnchor = $derived(`<a href="${privacyHref}">${t().footer.privacy}</a>`);
 
   let token = $state('');
+
+  // パスキーのおさそいは、鍵を置ける人にだけ出す ── ブラウザが
+  // WebAuthn を持っていて、かつ加入直後の cookie が立ったとき。
+  // (登録の口は cookie 専用なので、立たなかったら黙って飛ばす。)
+  let passkeyNotice = $state<string | null>(null);
 
   let error = $state<string | null>(null);
   let notice = $state<string | null>(null);
@@ -62,7 +70,8 @@
       phase = 'working';
       const created = await signup(username, proof, password || undefined);
       token = created.access_token;
-      phase = 'warmth';
+      const session = await startSignupSession(proof);
+      phase = session && passkeySupported() ? 'passkey' : 'warmth';
       busy = false;
     } catch (e) {
       busy = false;
@@ -72,6 +81,22 @@
       else if (msg === 'email_proof_invalid') error = t().signup.errorCodeInvalid;
       else if (msg.includes('validation')) error = t().signup.errorValidation;
       else error = t().signup.errorGeneric;
+    }
+  }
+
+  async function addPasskey() {
+    if (busy) return;
+    busy = true;
+    passkeyNotice = null;
+    try {
+      await registerPasskey('');
+      phase = 'warmth';
+    } catch (e) {
+      // 途中でやめた人は、そのまま次へ ── ここで足踏みさせない。
+      if (e instanceof DOMException && e.name === 'NotAllowedError') phase = 'warmth';
+      else passkeyNotice = t().signup.passkeyFailed;
+    } finally {
+      busy = false;
     }
   }
 
@@ -129,6 +154,24 @@
     </label>
     <button class="btn" type="submit" disabled={busy}>{t().signup.create}</button>
   </form>
+{:else if phase === 'passkey'}
+  <Hinata src="/hinata-signup.png" side="right" big scale={1.5} inline>
+    <p>{t().signup.passkeyTitle}</p>
+    <p>
+      {t().signup.passkeyBody1}<br />
+      {t().signup.passkeyBody2}
+    </p>
+  </Hinata>
+
+  <div class="card stack">
+    {#if passkeyNotice}<p class="muted">{passkeyNotice}</p>{/if}
+    <button class="btn" type="button" disabled={busy} onclick={addPasskey}>
+      {busy ? t().signup.passkeyAdding : t().signup.passkeyAdd}
+    </button>
+    <button class="later" type="button" onclick={() => (phase = 'warmth')}>
+      {t().signup.passkeySkip}
+    </button>
+  </div>
 {:else if phase === 'warmth'}
   <Hinata src="/hinata-signup.png" side="right" big scale={1.5} inline>
     <p>{t().signup.warmthTitle}</p>
@@ -205,6 +248,19 @@
 
   .small {
     font-size: 0.8rem;
+  }
+
+  /* 「あとで」は、断りやすいように静かに。でもタップ領域は 44px。 */
+  .later {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    background: transparent;
+    border: none;
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    cursor: pointer;
   }
 
   .error {
