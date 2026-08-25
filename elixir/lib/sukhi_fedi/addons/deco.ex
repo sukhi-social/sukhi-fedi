@@ -11,11 +11,29 @@ defmodule SukhiFedi.Addons.Deco do
   ここが持つのは器だけ。本文・HTML 化・タグ・メディア・削除は
   `SukhiFedi.Notes` のまま ── 同じものの道を二本作らないため。
 
-  板ごとに Group actor(`{slug}-deco@domain`)を持つ ── 個人アカウントの
+  板は Group actor(`{slug}-deco@domain`)を持てる ── 個人アカウントの
   username はハイフンを使えないので、この形は名前空間が構造的に
   ぶつからない。actor JSON は `SukhiFedi.AP.GroupJson` が組む。
   いまは actor が引ける・webfinger で見つかるところまで(フォローの
-  受理・Announce 中継はまだ先の段)。
+  受理・Announce 中継はまだ先の段)。表札(`has_actor`)を出さない板は
+  鍵を持たず、`get_actor_record/1` が `:not_found` を返す。
+
+  ## 読むのは、いつでも誰でも
+
+  `local_only` も `has_actor` も、決めているのは **どこまで届くか** で
+  あって、**誰が読めるか** ではない。前者は書いたものが外の網に出るか、
+  後者は場が外から見つかるか。どちらが false でも、natadeco に来た人が
+  読めるものは変わらない ── 読む口(`list_decos/0`・`list_posts/2`・
+  `get_post/2`)はトークンを要らないし、viewer で絞りもしない。
+  `viewer_id` を受けるのは反応の `me` を立てるためだけで、見えるものの
+  数は viewer で変わらない。
+
+  完全に閉じた板は、作れない構造にしてある。鍵をかけたくなったときは、
+  それは掲示板ではない別のものを作っている ── あたたかいものは、
+  隠さなくていいので。
+
+  この約束は `test/integration/deco_test.exs` の「隠れた板は作れない」
+  で留めてある。ここに viewer の絞りを足すと、あそこが落ちる。
   """
 
   use SukhiFedi.Addon, id: :deco

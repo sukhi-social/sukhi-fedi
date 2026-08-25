@@ -433,7 +433,8 @@ const ja: Dict = {
     openLabel: '外にひらく',
     openHint: '外から見つけてもらえます。書いたものは、そのまま外にも届きます。',
     insideLabel: 'うちの中に',
-    insideHint: 'ここに居る人だけの場所です。書いたものも、一件ずつ選べば外に出せます。'
+    insideHint:
+      '外の網には出ません。ここに来た人は、だれでも読めます。書いたものは、一件ずつ選べば外に出せます。'
   },
   toolbar: { bold: '太字', italic: '斜体', link: 'リンク', list: 'リスト', quote: '引用', heading: '見出し' },
   hinata: { reveal: 'ひなたを見てみる', hide: 'ひなたを隠す' },
@@ -643,7 +644,8 @@ const ko: Dict = {
     openLabel: '밖으로 열기',
     openHint: '밖에서도 찾을 수 있어요. 쓴 글도 그대로 밖에 닿아요.',
     insideLabel: '안쪽에 두기',
-    insideHint: '여기 있는 사람들만의 자리예요. 쓴 글은 하나씩 골라서 밖에 낼 수 있어요.'
+    insideHint:
+      '바깥 네트워크로는 나가지 않아요. 여기 온 사람은 누구나 읽을 수 있어요. 쓴 글은 하나씩 골라서 밖에 낼 수 있어요.'
   },
   toolbar: { bold: '굵게', italic: '기울임', link: '링크', list: '목록', quote: '인용', heading: '제목' },
   hinata: { reveal: '히나타를 보기', hide: '히나타를 숨기기' },

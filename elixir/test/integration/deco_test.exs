@@ -721,4 +721,70 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert out.local_only == false
     end
   end
+
+  describe "隠れた板は作れない" do
+    # natadeco に完全プライベートな板は無い。`local_only` も `has_actor`
+    # も決めているのは「どこまで届くか」で、「誰が読めるか」ではない。
+    #
+    # ここが落ちたら、読む道のどこかに viewer の絞りが入っている。
+    # それは掲示板ではない別のものなので、直すのはこのテストではなく
+    # そちら側。あたたかいものは、隠さなくていい。
+    setup %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, hidden} =
+        Deco.create_deco(author, %{
+          "slug" => "inside#{n}",
+          "name" => "うちの中の板",
+          "has_actor" => false,
+          "local_only" => true
+        })
+
+      {:ok, post} = Deco.post(author, hidden.slug, %{"title" => "題", "status" => "本文"})
+      {:ok, reply} = Deco.reply(author, post.id, %{"status" => "つづき"})
+
+      %{hidden: hidden, post: post, reply: reply}
+    end
+
+    test "うちの中の板も、一覧に並ぶ", %{hidden: hidden} do
+      slugs = Deco.list_decos() |> Enum.map(& &1.slug)
+      assert hidden.slug in slugs
+    end
+
+    test "板そのものは、読む人が居なくても引ける", %{hidden: hidden} do
+      assert {:ok, view} = Deco.get_deco(hidden.slug)
+      assert view.local_only == true
+      assert view.has_actor == false
+    end
+
+    test "ローカルの投稿も、読む人が居なくても読める", %{hidden: hidden, post: post} do
+      assert {:ok, [listed]} = Deco.list_posts(hidden.slug)
+      assert listed.id == post.id
+      assert listed.local_only == true
+
+      assert {:ok, read} = Deco.get_post(post.id)
+      assert read.content_html =~ "本文"
+      assert [%{content_html: html}] = read.replies
+      assert html =~ "つづき"
+    end
+
+    test "読む人が誰であっても、見えるものは同じ", %{author: author, hidden: hidden, post: post} do
+      {:ok, anon_list} = Deco.list_posts(hidden.slug)
+      {:ok, mine_list} = Deco.list_posts(hidden.slug, viewer_id: author.id)
+      assert Enum.map(anon_list, & &1.id) == Enum.map(mine_list, & &1.id)
+
+      {:ok, anon} = Deco.get_post(post.id)
+      {:ok, mine} = Deco.get_post(post.id, author.id)
+      assert Enum.map(anon.replies, & &1.id) == Enum.map(mine.replies, & &1.id)
+
+      # viewer で変わってよいのは、反応の `me` だけ。
+      {:ok, _} = SukhiFedi.Notes.react(author, post.id, "✨")
+      {:ok, anon2} = Deco.get_post(post.id)
+      {:ok, mine2} = Deco.get_post(post.id, author.id)
+
+      assert [%{name: "✨", count: 1, me: false}] = anon2.reactions
+      assert [%{name: "✨", count: 1, me: true}] = mine2.reactions
+      assert anon2.content_html == mine2.content_html
+    end
+  end
 end

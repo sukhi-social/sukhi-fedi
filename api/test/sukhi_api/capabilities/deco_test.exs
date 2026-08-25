@@ -135,6 +135,25 @@ defmodule SukhiApi.Capabilities.DecoTest do
 
   defp stub(pairs), do: Application.put_env(:sukhi_api, :fake_deco, Map.new(pairs))
 
+  describe "隠れた板は作れない" do
+    # 読む口には scope を付けない。付けた瞬間、板は「入っている人だけの
+    # 場所」になる ── natadeco の板はそうではない。gateway 側の同じ
+    # 約束は test/integration/deco_test.exs の同名の describe に。
+    test "板の中は、トークン無しで読める" do
+      stub([{{:list_posts, ["hinata", []]}, {:ok, [@post]}}])
+
+      {:ok, resp} = get("/api/v1/deco/hinata/posts")
+      assert resp.status == 200
+    end
+
+    test "一件も、トークン無しで読める" do
+      stub([{{:get_post, ["42", nil]}, {:ok, @post}}])
+
+      {:ok, resp} = get("/api/v1/deco/posts/42")
+      assert resp.status == 200
+    end
+  end
+
   describe "読む（入っている人）" do
     # リアクションの `me`(自分が押したか)は viewer が要る。読むのは誰でも
     # なので居ないこともあるが、居るときは gateway まで届いていないと、
