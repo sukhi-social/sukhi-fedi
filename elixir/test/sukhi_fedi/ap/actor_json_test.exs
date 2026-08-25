@@ -10,7 +10,7 @@ defmodule SukhiFedi.AP.ActorJsonTest do
   alias SukhiFedi.Schema.Account
 
   @expected_top_keys ~w(
-    @context id type preferredUsername name summary inbox outbox
+    @context id type url preferredUsername name summary inbox outbox
     followers following featured manuallyApprovesFollowers
     discoverable indexable pendingFollowers pendingFollowing endpoints
     publicKey assertionMethod icon image
@@ -41,6 +41,10 @@ defmodule SukhiFedi.AP.ActorJsonTest do
 
     assert MapSet.new(Map.keys(person)) == MapSet.new(@expected_top_keys)
     assert person["id"] == "https://test.example/users/alice"
+
+    # 人が読む頁のありか。`id` とは別もので、これが無いと受け取った側は
+    # 「プロフィールを開く」の行き先を作れない。
+    assert person["url"] == "https://test.example/@alice"
     assert person["type"] == "Person"
     assert person["manuallyApprovesFollowers"] == true
     assert person["discoverable"] == true

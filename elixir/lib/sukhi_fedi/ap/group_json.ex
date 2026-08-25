@@ -20,6 +20,17 @@ defmodule SukhiFedi.AP.GroupJson do
     "https://#{SukhiFedi.Config.domain!()}/users/#{slug}-deco"
   end
 
+  @doc """
+  人が見に行く板の頁(`build_group/1` の `"url"`)。`actor_uri/1` と対に
+  なる一箇所 ── webfinger の `profile-page` link もここを見る。
+  """
+  @spec profile_uri(Deco.t() | String.t()) :: String.t()
+  def profile_uri(%Deco{slug: slug}), do: profile_uri(slug)
+
+  def profile_uri(slug) when is_binary(slug) do
+    "https://#{SukhiFedi.Config.domain!()}/d/#{slug}"
+  end
+
   @doc "actor の preferredUsername(`{slug}-deco`)。ActorController/WebfingerController で使う。"
   @spec deco_username(Deco.t() | String.t()) :: String.t()
   def deco_username(%Deco{slug: slug}), do: deco_username(slug)
@@ -40,7 +51,7 @@ defmodule SukhiFedi.AP.GroupJson do
       "id" => actor_uri,
       "type" => "Group",
       # 人が見に行く先は SPA の板ページ。actor の `id` とは別物。
-      "url" => "https://#{domain}/d/#{deco.slug}",
+      "url" => profile_uri(deco),
       "preferredUsername" => deco_username(deco),
       "name" => deco.name,
       "summary" => deco.description || "",

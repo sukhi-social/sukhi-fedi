@@ -25,6 +25,18 @@ defmodule SukhiFedi.AP.ActorJson do
     "https://#{SukhiFedi.Config.domain!()}/users/#{username}"
   end
 
+  @doc """
+  人が読む頁のありか(`build_person/1` の `"url"`)。`actor_uri/1` と対に
+  なる一箇所 ── webfinger の `profile-page` link もここを見るので、
+  actor JSON の言う行き先と webfinger の言う行き先が食い違わない。
+  """
+  @spec profile_uri(Account.t() | String.t()) :: String.t()
+  def profile_uri(%Account{username: u}), do: profile_uri(u)
+
+  def profile_uri(username) when is_binary(username) do
+    "https://#{SukhiFedi.Config.domain!()}/@#{username}"
+  end
+
   @spec build_person(Account.t()) :: map()
   def build_person(%Account{} = account) do
     domain = SukhiFedi.Config.domain!()
@@ -52,7 +64,7 @@ defmodule SukhiFedi.AP.ActorJson do
       # `url` は「この人を見に行くならここ」。これが無いので、actor を引いた
       # 道具(fedify lookup など)はプロフィールへのリンクを出しようがなかった。
       # 行き先は書かれていなかっただけで、頁のほうは前からある。
-      "url" => "https://#{domain}/@#{account.username}",
+      "url" => profile_uri(account),
       "preferredUsername" => account.username,
       "name" => account.display_name || account.username,
       "summary" => account.summary || "",

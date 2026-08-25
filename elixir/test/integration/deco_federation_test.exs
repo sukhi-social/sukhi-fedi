@@ -65,6 +65,12 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
 
     self_link = Enum.find(body["links"], &(&1["rel"] == "self"))
     assert self_link["href"] == "https://localhost:4000/users/#{deco.slug}-deco"
+
+    # `type: "text/html"` と言う以上、行き先は人が読む板の頁 ── actor の
+    # `id` ではない(そこは AP JSON しか返さないことがある)。
+    page = Enum.find(body["links"], &(&1["rel"] == "http://webfinger.net/rel/profile-page"))
+    assert page["type"] == "text/html"
+    assert page["href"] == "https://localhost:4000/d/#{deco.slug}"
   end
 
   test "板の slug 自体(suffix 無し)は、板の actor としては解決しない", %{deco: deco} do

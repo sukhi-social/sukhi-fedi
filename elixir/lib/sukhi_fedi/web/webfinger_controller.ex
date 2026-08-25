@@ -5,6 +5,12 @@ defmodule SukhiFedi.Web.WebfingerController do
 
   Elixir-native implementation: Accounts lookup + JRD build + single
   ETS write. No NATS round-trip.
+
+  `profile-page` の行き先は `ActorJson.profile_uri/1` /
+  `GroupJson.profile_uri/1` から取る ── actor JSON の `"url"` と同じ
+  一箇所。`type: "text/html"` と言っている以上、そこは人が読む頁で
+  なければいけない(actor の `id` は `PUBLIC_PREVIEW` が off のとき
+  AP JSON しか返さない)。
   """
 
   import Plug.Conn
@@ -99,6 +105,7 @@ defmodule SukhiFedi.Web.WebfingerController do
 
       {:ok, deco} ->
         actor_url = SukhiFedi.AP.GroupJson.actor_uri(deco)
+        profile_url = SukhiFedi.AP.GroupJson.profile_uri(deco)
 
         {:ok,
          %{
@@ -106,7 +113,7 @@ defmodule SukhiFedi.Web.WebfingerController do
            aliases: [actor_url],
            links: [
              %{rel: "self", type: "application/activity+json", href: actor_url},
-             %{rel: "http://webfinger.net/rel/profile-page", type: "text/html", href: actor_url}
+             %{rel: "http://webfinger.net/rel/profile-page", type: "text/html", href: profile_url}
            ]
          }}
     end
@@ -118,7 +125,7 @@ defmodule SukhiFedi.Web.WebfingerController do
         {:error, :not_found}
 
       account ->
-        actor_url = "https://#{domain}/users/#{account.username}"
+        actor_url = SukhiFedi.AP.ActorJson.actor_uri(account)
 
         {:ok,
          %{
@@ -133,7 +140,7 @@ defmodule SukhiFedi.Web.WebfingerController do
              %{
                rel: "http://webfinger.net/rel/profile-page",
                type: "text/html",
-               href: actor_url
+               href: SukhiFedi.AP.ActorJson.profile_uri(account)
              }
            ]
          }}
