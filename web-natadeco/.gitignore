@@ -2,3 +2,6 @@ node_modules/
 /.svelte-kit/
 /build/
 .DS_Store
+
+# Twemoji SVGs copied from @twemoji/svg at build time (prebuild script).
+static/twemoji

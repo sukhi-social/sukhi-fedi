@@ -358,3 +358,15 @@ textarea:focus {
 .body li > ol {
   margin-top: 0.3em;
 }
+
+/* Twemoji。本文の unicode 絵文字と、反応のチップの両方が通る。
+   {@html} で差し込むので、ここ（大域）でないと当たらない。
+   自前ホスト ── /twemoji/svg/<codepoint>.svg。 */
+img.twemoji {
+  height: 1.2em;
+  width: 1.2em;
+  margin: 0 0.05em;
+  vertical-align: -0.2em;
+  object-fit: contain;
+  display: inline-block;
+}

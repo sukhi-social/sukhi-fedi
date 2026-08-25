@@ -1,6 +1,7 @@
 <script lang="ts">
   import { react, unreact, signedIn, type Reaction } from '$lib/api';
   import { t } from '$lib/i18n.svelte';
+  import { renderGlyph } from '$lib/emoji';
 
   // 一件に付いた絵文字。返事を書くほど重くない「見たよ」を置ける場所。
   //
@@ -49,7 +50,7 @@
       {#if r.url}
         <img src={r.url} alt={r.name} width="18" height="18" />
       {:else}
-        <span class="glyph">{r.name}</span>
+        <span class="glyph">{@html renderGlyph(r.name)}</span>
       {/if}
       <span class="count">{r.count}</span>
     </button>
@@ -76,7 +77,7 @@
             disabled={busy === e}
             onclick={() => toggle(e)}
           >
-            <span class="glyph">{e}</span>
+            <span class="glyph">{@html renderGlyph(e)}</span>
           </button>
         {/each}
       </span>

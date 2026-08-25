@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "twemoji": "node scripts/copy-twemoji.mjs",
+    "predev": "node scripts/copy-twemoji.mjs",
     "dev": "vite dev",
+    "prebuild": "node scripts/copy-twemoji.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
@@ -20,5 +23,9 @@
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.14"
+  },
+  "dependencies": {
+    "@twemoji/api": "^17.0.3",
+    "@twemoji/svg": "^15.0.0"
   }
 }
