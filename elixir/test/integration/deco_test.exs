@@ -869,6 +869,23 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert Enum.map(recent, & &1.id) == [c.id, b.id]
     end
 
+    test "時刻で切れる ── 「今日」の境目は読む人の時計", %{author: author, talk: talk} do
+      {:ok, _old} = Deco.post(author, talk.slug, %{"status" => "きのう"})
+      # 境目は投稿そのものの時刻から取る。id を打つのは DB の
+      # `clock_timestamp()` なので、こちらの `DateTime.utc_now()` と
+      # 突き合わせると、二つの時計のズレを測るテストになってしまう。
+      Process.sleep(10)
+      {:ok, fresh} = Deco.post(author, talk.slug, %{"status" => "きょう"})
+      cut = SukhiFedi.Snowflake.to_datetime(fresh.id)
+
+      assert {:ok, [row]} = Deco.list_flow(talk.slug, since: cut)
+      assert row.id == fresh.id
+
+      # id で言われたらそちらが具体的なので、そちらを採る。
+      assert {:ok, both} = Deco.list_flow(talk.slug, since: cut, since_id: 0)
+      assert length(both) == 2
+    end
+
     test "反応も乗る", %{author: author, talk: talk} do
       {:ok, a} = Deco.post(author, talk.slug, %{"status" => "ひとこと"})
       {:ok, _} = SukhiFedi.Notes.react(author, a.id, "✨")

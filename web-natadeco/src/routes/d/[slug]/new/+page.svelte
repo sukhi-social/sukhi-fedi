@@ -68,8 +68,11 @@
   // どちらの言語で書いてもいい ── 日本語欄が必須、ではない。埋まって
   // いるほうがそのまま主(連合される側)になる。両方埋めれば、片方が
   // もう一方に添えられる。
-  const jaComplete = $derived(!!title.trim() && !!text.trim());
-  const koComplete = $derived(!!titleKo.trim() && !!textKo.trim());
+  // 話す板では、ひとこと置くのに見出しを考えさせない ── 欄そのものを
+  // 出さないので、埋まっているかも問わない。
+  const talk = $derived(deco?.kind === 'talk');
+  const jaComplete = $derived(talk ? !!text.trim() : !!title.trim() && !!text.trim());
+  const koComplete = $derived(talk ? !!textKo.trim() : !!titleKo.trim() && !!textKo.trim());
   const canSubmit = $derived(jaComplete || koComplete);
 
   async function write(e: SubmitEvent) {
@@ -119,10 +122,12 @@
     <VisibilityPicker bind:active={visibility} />
 
     {#if lang === 'ja'}
-      <label>
-        <span class="muted">{t().newPost.fieldTitle}</span>
-        <input type="text" bind:value={title} maxlength="120" autofocus />
-      </label>
+      {#if !talk}
+        <label>
+          <span class="muted">{t().newPost.fieldTitle}</span>
+          <input type="text" bind:value={title} maxlength="120" autofocus />
+        </label>
+      {/if}
       <label>
         <span class="muted">{t().newPost.fieldBody}</span>
         <MarkdownToolbar bind:value={text} el={textEl} />
@@ -140,10 +145,12 @@
         </span>
       </label>
     {:else}
-      <label>
-        <span class="muted">{t().newPost.fieldTitle}</span>
-        <input type="text" bind:value={titleKo} maxlength="120" />
-      </label>
+      {#if !talk}
+        <label>
+          <span class="muted">{t().newPost.fieldTitle}</span>
+          <input type="text" bind:value={titleKo} maxlength="120" />
+        </label>
+      {/if}
       <label>
         <span class="muted">{t().newPost.fieldBody}</span>
         <MarkdownToolbar bind:value={textKo} el={textElKo} />

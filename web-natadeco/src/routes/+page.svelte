@@ -38,6 +38,7 @@
   // いる ── 表札(外から見つかるか)と、書いたものの出発点(どこまで届くか)。
   // 別々にも持てるが、立てる人に二度訊くほどの違いは、まだ無い。
   let reach = $state<'open' | 'inside'>('open');
+  let kind = $state<'thread' | 'talk'>('thread');
 
   const jaComplete = $derived(!!name.trim());
   const koComplete = $derived(!!nameKo.trim());
@@ -61,11 +62,13 @@
             }
           : { slug, name: nameKo.trim(), description: descriptionKo || undefined }),
         local_only: reach === 'inside',
-        has_actor: reach === 'open'
+        has_actor: reach === 'open',
+        kind
       });
       decos = [...decos, made].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
       slug = name = description = nameKo = descriptionKo = '';
       reach = 'open';
+      kind = 'thread';
       lang = getLang();
       opening = false;
     } catch {
@@ -131,6 +134,24 @@
           <textarea bind:value={descriptionKo} rows="2" maxlength="2000"></textarea>
         </label>
       {/if}
+
+      <fieldset class="reach">
+        <legend class="muted">{t().decoKind.legend}</legend>
+        <label class="check">
+          <input type="radio" bind:group={kind} value="thread" />
+          <span>
+            {t().decoKind.threadLabel}
+            <span class="muted small">{t().decoKind.threadHint}</span>
+          </span>
+        </label>
+        <label class="check">
+          <input type="radio" bind:group={kind} value="talk" />
+          <span>
+            {t().decoKind.talkLabel}
+            <span class="muted small">{t().decoKind.talkHint}</span>
+          </span>
+        </label>
+      </fieldset>
 
       <fieldset class="reach">
         <legend class="muted">{t().decoReach.legend}</legend>

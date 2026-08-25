@@ -114,6 +114,9 @@ defmodule SukhiApi.Capabilities.Deco do
       |> put_int(:limit, q["limit"])
       |> put_int(:before_id, q["before_id"])
       |> put_int(:since_id, q["since_id"])
+      # 「今日」の境目は読む人の時計が決める ── ここは受け取った時刻を
+      # そのまま渡すだけで、サーバは今日を知らない。
+      |> put_datetime(:since, q["since"])
       |> put_viewer(viewer(req))
 
     call(:list_flow, [req[:path_params]["slug"], opts], &ok(200, &1))

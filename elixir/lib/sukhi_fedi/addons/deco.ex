@@ -40,7 +40,7 @@ defmodule SukhiFedi.Addons.Deco do
 
   import Ecto.Query
 
-  alias SukhiFedi.{Notes, Notifications, Repo}
+  alias SukhiFedi.{Notes, Notifications, Repo, Snowflake}
   alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
   alias SukhiFedi.Notes.Create, as: NotesCreate
   alias SukhiFedi.Notes.Ids
@@ -523,8 +523,12 @@ defmodule SukhiFedi.Addons.Deco do
   `nick:` が一段しか指さないのと同じ深さで、それで会話は追える。
 
   opts: `:limit`（既定 40・上限 100）/ `:before_id` / `:since_id` /
-  `:viewer_id`。`:since_id` は「今日のぶんで終わる」のための下限で、
-  読む人の真夜中から作った id を渡す。
+  `:since` / `:viewer_id`。
+
+  `:since` は時刻（`DateTime`）で切りたいときの下限。「今日のぶんで
+  終わる」は読む人の真夜中で切るので、境目を決めるのは読む人の時計に
+  なる ── サーバは「今日」を知らない。id への変換はここでやる：
+  snowflake の epoch はサーバの持ちものなので、フロントに配らない。
   """
   @spec list_flow(String.t(), keyword()) :: {:ok, [map()]} | {:error, :not_found}
   def list_flow(slug, opts \\ []) do
@@ -544,7 +548,12 @@ defmodule SukhiFedi.Addons.Deco do
         )
 
       q = if before_id = opts[:before_id], do: where(q, [dn, n], n.id < ^to_int(before_id)), else: q
-      q = if since_id = opts[:since_id], do: where(q, [dn, n], n.id >= ^to_int(since_id)), else: q
+
+      q =
+        case since_bound(opts) do
+          nil -> q
+          since_id -> where(q, [dn, n], n.id >= ^since_id)
+        end
 
       views =
         q
@@ -555,6 +564,16 @@ defmodule SukhiFedi.Addons.Deco do
        views
        |> with_reactions(opts[:viewer_id])
        |> with_parents()}
+    end
+  end
+
+  # 下限。id で言われればそのまま、時刻で言われれば snowflake に直す。
+  # 両方来たら id のほうが具体的なので、そちらを採る。
+  defp since_bound(opts) do
+    case {opts[:since_id], opts[:since]} do
+      {nil, %DateTime{} = dt} -> Snowflake.encode(DateTime.to_unix(dt, :millisecond), 0)
+      {nil, _} -> nil
+      {id, _} -> to_int(id)
     end
   end
 

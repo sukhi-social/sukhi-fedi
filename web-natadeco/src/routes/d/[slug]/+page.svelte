@@ -1,8 +1,19 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { getDeco, listPosts, signedIn, when, localized, type Deco, type Post } from '$lib/api';
+  import {
+    getDeco,
+    listPosts,
+    listFlow,
+    startOfToday,
+    signedIn,
+    when,
+    localized,
+    type Deco,
+    type Post
+  } from '$lib/api';
   import { t } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
+  import Flow from '$lib/Flow.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
   const slug = $derived(page.params.slug ?? '');
@@ -13,15 +24,29 @@
   let error = $state<string | null>(null);
   let done = $state(false);
 
+  // 話す板は、まず今日のぶんだけ。境目は読む人の時計で決まる。
+  // 流れる板でも、終わらない川にはしない ── 今日を読み切ったら
+  // そこで一度終わって、その先は自分で「読む」を押す。
+  let talk = $derived(deco?.kind === 'talk');
+  let atToday = $state(true);
+
   $effect(() => {
     const s = slug;
     loading = true;
     done = false;
-    Promise.all([getDeco(s), listPosts(s)])
-      .then(([d, p]) => {
+    atToday = true;
+
+    getDeco(s)
+      .then(async (d) => {
         deco = d;
-        posts = p;
-        done = p.length < 30;
+        if (d.kind === 'talk') {
+          const rows = await listFlow(s, { since: startOfToday() });
+          posts = rows;
+        } else {
+          const p = await listPosts(s);
+          posts = p;
+          done = p.length < 30;
+        }
       })
       .catch(() => (error = t().board.notFound))
       .finally(() => (loading = false));
@@ -35,6 +60,16 @@
     const next = await listPosts(slug, last.id);
     posts = [...posts, ...next];
     if (next.length === 0) done = true;
+  }
+
+  // 話す板で、今日より前へ。押した時点で「今日で終わる」を降りるので、
+  // そこから先はふつうの「もっと読む」になる。
+  async function earlier() {
+    const last = posts.at(-1);
+    const rows = await listFlow(slug, { beforeId: last?.id });
+    posts = [...posts, ...rows];
+    atToday = false;
+    if (rows.length === 0) done = true;
   }
 
 </script>
@@ -65,7 +100,22 @@
 
   {#if error}<p class="error">{error}</p>{/if}
 
-  {#if posts.length === 0}
+  {#if talk}
+    {#if posts.length === 0}
+      <p class="muted empty">{t().flow.empty}</p>
+    {:else}
+      <Flow bind:rows={posts} />
+    {/if}
+
+    {#if done}
+      <p class="muted end">{t().board.end}</p>
+    {:else if atToday}
+      <p class="muted end">{t().flow.endToday}</p>
+      <button class="btn" type="button" onclick={earlier}>{t().flow.earlier}</button>
+    {:else}
+      <button class="btn" type="button" onclick={earlier}>{t().board.more}</button>
+    {/if}
+  {:else if posts.length === 0}
     <p class="muted empty">{t().board.empty}</p>
   {:else}
     <div class="table-wrap">

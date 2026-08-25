@@ -15,6 +15,8 @@ export type Deco = {
   description_i18n: Record<string, string>;
   // この板は、ふつうどちらで書くか。一件ごとには書く人が選べる（既定であって錠ではない）。
   local_only: boolean;
+  // 読まれかた。'thread' は題つき・bump、'talk' は平ら・書かれた順。
+  kind: 'thread' | 'talk';
   // 表札 ── 外から見つけられる場所として立っているか。false なら
   // `{slug}-deco@domain` は引けない（書いた一件は、選べば外に出る）。
   has_actor: boolean;
@@ -62,6 +64,9 @@ export type Post = {
   emojis: Emoji[];
   reactions: Reaction[];
   replies?: Post[];
+  // 話す板の流れでだけ入る。返信が「誰に向けた言葉か」を、一段だけ。
+  // 手元に無い親（連合越しなど）は null。
+  parent?: { id: number; author: Author; excerpt: string } | null;
 };
 
 export type Visibility = 'public' | 'local';
@@ -139,6 +144,27 @@ export function listPosts(slug: string, beforeId?: number) {
 
 export const getPost = (id: number | string) => req<Post>('GET', `/api/v1/deco/posts/${id}`);
 
+/**
+ * 話す板の流れ。平らに、書かれた順（新しい順）。
+ *
+ * `since` は「ここまでで終わり」の下限。読む人の真夜中を渡すので、
+ * 「今日」の境目を決めるのは読む人の時計 ── サーバは今日を知らない。
+ */
+export function listFlow(slug: string, opts: { beforeId?: number; since?: Date } = {}) {
+  const q = new URLSearchParams();
+  if (opts.beforeId) q.set('before_id', String(opts.beforeId));
+  if (opts.since) q.set('since', opts.since.toISOString());
+  const qs = q.toString();
+  return req<Post[]>('GET', `/api/v1/deco/${encodeURIComponent(slug)}/flow${qs ? `?${qs}` : ''}`);
+}
+
+/** 読む人の時計での、今日のはじまり。 */
+export function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 export const createPost = (
   slug: string,
   body: {
@@ -202,6 +228,7 @@ export const createDeco = (body: {
   description_i18n?: Record<string, string>;
   local_only?: boolean;
   has_actor?: boolean;
+  kind?: 'thread' | 'talk';
 }) => req<Deco>('POST', '/api/v1/deco', body);
 
 /**

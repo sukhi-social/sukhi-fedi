@@ -223,6 +223,14 @@ type Dict = {
   footer: { terms: string; privacy: string };
   visibility: { label: string; public: string; local: string; hint: string; badge: string };
   reactions: { add: string };
+  flow: { open: string; empty: string; earlier: string; endToday: string };
+  decoKind: {
+    legend: string;
+    threadLabel: string;
+    threadHint: string;
+    talkLabel: string;
+    talkHint: string;
+  };
   decoReach: {
     legend: string;
     openLabel: string;
@@ -428,6 +436,19 @@ const ja: Dict = {
     badge: 'ローカル'
   },
   reactions: { add: 'ひとつ、そえる' },
+  flow: {
+    open: 'ひらく',
+    empty: 'まだ、なにもありません。さいしょの、ひとことに、なれます。',
+    earlier: 'きのうより前を読む',
+    endToday: 'ここまでが、今日です。'
+  },
+  decoKind: {
+    legend: 'この板では',
+    threadLabel: '題をつけて、立てる',
+    threadHint: '一枚ずつ話が立ちます。返事がつくと、また上に戻ってきます。',
+    talkLabel: 'そのまま、話す',
+    talkHint: '書いた順に流れます。題は要りません。'
+  },
   decoReach: {
     legend: 'この板は',
     openLabel: '外にひらく',
@@ -639,6 +660,19 @@ const ko: Dict = {
     badge: '로컬'
   },
   reactions: { add: '가볍게 남기기' },
+  flow: {
+    open: '펼치기',
+    empty: '아직 아무것도 없어요. 첫 한마디가 되어 주세요.',
+    earlier: '어제보다 앞을 읽기',
+    endToday: '오늘은 여기까지예요.'
+  },
+  decoKind: {
+    legend: '이 데코에서는',
+    threadLabel: '제목을 달고, 세우기',
+    threadHint: '이야기가 한 편씩 서요. 답이 붙으면 다시 위로 올라와요.',
+    talkLabel: '그대로, 이야기하기',
+    talkHint: '쓴 순서대로 흘러가요. 제목은 없어도 돼요.'
+  },
   decoReach: {
     legend: '이 데코는',
     openLabel: '밖으로 열기',
