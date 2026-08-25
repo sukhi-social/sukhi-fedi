@@ -30,6 +30,16 @@ export type Emoji = {
   static_url?: string | null;
 };
 
+// 絵文字リアクション。`url` はカスタム絵文字のときだけ入る（unicode は null）。
+// 並びはサーバが決める（多い順→絵文字順）── こちらでは並び替えない。
+export type Reaction = {
+  name: string;
+  count: number;
+  me: boolean;
+  url?: string | null;
+  static_url?: string | null;
+};
+
 export type Post = {
   id: number;
   deco_id: number;
@@ -45,6 +55,7 @@ export type Post = {
   reply_count: number;
   local_only: boolean;
   emojis: Emoji[];
+  reactions: Reaction[];
   replies?: Post[];
 };
 
@@ -133,6 +144,17 @@ export const createPost = (
     visibility?: Visibility;
   }
 ) => req<Post>('POST', `/api/v1/deco/${encodeURIComponent(slug)}/posts`, body);
+
+// リアクションは sukhi 本体の口をそのまま使う（deco 専用の道を作らない）。
+// 返るのは Mastodon の Status なので、こちらが要るのは `reactions` だけ。
+const reactPath = (id: number | string, emoji: string) =>
+  `/api/v1/sukhi/statuses/${id}/react/${encodeURIComponent(emoji)}`;
+
+export const react = (id: number | string, emoji: string) =>
+  req<{ reactions: Reaction[] }>('PUT', reactPath(id, emoji));
+
+export const unreact = (id: number | string, emoji: string) =>
+  req<{ reactions: Reaction[] }>('DELETE', reactPath(id, emoji));
 
 export const createReply = (
   id: number | string,

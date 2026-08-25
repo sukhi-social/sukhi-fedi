@@ -102,6 +102,15 @@ defmodule SukhiApi.Capabilities.DecoTest do
     Router.handle(%{method: "GET", path: p, query: q, headers: []})
   end
 
+  defp get_as_viewer(path) do
+    Router.handle(%{
+      method: "GET",
+      path: path,
+      query: nil,
+      headers: [{"authorization", "Bearer t"}]
+    })
+  end
+
   defp post(path, body) do
     Router.handle(%{
       method: "POST",
@@ -125,6 +134,25 @@ defmodule SukhiApi.Capabilities.DecoTest do
   end
 
   defp stub(pairs), do: Application.put_env(:sukhi_api, :fake_deco, Map.new(pairs))
+
+  describe "読む（入っている人）" do
+    # リアクションの `me`(自分が押したか)は viewer が要る。読むのは誰でも
+    # なので居ないこともあるが、居るときは gateway まで届いていないと、
+    # 押したはずのものが押していない顔で返ってくる。
+    test "一件読むと、viewer の id が gateway に渡る" do
+      stub([{{:get_post, ["42", 7]}, {:ok, @post}}])
+
+      {:ok, resp} = get_as_viewer("/api/v1/deco/posts/42")
+      assert resp.status == 200
+    end
+
+    test "板を読むと、viewer の id が opts に乗る" do
+      stub([{{:list_posts, ["hinata", [viewer_id: 7]]}, {:ok, [@post]}}])
+
+      {:ok, resp} = get_as_viewer("/api/v1/deco/hinata/posts")
+      assert resp.status == 200
+    end
+  end
 
   describe "読む（誰でも）" do
     test "板の一覧はトークン無しで読める" do
@@ -188,7 +216,7 @@ defmodule SukhiApi.Capabilities.DecoTest do
     # ここが取り違えやすいところ。`posts` を板の名前と読んでしまうと、
     # 一件を開く道が板の道に吸われる。
     test "/deco/posts/:id は、slug が posts の板とは読まれない" do
-      stub([{{:get_post, ["42"]}, {:ok, @post}}])
+      stub([{{:get_post, ["42", nil]}, {:ok, @post}}])
 
       {:ok, resp} = get("/api/v1/deco/posts/42")
       assert resp.status == 200
@@ -336,7 +364,7 @@ defmodule SukhiApi.Capabilities.DecoTest do
 
   describe "板の上に、書いた人が出る" do
     test "表示名と acct が、そのまま返る" do
-      stub([{{:get_post, ["42"]}, {:ok, @post}}])
+      stub([{{:get_post, ["42", nil]}, {:ok, @post}}])
 
       {:ok, resp} = get("/api/v1/deco/posts/42")
       body = JSON.decode!(resp.body)

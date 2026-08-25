@@ -435,7 +435,8 @@ defmodule SukhiFedi.Addons.Deco do
        Repo.all(q)
        |> Enum.map(fn {n, dn, a, at} ->
          Map.put(post_view(n, dn, a), :last_activity_at, to_utc(at))
-       end)}
+       end)
+       |> with_reactions(opts[:viewer_id])}
     end
   end
 
@@ -473,8 +474,9 @@ defmodule SukhiFedi.Addons.Deco do
   end
 
   @doc "一件と、そのレス（古い順 ── 掲示板は上から下へ読むので）。"
-  @spec get_post(integer() | String.t()) :: {:ok, map()} | {:error, :not_found}
-  def get_post(note_id) do
+  @spec get_post(integer() | String.t(), integer() | nil) ::
+          {:ok, map()} | {:error, :not_found}
+  def get_post(note_id, viewer_id \\ nil) do
     id = to_int(note_id)
 
     case Repo.one(
@@ -491,7 +493,15 @@ defmodule SukhiFedi.Addons.Deco do
         {:error, :not_found}
 
       {note, dn, author} ->
-        {:ok, Map.put(post_view(note, dn, author), :replies, replies_of(note, dn.deco_id))}
+        # 本体と返信をひとつの列にしてから乗せる ── リアクションの
+        # 問い合わせが、この頁ぜんぶで一回で済む。
+        [post | replies] =
+          with_reactions(
+            [post_view(note, dn, author) | replies_of(note, dn.deco_id)],
+            viewer_id
+          )
+
+        {:ok, Map.put(post, :replies, replies)}
     end
   end
 
@@ -540,6 +550,19 @@ defmodule SukhiFedi.Addons.Deco do
   # write/3 が板に書いたときだけ作る)。親と同じ板に属することは
   # in_reply_to_ap_id の一致だけで足りるので、行が無くても弾かない。
   # そのぶん `deco_id` は呼び出し側から親のを渡してもらう。
+  # 組み上がった view に、絵文字リアクションをまとめて乗せる。
+  # `Notes.reactions_for_notes/2` は note_id の列で一回引くので、
+  # `reply_count/1` のような一行ずつの問い合わせにはならない。
+  #
+  # 並びには使わない ── 反応は返事であって点数ではないので、
+  # 数の多いものが上に行く形は持たない。
+  defp with_reactions([], _viewer_id), do: []
+
+  defp with_reactions(views, viewer_id) do
+    by_id = Notes.reactions_for_notes(Enum.map(views, & &1.id), viewer_id)
+    Enum.map(views, fn v -> %{v | reactions: Map.get(by_id, v.id, [])} end)
+  end
+
   defp post_view(note, dn, author, fallback_deco_id \\ nil)
 
   defp post_view(%Note{} = n, %DecoNote{} = dn, %Account{} = author, _fallback) do
@@ -561,6 +584,10 @@ defmodule SukhiFedi.Addons.Deco do
       author: author_view(author),
       created_at: n.created_at,
       reply_count: reply_count(n),
+      # 既定は空。読む口(`list_posts/2`・`get_post/2`)は `with_reactions/2`
+      # でここを上書きする ── 書いたばかりの投稿は本当に空なので、
+      # 書く口はそのままでいい。
+      reactions: [],
       local_only: dn.local_only || false
     }
   end
@@ -579,6 +606,7 @@ defmodule SukhiFedi.Addons.Deco do
       author: author_view(author),
       created_at: n.created_at,
       reply_count: reply_count(n),
+      reactions: [],
       local_only: false
     }
   end

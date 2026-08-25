@@ -88,11 +88,15 @@ defmodule SukhiApi.Capabilities.Deco do
       |> put_int(:before_id, q["before_id"])
       |> put_datetime(:before_activity_at, q["before_activity_at"])
 
+    # 読むのは誰でも(viewer は無くていい)。居るときだけ渡すのは、
+    # リアクションの `me` を立てるため。
+    opts = put_viewer(opts, viewer(req))
+
     call(:list_posts, [req[:path_params]["slug"], opts], &ok(200, &1))
   end
 
   def show_post(req) do
-    call(:get_post, [req[:path_params]["id"]], &ok(200, &1))
+    call(:get_post, [req[:path_params]["id"], viewer_id(req)], &ok(200, &1))
   end
 
   def post(req) do
@@ -176,6 +180,16 @@ defmodule SukhiApi.Capabilities.Deco do
   end
 
   defp viewer(req), do: (req[:assigns] || %{})[:current_account]
+
+  defp viewer_id(req) do
+    case viewer(req) do
+      %{id: id} -> id
+      _ -> nil
+    end
+  end
+
+  defp put_viewer(opts, %{id: id}), do: Keyword.put(opts, :viewer_id, id)
+  defp put_viewer(opts, _), do: opts
 
   defp take(body, keys), do: Map.take(body, keys)
 

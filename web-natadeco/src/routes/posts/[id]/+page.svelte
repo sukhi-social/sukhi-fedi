@@ -16,6 +16,7 @@
   import { renderEmojis } from '$lib/emoji';
   import { t, getLang, langNames } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
+  import Reactions from '$lib/Reactions.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
   import VisibilityPicker from '$lib/VisibilityPicker.svelte';
   import MarkdownToolbar from '$lib/MarkdownToolbar.svelte';
@@ -246,6 +247,7 @@
         </p>
       </div>
       <div class="body">{@html renderEmojis(localized(post.content_html, post.content_html_i18n), post.emojis)}</div>
+      <Reactions id={post.id} bind:reactions={post.reactions} />
       <div class="actions">
         {#if myAcct === post.author.acct}
           <button type="button" class="linklike" onclick={() => post && startEdit(post)}
@@ -273,6 +275,7 @@
               {#if r.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
             </p>
             <div class="body">{@html renderEmojis(localized(r.content_html, r.content_html_i18n), r.emojis)}</div>
+            <Reactions id={r.id} bind:reactions={r.reactions} />
             <div class="actions">
               {#if myAcct === r.author.acct}
                 <button type="button" class="linklike" onclick={() => startEdit(r)}>{t().postDetail.edit}</button>

@@ -560,4 +560,45 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert {:ok, _} = Deco.post(author, deco.slug, %{"title" => "だいじょうぶ", "status" => "…"})
     end
   end
+
+  describe "反応" do
+    # 返事を書くほど重くない「見たよ」。押せるだけでなく、読み返したときに
+    # 戻ってきて初めて意味がある ── deco の view は自分では数えないので、
+    # `with_reactions/2` が乗せているかを、ここで確かめる。
+    test "押した反応が、読み返したときに返る", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+
+      assert {:ok, _} = SukhiFedi.Notes.react(author, post.id, "✨")
+
+      assert {:ok, read} = Deco.get_post(post.id, author.id)
+      assert [%{name: "✨", count: 1, me: true}] = read.reactions
+    end
+
+    test "読む人が居なくても数は返る ── `me` が立たないだけ", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      {:ok, _} = SukhiFedi.Notes.react(author, post.id, "✨")
+
+      assert {:ok, [listed]} = Deco.list_posts(deco.slug)
+      assert [%{name: "✨", count: 1, me: false}] = listed.reactions
+    end
+
+    test "返信にも乗る", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      {:ok, r} = Deco.reply(author, post.id, %{"status" => "つづき"})
+      {:ok, _} = SukhiFedi.Notes.react(author, r.id, "🌱")
+
+      assert {:ok, read} = Deco.get_post(post.id, author.id)
+      assert read.reactions == []
+      assert [%{reactions: [%{name: "🌱", me: true}]}] = read.replies
+    end
+
+    test "誰も押していなければ空の列 ── 鍵の有無で形が変わらない", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+
+      assert {:ok, read} = Deco.get_post(post.id)
+      assert read.reactions == []
+      assert {:ok, [listed]} = Deco.list_posts(deco.slug)
+      assert listed.reactions == []
+    end
+  end
 end
