@@ -570,6 +570,18 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  # ともデコ(追っている人が言ったこと)と、その中から開く人の頁。
+  # `/notifications` は上の一段路にもう在る ── sukhi の web と同じ道を
+  # 使う。`/d/:slug` と同型で、ここを足し忘れると直リンク / リロード
+  # だけ 404 になる（実際に一度そうした）。
+  get "/tomo" do
+    serve_spa(conn)
+  end
+
+  get "/people/:id" do
+    serve_spa(conn)
+  end
+
   get "/api/nodeinfo" do
     if nodeinfo_monitor_enabled?(),
       do: ViewerController.nodeinfo_lookup(conn, []),
