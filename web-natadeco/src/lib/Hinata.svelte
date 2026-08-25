@@ -1,48 +1,45 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { t } from '$lib/i18n.svelte';
+  import { isRevealed } from '$lib/hinataVisibility.svelte';
 
-  // ひなたの一言。絵は既定で見せる。隠したい人だけ、丸を押して隠す
-  // ── どちらもトグルで行き来できて、選んだ状態は次からも覚えている
-  // (localStorage)。
-  let { children }: { children?: Snippet } = $props();
-
-  const HIDDEN_KEY = 'nd.hinataHidden';
-
-  function loadRevealed(): boolean {
-    if (typeof localStorage === 'undefined') return true;
-    try {
-      return localStorage.getItem(HIDDEN_KEY) !== '1';
-    } catch {
-      return true;
-    }
-  }
-
-  let revealed = $state(loadRevealed());
-
-  function toggle() {
-    revealed = !revealed;
-    if (typeof localStorage === 'undefined') return;
-    try {
-      localStorage.setItem(HIDDEN_KEY, revealed ? '0' : '1');
-    } catch {
-      /* 保存できなくても、この場では切り替わる */
-    }
-  }
+  // ひなたの一言。絵は既定で見せる。見せる/隠すの切り替えはここでは
+  // 持たない ── 選んだ人がどこか(/hello)で切り替えた状態を、ここは
+  // ただ映すだけ。
+  // inline ── 狭い画面で、固定をやめて流れの中に置くか。全身が入って
+  // いる絵だけ。既定の /hinata.png は画面の下端から生えるように下を
+  // 切ってあるので、流れの中に置くと途中で切れて見える。
+  let {
+    children,
+    side = 'left',
+    big = false,
+    scale = 1,
+    src = '/hinata.png',
+    inline = false
+  }: {
+    children?: Snippet;
+    side?: 'left' | 'right';
+    big?: boolean;
+    scale?: number;
+    src?: string;
+    inline?: boolean;
+  } = $props();
 </script>
 
 <div class="hinata">
   <div class="words">
     {@render children?.()}
   </div>
-  <div class="portrait-wrap">
-    {#if revealed}
-      <!-- 押せば隠せる(トグル)。 -->
-      <button type="button" class="portrait-img-btn" onclick={toggle} aria-label={t().hinata.hide}>
-        <img class="portrait-img" src="/hinata.png" alt="" />
-      </button>
+  <div
+    class="portrait-wrap"
+    class:right={side === 'right'}
+    class:inline
+    class:big
+    style={scale !== 1 ? `--hinata-scale: ${scale}` : undefined}
+  >
+    {#if isRevealed()}
+      <img class="portrait-img" {src} alt="" />
     {:else}
-      <button type="button" class="portrait" onclick={toggle} aria-label={t().hinata.reveal}>
+      <div class="portrait" aria-hidden="true">
         <!-- こころクリニックの猫ロゴを参考に、線一本だけの耳。絵の代わりに
              「誰かが居る」感じを持たせる、見せる前の姿。 -->
         <svg class="ears" viewBox="0 0 48 48" fill="none" aria-hidden="true">
@@ -59,7 +56,7 @@
             stroke-linecap="round"
           />
         </svg>
-      </button>
+      </div>
     {/if}
   </div>
 </div>
@@ -82,8 +79,8 @@
   }
 
   /* 画面の左下に固定 ── ページの中身とは別枠で、スクロールしても
-     そこに居る。BoardNav が下バーに変わる画面幅では、その上に
-     出るよう底を上げる。 */
+     そこに居る。角に置けるのは、絵のぶんの余白が本当に余っている
+     広い画面だけ。 */
   .portrait-wrap {
     position: fixed;
     left: 1rem;
@@ -91,26 +88,28 @@
     z-index: 15;
   }
 
-  @media (max-width: 680px) {
-    .portrait-wrap {
-      bottom: 4.5rem;
-    }
+  .portrait-wrap.right {
+    left: auto;
+    right: 1rem;
   }
 
-  /* 押すまでは、あたたかい色の丸に、線一本の耳だけ。 */
+  .portrait-wrap.big .portrait-img {
+    height: calc(18rem * var(--hinata-scale, 1));
+  }
+
+  .portrait-wrap.big .portrait {
+    width: calc(4rem * var(--hinata-scale, 1));
+    height: calc(4rem * var(--hinata-scale, 1));
+  }
+
+  /* 隠れているあいだは、あたたかい色の丸に、線一本の耳だけ。 */
   .portrait {
     position: relative;
     width: 3rem;
     height: 3rem;
-    padding: 0;
     border-radius: 50%;
     background: var(--blush);
     border: 1px solid var(--sun);
-    cursor: pointer;
-  }
-
-  .portrait:hover {
-    border-color: var(--ink-soft);
   }
 
   .ears {
@@ -121,17 +120,31 @@
     overflow: visible;
   }
 
-  .portrait-img-btn {
-    display: block;
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-  }
-
   .portrait-img {
     display: block;
     height: 13rem;
     width: auto;
+  }
+
+  /* 920px より狭いと、右下に固定した絵は必ず本文の上に乗る(幅を
+     20px きざみで測って出た境目)。サイドバーが下バーに変わる
+     折り返し(680px)とは別のところにあるので、ここは自分の幅を持つ。
+     狭いあいだは固定をやめて、言葉の下・本文の上に、流れの中に置く
+     ── 誰とも重ならないかわりに、その分だけ下が下がる。 */
+  @media (max-width: 919px) {
+    .portrait-wrap.inline {
+      position: static;
+      width: fit-content;
+      margin: 0.6rem auto 0;
+    }
+
+    /* 幅だけで決めると、縦長の絵が伸びすぎる。縦横どちらにも
+       上限を置いて、比率は絵そのものに任せる。 */
+    .portrait-wrap.inline.big .portrait-img {
+      width: auto;
+      height: auto;
+      max-width: min(11rem, 45vw);
+      max-height: 15rem;
+    }
   }
 </style>

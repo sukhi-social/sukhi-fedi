@@ -1,8 +1,20 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { getPost, createReply, signedIn, when, localized, type Post, type Visibility } from '$lib/api';
+  import { goto } from '$app/navigation';
+  import {
+    getPost,
+    createReply,
+    updatePost,
+    deletePost,
+    getCurrentAccount,
+    signedIn,
+    when,
+    localized,
+    type Post,
+    type Visibility
+  } from '$lib/api';
   import { renderEmojis } from '$lib/emoji';
-  import { t, getLang } from '$lib/i18n.svelte';
+  import { t, getLang, langNames } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
   import VisibilityPicker from '$lib/VisibilityPicker.svelte';
@@ -22,18 +34,101 @@
   let posting = $state(false);
   let textEl = $state<HTMLTextAreaElement | null>(null);
   let textElKo = $state<HTMLTextAreaElement | null>(null);
-  let formEl = $state<HTMLFormElement | null>(null);
 
-  // 返信先。null なら投稿そのもの ── これが既定(直接返信)。レスの
-  // 「返信する」を押すと、そのレス自身に向けて直接ぶら下がる。引用で
-  // 「誰への返信か」を本文に埋め込むのはもうしない ── in_reply_to が
-  // ちゃんと持つので。
-  let replyTarget = $state<{ id: number; label: string } | null>(null);
+  // 直す。書いたときの主言語はそのまま(タブで書き直し先を選ばせると、
+  // もう一言語だけ直したかった人が、うっかり主言語を入れ替えてしまう)。
+  // もう一つの言語ぶんが無い投稿には、その欄自体を出さない。
+  let myAcct = $state<string | null>(null);
 
-  function startReply(target: { id: number; label: string }) {
-    replyTarget = target;
-    formEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    (replyLang === 'ja' ? textEl : textElKo)?.focus();
+  $effect(() => {
+    if (signedIn()) getCurrentAccount().then((a) => (myAcct = a?.acct ?? null));
+  });
+
+  let editingId = $state<number | null>(null);
+  let editTitle = $state('');
+  let editPrimary = $state('');
+  let editSecondary = $state('');
+  let editSecondaryLang = $state<'ja' | 'ko' | null>(null);
+  let editSaving = $state(false);
+  let editError = $state<string | null>(null);
+  let editEl = $state<HTMLTextAreaElement | null>(null);
+
+  function secondaryLangOf(p: Post): 'ja' | 'ko' | null {
+    if ('ko' in p.content_i18n) return 'ko';
+    if ('ja' in p.content_i18n) return 'ja';
+    return null;
+  }
+
+  function startEdit(p: Post) {
+    editingId = p.id;
+    editTitle = p.title ?? '';
+    editPrimary = p.content;
+    editSecondaryLang = secondaryLangOf(p);
+    editSecondary = editSecondaryLang ? (p.content_i18n[editSecondaryLang] ?? '') : '';
+    editError = null;
+  }
+
+  function cancelEdit() {
+    editingId = null;
+  }
+
+  async function saveEdit(target: Post, isRoot: boolean) {
+    if (editSaving || !editPrimary.trim()) return;
+    editSaving = true;
+    editError = null;
+    try {
+      const body: { title?: string; status: string; content_i18n?: Record<string, string> } = {
+        status: editPrimary
+      };
+      if (isRoot) body.title = editTitle;
+      if (editSecondaryLang) body.content_i18n = { [editSecondaryLang]: editSecondary };
+
+      const updated = await updatePost(target.id, body);
+
+      if (!post) return;
+      post =
+        target.id === post.id
+          ? { ...post, ...updated }
+          : { ...post, replies: post.replies?.map((r) => (r.id === target.id ? { ...r, ...updated } : r)) };
+      editingId = null;
+    } catch {
+      editError = t().postDetail.editError;
+    } finally {
+      editSaving = false;
+    }
+  }
+
+  // 消す。取り消せないので、いきなり消さずワンクッション挟む
+  // (押し間違いガード)。
+  let deletingId = $state<number | null>(null);
+  let deleteError = $state<string | null>(null);
+  let deleteBusy = $state(false);
+
+  function askDelete(targetId: number) {
+    deletingId = targetId;
+    deleteError = null;
+  }
+
+  function cancelDelete() {
+    deletingId = null;
+  }
+
+  async function confirmDelete(target: Post, isRoot: boolean) {
+    if (deleteBusy) return;
+    deleteBusy = true;
+    try {
+      await deletePost(target.id);
+      if (isRoot) {
+        await goto('/');
+        return;
+      }
+      if (post) post = { ...post, replies: post.replies?.filter((r) => r.id !== target.id) };
+      deletingId = null;
+    } catch {
+      deleteError = t().postDetail.deleteError;
+    } finally {
+      deleteBusy = false;
+    }
   }
 
   $effect(() => {
@@ -57,68 +152,135 @@
     error = null;
     try {
       const made = await createReply(
-        replyTarget?.id ?? post.id,
+        post.id,
         jaFilled
           ? { status: text, content_i18n: koFilled ? { ko: textKo.trim() } : undefined, visibility }
           : { status: textKo, visibility }
       );
       // つづきは下に積む ── 掲示板は、上から下へ読むので。表示は平ら
-      // なまま(スレッドを何段にも組まない)、誰への返信かは
-      // in_reply_to が持っている。
+      // なまま(スレッドを何段にも組まない)。
       post = { ...post, replies: [...(post.replies ?? []), made] };
       text = '';
       textKo = '';
       replyLang = getLang();
       visibility = 'public';
-      replyTarget = null;
     } catch {
       error = t().postDetail.error;
     } finally {
       posting = false;
     }
   }
+
 </script>
+
+{#snippet editForm(target: Post, isRoot: boolean)}
+  <form
+    class="edit-form card"
+    onsubmit={(e) => {
+      e.preventDefault();
+      void saveEdit(target, isRoot);
+    }}
+  >
+    {#if isRoot}
+      <input type="text" bind:value={editTitle} required maxlength="120" />
+    {/if}
+    <MarkdownToolbar bind:value={editPrimary} el={editEl} />
+    <textarea
+      class="body-input"
+      bind:value={editPrimary}
+      bind:this={editEl}
+      rows="3"
+      use:autoresize
+      use:submitOnMetaEnter
+    ></textarea>
+    {#if editSecondaryLang}
+      <label class="muted small secondary-label">
+        {langNames[editSecondaryLang]}
+        <textarea class="body-input" bind:value={editSecondary} rows="2" use:autoresize></textarea>
+      </label>
+    {/if}
+    <div class="row">
+      <button class="btn" type="submit" disabled={editSaving || !editPrimary.trim()}
+        >{editSaving ? t().postDetail.editSaving : t().postDetail.editSave}</button
+      >
+      <button class="btn ghost" type="button" onclick={cancelEdit}>{t().postDetail.editCancel}</button>
+    </div>
+    {#if editError}<p class="error">{editError}</p>{/if}
+  </form>
+{/snippet}
+
+{#snippet deleteConfirm(target: Post, isRoot: boolean)}
+  <p class="confirm-delete">
+    {t().postDetail.deleteConfirm}
+    <span class="row">
+      <button
+        type="button"
+        class="linklike"
+        disabled={deleteBusy}
+        onclick={() => confirmDelete(target, isRoot)}>{t().postDetail.deleteConfirmYes}</button
+      >
+      <button type="button" class="linklike" disabled={deleteBusy} onclick={cancelDelete}
+        >{t().postDetail.editCancel}</button
+      >
+    </span>
+  </p>
+  {#if deleteError}<p class="error">{deleteError}</p>{/if}
+{/snippet}
 
 {#if loading}
   <p class="muted">{t().common.loading}</p>
 {:else if !post}
   <p class="muted">{error ?? t().postDetail.notFoundFallback}</p>
 {:else}
-  <article class="card">
-    <div class="head">
-      {#if post.title}<h1>{localized(post.title, post.title_i18n)}</h1>{/if}
-      <p>
-        <Author author={post.author} at={when(post.created_at)} />
-        {#if post.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
-      </p>
-    </div>
-    <div class="body">{@html renderEmojis(localized(post.content_html, post.content_html_i18n), post.emojis)}</div>
-    {#if signedIn()}
-      <button
-        type="button"
-        class="linklike"
-        onclick={() => post && startReply({ id: post.id, label: post.author.display_name })}
-        >{t().postDetail.reply}</button
-      >
+  <article class="post-body">
+    {#if editingId === post.id}
+      {@render editForm(post, true)}
+    {:else if deletingId === post.id}
+      {@render deleteConfirm(post, true)}
+    {:else}
+      <div class="head">
+        {#if post.title}<h1>{localized(post.title, post.title_i18n)}</h1>{/if}
+        <p>
+          <Author author={post.author} at={when(post.created_at)} />
+          {#if post.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
+        </p>
+      </div>
+      <div class="body">{@html renderEmojis(localized(post.content_html, post.content_html_i18n), post.emojis)}</div>
+      <div class="actions">
+        {#if myAcct === post.author.acct}
+          <button type="button" class="linklike" onclick={() => post && startEdit(post)}
+            >{t().postDetail.edit}</button
+          >
+          <button type="button" class="linklike" onclick={() => post && askDelete(post.id)}
+            >{t().postDetail.delete}</button
+          >
+        {/if}
+      </div>
     {/if}
   </article>
 
   {#if post.replies && post.replies.length > 0}
     <ul class="list">
       {#each post.replies as r (r.id)}
-        <li class="card reply">
-          <p>
-            <Author author={r.author} at={when(r.created_at)} />
-            {#if r.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
-          </p>
-          <div class="body">{@html renderEmojis(localized(r.content_html, r.content_html_i18n), r.emojis)}</div>
-          {#if signedIn()}
-            <button
-              type="button"
-              class="linklike"
-              onclick={() => startReply({ id: r.id, label: r.author.display_name })}
-              >{t().postDetail.reply}</button
-            >
+        <li class="reply">
+          {#if editingId === r.id}
+            {@render editForm(r, false)}
+          {:else if deletingId === r.id}
+            {@render deleteConfirm(r, false)}
+          {:else}
+            <p>
+              <Author author={r.author} at={when(r.created_at)} />
+              {#if r.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
+            </p>
+            <div class="body">{@html renderEmojis(localized(r.content_html, r.content_html_i18n), r.emojis)}</div>
+            <div class="actions">
+              {#if myAcct === r.author.acct}
+                <button type="button" class="linklike" onclick={() => startEdit(r)}>{t().postDetail.edit}</button>
+                <button type="button" class="linklike" onclick={() => askDelete(r.id)}
+                  >{t().postDetail.delete}</button
+                >
+              {/if}
+            </div>
           {/if}
         </li>
       {/each}
@@ -126,15 +288,7 @@
   {/if}
 
   {#if signedIn()}
-    <form class="card write" bind:this={formEl} onsubmit={reply}>
-      {#if replyTarget}
-        <p class="reply-target">
-          {t().postDetail.replyingTo(replyTarget.label)}
-          <button type="button" class="linklike" onclick={() => (replyTarget = null)}
-            >{t().postDetail.cancelReply}</button
-          >
-        </p>
-      {/if}
+    <form class="card write" onsubmit={reply}>
       <LangTabs bind:active={replyLang} />
       <VisibilityPicker bind:active={visibility} />
       {#if replyLang === 'ja'}
@@ -183,8 +337,16 @@
     font-family: inherit;
   }
 
+  /* カードで囲むと箱がもう一枚増えて、.measure の余白と重なって窮屈に
+     見えていた ── スレッドは上から下へ読むだけの一続きの流れなので、
+     箱に区切らず、罫線一本で分ける(掲示板・コメント欄の型)。 */
+  .post-body {
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--line);
+  }
+
   .head {
-    margin-bottom: 0.75rem;
+    margin-bottom: 1.25rem;
   }
 
   .local-badge {
@@ -196,8 +358,14 @@
     margin-left: 0.4rem;
   }
 
+  /* 見た目の文字は小さいままで、タップできる範囲だけ 44px 確保する
+     ── 上下に margin をマイナスして、見た目の余白は増やさない
+     (モバイルで実際に押せなかった、との報告で気づいた)。 */
   .linklike {
-    margin-top: 0.6rem;
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    margin: -0.7rem 0;
     background: none;
     border: none;
     padding: 0;
@@ -213,20 +381,31 @@
     text-decoration-color: var(--sun);
   }
 
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    margin-top: 0.6rem;
+  }
+
   .head p {
-    margin: 0.25rem 0 0;
+    margin: 0.4rem 0 0;
   }
 
   .list {
     list-style: none;
-    margin: 1rem 0;
+    margin: 0;
     padding: 0;
-    display: grid;
-    gap: 0.6rem;
   }
 
   .reply {
-    margin-left: 1.25rem;
+    padding: 1rem 0 1rem 0.9rem;
+    border-left: 2px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .reply:last-child {
+    border-bottom: none;
   }
 
   .reply p {
@@ -240,23 +419,8 @@
     margin-top: 1.25rem;
   }
 
-  .reply-target {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-    margin: 0;
-    padding: 0.4rem 0.7rem;
-    background: var(--sun-soft);
-    border-radius: var(--radius);
-    font-size: 0.85rem;
-    color: var(--ink-soft);
-  }
-
-  .reply-target .linklike {
-    margin-top: 0;
-  }
-
-  .write textarea {
+  .write textarea,
+  .edit-form textarea {
     width: 100%;
   }
 
@@ -266,9 +430,42 @@
     line-height: 1.9;
   }
 
+  .edit-form {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .edit-form input[type='text'] {
+    font-family: inherit;
+  }
+
+  .secondary-label {
+    display: grid;
+    gap: 0.3rem;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .ghost {
+    background: transparent;
+  }
+
   .error {
     background: var(--sun-soft);
     border-radius: var(--radius);
     padding: 0.6rem 0.9rem;
+  }
+
+  .confirm-delete {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.9rem;
+    margin: 0;
+    color: var(--ink-soft);
   }
 </style>

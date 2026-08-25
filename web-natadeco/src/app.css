@@ -14,10 +14,21 @@
   --sun: oklch(77% 0.13 75);
   --sun-soft: oklch(93% 0.05 75);
   --blush: oklch(80% 0.09 40);
-  --radius: 16px;
+  /* 16px は丸すぎて、コーナーに文字が被らないよう内側の余白を余分に
+     必要としていた。5px(blog.atfedi.de と同じ)は natadeco の丸ゴシック
+     まわりの雰囲気には角ばりすぎたので、8px に落ち着けた ── その分
+     .card の padding も詰める(下)。 */
+  --radius: 8px;
   --shadow: 0 2px 14px -6px oklch(55% 0.09 75 / 22%);
 
   --font-round: 'M PLUS Rounded 1c', ui-rounded, 'Hiragino Maru Gothic ProN', sans-serif;
+
+  /* 言語ごとの字の大きさの補正。BIZ UDPGothic は字面(文字そのものの
+     大きさ)が大きめの UD 書体で、同じ px でも Nanum Gothic の韓国語より
+     大きく見える ── sukhi-fedi 本体の web(tokens.css の --type-scale)と
+     同じ考え方で、日本語だけ少し縮めて釣り合わせる。既定は 1、
+     html[lang] の値(下)がこれを上書きする。 */
+  --type-scale: 1;
 
   /* BoardNav の幅。+layout.svelte がメイン列をこの分だけ寄せて、
      ヘッダーの中央と揃えるのに使う ── 数を二箇所に離して持たない。 */
@@ -60,6 +71,15 @@
   --shadow: 0 2px 16px -6px rgb(0 0 0 / 0.4);
 }
 
+/* 日本語は少し縮め、韓国語は縮めない ── 見た目の大きさを釣り合わせる。 */
+html[lang='ja'] {
+  --type-scale: 0.92;
+}
+
+html[lang='ko'] {
+  --type-scale: 0.96;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -82,13 +102,20 @@ body {
     'Hiragino Sans',
     'Noto Sans JP',
     sans-serif;
-  line-height: 1.75;
-  font-size: 16px;
-  /* BIZ UDPGothic は字面(文字そのものの大きさ)が大きめの UD 書体
-     ── 伝わるデザインの読みやすさガイド(yomiyasuku4)が「文字
-     サイズの5%程度の字間を」と言っている値の、地の文向けにやや
-     控えめにした版。無いと、詰まっていっぱいいっぱいに見える。 */
-  letter-spacing: 0.03em;
+  /* blog.atfedi.de(tokens.css)の --leading と同じ 1.6。前の 1.75 は
+     広すぎて、逆にゆったり大きく見える一因になっていた。 */
+  line-height: 1.6;
+  /* blog.atfedi.de の --text-base(calc(1.0625rem * var(--type-scale)))
+     とそのまま同じ式。1.0625rem は root の 16px 基準で ≒17px ── そこに
+     --type-scale(上の :root、html[lang] の値)を掛けたものが実際の
+     大きさ。全体の rem(見出し・ボタン・カード内の余白など)は root の
+     16px 基準のまま動かず、ここで決まるのは本文の字の大きさだけ。 */
+  font-size: calc(1.0625rem * var(--type-scale));
+  /* letter-spacing は付けない ── blog.atfedi.de も付けていない。前に
+     「BIZ UDPGothic が詰まって見える」対策で 0.03em を足していたが、
+     字間を空けるとかえって文章全体がゆったり・大きく見える一因に
+     なっていた(実測で確認済み)。詰まって見えるなら、字間より先に
+     行間・段落間で調整する。 */
 }
 
 a {
@@ -118,7 +145,8 @@ h2 {
 .measure {
   max-width: 46rem;
   margin: 0 auto;
-  padding: 0 1.25rem;
+  /* blog.atfedi.de の .wrap と同じ padding-inline(--space-6 = 1.5rem)。 */
+  padding: 0 1.5rem;
 }
 
 .muted {
@@ -131,9 +159,18 @@ h2 {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  /* 字間を足した(BIZ UDPGothic 対応)ぶん、箱の余白も少し足す ──
-     字だけ詰め直して枠がそのままだと、かえって窮屈さが目立つ。 */
-  padding: 1.3rem 1.5rem;
+  /* radius を 16px→8px に詰めたぶん、コーナーに文字が被らないための
+     余白も一緒に詰められる。 */
+  padding: 1.1rem 1.25rem;
+}
+
+/* .measure の左右余白(1.5rem)と、カード自身の左右余白が並ぶと重く
+   見える(実測で気づいた)。ここだけカードの内側をさらに詰める。 */
+@media (max-width: 680px) {
+  .card {
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+  }
 }
 
 button,
@@ -143,7 +180,11 @@ textarea {
   color: inherit;
 }
 
+/* タップ領域は最低 44px(Apple HIG/Material の目安)。 */
 .btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
   font-family: var(--font-round);
   font-weight: 700;
   background: var(--sun-soft);
@@ -196,7 +237,7 @@ textarea:focus {
    :global(p) は不正なセレクタとして無視されていた(既定の 1em マージン
    が代わりに効いていた)。ここで直す。
 
-   行送りは、ページ全体の line-height(1.75、上の body で設定)を
+   行送りは、ページ全体の line-height(1.6、上の body で設定)を
    そのまま継いでいるが、ここは UI の文字(ボタン・ラベル)ではなく
    「読む」ための文字なので、あえて自分の値を持たせる ── 日本語組版
    処理の要件(jlreq)を実装した LaTeX の jlreq クラスが行送りの既定に
@@ -287,11 +328,14 @@ textarea:focus {
   font-size: 1.15rem;
 }
 
+/* 1.05rem にしていたが、基本の文字サイズ(1.0625rem)とほぼ同じで、
+   拡大している意味が無かった ── 太字+字間の広さだけで見出しだと
+   わかるので、大きさは地の文と同じ(1em)のままにする。 */
 .body h3,
 .body h4 {
   font-weight: 700;
   letter-spacing: 0.02em;
-  font-size: 1.05rem;
+  font-size: 1em;
 }
 
 /* 箇条書き。ぶら下げ(2行目以降が本文の頭に揃う)はブラウザの既定の

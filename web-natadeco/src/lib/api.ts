@@ -35,6 +35,9 @@ export type Post = {
   deco_id: number;
   title: string | null;
   title_i18n: Record<string, string>;
+  // 生の Markdown ── 直すときの下書き欄に、いま書いてあるものをそのまま出すため。
+  content: string;
+  content_i18n: Record<string, string>;
   content_html: string;
   content_html_i18n: Record<string, string>;
   author: Author;
@@ -135,6 +138,34 @@ export const createReply = (
   id: number | string,
   body: { status: string; content_i18n?: Record<string, string>; visibility?: Visibility }
 ) => req<Post>('POST', `/api/v1/deco/posts/${id}/replies`, body);
+
+/** 自分の投稿・レスを直す。渡した欄だけ差し替わる。 */
+export const updatePost = (
+  id: number | string,
+  body: { title?: string; status?: string; title_i18n?: Record<string, string>; content_i18n?: Record<string, string> }
+) => req<Post>('PATCH', `/api/v1/deco/posts/${id}`, body);
+
+/** 自分の投稿・レスを消す。取り消せない。 */
+export const deletePost = (id: number | string) => req<null>('DELETE', `/api/v1/deco/posts/${id}`);
+
+/** push 通知に要る、サーバの VAPID 公開鍵。無ければ push は未設定。 */
+export async function getVapidPublicKey(): Promise<string | null> {
+  const body = await req<{ configuration?: { vapid?: { public_key?: string | null } } }>(
+    'GET',
+    '/api/v2/instance'
+  );
+  return body.configuration?.vapid?.public_key ?? null;
+}
+
+/** ブラウザの PushSubscription を、サーバに登録する。 */
+export const subscribePush = (subscription: PushSubscriptionJSON, alerts: Record<string, boolean>) =>
+  req<{ id: string; endpoint: string; alerts: Record<string, boolean> }>(
+    'POST',
+    '/api/v1/push/subscription',
+    { subscription, data: { alerts } }
+  );
+
+export const unsubscribePush = () => req<null>('DELETE', '/api/v1/push/subscription');
 
 export const createDeco = (body: {
   slug: string;

@@ -84,9 +84,18 @@
       border-top: 1px solid var(--line);
       background: var(--paper);
       overflow-x: auto;
+      /* 板が増えて横に収まりきらないとき、右(左)がまだ続いていると
+         静かに伝える ── 端を薄くフェードさせるだけの CSS 一枚、
+         スクロール位置を JS で追わなくて済む。 */
+      -webkit-mask-image: linear-gradient(to right, transparent, black 1rem, black calc(100% - 1rem), transparent);
+      mask-image: linear-gradient(to right, transparent, black 1rem, black calc(100% - 1rem), transparent);
     }
 
+    /* タップ領域は最低 44px(Apple HIG/Material の目安)。 */
     .item {
+      display: flex;
+      align-items: center;
+      min-height: 2.75rem;
       flex: none;
     }
 

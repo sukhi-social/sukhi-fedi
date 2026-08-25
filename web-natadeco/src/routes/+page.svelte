@@ -84,7 +84,7 @@
           ></a
         >
         {#if deco.description}
-          <p class="desc">{localized(deco.description, deco.description_i18n)}</p>
+          <p class="desc muted">{localized(deco.description, deco.description_i18n)}</p>
         {/if}
         <p class="muted">{t().home.postCount(deco.post_count)}</p>
       </li>
@@ -152,16 +152,20 @@
     gap: 0.75rem;
   }
 
+  /* 板の名前は、一覧でいちばん目に留まってほしい文字。1.05rem のままだと
+     --type-scale を掛けたときに地の文(1.0625rem 基準)より小さくなって
+     しまい(逆転)、下の説明文より板名のほうが小さく見えていた。
+     .body h2 と同じ 1.15rem に上げて、確実に地の文より大きくする。 */
   .name {
     font-family: var(--font-round);
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: calc(1.15rem * var(--type-scale));
     text-decoration: none;
   }
 
   .deco-suffix {
     font-weight: 400;
-    font-size: 1.05rem;
+    font-size: calc(1.15rem * var(--type-scale));
     color: var(--ink-soft);
   }
 

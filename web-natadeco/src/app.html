@@ -4,12 +4,25 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ナタデコ</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#dea663" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <script>
       // 描画の前に、前回選んだ色(あれば)を当てる ── あとから切り替えると
       // 一瞬ちらつくので。選んでいなければ何もしない(端末の設定のまま)。
       try {
         var t = localStorage.getItem('nd.theme');
         if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch {}
+      // 同じ理由で、選んである表示言語も描画の前に当てる ── html[lang]
+      // は言語ごとの文字の大きさ補正(--type-scale)の元にもなるので、
+      // 遅れて切り替わると本文の大きさまで一瞬ずれて見える。
+      try {
+        var l = localStorage.getItem('nd.lang');
+        if (l === 'ko') document.documentElement.lang = 'ko';
       } catch {}
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

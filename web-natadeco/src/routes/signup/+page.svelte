@@ -86,7 +86,7 @@
 <PageHeader title={t().signup.title} />
 
 {#if phase === 'form'}
-  <Hinata>
+  <Hinata src="/hinata-signup.png" side="right" big scale={1.5} inline>
     <p>{t().signup.welcome}</p>
     <p>{t().signup.intro}</p>
   </Hinata>
@@ -130,7 +130,7 @@
     <button class="btn" type="submit" disabled={busy}>{t().signup.create}</button>
   </form>
 {:else if phase === 'warmth'}
-  <Hinata>
+  <Hinata src="/hinata-signup.png" side="right" big scale={1.5} inline>
     <p>{t().signup.warmthTitle}</p>
     <p>
       {t().signup.warmthBody1}<br />
@@ -160,6 +160,7 @@
 
 {#if phase === 'form'}
   <p class="prose-small"><a href="/login">{t().signup.loginLink}</a></p>
+  <p class="prose-small"><a href="/hello">{t().signup.backToHello}</a></p>
 {/if}
 
 <style>
@@ -215,5 +216,12 @@
 
   .prose-small {
     margin-top: 1.25rem;
+  }
+
+  /* 行き先が二つ並ぶので、指の当たる範囲を広げる(前は 16px の行が
+     9px しか離れていなかった)。段落を分けて、あいだも空ける。 */
+  .prose-small a {
+    display: inline-block;
+    padding: 0.45rem 0;
   }
 </style>

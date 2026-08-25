@@ -39,7 +39,11 @@
     margin-bottom: 0.6rem;
   }
 
+  /* タップ領域は最低 44px(Apple HIG/Material の目安)。 */
   .tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
     font-family: var(--font-round);
     font-weight: 700;
     font-size: 0.85rem;

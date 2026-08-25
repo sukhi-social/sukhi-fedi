@@ -8,11 +8,15 @@
 
 import { browser } from '$app/environment';
 
-const CLIENT_KEY = 'sf.client';
+// v2: push スコープを足したので、古い(read write だけの)登録済み
+// アプリを使い続けさせない ── キーを変えて再登録を強制する。
+const CLIENT_KEY = 'sf.client.v2';
 const TOKEN_KEY = 'sf.token';
 const STATE_KEY = 'sf.state';
 
-const SCOPES = 'read write';
+// push が無いと `POST /api/v1/push/subscription` が scope 不足で断られる
+// ── 通知を ON にできない、で気づいた。
+const SCOPES = 'read write push';
 
 export type ClientCreds = {
   client_id: string;
@@ -51,6 +55,18 @@ export function clearToken(): void {
 
 export function isLoggedIn(): boolean {
   return !!loadToken();
+}
+
+/**
+ * いまのトークンに push スコープがあるか。**同期**で見る ── サーバに
+ * 問い合わせて確かめる版は、Notification.requestPermission() の前に
+ * await を挟んでしまい、ユーザー操作の文脈が切れて Firefox で
+ * pushManager.subscribe() が AbortError になる、という実害があった。
+ * 保存済みトークンの scope 文字列をその場で見るだけなら、間に何も挟まない。
+ */
+export function hasPushScope(): boolean {
+  const t = loadToken();
+  return !!t && t.scope.split(/\s+/).includes('push');
 }
 
 async function loadOrRegisterClient(): Promise<ClientCreds> {

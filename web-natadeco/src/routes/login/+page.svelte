@@ -154,19 +154,27 @@
     margin-bottom: 1rem;
   }
 
+  /* LangTabs と同じ寸法(タップ領域 44px 込み) ── 同じ役割(切り替え
+     タブ)はどのページでも同じ見た目に。 */
   .tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
     font-family: var(--font-round);
     font-weight: 700;
+    font-size: 0.85rem;
     background: transparent;
     border: 1px solid var(--line);
     border-radius: 999px;
-    padding: 0.4rem 1rem;
+    padding: 0.35rem 0.9rem;
     cursor: pointer;
+    color: var(--ink-soft);
   }
 
   .tab.active {
     background: var(--sun-soft);
     border-color: var(--sun);
+    color: var(--ink);
   }
 
   .stack {

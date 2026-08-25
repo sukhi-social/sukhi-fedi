@@ -44,7 +44,15 @@ type TwoPart = { prefix: string; link: string; suffix: string };
 type Dict = {
   siteName: string;
   themeToggle: { toLight: string; toDark: string };
-  nav: { boardList: string; home: string; profile: string; signOut: string; signIn: string };
+  nav: {
+    boardList: string;
+    home: string;
+    profile: string;
+    signOut: string;
+    signIn: string;
+    account: string;
+    switchLanguage: (name: string) => string;
+  };
   common: { loading: string; toDecoList: string; optional: string };
   home: {
     title: string;
@@ -93,13 +101,19 @@ type Dict = {
   postDetail: {
     notFound: string;
     notFoundFallback: string;
-    reply: string;
-    replyingTo: (name: string) => string;
-    cancelReply: string;
     replyPlaceholder: string;
     send: string;
     readOnly: TwoPart;
     error: string;
+    edit: string;
+    editCancel: string;
+    editSave: string;
+    editSaving: string;
+    editError: string;
+    delete: string;
+    deleteConfirm: string;
+    deleteConfirmYes: string;
+    deleteError: string;
   };
   login: {
     title: string;
@@ -147,6 +161,7 @@ type Dict = {
     errorValidation: string;
     errorGeneric: string;
     loginLink: string;
+    backToHello: string;
   };
   settings: {
     title: string;
@@ -157,6 +172,11 @@ type Dict = {
     saving: string;
     saved: string;
     error: string;
+    notifyLabel: string;
+    notifyOn: string;
+    notifyOff: string;
+    notifyUnsupported: string;
+    notifyDenied: string;
   };
   callback: {
     serverError: (err: string) => string;
@@ -165,16 +185,24 @@ type Dict = {
     working: string;
   };
   footer: { terms: string; privacy: string };
-  visibility: { public: string; local: string; hint: string; badge: string };
+  visibility: { label: string; public: string; local: string; hint: string; badge: string };
   toolbar: { bold: string; italic: string; link: string; list: string; quote: string; heading: string };
   hinata: { reveal: string; hide: string };
-  hello: { title: string; greeting: string; ask: string; hint: string; start: string };
+  hello: { title: string; greeting: string; aiNotice: string; start: string };
 };
 
 const ja: Dict = {
   siteName: 'ナタデコ',
   themeToggle: { toLight: '明るい色にする', toDark: '暗い色にする' },
-  nav: { boardList: '板の一覧', home: 'ホーム', profile: 'プロフィール', signOut: '出る', signIn: '入る' },
+  nav: {
+    boardList: '板の一覧',
+    home: 'ホーム',
+    profile: 'プロフィール',
+    signOut: '出る',
+    signIn: '入る',
+    account: 'アカウント',
+    switchLanguage: (name) => `${name}に切り替え`
+  },
   common: { loading: 'よみこみ中', toDecoList: 'デコの一覧へ', optional: 'なくてもいい' },
   home: {
     title: 'デコ',
@@ -227,13 +255,19 @@ const ja: Dict = {
   postDetail: {
     notFound: 'この投稿は見つかりませんでした',
     notFoundFallback: 'この投稿はありません',
-    reply: '返信する',
-    replyingTo: (name) => `${name}に、返信中`,
-    cancelReply: 'やめる',
     replyPlaceholder: 'つづきを、どうぞ',
     send: 'おくる',
     readOnly: { prefix: '読むのは誰でも。書くには、', link: '入って', suffix: 'ください。' },
-    error: '書けませんでした'
+    error: '書けませんでした',
+    edit: '直す',
+    editCancel: 'やめる',
+    editSave: 'なおす',
+    editSaving: 'なおしています…',
+    editError: '直せませんでした',
+    delete: 'なくす',
+    deleteConfirm: '本当に、なくす? もとには戻せません。',
+    deleteConfirmYes: 'なくす',
+    deleteError: '消せませんでした'
   },
   login: {
     title: '入る',
@@ -280,7 +314,8 @@ const ja: Dict = {
     errorCodeInvalid: 'コードが古いか、違っています',
     errorValidation: 'ユーザー名か、コードを見直してください',
     errorGeneric: '作れませんでした',
-    loginLink: 'もうアカウントがある方はこちら'
+    loginLink: 'もうアカウントがある方はこちら',
+    backToHello: '「はじめる前に」へもどる'
   },
   settings: {
     title: 'プロフィール',
@@ -290,7 +325,12 @@ const ja: Dict = {
     save: 'ほぞんする',
     saving: 'ほぞんしています…',
     saved: 'ほぞんしました',
-    error: '保存できませんでした'
+    error: '保存できませんでした',
+    notifyLabel: '通知',
+    notifyOn: '自分の投稿に返信があったら、知らせます',
+    notifyOff: '今は、知らせていません',
+    notifyUnsupported: 'このブラウザでは、通知を使えません',
+    notifyDenied: '通知が、ブロックされています。ブラウザの設定から許可してください。'
   },
   callback: {
     serverError: (err) => `サーバから: ${err}`,
@@ -300,6 +340,7 @@ const ja: Dict = {
   },
   footer: { terms: '利用規約', privacy: 'プライバシーポリシー' },
   visibility: {
+    label: '公開範囲',
     public: '全域',
     local: 'ローカル',
     hint: '全域は連合(他のサーバー)にも届きます。ローカルは natadeco の中だけ。',
@@ -310,8 +351,7 @@ const ja: Dict = {
   hello: {
     title: 'はじめる前に',
     greeting: 'ようこそ。ひなたです。',
-    ask: '姿は、見せています。',
-    hint: '隠したくなったら、下の丸を押してみてください。いつでも戻せます。',
+    aiNotice: 'ひなたの絵は、AIで描かれたものです。見せてもいいですか?下のスイッチで、いつでも切り替えられます。',
     start: 'はじめる'
   }
 };
@@ -319,7 +359,15 @@ const ja: Dict = {
 const ko: Dict = {
   siteName: '나타데코',
   themeToggle: { toLight: '밝게 하기', toDark: '어둡게 하기' },
-  nav: { boardList: '데코 목록', home: '홈', profile: '프로필', signOut: '나가기', signIn: '들어가기' },
+  nav: {
+    boardList: '데코 목록',
+    home: '홈',
+    profile: '프로필',
+    signOut: '나가기',
+    signIn: '들어가기',
+    account: '계정',
+    switchLanguage: (name) => `${name}(으)로 전환`
+  },
   common: { loading: '불러오는 중', toDecoList: '데코 목록으로', optional: '안 적어도 돼요' },
   home: {
     title: '데코',
@@ -372,13 +420,19 @@ const ko: Dict = {
   postDetail: {
     notFound: '이 글을 찾을 수 없었어요',
     notFoundFallback: '이런 글은 없어요',
-    reply: '답글 달기',
-    replyingTo: (name) => `${name}님에게 답글 다는 중`,
-    cancelReply: '그만두기',
     replyPlaceholder: '이어서, 편하게 적어보세요',
     send: '보내기',
     readOnly: { prefix: '누구나 읽을 수 있어요. 답글을 쓰려면 ', link: '들어가', suffix: ' 주세요.' },
-    error: '쓸 수 없었어요'
+    error: '쓸 수 없었어요',
+    edit: '수정하기',
+    editCancel: '그만두기',
+    editSave: '고치기',
+    editSaving: '고치는 중…',
+    editError: '수정할 수 없었어요',
+    delete: '지우기',
+    deleteConfirm: '정말 지울까요? 되돌릴 수 없어요.',
+    deleteConfirmYes: '지우기',
+    deleteError: '지울 수 없었어요'
   },
   login: {
     title: '들어가기',
@@ -425,7 +479,8 @@ const ko: Dict = {
     errorCodeInvalid: '코드가 오래됐거나, 틀렸어요',
     errorValidation: '아이디나 코드를 다시 확인해 주세요',
     errorGeneric: '만들 수 없었어요',
-    loginLink: '이미 계정이 있으신가요? 이쪽으로'
+    loginLink: '이미 계정이 있으신가요? 이쪽으로',
+    backToHello: "'시작하기 전에'로 돌아가기"
   },
   settings: {
     title: '프로필',
@@ -435,7 +490,12 @@ const ko: Dict = {
     save: '저장하기',
     saving: '저장하는 중…',
     saved: '저장했어요',
-    error: '저장할 수 없었어요'
+    error: '저장할 수 없었어요',
+    notifyLabel: '알림',
+    notifyOn: '내 글에 답글이 달리면 알려드려요',
+    notifyOff: '지금은 알려드리지 않아요',
+    notifyUnsupported: '이 브라우저에서는 알림을 쓸 수 없어요',
+    notifyDenied: '알림이 차단되어 있어요. 브라우저 설정에서 허용해 주세요.'
   },
   callback: {
     serverError: (err) => `서버에서: ${err}`,
@@ -445,6 +505,7 @@ const ko: Dict = {
   },
   footer: { terms: '이용약관', privacy: '개인정보 처리방침' },
   visibility: {
+    label: '공개 범위',
     public: '전역',
     local: '로컬',
     hint: '전역은 연합(다른 서버)에도 전달돼요. 로컬은 natadeco 안에서만 보여요.',
@@ -455,8 +516,7 @@ const ko: Dict = {
   hello: {
     title: '시작하기 전에',
     greeting: '어서 오세요. 히나타예요.',
-    ask: '모습을, 보여드리고 있어요.',
-    hint: '숨기고 싶어지면, 아래 동그라미를 눌러봐 주세요. 언제든 되돌릴 수 있어요.',
+    aiNotice: '히나타의 그림은, AI가 그린 거예요. 보여드려도 될까요? 아래 스위치로, 언제든 바꿀 수 있어요.',
     start: '시작하기'
   }
 };

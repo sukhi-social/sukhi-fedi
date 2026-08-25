@@ -86,8 +86,8 @@
                 <a href="/posts/{post.id}">{localized(post.title, post.title_i18n) || t().board.untitled}</a>
                 {#if post.reply_count > 0}<span class="muted count">{post.reply_count}</span>{/if}
               </td>
-              <td><Author author={post.author} compact /></td>
-              <td class="date muted">{when(post.created_at)}</td>
+              <td data-label={t().board.colAuthor}><Author author={post.author} compact /></td>
+              <td class="date muted" data-label={t().board.colDate}>{when(post.created_at)}</td>
             </tr>
           {/each}
         </tbody>
@@ -167,11 +167,44 @@
     white-space: nowrap;
   }
 
-  /* 番号は、いちばん削っても困らない列。狭い画面ではそこだけ落とす。 */
+  /* 狭い画面では、表のまま横スクロールさせず、行を一枚のカードに
+     組み直す ── 番号だけ落として残りを詰める、では欄が横に長いまま
+     窮屈だった。見出し行は隠して、その代わり著者・日付の欄の頭に
+     `data-label`(見出しと同じ文字)を出す ── 情報はデスクトップと
+     同じだけ残す。 */
   @media (max-width: 640px) {
-    .board-table th.num,
+    .board-table thead {
+      display: none;
+    }
+
+    .board-table,
+    .board-table tbody,
+    .board-table tr,
+    .board-table td {
+      display: block;
+      width: 100%;
+    }
+
+    .board-table tr {
+      padding: 0.7rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .board-table td {
+      padding: 0.15rem 0;
+      border-bottom: none;
+    }
+
     .board-table td.num {
       display: none;
+    }
+
+    .board-table td[data-label]::before {
+      content: attr(data-label);
+      display: inline-block;
+      min-width: 3.5em;
+      color: var(--ink-soft);
+      font-size: 0.78rem;
     }
   }
 

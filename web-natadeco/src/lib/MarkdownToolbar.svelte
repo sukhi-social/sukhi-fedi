@@ -96,16 +96,19 @@
 <style>
   .toolbar {
     display: flex;
-    gap: 0.3rem;
+    flex-wrap: wrap;
+    gap: 0.4rem;
     margin-bottom: 0.3rem;
   }
 
+  /* タップ領域は最低 44px 四方(Apple HIG/Material の目安)。以前は
+     2rem(32px)しか無く、スマホで押しづらいと報告があった。 */
   .toolbar button {
     background: var(--paper-raised);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    width: 2rem;
-    height: 2rem;
+    width: 2.75rem;
+    height: 2.75rem;
     display: grid;
     place-items: center;
     color: var(--ink-soft);
