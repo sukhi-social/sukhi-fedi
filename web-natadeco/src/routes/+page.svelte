@@ -123,7 +123,12 @@
       {#if deco.unread}
         <span class="glow" title={t().mine.unread} aria-label={t().mine.unread}></span>
       {/if}
-      {#if deco.description}
+      {#if deco.topic}
+        <!-- 話す板では題を要らなくしたので、一覧で見分ける手がかりは
+             ここが持つ。説明より先に出す ── 説明は変わらないが、
+             こちらは「いま」なので。 -->
+        <p class="topic"><span class="muted small">{t().topic.now}</span> {deco.topic}</p>
+      {:else if deco.description}
         <p class="desc muted">{localized(deco.description, deco.description_i18n)}</p>
       {/if}
       <p class="muted">{t().home.postCount(deco.post_count)}</p>
@@ -247,6 +252,10 @@
      ないように囲いだけ少し変える ── 玄関は板の一覧のまま。 */
   .mine .card {
     border-style: dashed;
+  }
+
+  .topic {
+    margin: 0.2rem 0;
   }
 
   .section {

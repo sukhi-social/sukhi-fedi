@@ -34,6 +34,7 @@ defmodule SukhiApi.Capabilities.Deco do
       {:get, "/api/v1/deco", &index/1},
       {:post, "/api/v1/deco/:slug/seen", &seen/1, scope: "write:statuses"},
       {:put, "/api/v1/deco/:slug/notify", &set_notify/1, scope: "write:accounts"},
+      {:put, "/api/v1/deco/:slug/topic", &set_topic/1, scope: "write:statuses"},
       {:post, "/api/v1/deco", &create_deco/1, scope: "write:statuses"},
       {:get, "/api/v1/deco/posts/:id", &show_post/1},
       {:patch, "/api/v1/deco/posts/:id", &update_post/1, scope: "write:statuses"},
@@ -52,6 +53,16 @@ defmodule SukhiApi.Capabilities.Deco do
   def index(req), do: call(:list_decos, [viewer_id(req)], &ok(200, &1))
 
   def seen(req), do: with_viewer(req, fn v -> call(:seen, [v, req[:path_params]["slug"]], &ok(200, &1)) end)
+
+  # いま話していること。書いたことがある人と、立てた人だけが変えられる。
+  def set_topic(req) do
+    with_viewer(req, fn v ->
+      topic = decode_body(req)["topic"]
+
+      # 403 も 422 も call/3 がすでに畳んでいる。
+      call(:set_topic, [v, req[:path_params]["slug"], topic], &ok(200, &1))
+    end)
+  end
 
   # この板の知らせかた。板の中の詳細設定から来る ── 一覧にボタンは無い。
   def set_notify(req) do

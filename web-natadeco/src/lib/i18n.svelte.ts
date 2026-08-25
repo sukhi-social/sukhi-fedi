@@ -223,6 +223,7 @@ type Dict = {
   footer: { terms: string; privacy: string };
   visibility: { label: string; public: string; local: string; hint: string; badge: string };
   reactions: { add: string };
+  topic: { now: string; set: string; edit: string; save: string; cancel: string; by: (who: string) => string };
   mine: {
     minding: string;
     others: string;
@@ -507,6 +508,14 @@ const ja: Dict = {
     mention: (who) => `${who} が、あなたに`,
     other: (who) => `${who} から`
   },
+  topic: {
+    now: 'いま',
+    set: 'いま話していることを、書く',
+    edit: 'なおす',
+    save: 'これにする',
+    cancel: 'やめる',
+    by: (who) => `${who} が`
+  },
   mine: {
     minding: '書いた板',
     others: 'ほかの板',
@@ -770,6 +779,14 @@ const ko: Dict = {
     follow: (who) => `${who} 님이 팔로우하기 시작했어요`,
     mention: (who) => `${who} 님이 당신에게`,
     other: (who) => `${who} 님으로부터`
+  },
+  topic: {
+    now: '지금',
+    set: '지금 이야기하는 걸 적기',
+    edit: '고치기',
+    save: '이걸로',
+    cancel: '그만두기',
+    by: (who) => `${who} 님이`
   },
   mine: {
     minding: '글을 쓴 데코',

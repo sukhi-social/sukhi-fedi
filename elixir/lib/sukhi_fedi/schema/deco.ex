@@ -38,6 +38,11 @@ defmodule SukhiFedi.Schema.Deco do
     # 読まれかた。"thread"(題つき・bump) か "talk"(平ら・書かれた順)。
     field(:kind, :string, default: "thread")
 
+    # いま話していること。板が持つ、書き換えられる一行（IRC の /topic）。
+    field(:topic, :string)
+    field(:topic_by_id, :integer)
+    field(:topic_at, :utc_datetime)
+
     field(:name_i18n, :map)
     field(:description_i18n, :map)
 
@@ -74,7 +79,10 @@ defmodule SukhiFedi.Schema.Deco do
       :description_i18n,
       :local_only,
       :has_actor,
-      :kind
+      :kind,
+      :topic,
+      :topic_by_id,
+      :topic_at
     ])
     |> update_change(:slug, &String.downcase(String.trim(&1 || "")))
     |> validate_required([:slug, :name])
@@ -82,6 +90,7 @@ defmodule SukhiFedi.Schema.Deco do
     |> validate_format(:slug, @slug_format)
     |> validate_exclusion(:slug, @reserved)
     |> validate_length(:name, max: 60)
+    |> validate_length(:topic, max: 120)
     |> validate_length(:description, max: 2_000)
     |> unique_constraint(:slug)
     |> validate_i18n_map(:name_i18n, 60)

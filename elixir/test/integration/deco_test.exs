@@ -999,4 +999,60 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert row.unread == false
     end
   end
+
+  describe "いま話していること" do
+    setup %{author: author} do
+      n = System.unique_integer([:positive])
+      {:ok, tourist} = LocalAccounts.create_admin("tourist_#{n}", "long-enough-pass")
+      {:ok, resident} = LocalAccounts.create_admin("resident_#{n}", "long-enough-pass")
+      %{tourist: tourist, resident: resident, owner: author}
+    end
+
+    test "立てた人は変えられる", %{owner: owner, deco: deco} do
+      assert {:ok, view} = Deco.set_topic(owner, deco.slug, "夜ごはんの話")
+      assert view.topic == "夜ごはんの話"
+      assert view.topic_by.acct == owner.username
+      assert view.topic_at != nil
+    end
+
+    test "その板に書いたことがある人も変えられる", %{resident: resident, deco: deco} do
+      {:ok, _} = Deco.post(resident, deco.slug, %{"title" => "題", "status" => "本文"})
+
+      assert {:ok, view} = Deco.set_topic(resident, deco.slug, "あしたの話")
+      assert view.topic_by.acct == resident.username
+    end
+
+    test "通りすがりは変えられない", %{tourist: tourist, deco: deco} do
+      assert {:error, :forbidden} = Deco.set_topic(tourist, deco.slug, "かってに")
+    end
+
+    test "返信しただけでも「書いた」ことになる", %{owner: owner, resident: resident, deco: deco} do
+      {:ok, post} = Deco.post(owner, deco.slug, %{"title" => "題", "status" => "本文"})
+      {:ok, _} = Deco.reply(resident, post.id, %{"status" => "つづき"})
+
+      assert {:ok, _} = Deco.set_topic(resident, deco.slug, "つづきの話")
+    end
+
+    test "空にすると、誰が・いつ も一緒に消える", %{owner: owner, deco: deco} do
+      {:ok, _} = Deco.set_topic(owner, deco.slug, "いちど置く")
+      assert {:ok, view} = Deco.set_topic(owner, deco.slug, "   ")
+
+      assert is_nil(view.topic)
+      assert is_nil(view.topic_by)
+      assert is_nil(view.topic_at)
+    end
+
+    test "長すぎる一行は断る", %{owner: owner, deco: deco} do
+      assert {:error, {:validation, %{topic: _}}} =
+               Deco.set_topic(owner, deco.slug, String.duplicate("あ", 121))
+    end
+
+    test "一覧にも出る ── 話す板で題を要らなくしたぶん、ここが見分けになる", %{owner: owner, deco: deco} do
+      {:ok, _} = Deco.set_topic(owner, deco.slug, "夜ごはんの話")
+
+      row = Deco.list_decos() |> Enum.find(&(&1.slug == deco.slug))
+      assert row.topic == "夜ごはんの話"
+      assert row.topic_by.acct == owner.username
+    end
+  end
 end

@@ -163,6 +163,59 @@ defmodule SukhiFedi.Addons.Deco do
   end
 
   @doc """
+  いま話していること（IRC の /topic）。
+
+  変えられるのは **その板に書いたことがある人と、立てた人**。通りすがり
+  は変えられないが、立てた人だけにもしない ── 立てた人だけの持ちものに
+  すると、三年前のまま誰も直せない一行になる。IRC でいう「居る人」に
+  あたるのが、natadeco では「書いたことがある人」。
+
+  誰が・いつ を一緒に残す。板の顔になる一行を黙って書き換えられる形に
+  はしない ──「書いた人は隠さない」と同じ理由で、それ自体が抑止になる。
+  """
+  @spec set_topic(Account.t() | integer(), String.t(), String.t() | nil) ::
+          {:ok, map()} | {:error, :not_found | :forbidden | {:validation, map()}}
+  def set_topic(account, slug, topic) do
+    aid = id_of(account)
+
+    with {:ok, %Deco{} = d} <- get_deco_record(slug),
+         :ok <- may_set_topic?(aid, d) do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      trimmed = topic && String.trim(topic)
+      cleared? = trimmed in [nil, ""]
+
+      d
+      |> Deco.changeset(%{
+        "topic" => if(cleared?, do: nil, else: trimmed),
+        "topic_by_id" => if(cleared?, do: nil, else: aid),
+        "topic_at" => if(cleared?, do: nil, else: now)
+      })
+      |> Repo.update()
+      |> case do
+        {:ok, updated} -> {:ok, view(updated, count_posts(updated.id))}
+        {:error, cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+      end
+    end
+  end
+
+  defp may_set_topic?(account_id, %Deco{id: deco_id, created_by_id: owner}) do
+    cond do
+      account_id == owner -> :ok
+      MapSet.member?(wrote_in(account_id, [deco_id]), deco_id) -> :ok
+      true -> {:error, :forbidden}
+    end
+  end
+
+  defp topic_by(%Deco{topic_by_id: nil}), do: nil
+
+  defp topic_by(%Deco{topic_by_id: id}) do
+    case Repo.get(Account, id) do
+      %Account{} = a -> author_view(a)
+      nil -> nil
+    end
+  end
+
+  @doc """
   この板の知らせかたを決める。板の中の詳細設定から来る。
 
   一覧にボタンを置かないのは、押させる動作にするほどのものではない
@@ -840,6 +893,9 @@ defmodule SukhiFedi.Addons.Deco do
       local_only: d.local_only || false,
       has_actor: d.has_actor,
       kind: d.kind || "thread",
+      topic: d.topic,
+      topic_by: topic_by(d),
+      topic_at: d.topic_at,
       post_count: post_count,
       created_at: d.created_at
     }
