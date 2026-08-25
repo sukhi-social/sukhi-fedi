@@ -909,4 +909,98 @@ defmodule SukhiFedi.Integration.DecoTest do
                Deco.create_deco(author, %{"slug" => "x#{n}", "name" => "x", "kind" => "shout"})
     end
   end
+
+  describe "入っている板と、未読" do
+    # マイデコ ── 面を一枚増やさず、板一覧の中でやる。並び替えるのは
+    # 「自分が入ったか」だけで、活動量ではない。
+    setup %{author: author} do
+      n = System.unique_integer([:positive])
+      {:ok, other} = Deco.create_deco(author, %{"slug" => "other#{n}", "name" => "あちらの板"})
+      %{other: other}
+    end
+
+    test "入る前は、入っていないし光らない", %{author: author, deco: deco} do
+      {:ok, _} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+
+      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
+      assert row.joined == false
+      assert row.unread == false
+    end
+
+    test "入ると joined になり、その時点までは読んだことになる", %{author: author, deco: deco} do
+      {:ok, _} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "むかしの話"})
+      assert {:ok, %{joined: true}} = Deco.join(author, deco.slug)
+
+      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
+      assert row.joined == true
+      # 入る前の全部が未読として積み上がると、入ることが仕事になる。
+      assert row.unread == false
+    end
+
+    test "入ったあとの動きで光り、見ると消える", %{author: author, deco: deco} do
+      {:ok, _} = Deco.join(author, deco.slug)
+      Process.sleep(1100)
+      {:ok, _} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "あたらしい話"})
+
+      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
+      assert row.unread == true
+
+      assert {:ok, %{seen: true}} = Deco.seen(author, deco.slug)
+      row2 = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
+      assert row2.unread == false
+    end
+
+    test "返信でも光る ── 誰かが答えたのも動き", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      {:ok, _} = Deco.join(author, deco.slug)
+      Process.sleep(1100)
+      {:ok, _} = Deco.reply(author, post.id, %{"status" => "つづき"})
+
+      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
+      assert row.unread == true
+    end
+
+    test "入っていない板は、動いても光らない", %{author: author, other: other} do
+      {:ok, _} = Deco.post(author, other.slug, %{"title" => "題", "status" => "本文"})
+
+      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == other.slug))
+      assert row.joined == false
+      assert row.unread == false
+    end
+
+    test "出ても、読んだ位置は残る ── また入ったら続きから", %{author: author, deco: deco} do
+      {:ok, _} = Deco.join(author, deco.slug)
+      {:ok, %{joined: false}} = Deco.leave(author, deco.slug)
+
+      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
+      assert row.joined == false
+
+      # 出ているあいだの動きは、入り直しても未読にならない。
+      {:ok, _} = Deco.join(author, deco.slug)
+      row2 = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
+      assert row2.unread == false
+    end
+
+    test "並びは名前順のまま ── 入っていても、活動量でも動かない", %{author: author, deco: deco, other: other} do
+      {:ok, _} = Deco.join(author, other.slug)
+      {:ok, _} = Deco.post(author, other.slug, %{"title" => "題", "status" => "たくさん"})
+
+      names = Deco.list_decos(author.id) |> Enum.map(& &1.name)
+      assert names == Enum.sort(names)
+
+      # 読む人が居なくても、同じ並び。
+      assert Deco.list_decos() |> Enum.map(& &1.slug) ==
+               Deco.list_decos(author.id) |> Enum.map(& &1.slug)
+
+      assert deco.name in names
+    end
+
+    test "読む人が居なければ、印は付かない", %{author: author, deco: deco} do
+      {:ok, _} = Deco.join(author, deco.slug)
+
+      row = Deco.list_decos() |> Enum.find(&(&1.slug == deco.slug))
+      assert row.joined == false
+      assert row.unread == false
+    end
+  end
 end

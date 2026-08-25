@@ -74,7 +74,9 @@ defmodule SukhiApi.Capabilities.DecoTest do
          %{
            account: @viewer,
            app: %{id: 1, name: "x"},
-           scopes: ["read:statuses", "write:statuses"]
+           # web-natadeco が実際に取るのは `read write push`。umbrella が
+           # `read:*` / `write:*` を包む（router の check_scope/2）。
+           scopes: ["read", "write"]
          }}
     })
 
@@ -135,6 +137,39 @@ defmodule SukhiApi.Capabilities.DecoTest do
 
   defp stub(pairs), do: Application.put_env(:sukhi_api, :fake_deco, Map.new(pairs))
 
+  describe "入る・出る・見た" do
+    test "一覧は viewer を渡す ── 印が付くのはそのため" do
+      stub([{{:list_decos, [7]}, {:ok, [@deco]}}])
+
+      {:ok, resp} = get_as_viewer("/api/v1/deco")
+      assert resp.status == 200
+    end
+
+    test "読む人が居なければ nil のまま（並びは変わらない）" do
+      stub([{{:list_decos, [nil]}, {:ok, [@deco]}}])
+
+      {:ok, resp} = get("/api/v1/deco")
+      assert resp.status == 200
+    end
+
+    test "入る・出る・見た は、それぞれの口に落ちる" do
+      stub([
+        {{:join, [@viewer, "hinata"]}, {:ok, %{joined: true}}},
+        {{:leave, [@viewer, "hinata"]}, {:ok, %{joined: false}}},
+        {{:seen, [@viewer, "hinata"]}, {:ok, %{seen: true}}}
+      ])
+
+      {:ok, joined} = post("/api/v1/deco/hinata/join", %{})
+      assert joined.status == 200
+
+      {:ok, left} = delete("/api/v1/deco/hinata/join")
+      assert left.status == 200
+
+      {:ok, seen} = post("/api/v1/deco/hinata/seen", %{})
+      assert seen.status == 200
+    end
+  end
+
   describe "話す板の流れ" do
     test "/flow は自分の口に落ちる" do
       stub([{{:list_flow, ["hinata", []]}, {:ok, [@post]}}])
@@ -194,7 +229,7 @@ defmodule SukhiApi.Capabilities.DecoTest do
 
   describe "読む（誰でも）" do
     test "板の一覧はトークン無しで読める" do
-      stub([{{:list_decos, []}, [@deco]}])
+      stub([{{:list_decos, [nil]}, [@deco]}])
 
       {:ok, resp} = get("/api/v1/deco")
       assert resp.status == 200

@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { listDecos, createDeco, getCurrentAccount, localized, signedIn, type Deco } from '$lib/api';
+  import {
+    listDecos,
+    createDeco,
+    joinDeco,
+    leaveDeco,
+    getCurrentAccount,
+    localized,
+    signedIn,
+    type Deco
+  } from '$lib/api';
   import { t, getLang } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
@@ -39,6 +48,30 @@
   // 別々にも持てるが、立てる人に二度訊くほどの違いは、まだ無い。
   let reach = $state<'open' | 'inside'>('open');
   let kind = $state<'thread' | 'talk'>('thread');
+
+  // 一覧を二つに分ける。分けているのは「自分が入ったか」だけで、
+  // 活動量ではない ── どちらのかたまりの中も名前順のまま。板一覧を
+  // 名前順にした決めごとは、ここでも生きている。
+  const joined = $derived(decos.filter((d) => d.joined));
+  const others = $derived(decos.filter((d) => !d.joined));
+
+  let busy = $state<string | null>(null);
+
+  async function toggleJoin(deco: Deco) {
+    if (busy) return;
+    busy = deco.slug;
+    try {
+      const r = deco.joined ? await leaveDeco(deco.slug) : await joinDeco(deco.slug);
+      decos = decos.map((d) =>
+        // 入った時点までは読んだことになるので、光りもここで消える。
+        d.slug === deco.slug ? { ...d, joined: r.joined, unread: false } : d
+      );
+    } catch {
+      // 押せなかったときは、黙って元のまま。
+    } finally {
+      busy = null;
+    }
+  }
 
   const jaComplete = $derived(!!name.trim());
   const koComplete = $derived(!!nameKo.trim());
@@ -103,20 +136,43 @@
 {:else if decos.length === 0}
   <p class="muted">{t().home.empty}</p>
 {:else}
-  <ul class="list">
-    {#each decos as deco (deco.id)}
-      <li class="card">
-        <a class="name" href="/d/{deco.slug}"
-          >{localized(deco.name, deco.name_i18n)}{t().home.separator}<span class="deco-suffix"
-            >{t().home.title}</span
-          ></a
-        >
-        {#if deco.description}
-          <p class="desc muted">{localized(deco.description, deco.description_i18n)}</p>
+  {#snippet card(deco: Deco)}
+    <li class="card" class:unread={deco.unread}>
+      <a class="name" href="/d/{deco.slug}"
+        >{localized(deco.name, deco.name_i18n)}{t().home.separator}<span class="deco-suffix"
+          >{t().home.title}</span
+        ></a
+      >
+      {#if deco.unread}
+        <span class="glow" title={t().mine.unread} aria-label={t().mine.unread}></span>
+      {/if}
+      {#if deco.description}
+        <p class="desc muted">{localized(deco.description, deco.description_i18n)}</p>
+      {/if}
+      <p class="muted">
+        {t().home.postCount(deco.post_count)}
+        {#if signedIn()}
+          <button
+            type="button"
+            class="linklike"
+            disabled={busy === deco.slug}
+            onclick={() => toggleJoin(deco)}>{deco.joined ? t().mine.leave : t().mine.join}</button
+          >
         {/if}
-        <p class="muted">{t().home.postCount(deco.post_count)}</p>
-      </li>
-    {/each}
+      </p>
+    </li>
+  {/snippet}
+
+  {#if joined.length > 0}
+    <h2 class="section muted">{t().mine.joined}</h2>
+    <ul class="list">
+      {#each joined as deco (deco.id)}{@render card(deco)}{/each}
+    </ul>
+    <h2 class="section muted">{t().mine.others}</h2>
+  {/if}
+
+  <ul class="list">
+    {#each others as deco (deco.id)}{@render card(deco)}{/each}
   </ul>
 {/if}
 
@@ -224,6 +280,28 @@
      ないように囲いだけ少し変える ── 玄関は板の一覧のまま。 */
   .mine .card {
     border-style: dashed;
+  }
+
+  .section {
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin: 1.4rem 0 0.5rem;
+  }
+
+  .section:first-of-type {
+    margin-top: 0;
+  }
+
+  /* 光るだけ。数は出さない ── 数字は圧になるし、入る板が増えるほど
+     零に戻らなくなる。sukhi の notify.ts でいう ambient のほう。 */
+  .glow {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--sun);
+    margin-left: 0.4rem;
+    vertical-align: 0.1em;
   }
 
   .name {

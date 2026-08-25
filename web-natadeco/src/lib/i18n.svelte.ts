@@ -223,6 +223,7 @@ type Dict = {
   footer: { terms: string; privacy: string };
   visibility: { label: string; public: string; local: string; hint: string; badge: string };
   reactions: { add: string };
+  mine: { joined: string; others: string; join: string; leave: string; unread: string };
   flow: { open: string; empty: string; earlier: string; endToday: string };
   tomo: {
     name: string;
@@ -498,6 +499,13 @@ const ja: Dict = {
     mention: (who) => `${who} が、あなたに`,
     other: (who) => `${who} から`
   },
+  mine: {
+    joined: 'いる板',
+    others: 'ほかの板',
+    join: '入る',
+    leave: '出る',
+    unread: 'あたらしいものがあります'
+  },
   flow: {
     open: 'ひらく',
     empty: 'まだ、なにもありません。さいしょの、ひとことに、なれます。',
@@ -752,6 +760,13 @@ const ko: Dict = {
     follow: (who) => `${who} 님이 팔로우하기 시작했어요`,
     mention: (who) => `${who} 님이 당신에게`,
     other: (who) => `${who} 님으로부터`
+  },
+  mine: {
+    joined: '들어와 있는 데코',
+    others: '다른 데코',
+    join: '들어가기',
+    leave: '나가기',
+    unread: '새로운 것이 있어요'
   },
   flow: {
     open: '펼치기',

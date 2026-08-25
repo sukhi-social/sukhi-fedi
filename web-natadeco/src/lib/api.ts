@@ -20,6 +20,11 @@ export type Deco = {
   // 表札 ── 外から見つけられる場所として立っているか。false なら
   // `{slug}-deco@domain` は引けない（書いた一件は、選べば外に出る）。
   has_actor: boolean;
+  // 読む人ごとの印。入っているか／最後に見たあとに動きがあったか。
+  // **並びには使わない** ── 上に寄せるのは読む側の仕事で、その中も
+  // 外も名前順のまま。数は数えない（光るだけ）。
+  joined: boolean;
+  unread: boolean;
   post_count: number;
   created_at: string;
 };
@@ -291,6 +296,16 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 
 export const listDecos = () => req<Deco[]>('GET', '/api/v1/deco');
 export const getDeco = (slug: string) => req<Deco>('GET', `/api/v1/deco/${encodeURIComponent(slug)}`);
+
+const decoPath = (slug: string, tail: string) =>
+  `/api/v1/deco/${encodeURIComponent(slug)}/${tail}`;
+
+/** 板に入る（IRC の JOIN）。入った時点までは読んだことになる。 */
+export const joinDeco = (slug: string) => req<{ joined: boolean }>('POST', decoPath(slug, 'join'));
+export const leaveDeco = (slug: string) => req<{ joined: boolean }>('DELETE', decoPath(slug, 'join'));
+
+/** その板を、いま見た。光りが消える。 */
+export const seenDeco = (slug: string) => req<{ seen: boolean }>('POST', decoPath(slug, 'seen'));
 
 export function listPosts(slug: string, beforeId?: number) {
   const q = beforeId ? `?before_id=${beforeId}` : '';

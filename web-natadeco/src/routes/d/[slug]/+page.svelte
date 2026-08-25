@@ -4,6 +4,7 @@
     getDeco,
     listPosts,
     listFlow,
+    seenDeco,
     startOfToday,
     signedIn,
     when,
@@ -50,6 +51,10 @@
       })
       .catch(() => (error = t().board.notFound))
       .finally(() => (loading = false));
+
+    // 開いたら、ここまで見たことにする ── 一覧の光りが消える。
+    // 入っていない板に投げても害は無い（読んだ位置が一点付くだけ）。
+    if (signedIn()) void seenDeco(s).catch(() => {});
   });
 
   // 「もっと読む」。終わりのないスクロールにはしない ── 読み終えた、

@@ -44,21 +44,143 @@ defmodule SukhiFedi.Addons.Deco do
   alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
   alias SukhiFedi.Notes.Create, as: NotesCreate
   alias SukhiFedi.Notes.Ids
-  alias SukhiFedi.Schema.{Account, Deco, DecoNote, Note}
+  alias SukhiFedi.Schema.{Account, Deco, DecoFollow, DecoNote, DecoRead, Note}
 
   # ── 板 ───────────────────────────────────────────────────────────────
 
-  @doc "板の一覧。新しい順ではなく、名前順 ── 数で競わせないため。"
-  @spec list_decos() :: [map()]
-  def list_decos do
+  @doc """
+  板の一覧。新しい順ではなく、名前順 ── 数で競わせないため。
+
+  読む人が居れば、一枚ごとに「入っているか(`joined`)」と「最後に見た
+  あとに動きがあったか(`unread`)」が付く。**並びは変えない** ──
+  入っているぶんを上へ寄せるのは読む側の仕事で、その中も外も名前順の
+  まま。活動量で並べ替えないのは、板一覧を作ったときの決めごとで、
+  ここに未読を足しても変わらない。
+  """
+  @spec list_decos(integer() | nil) :: [map()]
+  def list_decos(viewer_id \\ nil) do
     counts =
       from(dn in DecoNote, group_by: dn.deco_id, select: {dn.deco_id, count(dn.id)})
       |> Repo.all()
       |> Map.new()
 
-    from(d in Deco, order_by: [asc: d.name])
+    decos = from(d in Deco, order_by: [asc: d.name]) |> Repo.all()
+    marks = viewer_marks(viewer_id, Enum.map(decos, & &1.id))
+
+    Enum.map(decos, fn d ->
+      d
+      |> view(Map.get(counts, d.id, 0))
+      |> Map.merge(Map.get(marks, d.id, %{joined: false, unread: false}))
+    end)
+  end
+
+  # 読む人ごとの印。入っている板だけ未読を数える ── 入っていない板が
+  # 光っても、それは誘いではなく雑音になる。
+  defp viewer_marks(nil, _deco_ids), do: %{}
+  defp viewer_marks(_viewer_id, []), do: %{}
+
+  defp viewer_marks(viewer_id, deco_ids) do
+    joined =
+      from(f in DecoFollow,
+        where: f.account_id == ^viewer_id and f.deco_id in ^deco_ids and f.state == "accepted",
+        select: f.deco_id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    seen =
+      from(r in DecoRead,
+        where: r.account_id == ^viewer_id and r.deco_id in ^deco_ids,
+        select: {r.deco_id, r.seen_at}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    last = last_activity(MapSet.to_list(joined))
+
+    Map.new(deco_ids, fn id ->
+      in? = MapSet.member?(joined, id)
+
+      unread? =
+        in? and
+          case {Map.get(last, id), Map.get(seen, id)} do
+            {nil, _} -> false
+            {_at, nil} -> true
+            {at, seen_at} -> DateTime.compare(at, seen_at) == :gt
+          end
+
+      {id, %{joined: in?, unread: unread?}}
+    end)
+  end
+
+  # 板の最後の動き。返信も数える ── 誰かが答えたのも「動いた」なので。
+  defp last_activity([]), do: %{}
+
+  defp last_activity(deco_ids) do
+    from(dn in DecoNote,
+      join: n in Note,
+      on: n.id == dn.note_id,
+      where: dn.deco_id in ^deco_ids and n.visibility == "public",
+      group_by: dn.deco_id,
+      select: {dn.deco_id, max(n.created_at)}
+    )
     |> Repo.all()
-    |> Enum.map(&view(&1, Map.get(counts, &1.id, 0)))
+    |> Map.new()
+  end
+
+  @doc """
+  板に入る。IRC の JOIN ── 一覧のうち、どれが自分の部屋かを決める動作。
+
+  入った時点までは読んだことにする。入る前の全部が未読として積み上がる
+  と、入ることが仕事になってしまうので。
+  """
+  @spec join(Account.t() | integer(), String.t()) :: {:ok, map()} | {:error, :not_found}
+  def join(account, slug) do
+    aid = id_of(account)
+
+    with {:ok, %{id: deco_id}} <- get_deco(slug) do
+      %DecoFollow{}
+      |> DecoFollow.changeset(%{"deco_id" => deco_id, "account_id" => aid, "state" => "accepted"})
+      |> Repo.insert(on_conflict: :nothing, conflict_target: [:deco_id, :account_id])
+
+      mark_read(aid, deco_id)
+      {:ok, %{joined: true}}
+    end
+  end
+
+  @doc "板から出る。読んだ位置は残す ── また入ったときに、続きから。"
+  @spec leave(Account.t() | integer(), String.t()) :: {:ok, map()} | {:error, :not_found}
+  def leave(account, slug) do
+    aid = id_of(account)
+
+    with {:ok, %{id: deco_id}} <- get_deco(slug) do
+      from(f in DecoFollow, where: f.deco_id == ^deco_id and f.account_id == ^aid)
+      |> Repo.delete_all()
+
+      {:ok, %{joined: false}}
+    end
+  end
+
+  @doc "その板を、いま見た。板を開いたときに呼ぶ ── 光りが消える。"
+  @spec seen(Account.t() | integer(), String.t()) :: {:ok, map()} | {:error, :not_found}
+  def seen(account, slug) do
+    aid = id_of(account)
+
+    with {:ok, %{id: deco_id}} <- get_deco(slug) do
+      mark_read(aid, deco_id)
+      {:ok, %{seen: true}}
+    end
+  end
+
+  defp mark_read(account_id, deco_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    %DecoRead{}
+    |> DecoRead.changeset(%{"account_id" => account_id, "deco_id" => deco_id, "seen_at" => now})
+    |> Repo.insert(
+      on_conflict: [set: [seen_at: now]],
+      conflict_target: [:account_id, :deco_id]
+    )
   end
 
   @spec get_deco(String.t()) :: {:ok, map()} | {:error, :not_found}

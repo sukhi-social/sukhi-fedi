@@ -32,6 +32,9 @@ defmodule SukhiApi.Capabilities.Deco do
   def routes do
     [
       {:get, "/api/v1/deco", &index/1},
+      {:post, "/api/v1/deco/:slug/join", &join/1, scope: "write:follows"},
+      {:delete, "/api/v1/deco/:slug/join", &leave/1, scope: "write:follows"},
+      {:post, "/api/v1/deco/:slug/seen", &seen/1, scope: "write:statuses"},
       {:post, "/api/v1/deco", &create_deco/1, scope: "write:statuses"},
       {:get, "/api/v1/deco/posts/:id", &show_post/1},
       {:patch, "/api/v1/deco/posts/:id", &update_post/1, scope: "write:statuses"},
@@ -45,7 +48,20 @@ defmodule SukhiApi.Capabilities.Deco do
     ]
   end
 
-  def index(_req), do: call(:list_decos, [], &ok(200, &1))
+  # 読むのは誰でも。viewer が居るときだけ「入っているか・未読か」が付く
+  # ── 並びは viewer で変わらない（名前順のまま）。
+  def index(req), do: call(:list_decos, [viewer_id(req)], &ok(200, &1))
+
+  def join(req), do: with_viewer(req, fn v -> call(:join, [v, req[:path_params]["slug"]], &ok(200, &1)) end)
+  def leave(req), do: with_viewer(req, fn v -> call(:leave, [v, req[:path_params]["slug"]], &ok(200, &1)) end)
+  def seen(req), do: with_viewer(req, fn v -> call(:seen, [v, req[:path_params]["slug"]], &ok(200, &1)) end)
+
+  defp with_viewer(req, fun) do
+    case viewer(req) do
+      %{} = v -> fun.(v)
+      _ -> ok(403, %{error: "this endpoint requires a user-bound token"})
+    end
+  end
 
   def show(req) do
     call(:get_deco, [req[:path_params]["slug"]], &ok(200, &1))
