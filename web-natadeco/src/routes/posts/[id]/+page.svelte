@@ -31,6 +31,8 @@
   let text = $state('');
   let textKo = $state('');
   let replyLang = $state<'ja' | 'ko'>(getLang());
+  // 返事の出発点は、返す相手に合わせる ── ローカルに置かれた話へ
+  // 黙って外向きの返事が付かないように（サーバ側も同じ規則）。
   let visibility = $state<Visibility>('public');
   let posting = $state(false);
   let textEl = $state<HTMLTextAreaElement | null>(null);
@@ -136,7 +138,10 @@
     const target = id;
     loading = true;
     getPost(target)
-      .then((p) => (post = p))
+      .then((p) => {
+        post = p;
+        visibility = p.local_only ? 'local' : 'public';
+      })
       .catch(() => (error = t().postDetail.notFound))
       .finally(() => (loading = false));
   });
@@ -164,7 +169,7 @@
       text = '';
       textKo = '';
       replyLang = getLang();
-      visibility = 'public';
+      visibility = post.local_only ? 'local' : 'public';
     } catch {
       error = t().postDetail.error;
     } finally {

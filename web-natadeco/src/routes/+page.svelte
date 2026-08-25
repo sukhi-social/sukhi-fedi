@@ -34,6 +34,9 @@
 
   // どちらの言語で立ててもいい ── 日本語欄が必須、ではない。埋まって
   // いるほうの名前がそのまま主になる。
+  // 立てるときに決める、この板の出発点。書く人は一件ごとに選び直せる。
+  let decoLocalOnly = $state(false);
+
   const jaComplete = $derived(!!name.trim());
   const koComplete = $derived(!!nameKo.trim());
   const canSubmit = $derived(jaComplete || koComplete);
@@ -44,8 +47,8 @@
     saving = true;
     error = null;
     try {
-      const made = await createDeco(
-        jaComplete
+      const made = await createDeco({
+        ...(jaComplete
           ? {
               slug,
               name,
@@ -54,10 +57,12 @@
               description_i18n:
                 koComplete && descriptionKo.trim() ? { ko: descriptionKo.trim() } : undefined
             }
-          : { slug, name: nameKo.trim(), description: descriptionKo || undefined }
-      );
+          : { slug, name: nameKo.trim(), description: descriptionKo || undefined }),
+        local_only: decoLocalOnly
+      });
       decos = [...decos, made].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
       slug = name = description = nameKo = descriptionKo = '';
+      decoLocalOnly = false;
       lang = getLang();
       opening = false;
     } catch {
@@ -124,6 +129,12 @@
         </label>
       {/if}
 
+      <label class="check">
+        <input type="checkbox" bind:checked={decoLocalOnly} />
+        <span>{t().decoVisibility.label}</span>
+      </label>
+      <p class="muted small">{t().decoVisibility.hint}</p>
+
       <div class="row">
         <button class="btn" type="submit" disabled={saving || !canSubmit}>{t().home.submit}</button>
         <button class="btn ghost" type="button" onclick={() => (opening = false)}>{t().home.cancel}</button>
@@ -186,6 +197,18 @@
   label {
     display: grid;
     gap: 0.3rem;
+  }
+
+  /* 印と言葉が横に並ぶ一行 ── 他の欄は上下に組むので、ここだけ別に。 */
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .check input {
+    width: auto;
+    min-width: 0;
   }
 
   .row {

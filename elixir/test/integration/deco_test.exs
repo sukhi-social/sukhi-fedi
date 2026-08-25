@@ -601,4 +601,74 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert listed.reactions == []
     end
   end
+
+  describe "外へ出すかどうかの既定" do
+    # 板ごとの性質。静かに話す板と、外へ届けたい板が、同じサーバに
+    # 並んでいていい ── ただし既定であって、錠ではない。
+    test "既定は外に出る ── いままでの板の振る舞い", %{author: author, deco: deco} do
+      assert deco.local_only == false
+
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      assert post.local_only == false
+    end
+
+    test "ローカル既定の板では、選ばなくてもローカルで書ける", %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, quiet} =
+        Deco.create_deco(author, %{"slug" => "quiet#{n}", "name" => "しずかな板", "local_only" => true})
+
+      assert quiet.local_only == true
+
+      {:ok, post} = Deco.post(author, quiet.slug, %{"title" => "題", "status" => "本文"})
+      assert post.local_only == true
+    end
+
+    test "書く人が選べば、そちらが通る ── 板の既定を上書きできる", %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, quiet} =
+        Deco.create_deco(author, %{"slug" => "quiet#{n}", "name" => "しずかな板", "local_only" => true})
+
+      {:ok, out} =
+        Deco.post(author, quiet.slug, %{"title" => "題", "status" => "本文", "visibility" => "public"})
+
+      assert out.local_only == false
+
+      {:ok, open_deco} =
+        Deco.create_deco(author, %{"slug" => "open#{n}", "name" => "ひらいた板"})
+
+      {:ok, kept} =
+        Deco.post(author, open_deco.slug, %{"title" => "題", "status" => "本文", "visibility" => "local"})
+
+      assert kept.local_only == true
+    end
+
+    test "返信の既定は、板ではなく親に従う", %{author: author, deco: deco} do
+      n = System.unique_integer([:positive])
+
+      {:ok, quiet} =
+        Deco.create_deco(author, %{"slug" => "quiet#{n}", "name" => "しずかな板", "local_only" => true})
+
+      {:ok, post} = Deco.post(author, quiet.slug, %{"title" => "題", "status" => "本文"})
+      {:ok, r} = Deco.reply(author, post.id, %{"status" => "つづき"})
+      assert r.local_only == true
+
+      # 外に出る板でも、ローカルに置かれた一件への返事は、黙って外へ
+      # 出ない ── 部屋の中の話が、返事から漏れていかないように。
+      {:ok, kept} =
+        Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文", "visibility" => "local"})
+
+      {:ok, r2} = Deco.reply(author, kept.id, %{"status" => "つづき"})
+      assert r2.local_only == true
+    end
+
+    test "親がローカルでも、書く人が選べば外へ出せる", %{author: author, deco: deco} do
+      {:ok, kept} =
+        Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文", "visibility" => "local"})
+
+      {:ok, out} = Deco.reply(author, kept.id, %{"status" => "つづき", "visibility" => "public"})
+      assert out.local_only == false
+    end
+  end
 end

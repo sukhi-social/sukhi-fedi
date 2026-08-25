@@ -28,6 +28,9 @@ defmodule SukhiFedi.Schema.Deco do
     # ない) ── こちらは、もう一方の言語があれば添える場所。
     # 例: %{"ko" => "..."} や %{"ja" => "..."}(韓国語で立てて日本語を
     # 添えた場合はこちら)。
+    # 板ごとの、公開範囲の既定。一件ごとの事実は deco_notes.local_only。
+    field(:local_only, :boolean, default: false)
+
     field(:name_i18n, :map)
     field(:description_i18n, :map)
 
@@ -61,7 +64,8 @@ defmodule SukhiFedi.Schema.Deco do
       :ed25519_private_key_jwk,
       :ed25519_public_multibase,
       :name_i18n,
-      :description_i18n
+      :description_i18n,
+      :local_only
     ])
     |> update_change(:slug, &String.downcase(String.trim(&1 || "")))
     |> validate_required([:slug, :name])

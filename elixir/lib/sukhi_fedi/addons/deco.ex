@@ -163,7 +163,11 @@ defmodule SukhiFedi.Addons.Deco do
       write(
         id_of(author),
         deco_id,
-        Map.put(stringify(params), "in_reply_to_id", parent_ref(target))
+        Map.put(stringify(params), "in_reply_to_id", parent_ref(target)),
+        # 返事の既定は、板ではなく親に従う。ローカルに置かれた話へ
+        # 黙って外向きの返事が付くと、部屋の中の話がそこから出ていく。
+        # 書く人が選べば、そちらが通るのは変わらない。
+        parent_local_only(target)
       )
       |> notify_reply_author(target, id_of(author))
     else
@@ -219,10 +223,21 @@ defmodule SukhiFedi.Addons.Deco do
 
   # 板で選べる公開範囲は二つだけ ── 全域(連合に出す)か、ローカル
   # (natadeco の中だけ)。他の値・未指定は全域扱い。
-  defp write(account_id, deco_id, params) when is_integer(account_id) do
+  defp write(account_id, deco_id, params, default_local \\ nil)
+
+  defp write(account_id, deco_id, params, default_local) when is_integer(account_id) do
     params = stringify(params)
     {i18n, rest} = Map.split(params, ["title_i18n", "content_i18n"])
-    local_only? = Map.get(rest, "visibility") == "local"
+
+    # 書く人が選べば、それが通る。選ばなければ板の既定 ── 一件ごとに
+    # 訊かれ続けないための既定であって、板が決めてしまう錠ではない。
+    local_only? =
+      case {Map.get(rest, "visibility"), default_local} do
+        {"local", _} -> true
+        {"public", _} -> false
+        {_, nil} -> deco_local_default(deco_id)
+        {_, inherited} -> inherited
+      end
     note_params = Map.put(rest, "local_only", local_only?)
 
     with :ok <- check_pace(account_id) do
@@ -540,6 +555,7 @@ defmodule SukhiFedi.Addons.Deco do
       name_i18n: d.name_i18n || %{},
       description: d.description,
       description_i18n: d.description_i18n || %{},
+      local_only: d.local_only || false,
       post_count: post_count,
       created_at: d.created_at
     }
@@ -550,6 +566,20 @@ defmodule SukhiFedi.Addons.Deco do
   # write/3 が板に書いたときだけ作る)。親と同じ板に属することは
   # in_reply_to_ap_id の一致だけで足りるので、行が無くても弾かない。
   # そのぶん `deco_id` は呼び出し側から親のを渡してもらう。
+  # 親の公開範囲。連合越しに届いた親には deco_notes の行が無いので、
+  # そのときは板の既定に落ちる(nil を返す)。
+  defp parent_local_only(%Note{id: id}) do
+    case Repo.get_by(DecoNote, note_id: id) do
+      %DecoNote{local_only: v} -> v
+      nil -> nil
+    end
+  end
+
+  # その板の、公開範囲の既定。無い板は外に出る側（移行前の振る舞い）。
+  defp deco_local_default(deco_id) do
+    Repo.one(from(d in Deco, where: d.id == ^deco_id, select: d.local_only)) || false
+  end
+
   # 組み上がった view に、絵文字リアクションをまとめて乗せる。
   # `Notes.reactions_for_notes/2` は note_id の列で一回引くので、
   # `reply_count/1` のような一行ずつの問い合わせにはならない。

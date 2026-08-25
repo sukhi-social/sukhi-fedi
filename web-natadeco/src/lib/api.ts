@@ -13,6 +13,8 @@ export type Deco = {
   name_i18n: Record<string, string>;
   description: string | null;
   description_i18n: Record<string, string>;
+  // この板は、ふつうどちらで書くか。一件ごとには書く人が選べる（既定であって錠ではない）。
+  local_only: boolean;
   post_count: number;
   created_at: string;
 };
@@ -195,6 +197,7 @@ export const createDeco = (body: {
   description?: string;
   name_i18n?: Record<string, string>;
   description_i18n?: Record<string, string>;
+  local_only?: boolean;
 }) => req<Deco>('POST', '/api/v1/deco', body);
 
 /**

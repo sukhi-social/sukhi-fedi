@@ -57,7 +57,14 @@ defmodule SukhiApi.Capabilities.Deco do
       body = decode_body(req)
       call(
         :create_deco,
-        [admin, take(body, ["slug", "name", "description", "name_i18n", "description_i18n"])],
+        [admin, take(body, [
+          "slug",
+          "name",
+          "description",
+          "name_i18n",
+          "description_i18n",
+          "local_only"
+        ])],
         &ok(201, &1)
       )
     else

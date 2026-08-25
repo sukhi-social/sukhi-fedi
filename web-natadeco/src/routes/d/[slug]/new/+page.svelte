@@ -21,6 +21,8 @@
   let titleKo = $state('');
   let textKo = $state('');
   let lang = $state<'ja' | 'ko'>(getLang());
+  // 選ばれていないあいだは、この板がふつうどちらで書くか。
+  // 一件ごとに訊かれ続けないための出発点で、選び直せる。
   let visibility = $state<Visibility>('public');
   let posting = $state(false);
   let error = $state<string | null>(null);
@@ -50,7 +52,10 @@
     markComposeTipSeen();
 
     getDeco(s)
-      .then((d) => (deco = d))
+      .then((d) => {
+        deco = d;
+        visibility = d.local_only ? 'local' : 'public';
+      })
       .catch(() => (notFound = true))
       .finally(() => (loading = false));
   });

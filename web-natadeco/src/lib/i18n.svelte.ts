@@ -223,6 +223,7 @@ type Dict = {
   footer: { terms: string; privacy: string };
   visibility: { label: string; public: string; local: string; hint: string; badge: string };
   reactions: { add: string };
+  decoVisibility: { label: string; hint: string };
   toolbar: { bold: string; italic: string; link: string; list: string; quote: string; heading: string };
   hinata: { reveal: string; hide: string };
   hello: { title: string; greeting: string; aiNotice: string; start: string };
@@ -421,6 +422,10 @@ const ja: Dict = {
     badge: 'ローカル'
   },
   reactions: { add: 'ひとつ、そえる' },
+  decoVisibility: {
+    label: 'この板は、外に出さない',
+    hint: '書くときに一件ずつ選び直せます。ここで決めるのは、その出発点です。'
+  },
   toolbar: { bold: '太字', italic: '斜体', link: 'リンク', list: 'リスト', quote: '引用', heading: '見出し' },
   hinata: { reveal: 'ひなたを見てみる', hide: 'ひなたを隠す' },
   hello: {
@@ -624,6 +629,10 @@ const ko: Dict = {
     badge: '로컬'
   },
   reactions: { add: '가볍게 남기기' },
+  decoVisibility: {
+    label: '이 데코는 밖으로 내보내지 않기',
+    hint: '글을 쓸 때 하나씩 다시 고를 수 있어요. 여기서 정하는 건 그 출발점이에요.'
+  },
   toolbar: { bold: '굵게', italic: '기울임', link: '링크', list: '목록', quote: '인용', heading: '제목' },
   hinata: { reveal: '히나타를 보기', hide: '히나타를 숨기기' },
   hello: {
