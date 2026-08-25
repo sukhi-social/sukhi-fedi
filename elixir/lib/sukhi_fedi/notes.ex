@@ -23,7 +23,7 @@ defmodule SukhiFedi.Notes do
 
   import Ecto.Query
 
-  alias SukhiFedi.Notes.{Counts, Create, Interactions, Read, Thread}
+  alias SukhiFedi.Notes.{Counts, Create, Interactions, Read, Thread, Parents}
   alias SukhiFedi.Schema.Note
 
   # ── origin ───────────────────────────────────────────────────────────────
@@ -81,6 +81,10 @@ defmodule SukhiFedi.Notes do
   defdelegate counts_for_note(note_id), to: Counts
   defdelegate counts_for_notes(note_ids), to: Counts
   defdelegate reactions_for_notes(note_ids, viewer_id \\ nil), to: Counts
+
+  # 平らに並べる面が返信へ添える、親の一行（`Notes.Parents`）。
+  defdelegate parents_for_notes(note_ids), to: Parents, as: :for_note_ids
+  defdelegate parents_by_ap_id(ap_ids), to: Parents, as: :by_ap_id
   defdelegate viewer_flags(account_id, note_id), to: Counts
   defdelegate viewer_flags_many(account_id, note_ids), to: Counts
 end

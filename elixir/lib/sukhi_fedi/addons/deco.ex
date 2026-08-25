@@ -577,47 +577,15 @@ defmodule SukhiFedi.Addons.Deco do
     end
   end
 
-  # 返信が指している親を、この頁ぶんまとめて一度に引く。行ごとに
-  # 引くと、頁の長さだけ問い合わせが増える。
-  #
-  # 抱えるのは「誰に向けた言葉か」が分かるぶんだけ ── 本文をもう一度
-  # 積むと、同じものが二度並ぶ。連合越しの親など手元に無いものは
-  # `nil` のまま（「返信」とだけ出る）。
+  # 返信が指している親を、この頁ぶんまとめて一度に添える。中身は
+  # `SukhiFedi.Notes.Parents` ── 友デコ(Mastodon の home)も同じ形で
+  # 親を抱えるので、道は一本にしてある。
   defp with_parents(views) do
-    parent_ap_ids =
-      views |> Enum.map(& &1.in_reply_to_ap_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
-
-    parents =
-      if parent_ap_ids == [] do
-        %{}
-      else
-        from(n in Note,
-          join: a in Account,
-          on: a.id == n.account_id,
-          where: n.ap_id in ^parent_ap_ids,
-          select: {n.ap_id, n, a}
-        )
-        |> Repo.all()
-        |> Map.new(fn {ap_id, n, a} ->
-          {ap_id, %{id: n.id, author: author_view(a), excerpt: excerpt(n)}}
-        end)
-      end
+    parents = Notes.parents_by_ap_id(Enum.map(views, & &1.in_reply_to_ap_id))
 
     Enum.map(views, fn v ->
       Map.put(v, :parent, v.in_reply_to_ap_id && Map.get(parents, v.in_reply_to_ap_id))
     end)
-  end
-
-  @excerpt_len 80
-
-  # 親を思い出すぶんの一行。HTML を剥いで、一行に畳んで、切る。
-  defp excerpt(%Note{} = n) do
-    n
-    |> Note.html()
-    |> String.replace(~r{<[^>]*>}, "")
-    |> String.replace(~r{\s+}, " ")
-    |> String.trim()
-    |> String.slice(0, @excerpt_len)
   end
 
   # `coalesce(la.at, n.created_at)` の型が subquery を跨ぐと Ecto に

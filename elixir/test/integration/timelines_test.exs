@@ -67,6 +67,73 @@ defmodule SukhiFedi.Integration.TimelinesTest do
     end
   end
 
+  describe "home/2 exclude_self" do
+    # 「友達が言ったこと」の面。自分の投稿が自分の面に居るのは、
+    # 反応の付かない自分の行を自分で何度も見ることでもある。
+    test "自分の投稿とブーストが落ちて、友達のは残る" do
+      alice = create_account!("alice_xs")
+      bob = create_account!("bob_xs")
+
+      {:ok, _} = Social.request_follow(alice, bob.id)
+      {:ok, mine} = Notes.create_status(alice, %{"status" => "わたしの"})
+      {:ok, theirs} = Notes.create_status(bob, %{"status" => "ともだちの"})
+
+      with_self = Timelines.home(alice, limit: 50) |> Enum.map(& &1.id)
+      assert mine.id in with_self
+      assert theirs.id in with_self
+
+      without = Timelines.home(alice, limit: 50, exclude_self: true) |> Enum.map(& &1.id)
+      refute mine.id in without
+      assert theirs.id in without
+    end
+
+    test "自分のブーストも落ちる" do
+      alice = create_account!("alice_xsb")
+      bob = create_account!("bob_xsb")
+      carol = create_account!("carol_xsb")
+
+      {:ok, _} = Social.request_follow(alice, bob.id)
+      {:ok, note} = Notes.create_status(carol, %{"status" => "よそのひと"})
+
+      # alice が自分でブーストしたものは、alice の面には出ない。
+      {:ok, _} = Notes.reblog(alice, note.id)
+      {:ok, _} = Notes.create_status(bob, %{"status" => "ともだちの"})
+
+      rows = Timelines.home(alice, limit: 50, exclude_self: true)
+      refute Enum.any?(rows, fn r -> Map.get(r, :__boost__) && r.account.id == alice.id end)
+      assert Enum.any?(rows, &(Map.get(&1, :account_id) == bob.id))
+    end
+  end
+
+  describe "parents_for_notes/1" do
+    # 平らに並べる面が返信へ添える一行。話す板と友デコで同じ道を通る。
+    test "返信は親の一行を持ち、親を持たない投稿は地図に載らない" do
+      alice = create_account!("alice_par")
+
+      {:ok, parent} = Notes.create_status(alice, %{"status" => "この板の名前どうしよう"})
+      {:ok, reply} = Notes.create_status(alice, %{"status" => "ナタデコでいいと思う", "in_reply_to_id" => parent.id})
+
+      map = Notes.parents_for_notes([parent.id, reply.id])
+
+      refute Map.has_key?(map, parent.id)
+      assert %{id: pid, excerpt: excerpt, author: %{acct: "alice_par"}} = map[reply.id]
+      assert pid == parent.id
+      assert excerpt =~ "この板の名前どうしよう"
+    end
+
+    test "抜粋は素の一行 ── HTML も改行も畳んである" do
+      alice = create_account!("alice_par2")
+
+      {:ok, parent} = Notes.create_status(alice, %{"status" => "**ふとい**字と\n\n改行"})
+      {:ok, reply} = Notes.create_status(alice, %{"status" => "つづき", "in_reply_to_id" => parent.id})
+
+      %{excerpt: excerpt} = Notes.parents_for_notes([reply.id])[reply.id]
+      refute excerpt =~ "<"
+      refute excerpt =~ "\n"
+      assert excerpt =~ "ふとい"
+    end
+  end
+
   describe "home/2 filters" do
     test "hide_sensitive drops sensitive and CW posts" do
       alice = create_account!("alice_filt")

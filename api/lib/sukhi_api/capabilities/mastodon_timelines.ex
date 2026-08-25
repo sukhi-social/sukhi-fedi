@@ -225,6 +225,8 @@ defmodule SukhiApi.Capabilities.MastodonTimelines do
     |> Map.put(:only_media, parsed["only_media"] in ["true", "1"])
     |> Map.put(:hide_boosts, parsed["hide_boosts"] in ["true", "1"])
     |> Map.put(:hide_sensitive, parsed["hide_sensitive"] in ["true", "1"])
+    # 自分の投稿を外す(Mastodon の spec には無い、こちらの足しもの)。
+    |> Map.put(:exclude_self, parsed["exclude_self"] in ["true", "1"])
   end
 
   defp maybe_put_viewer(opts, %{id: id}), do: Map.put(opts, :viewer_id, id)

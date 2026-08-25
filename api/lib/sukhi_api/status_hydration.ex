@@ -21,6 +21,11 @@ defmodule SukhiApi.StatusHydration do
   alias SukhiApi.GatewayRpc
   alias SukhiApi.Views.MastodonStatus
 
+  # 平らに並べる面（友デコ）が返信へ添える、親の一行。natadeco の
+  # 話す板と同じ `SukhiFedi.Notes.Parents` から来る ── スレッドを
+  # 組まない画面で、誰に向けた言葉かだけを一段ぶん見せるため。
+  # Mastodon の spec には無い鍵なので、他のクライアントは素通りする。
+
   @doc "Render one note (or nil) with reaction chips from `viewer`'s view."
   @spec one(map() | nil, map() | nil) :: map() | nil
   def one(nil, _viewer), do: nil
@@ -61,6 +66,12 @@ defmodule SukhiApi.StatusHydration do
         _ -> %{}
       end
 
-    MastodonStatus.render_list(notes, counts, viewer_flags, reactions, cards)
+    parents =
+      case GatewayRpc.call(SukhiFedi.Notes, :parents_for_notes, [note_ids]) do
+        {:ok, m} when is_map(m) -> m
+        _ -> %{}
+      end
+
+    MastodonStatus.render_list(notes, counts, viewer_flags, reactions, cards, parents)
   end
 end

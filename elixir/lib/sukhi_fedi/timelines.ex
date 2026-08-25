@@ -34,6 +34,9 @@ defmodule SukhiFedi.Timelines do
   plus the viewer's own notes, interleaved with boosts (reblogs) by those
   same accounts. Newest first. Mastodon pagination opts.
 
+  `:exclude_self` drops the viewer's own notes and boosts — for a surface
+  that means "what my friends said" rather than "everything I can see".
+
   Boosts come back as wrapper maps (`%{__boost__: true, ...}`) carrying the
   booster and the already-enriched boosted note; `MastodonStatus.render`
   turns each into a reblog Status. Notes come back as `%Note{}` as before.
@@ -72,8 +75,18 @@ defmodule SukhiFedi.Timelines do
     # id-subtraction, one global set.
     hidden = Moderation.hidden_author_ids(id) ++ Moderation.silenced_author_ids()
 
-    note_account_ids = [id | following_account_ids -- hidden]
-    boost_account_ids = [id | following_account_ids -- excluded -- pl.hide_boosts -- hidden]
+    # `:exclude_self` ── 自分の投稿を、自分の読む面から外す。
+    #
+    # Mastodon の home が自分を抱えているのは、他に置き場が無かった
+    # 名残りでもある(出した確認・会話の文脈・振り返り)。natadeco では
+    # それぞれに家がある ── 出したことは板で見え、会話の文脈は返信が
+    # 親を一段抱えるので読め、振り返りはプロフィール、反応が来たかは
+    # 通知。残るのは「反応の付かない自分の投稿を、自分で何度も見る」
+    # ことだけなので、外せるようにしておく。
+    mine = if opts[:exclude_self], do: [], else: [id]
+
+    note_account_ids = mine ++ (following_account_ids -- hidden)
+    boost_account_ids = mine ++ (following_account_ids -- excluded -- pl.hide_boosts -- hidden)
 
     notes =
       Note

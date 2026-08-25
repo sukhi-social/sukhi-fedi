@@ -93,7 +93,12 @@ defmodule SukhiApi.Views.MastodonStatus do
       # Sukhi extension. Pleroma-compatible shape: list of
       # %{name, count, me, url, static_url}. Mastodon clients ignore
       # the unknown key; Sukhi web reads it for reaction chips.
-      reactions: Map.get(ctx, :reactions, [])
+      reactions: Map.get(ctx, :reactions, []),
+      # Sukhi extension. One line of what this is answering — who, and
+      # a plain-text excerpt — for surfaces that lay replies flat instead
+      # of threading them (natadeco's talk decos, 友デコ). One level, never
+      # the grandparent; nil when there is no parent or we don't hold it.
+      parent: render_parent(Map.get(ctx, :parent))
     }
   end
 
@@ -107,7 +112,8 @@ defmodule SukhiApi.Views.MastodonStatus do
         counts_by_id \\ %{},
         viewer_by_id \\ %{},
         reactions_by_id \\ %{},
-        cards_by_id \\ %{}
+        cards_by_id \\ %{},
+        parents_by_id \\ %{}
       )
       when is_list(notes) do
     Enum.map(notes, fn n ->
@@ -119,7 +125,8 @@ defmodule SukhiApi.Views.MastodonStatus do
         counts: Map.get(counts_by_id, key, %{}),
         viewer: Map.get(viewer_by_id, key, %{}),
         reactions: Map.get(reactions_by_id, key, []),
-        card: Map.get(cards_by_id, key)
+        card: Map.get(cards_by_id, key),
+        parent: Map.get(parents_by_id, key)
       })
     end)
   end
@@ -310,6 +317,16 @@ defmodule SukhiApi.Views.MastodonStatus do
       Regex.match?(re, html) && Regex.replace(re, html, replacement)
     end)
   end
+
+  # 親の一行。id だけ Mastodon の外向きの形（文字列）に揃える ──
+  # 中身は本文ではないので、Status を丸ごと入れ子にはしない。
+  defp render_parent(nil), do: nil
+
+  defp render_parent(%{id: id, author: author, excerpt: excerpt}) do
+    %{id: Id.encode(id), author: author, excerpt: excerpt}
+  end
+
+  defp render_parent(_), do: nil
 
   defp render_account(note) do
     account = Map.get(note, :account)
