@@ -147,6 +147,29 @@ defmodule SukhiFedi.Web.WebfingerController do
     end
   end
 
+  @doc """
+  `/.well-known/host-meta` ── RFC 6415 の XRD で「lrdd はここ」と一行
+  書くだけの札。いまどきの実装は webfinger を直に叩くけれど、`acct:`
+  から先に host-meta を見る古い実装(と一部の検証ツール)はまだいて、
+  そこには「この鯖には無い」ではなく行き先が見えたほうがいい。
+
+  中身は webfinger の URL テンプレート一本きり。増やさない。
+  """
+  def host_meta(conn, _opts) do
+    domain = SukhiFedi.Config.domain!()
+
+    xrd = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+      <Link rel="lrdd" template="https://#{domain}/.well-known/webfinger?resource={uri}"/>
+    </XRD>
+    """
+
+    conn
+    |> put_resp_content_type("application/xrd+xml")
+    |> send_resp(200, xrd)
+  end
+
   defp send_jrd(conn, status, jrd) do
     conn
     |> put_resp_content_type("application/jrd+json")

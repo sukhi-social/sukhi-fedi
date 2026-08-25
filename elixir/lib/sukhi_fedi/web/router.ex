@@ -237,6 +237,12 @@ defmodule SukhiFedi.Web.Router do
     WebfingerController.call(conn, [])
   end
 
+  # lrdd の道しるべ。webfinger を直に叩ける相手には要らないが、
+  # host-meta から辿る実装にはここが入口になる。
+  get "/.well-known/host-meta" do
+    WebfingerController.host_meta(conn, [])
+  end
+
   # A crawler / no-JS browser asking for `/users/:name` gets the HTML
   # preview when it's enabled; an ActivityPub consumer (Accept names AP
   # JSON) gets the actor JSON exactly as before. The negotiation lives in
