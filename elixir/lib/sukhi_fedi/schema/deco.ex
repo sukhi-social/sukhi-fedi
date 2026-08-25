@@ -35,6 +35,9 @@ defmodule SukhiFedi.Schema.Deco do
     # actor も webfinger も 404 になる（鍵も持たない）。
     field(:has_actor, :boolean, default: true)
 
+    # 読まれかた。"thread"(題つき・bump) か "talk"(平ら・書かれた順)。
+    field(:kind, :string, default: "thread")
+
     field(:name_i18n, :map)
     field(:description_i18n, :map)
 
@@ -70,10 +73,12 @@ defmodule SukhiFedi.Schema.Deco do
       :name_i18n,
       :description_i18n,
       :local_only,
-      :has_actor
+      :has_actor,
+      :kind
     ])
     |> update_change(:slug, &String.downcase(String.trim(&1 || "")))
     |> validate_required([:slug, :name])
+    |> validate_inclusion(:kind, ~w(thread talk))
     |> validate_format(:slug, @slug_format)
     |> validate_exclusion(:slug, @reserved)
     |> validate_length(:name, max: 60)

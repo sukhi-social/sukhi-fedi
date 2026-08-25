@@ -40,6 +40,7 @@ defmodule SukhiApi.Capabilities.Deco do
       {:get, "/api/v1/deco/:slug", &show/1},
       {:delete, "/api/v1/deco/:slug", &delete_deco/1, scope: "write:statuses"},
       {:get, "/api/v1/deco/:slug/posts", &list_posts/1},
+      {:get, "/api/v1/deco/:slug/flow", &list_flow/1},
       {:post, "/api/v1/deco/:slug/posts", &post/1, scope: "write:statuses"}
     ]
   end
@@ -101,6 +102,21 @@ defmodule SukhiApi.Capabilities.Deco do
     opts = put_viewer(opts, viewer(req))
 
     call(:list_posts, [req[:path_params]["slug"], opts], &ok(200, &1))
+  end
+
+  # 話す板の流れ。平らに、書かれた順。板の一覧と同じで、読むのは誰でも
+  # ── viewer は反応の `me` を立てるためだけに渡す。
+  def list_flow(req) do
+    q = parse_query(req[:query])
+
+    opts =
+      []
+      |> put_int(:limit, q["limit"])
+      |> put_int(:before_id, q["before_id"])
+      |> put_int(:since_id, q["since_id"])
+      |> put_viewer(viewer(req))
+
+    call(:list_flow, [req[:path_params]["slug"], opts], &ok(200, &1))
   end
 
   def show_post(req) do

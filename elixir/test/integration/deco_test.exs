@@ -787,4 +787,109 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert anon2.content_html == mine2.content_html
     end
   end
+
+  describe "話す板" do
+    setup %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, talk} =
+        Deco.create_deco(author, %{"slug" => "talk#{n}", "name" => "はなす板", "kind" => "talk"})
+
+      %{talk: talk}
+    end
+
+    test "題が要らない ── ひとこと置くのに見出しを考えさせない", %{author: author, talk: talk} do
+      assert {:ok, post} = Deco.post(author, talk.slug, %{"status" => "おなかすいた"})
+      assert is_nil(post.title)
+      assert post.content_html =~ "おなかすいた"
+    end
+
+    test "題を付けてもいい ── 要らないだけ", %{author: author, talk: talk} do
+      assert {:ok, post} = Deco.post(author, talk.slug, %{"title" => "おしらせ", "status" => "本文"})
+      assert post.title == "おしらせ"
+    end
+
+    test "立てる板では、いままで通り題が要る", %{author: author, deco: deco} do
+      assert {:error, {:validation, %{title: _}}} = Deco.post(author, deco.slug, %{"status" => "題なし"})
+    end
+
+    test "流れは平ら ── 返信も同じ列に、書かれた順で並ぶ", %{author: author, talk: talk} do
+      {:ok, a} = Deco.post(author, talk.slug, %{"status" => "ひとつめ"})
+      {:ok, b} = Deco.reply(author, a.id, %{"status" => "それへの返事"})
+      {:ok, c} = Deco.post(author, talk.slug, %{"status" => "みっつめ"})
+
+      assert {:ok, flow} = Deco.list_flow(talk.slug)
+      assert Enum.map(flow, & &1.id) == [c.id, b.id, a.id]
+
+      # スレッド単位の一覧は、いまも返信を出さない ── 同じ板でも、
+      # 二つの数えかたが別々に立っている。
+      assert {:ok, threads} = Deco.list_posts(talk.slug)
+      ids = Enum.map(threads, & &1.id)
+      assert a.id in ids
+      assert c.id in ids
+      refute b.id in ids
+    end
+
+    test "返信は親を一段だけ抱える", %{author: author, talk: talk} do
+      {:ok, a} = Deco.post(author, talk.slug, %{"status" => "この板の名前どうしよう"})
+      {:ok, b} = Deco.reply(author, a.id, %{"status" => "ナタデコでいいと思う"})
+      {:ok, _c} = Deco.reply(author, b.id, %{"status" => "さんせい"})
+
+      assert {:ok, [third, second, first]} = Deco.list_flow(talk.slug)
+
+      assert is_nil(first.parent)
+      assert second.parent.id == a.id
+      assert second.parent.excerpt =~ "この板の名前どうしよう"
+      assert second.parent.author.acct == author.username
+
+      # 祖父は辿らない ── 一段だけ。
+      assert third.parent.id == b.id
+      assert third.parent.excerpt =~ "ナタデコ"
+    end
+
+    test "親の抜粋は素の一行 ── HTML は剥いである", %{author: author, talk: talk} do
+      {:ok, a} = Deco.post(author, talk.slug, %{"status" => "**ふとい**字と\n\n改行"})
+      {:ok, _b} = Deco.reply(author, a.id, %{"status" => "つづき"})
+
+      assert {:ok, [reply, _]} = Deco.list_flow(talk.slug)
+      refute reply.parent.excerpt =~ "<"
+      refute reply.parent.excerpt =~ "\n"
+      assert reply.parent.excerpt =~ "ふとい"
+    end
+
+    test "before_id で遡れる・since_id で今日のぶんに切れる", %{author: author, talk: talk} do
+      {:ok, a} = Deco.post(author, talk.slug, %{"status" => "ひとつめ"})
+      {:ok, b} = Deco.post(author, talk.slug, %{"status" => "ふたつめ"})
+      {:ok, c} = Deco.post(author, talk.slug, %{"status" => "みっつめ"})
+
+      assert {:ok, older} = Deco.list_flow(talk.slug, before_id: c.id)
+      assert Enum.map(older, & &1.id) == [b.id, a.id]
+
+      assert {:ok, recent} = Deco.list_flow(talk.slug, since_id: b.id)
+      assert Enum.map(recent, & &1.id) == [c.id, b.id]
+    end
+
+    test "反応も乗る", %{author: author, talk: talk} do
+      {:ok, a} = Deco.post(author, talk.slug, %{"status" => "ひとこと"})
+      {:ok, _} = SukhiFedi.Notes.react(author, a.id, "✨")
+
+      assert {:ok, [row]} = Deco.list_flow(talk.slug, viewer_id: author.id)
+      assert [%{name: "✨", count: 1, me: true}] = row.reactions
+    end
+
+    test "流れも、読む人が居なくても読める", %{author: author, talk: talk} do
+      {:ok, _} = Deco.post(author, talk.slug, %{"status" => "ひとこと", "visibility" => "local"})
+
+      assert {:ok, [row]} = Deco.list_flow(talk.slug)
+      assert row.local_only == true
+      assert row.content_html =~ "ひとこと"
+    end
+
+    test "変な kind は断る", %{author: author} do
+      n = System.unique_integer([:positive])
+
+      assert {:error, {:validation, %{kind: _}}} =
+               Deco.create_deco(author, %{"slug" => "x#{n}", "name" => "x", "kind" => "shout"})
+    end
+  end
 end

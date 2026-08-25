@@ -135,6 +135,25 @@ defmodule SukhiApi.Capabilities.DecoTest do
 
   defp stub(pairs), do: Application.put_env(:sukhi_api, :fake_deco, Map.new(pairs))
 
+  describe "話す板の流れ" do
+    test "/flow は自分の口に落ちる" do
+      stub([{{:list_flow, ["hinata", []]}, {:ok, [@post]}}])
+
+      {:ok, resp} = get("/api/v1/deco/hinata/flow")
+      assert resp.status == 200
+      assert [%{"id" => 42}] = JSON.decode!(resp.body)
+    end
+
+    test "before_id / since_id / limit が opts に乗る" do
+      stub([
+        {{:list_flow, ["hinata", [since_id: 5, before_id: 9, limit: 20]]}, {:ok, []}}
+      ])
+
+      {:ok, resp} = get("/api/v1/deco/hinata/flow?limit=20&before_id=9&since_id=5")
+      assert resp.status == 200
+    end
+  end
+
   describe "隠れた板は作れない" do
     # 読む口には scope を付けない。付けた瞬間、板は「入っている人だけの
     # 場所」になる ── natadeco の板はそうではない。gateway 側の同じ

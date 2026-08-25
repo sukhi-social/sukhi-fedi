@@ -178,13 +178,21 @@ defmodule SukhiFedi.Addons.Deco do
   @spec post(Account.t() | integer(), String.t(), map()) ::
           {:ok, map()} | {:error, :not_found | atom() | {:validation, map()}}
   def post(author, slug, params) do
-    with {:ok, %{id: deco_id}} <- get_deco(slug),
-         :ok <- require_title(params) do
+    with {:ok, %{id: deco_id, kind: kind}} <- get_deco(slug),
+         :ok <- require_title(kind, params) do
       write(id_of(author), deco_id, params)
     end
   end
 
-  defp require_title(params) do
+  # 題が要るのは「立てる」板だけ。話す板では、ひとこと置くのに
+  # 見出しを考えさせない ── 一覧に並ぶのが題ではなく、書かれた言葉
+  # そのものなので、無題でも見分けがつく。
+  #
+  # 話す板でも題は付けられる（要らないだけ）。題の有無がそのまま
+  # 連合の形（`name` を持つかどうか）になるので、禁じない。
+  defp require_title("talk", _params), do: :ok
+
+  defp require_title(_kind, params) do
     params = stringify(params)
 
     case Map.get(params, "title") do
@@ -502,6 +510,97 @@ defmodule SukhiFedi.Addons.Deco do
     end
   end
 
+  @doc """
+  話す板の流れ。平らに、書かれた順（新しい順）。
+
+  `list_posts/2` との違いは二つ ── 単位が投稿一件（スレッドではない）で、
+  並びが最終返信ではなく `id`（＝時刻）。bump は「動いている話を上に
+  留める」ための道具で、それは話題には優しく、雑談には重い。ここは
+  留めずに流す。
+
+  返信も同じ列に並ぶ。どこに向けた言葉かが消えないように、返信には
+  親を一段だけ抱えさせる（`:parent`）── 祖父は辿らない。IRC の
+  `nick:` が一段しか指さないのと同じ深さで、それで会話は追える。
+
+  opts: `:limit`（既定 40・上限 100）/ `:before_id` / `:since_id` /
+  `:viewer_id`。`:since_id` は「今日のぶんで終わる」のための下限で、
+  読む人の真夜中から作った id を渡す。
+  """
+  @spec list_flow(String.t(), keyword()) :: {:ok, [map()]} | {:error, :not_found}
+  def list_flow(slug, opts \\ []) do
+    with {:ok, %{id: deco_id}} <- get_deco(slug) do
+      limit = opts |> Keyword.get(:limit, 40) |> min(100) |> max(1)
+
+      q =
+        from(dn in DecoNote,
+          join: n in Note,
+          on: n.id == dn.note_id,
+          join: a in Account,
+          on: a.id == n.account_id,
+          where: dn.deco_id == ^deco_id and n.visibility == "public",
+          order_by: [desc: n.id],
+          limit: ^limit,
+          select: {n, dn, a}
+        )
+
+      q = if before_id = opts[:before_id], do: where(q, [dn, n], n.id < ^to_int(before_id)), else: q
+      q = if since_id = opts[:since_id], do: where(q, [dn, n], n.id >= ^to_int(since_id)), else: q
+
+      views =
+        q
+        |> Repo.all()
+        |> Enum.map(fn {n, dn, a} -> post_view(n, dn, a) end)
+
+      {:ok,
+       views
+       |> with_reactions(opts[:viewer_id])
+       |> with_parents()}
+    end
+  end
+
+  # 返信が指している親を、この頁ぶんまとめて一度に引く。行ごとに
+  # 引くと、頁の長さだけ問い合わせが増える。
+  #
+  # 抱えるのは「誰に向けた言葉か」が分かるぶんだけ ── 本文をもう一度
+  # 積むと、同じものが二度並ぶ。連合越しの親など手元に無いものは
+  # `nil` のまま（「返信」とだけ出る）。
+  defp with_parents(views) do
+    parent_ap_ids =
+      views |> Enum.map(& &1.in_reply_to_ap_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    parents =
+      if parent_ap_ids == [] do
+        %{}
+      else
+        from(n in Note,
+          join: a in Account,
+          on: a.id == n.account_id,
+          where: n.ap_id in ^parent_ap_ids,
+          select: {n.ap_id, n, a}
+        )
+        |> Repo.all()
+        |> Map.new(fn {ap_id, n, a} ->
+          {ap_id, %{id: n.id, author: author_view(a), excerpt: excerpt(n)}}
+        end)
+      end
+
+    Enum.map(views, fn v ->
+      Map.put(v, :parent, v.in_reply_to_ap_id && Map.get(parents, v.in_reply_to_ap_id))
+    end)
+  end
+
+  @excerpt_len 80
+
+  # 親を思い出すぶんの一行。HTML を剥いで、一行に畳んで、切る。
+  defp excerpt(%Note{} = n) do
+    n
+    |> Note.html()
+    |> String.replace(~r{<[^>]*>}, "")
+    |> String.replace(~r{\s+}, " ")
+    |> String.trim()
+    |> String.slice(0, @excerpt_len)
+  end
+
   # `coalesce(la.at, n.created_at)` の型が subquery を跨ぐと Ecto に
   # :utc_datetime として伝わらず、NaiveDateTime で返ってくることがある
   # ── notes.created_at は常に UTC で入っているので、その前提で戻す。
@@ -604,6 +703,7 @@ defmodule SukhiFedi.Addons.Deco do
       description_i18n: d.description_i18n || %{},
       local_only: d.local_only || false,
       has_actor: d.has_actor,
+      kind: d.kind || "thread",
       post_count: post_count,
       created_at: d.created_at
     }
@@ -662,6 +762,8 @@ defmodule SukhiFedi.Addons.Deco do
       author: author_view(author),
       created_at: n.created_at,
       reply_count: reply_count(n),
+      # 誰に向けた言葉か。話す板の流れで親を抱えるときの鍵になる。
+      in_reply_to_ap_id: n.in_reply_to_ap_id,
       # 既定は空。読む口(`list_posts/2`・`get_post/2`)は `with_reactions/2`
       # でここを上書きする ── 書いたばかりの投稿は本当に空なので、
       # 書く口はそのままでいい。
@@ -684,6 +786,7 @@ defmodule SukhiFedi.Addons.Deco do
       author: author_view(author),
       created_at: n.created_at,
       reply_count: reply_count(n),
+      in_reply_to_ap_id: n.in_reply_to_ap_id,
       reactions: [],
       local_only: false
     }
