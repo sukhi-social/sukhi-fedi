@@ -126,6 +126,15 @@ defmodule SukhiApi.Capabilities.DecoTest do
     Router.handle(%{method: "DELETE", path: path, headers: [{"authorization", "Bearer t"}]})
   end
 
+  defp put(path, body) do
+    Router.handle(%{
+      method: "PUT",
+      path: path,
+      headers: [{"authorization", "Bearer t"}, {"content-type", "application/json"}],
+      body: JSON.encode!(body)
+    })
+  end
+
   defp patch(path, body) do
     Router.handle(%{
       method: "PATCH",
@@ -137,7 +146,7 @@ defmodule SukhiApi.Capabilities.DecoTest do
 
   defp stub(pairs), do: Application.put_env(:sukhi_api, :fake_deco, Map.new(pairs))
 
-  describe "入る・出る・見た" do
+  describe "見た・知らせかた" do
     test "一覧は viewer を渡す ── 印が付くのはそのため" do
       stub([{{:list_decos, [7]}, {:ok, [@deco]}}])
 
@@ -152,21 +161,17 @@ defmodule SukhiApi.Capabilities.DecoTest do
       assert resp.status == 200
     end
 
-    test "入る・出る・見た は、それぞれの口に落ちる" do
+    test "見た・知らせかた は、それぞれの口に落ちる" do
       stub([
-        {{:join, [@viewer, "hinata"]}, {:ok, %{joined: true}}},
-        {{:leave, [@viewer, "hinata"]}, {:ok, %{joined: false}}},
-        {{:seen, [@viewer, "hinata"]}, {:ok, %{seen: true}}}
+        {{:seen, [@viewer, "hinata"]}, {:ok, %{seen: true}}},
+        {{:set_notify, [@viewer, "hinata", "all"]}, {:ok, %{notify: "all"}}}
       ])
-
-      {:ok, joined} = post("/api/v1/deco/hinata/join", %{})
-      assert joined.status == 200
-
-      {:ok, left} = delete("/api/v1/deco/hinata/join")
-      assert left.status == 200
 
       {:ok, seen} = post("/api/v1/deco/hinata/seen", %{})
       assert seen.status == 200
+
+      {:ok, notify} = put("/api/v1/deco/hinata/notify", %{notify: "all"})
+      assert notify.status == 200
     end
   end
 

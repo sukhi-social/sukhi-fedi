@@ -32,9 +32,8 @@ defmodule SukhiApi.Capabilities.Deco do
   def routes do
     [
       {:get, "/api/v1/deco", &index/1},
-      {:post, "/api/v1/deco/:slug/join", &join/1, scope: "write:follows"},
-      {:delete, "/api/v1/deco/:slug/join", &leave/1, scope: "write:follows"},
       {:post, "/api/v1/deco/:slug/seen", &seen/1, scope: "write:statuses"},
+      {:put, "/api/v1/deco/:slug/notify", &set_notify/1, scope: "write:accounts"},
       {:post, "/api/v1/deco", &create_deco/1, scope: "write:statuses"},
       {:get, "/api/v1/deco/posts/:id", &show_post/1},
       {:patch, "/api/v1/deco/posts/:id", &update_post/1, scope: "write:statuses"},
@@ -52,9 +51,15 @@ defmodule SukhiApi.Capabilities.Deco do
   # ── 並びは viewer で変わらない（名前順のまま）。
   def index(req), do: call(:list_decos, [viewer_id(req)], &ok(200, &1))
 
-  def join(req), do: with_viewer(req, fn v -> call(:join, [v, req[:path_params]["slug"]], &ok(200, &1)) end)
-  def leave(req), do: with_viewer(req, fn v -> call(:leave, [v, req[:path_params]["slug"]], &ok(200, &1)) end)
   def seen(req), do: with_viewer(req, fn v -> call(:seen, [v, req[:path_params]["slug"]], &ok(200, &1)) end)
+
+  # この板の知らせかた。板の中の詳細設定から来る ── 一覧にボタンは無い。
+  def set_notify(req) do
+    with_viewer(req, fn v ->
+      notify = decode_body(req)["notify"]
+      call(:set_notify, [v, req[:path_params]["slug"], notify], &ok(200, &1))
+    end)
+  end
 
   defp with_viewer(req, fun) do
     case viewer(req) do

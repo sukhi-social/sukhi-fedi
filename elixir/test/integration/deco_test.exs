@@ -910,96 +910,92 @@ defmodule SukhiFedi.Integration.DecoTest do
     end
   end
 
-  describe "入っている板と、未読" do
-    # マイデコ ── 面を一枚増やさず、板一覧の中でやる。並び替えるのは
-    # 「自分が入ったか」だけで、活動量ではない。
+  describe "気にかけている板と、未読" do
+    # 「入る」は無い。書いた板は、書いた時点で自分の場所になっている
+    # ── 押して宣言するものではない（Zulip の participation）。
+    # 読んでいるだけの板をどう扱うかは、板の中の詳細設定で決める。
     setup %{author: author} do
       n = System.unique_integer([:positive])
       {:ok, other} = Deco.create_deco(author, %{"slug" => "other#{n}", "name" => "あちらの板"})
       %{other: other}
     end
 
-    test "入る前は、入っていないし光らない", %{author: author, deco: deco} do
+    defp row(author, slug), do: Deco.list_decos(author.id) |> Enum.find(&(&1.slug == slug))
+
+    test "書いた板は、押さなくても自分の場所になる", %{author: author, deco: deco, other: other} do
+      assert row(author, deco.slug).minding == false
+
       {:ok, _} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
 
-      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
-      assert row.joined == false
-      assert row.unread == false
+      assert row(author, deco.slug).minding == true
+      # 書いていない板は、そのまま。
+      assert row(author, other.slug).minding == false
     end
 
-    test "入ると joined になり、その時点までは読んだことになる", %{author: author, deco: deco} do
-      {:ok, _} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "むかしの話"})
-      assert {:ok, %{joined: true}} = Deco.join(author, deco.slug)
-
-      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
-      assert row.joined == true
-      # 入る前の全部が未読として積み上がると、入ることが仕事になる。
-      assert row.unread == false
-    end
-
-    test "入ったあとの動きで光り、見ると消える", %{author: author, deco: deco} do
-      {:ok, _} = Deco.join(author, deco.slug)
+    test "自分が書いたあとの動きで光り、見ると消える", %{author: author, deco: deco} do
+      {:ok, _} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      {:ok, _} = Deco.seen(author, deco.slug)
       Process.sleep(1100)
       {:ok, _} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "あたらしい話"})
 
-      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
-      assert row.unread == true
-
-      assert {:ok, %{seen: true}} = Deco.seen(author, deco.slug)
-      row2 = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
-      assert row2.unread == false
+      assert row(author, deco.slug).unread == true
+      {:ok, _} = Deco.seen(author, deco.slug)
+      assert row(author, deco.slug).unread == false
     end
 
     test "返信でも光る ── 誰かが答えたのも動き", %{author: author, deco: deco} do
       {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
-      {:ok, _} = Deco.join(author, deco.slug)
+      {:ok, _} = Deco.seen(author, deco.slug)
       Process.sleep(1100)
       {:ok, _} = Deco.reply(author, post.id, %{"status" => "つづき"})
 
-      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
-      assert row.unread == true
+      assert row(author, deco.slug).unread == true
     end
 
-    test "入っていない板は、動いても光らない", %{author: author, other: other} do
-      {:ok, _} = Deco.post(author, other.slug, %{"title" => "題", "status" => "本文"})
+    test "読んでいるだけの板も、詳細設定で気にかけられる", %{author: author, other: other} do
+      assert row(author, other.slug).notify == "participating"
+      assert row(author, other.slug).minding == false
 
-      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == other.slug))
-      assert row.joined == false
-      assert row.unread == false
+      assert {:ok, %{notify: "all"}} = Deco.set_notify(author, other.slug, "all")
+      assert row(author, other.slug).minding == true
     end
 
-    test "出ても、読んだ位置は残る ── また入ったら続きから", %{author: author, deco: deco} do
-      {:ok, _} = Deco.join(author, deco.slug)
-      {:ok, %{joined: false}} = Deco.leave(author, deco.slug)
+    test "しずかにすると、書いた板でも光らない", %{author: author, deco: deco} do
+      {:ok, _} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      assert row(author, deco.slug).minding == true
 
-      row = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
-      assert row.joined == false
-
-      # 出ているあいだの動きは、入り直しても未読にならない。
-      {:ok, _} = Deco.join(author, deco.slug)
-      row2 = Deco.list_decos(author.id) |> Enum.find(&(&1.slug == deco.slug))
-      assert row2.unread == false
+      {:ok, _} = Deco.set_notify(author, deco.slug, "quiet")
+      assert row(author, deco.slug).minding == false
+      assert row(author, deco.slug).unread == false
     end
 
-    test "並びは名前順のまま ── 入っていても、活動量でも動かない", %{author: author, deco: deco, other: other} do
-      {:ok, _} = Deco.join(author, other.slug)
+    test "設定を変えただけでは、読んだことにならない", %{author: author, deco: deco} do
+      {:ok, _} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      assert row(author, deco.slug).unread == true
+
+      {:ok, _} = Deco.set_notify(author, deco.slug, "all")
+      assert row(author, deco.slug).unread == true
+    end
+
+    test "変な知らせかたは断る", %{author: author, deco: deco} do
+      assert {:error, :bad_notify} = Deco.set_notify(author, deco.slug, "shout")
+    end
+
+    test "並びは名前順のまま ── 気にかけていても、活動量でも動かない", %{author: author, other: other} do
       {:ok, _} = Deco.post(author, other.slug, %{"title" => "題", "status" => "たくさん"})
 
       names = Deco.list_decos(author.id) |> Enum.map(& &1.name)
       assert names == Enum.sort(names)
 
-      # 読む人が居なくても、同じ並び。
       assert Deco.list_decos() |> Enum.map(& &1.slug) ==
                Deco.list_decos(author.id) |> Enum.map(& &1.slug)
-
-      assert deco.name in names
     end
 
     test "読む人が居なければ、印は付かない", %{author: author, deco: deco} do
-      {:ok, _} = Deco.join(author, deco.slug)
+      {:ok, _} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
 
       row = Deco.list_decos() |> Enum.find(&(&1.slug == deco.slug))
-      assert row.joined == false
+      assert row.minding == false
       assert row.unread == false
     end
   end

@@ -223,7 +223,15 @@ type Dict = {
   footer: { terms: string; privacy: string };
   visibility: { label: string; public: string; local: string; hint: string; badge: string };
   reactions: { add: string };
-  mine: { joined: string; others: string; join: string; leave: string; unread: string };
+  mine: {
+    minding: string;
+    others: string;
+    unread: string;
+    notify: string;
+    participating: string;
+    all: string;
+    quiet: string;
+  };
   flow: { open: string; empty: string; earlier: string; endToday: string };
   tomo: {
     name: string;
@@ -500,11 +508,13 @@ const ja: Dict = {
     other: (who) => `${who} から`
   },
   mine: {
-    joined: 'いる板',
+    minding: '書いた板',
     others: 'ほかの板',
-    join: '入る',
-    leave: '出る',
-    unread: 'あたらしいものがあります'
+    unread: 'あたらしいものがあります',
+    notify: 'この板のこと',
+    participating: '書いた話だけ気にかける',
+    all: '動いたら気づきたい',
+    quiet: 'しずかにしておく'
   },
   flow: {
     open: 'ひらく',
@@ -762,11 +772,13 @@ const ko: Dict = {
     other: (who) => `${who} 님으로부터`
   },
   mine: {
-    joined: '들어와 있는 데코',
+    minding: '글을 쓴 데코',
     others: '다른 데코',
-    join: '들어가기',
-    leave: '나가기',
-    unread: '새로운 것이 있어요'
+    unread: '새로운 것이 있어요',
+    notify: '이 데코에 대해',
+    participating: '내가 쓴 이야기만 챙기기',
+    all: '움직이면 알고 싶어요',
+    quiet: '조용히 두기'
   },
   flow: {
     open: '펼치기',

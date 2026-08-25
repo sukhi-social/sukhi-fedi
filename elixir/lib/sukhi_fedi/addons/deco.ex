@@ -44,18 +44,21 @@ defmodule SukhiFedi.Addons.Deco do
   alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
   alias SukhiFedi.Notes.Create, as: NotesCreate
   alias SukhiFedi.Notes.Ids
-  alias SukhiFedi.Schema.{Account, Deco, DecoFollow, DecoNote, DecoRead, Note}
+  alias SukhiFedi.Schema.{Account, Deco, DecoNote, DecoPref, Note}
 
   # ── 板 ───────────────────────────────────────────────────────────────
 
   @doc """
   板の一覧。新しい順ではなく、名前順 ── 数で競わせないため。
 
-  読む人が居れば、一枚ごとに「入っているか(`joined`)」と「最後に見た
-  あとに動きがあったか(`unread`)」が付く。**並びは変えない** ──
-  入っているぶんを上へ寄せるのは読む側の仕事で、その中も外も名前順の
-  まま。活動量で並べ替えないのは、板一覧を作ったときの決めごとで、
-  ここに未読を足しても変わらない。
+  読む人が居れば、一枚ごとに「気にかけているか(`minding`)」「最後に
+  見たあとに動きがあったか(`unread`)」「知らせかた(`notify`)」が付く。
+  気にかけているかは**書いたことがあるか**から出る ── 押して宣言する
+  ものではない。
+
+  **並びは変えない** ── 気にかけているぶんを上へ寄せるのは読む側の
+  仕事で、その中も外も名前順のまま。活動量で並べ替えないのは、板一覧を
+  作ったときの決めごとで、ここに未読を足しても変わらない。
   """
   @spec list_decos(integer() | nil) :: [map()]
   def list_decos(viewer_id \\ nil) do
@@ -70,47 +73,78 @@ defmodule SukhiFedi.Addons.Deco do
     Enum.map(decos, fn d ->
       d
       |> view(Map.get(counts, d.id, 0))
-      |> Map.merge(Map.get(marks, d.id, %{joined: false, unread: false}))
+      |> Map.merge(Map.get(marks, d.id, %{minding: false, unread: false, notify: "participating"}))
     end)
   end
 
-  # 読む人ごとの印。入っている板だけ未読を数える ── 入っていない板が
-  # 光っても、それは誘いではなく雑音になる。
+  # 読む人ごとの印。
+  #
+  # 「入る」ボタンは無い ── 自分が書いた板は、書いた時点で自分の場所に
+  # なっている（宣言ではなく事実）。押させる代わりに、もうやったことを
+  # 見ている。読んでいるだけの板をどう扱うかは、その板を開いたときの
+  # 詳細設定で決める。
+  #
+  #   participating — 既定。自分が書いた板だけ気にかける
+  #   all           — 読んでいるだけでも気にかける
+  #   quiet         — 光らない
   defp viewer_marks(nil, _deco_ids), do: %{}
   defp viewer_marks(_viewer_id, []), do: %{}
 
   defp viewer_marks(viewer_id, deco_ids) do
-    joined =
-      from(f in DecoFollow,
-        where: f.account_id == ^viewer_id and f.deco_id in ^deco_ids and f.state == "accepted",
-        select: f.deco_id
-      )
-      |> Repo.all()
-      |> MapSet.new()
-
-    seen =
-      from(r in DecoRead,
-        where: r.account_id == ^viewer_id and r.deco_id in ^deco_ids,
-        select: {r.deco_id, r.seen_at}
+    prefs =
+      from(p in DecoPref,
+        where: p.account_id == ^viewer_id and p.deco_id in ^deco_ids,
+        select: {p.deco_id, {p.seen_at, p.notify}}
       )
       |> Repo.all()
       |> Map.new()
 
-    last = last_activity(MapSet.to_list(joined))
+    wrote = wrote_in(viewer_id, deco_ids)
+    minding = Enum.filter(deco_ids, &minding?(&1, wrote, prefs))
+    last = last_activity(minding)
 
     Map.new(deco_ids, fn id ->
-      in? = MapSet.member?(joined, id)
+      seen_at = prefs |> Map.get(id, {nil, nil}) |> elem(0)
+      mind? = id in minding
 
       unread? =
-        in? and
-          case {Map.get(last, id), Map.get(seen, id)} do
+        mind? and
+          case {Map.get(last, id), seen_at} do
             {nil, _} -> false
             {_at, nil} -> true
-            {at, seen_at} -> DateTime.compare(at, seen_at) == :gt
+            {at, seen} -> DateTime.compare(at, seen) == :gt
           end
 
-      {id, %{joined: in?, unread: unread?}}
+      {id, %{minding: mind?, unread: unread?, notify: notify_of(id, prefs)}}
     end)
+  end
+
+  defp notify_of(id, prefs) do
+    case Map.get(prefs, id) do
+      {_seen, n} when is_binary(n) -> n
+      _ -> "participating"
+    end
+  end
+
+  defp minding?(id, wrote, prefs) do
+    case notify_of(id, prefs) do
+      "quiet" -> false
+      "all" -> true
+      _ -> MapSet.member?(wrote, id)
+    end
+  end
+
+  # 書いたことがある板。参加が、そのまま「自分の場所」になる。
+  defp wrote_in(viewer_id, deco_ids) do
+    from(dn in DecoNote,
+      join: n in Note,
+      on: n.id == dn.note_id,
+      where: dn.deco_id in ^deco_ids and n.account_id == ^viewer_id,
+      distinct: true,
+      select: dn.deco_id
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   # 板の最後の動き。返信も数える ── 誰かが答えたのも「動いた」なので。
@@ -129,59 +163,52 @@ defmodule SukhiFedi.Addons.Deco do
   end
 
   @doc """
-  板に入る。IRC の JOIN ── 一覧のうち、どれが自分の部屋かを決める動作。
+  この板の知らせかたを決める。板の中の詳細設定から来る。
 
-  入った時点までは読んだことにする。入る前の全部が未読として積み上がる
-  と、入ることが仕事になってしまうので。
+  一覧にボタンを置かないのは、押させる動作にするほどのものではない
+  から ── 既定のままで困らない人がほとんどで、ずらしたい人はその板を
+  開いたときに決めればいい。
   """
-  @spec join(Account.t() | integer(), String.t()) :: {:ok, map()} | {:error, :not_found}
-  def join(account, slug) do
-    aid = id_of(account)
-
-    with {:ok, %{id: deco_id}} <- get_deco(slug) do
-      %DecoFollow{}
-      |> DecoFollow.changeset(%{"deco_id" => deco_id, "account_id" => aid, "state" => "accepted"})
-      |> Repo.insert(on_conflict: :nothing, conflict_target: [:deco_id, :account_id])
-
-      mark_read(aid, deco_id)
-      {:ok, %{joined: true}}
-    end
-  end
-
-  @doc "板から出る。読んだ位置は残す ── また入ったときに、続きから。"
-  @spec leave(Account.t() | integer(), String.t()) :: {:ok, map()} | {:error, :not_found}
-  def leave(account, slug) do
-    aid = id_of(account)
-
-    with {:ok, %{id: deco_id}} <- get_deco(slug) do
-      from(f in DecoFollow, where: f.deco_id == ^deco_id and f.account_id == ^aid)
-      |> Repo.delete_all()
-
-      {:ok, %{joined: false}}
+  @spec set_notify(Account.t() | integer(), String.t(), String.t()) ::
+          {:ok, map()} | {:error, :not_found | :bad_notify}
+  def set_notify(account, slug, notify) do
+    if notify in DecoPref.notify_kinds() do
+      with {:ok, %{id: deco_id}} <- get_deco(slug) do
+        upsert_pref(id_of(account), deco_id, %{"notify" => notify})
+        {:ok, %{notify: notify}}
+      end
+    else
+      {:error, :bad_notify}
     end
   end
 
   @doc "その板を、いま見た。板を開いたときに呼ぶ ── 光りが消える。"
   @spec seen(Account.t() | integer(), String.t()) :: {:ok, map()} | {:error, :not_found}
   def seen(account, slug) do
-    aid = id_of(account)
-
     with {:ok, %{id: deco_id}} <- get_deco(slug) do
-      mark_read(aid, deco_id)
+      upsert_pref(id_of(account), deco_id, %{})
       {:ok, %{seen: true}}
     end
   end
 
-  defp mark_read(account_id, deco_id) do
+  # 読んだ位置は、触るたび「いま」に進む。知らせかたは渡されたときだけ
+  # 変える ── 設定を変えただけで、読んだことにはしない。
+  #
+  # 行がまだ無いときも同じ。`on_conflict` は既にある行にしか効かないので、
+  # 知らせかただけを変える呼びに `seen_at` を入れると、その一件目が
+  # 「いま読んだ」になってしまう（実際に一度そうなった）。
+  defp upsert_pref(account_id, deco_id, extra) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
+    reading? = not Map.has_key?(extra, "notify")
+    set = if reading?, do: [seen_at: now], else: [notify: extra["notify"]]
+    base = %{"account_id" => account_id, "deco_id" => deco_id}
+    base = if reading?, do: Map.put(base, "seen_at", now), else: base
 
-    %DecoRead{}
-    |> DecoRead.changeset(%{"account_id" => account_id, "deco_id" => deco_id, "seen_at" => now})
-    |> Repo.insert(
-      on_conflict: [set: [seen_at: now]],
-      conflict_target: [:account_id, :deco_id]
-    )
+    %DecoPref{}
+    |> DecoPref.changeset(Map.merge(base, extra))
+    |> Repo.insert(on_conflict: [set: set], conflict_target: [:account_id, :deco_id])
   end
+
 
   @spec get_deco(String.t()) :: {:ok, map()} | {:error, :not_found}
   def get_deco(slug) when is_binary(slug) do

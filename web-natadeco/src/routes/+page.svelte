@@ -1,14 +1,5 @@
 <script lang="ts">
-  import {
-    listDecos,
-    createDeco,
-    joinDeco,
-    leaveDeco,
-    getCurrentAccount,
-    localized,
-    signedIn,
-    type Deco
-  } from '$lib/api';
+  import { listDecos, createDeco, getCurrentAccount, localized, signedIn, type Deco } from '$lib/api';
   import { t, getLang } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
@@ -49,29 +40,15 @@
   let reach = $state<'open' | 'inside'>('open');
   let kind = $state<'thread' | 'talk'>('thread');
 
-  // 一覧を二つに分ける。分けているのは「自分が入ったか」だけで、
+  // 一覧を二つに分ける。分けているのは「書いたことがあるか」で、
   // 活動量ではない ── どちらのかたまりの中も名前順のまま。板一覧を
   // 名前順にした決めごとは、ここでも生きている。
-  const joined = $derived(decos.filter((d) => d.joined));
-  const others = $derived(decos.filter((d) => !d.joined));
-
-  let busy = $state<string | null>(null);
-
-  async function toggleJoin(deco: Deco) {
-    if (busy) return;
-    busy = deco.slug;
-    try {
-      const r = deco.joined ? await leaveDeco(deco.slug) : await joinDeco(deco.slug);
-      decos = decos.map((d) =>
-        // 入った時点までは読んだことになるので、光りもここで消える。
-        d.slug === deco.slug ? { ...d, joined: r.joined, unread: false } : d
-      );
-    } catch {
-      // 押せなかったときは、黙って元のまま。
-    } finally {
-      busy = null;
-    }
-  }
+  //
+  // ボタンは置かない。押して宣言するものではないし、置くと nav の
+  // 「入る」（サイトへのログイン）と同じ言葉が同じ画面に二つ並ぶ。
+  // 既定からずらしたい人は、その板を開いたときに決める。
+  const minding = $derived(decos.filter((d) => d.minding));
+  const others = $derived(decos.filter((d) => !d.minding));
 
   const jaComplete = $derived(!!name.trim());
   const koComplete = $derived(!!nameKo.trim());
@@ -149,24 +126,14 @@
       {#if deco.description}
         <p class="desc muted">{localized(deco.description, deco.description_i18n)}</p>
       {/if}
-      <p class="muted">
-        {t().home.postCount(deco.post_count)}
-        {#if signedIn()}
-          <button
-            type="button"
-            class="linklike"
-            disabled={busy === deco.slug}
-            onclick={() => toggleJoin(deco)}>{deco.joined ? t().mine.leave : t().mine.join}</button
-          >
-        {/if}
-      </p>
+      <p class="muted">{t().home.postCount(deco.post_count)}</p>
     </li>
   {/snippet}
 
-  {#if joined.length > 0}
-    <h2 class="section muted">{t().mine.joined}</h2>
+  {#if minding.length > 0}
+    <h2 class="section muted">{t().mine.minding}</h2>
     <ul class="list">
-      {#each joined as deco (deco.id)}{@render card(deco)}{/each}
+      {#each minding as deco (deco.id)}{@render card(deco)}{/each}
     </ul>
     <h2 class="section muted">{t().mine.others}</h2>
   {/if}

@@ -20,11 +20,17 @@ export type Deco = {
   // 表札 ── 外から見つけられる場所として立っているか。false なら
   // `{slug}-deco@domain` は引けない（書いた一件は、選べば外に出る）。
   has_actor: boolean;
-  // 読む人ごとの印。入っているか／最後に見たあとに動きがあったか。
+  // 読む人ごとの印。気にかけているか／最後に見たあとに動きがあったか。
+  //
+  // 気にかけているかは **書いたことがあるか** から出る ── 押して宣言
+  // するものではない（Zulip の participation）。読んでいるだけの板は、
+  // 板の中の詳細設定（`notify`）で寄せられる。
+  //
   // **並びには使わない** ── 上に寄せるのは読む側の仕事で、その中も
   // 外も名前順のまま。数は数えない（光るだけ）。
-  joined: boolean;
+  minding: boolean;
   unread: boolean;
+  notify: DecoNotify;
   post_count: number;
   created_at: string;
 };
@@ -300,9 +306,17 @@ export const getDeco = (slug: string) => req<Deco>('GET', `/api/v1/deco/${encode
 const decoPath = (slug: string, tail: string) =>
   `/api/v1/deco/${encodeURIComponent(slug)}/${tail}`;
 
-/** 板に入る（IRC の JOIN）。入った時点までは読んだことになる。 */
-export const joinDeco = (slug: string) => req<{ joined: boolean }>('POST', decoPath(slug, 'join'));
-export const leaveDeco = (slug: string) => req<{ joined: boolean }>('DELETE', decoPath(slug, 'join'));
+/**
+ * この板を、どう知らせてほしいか。
+ *
+ *   participating — 既定。自分が書いた話だけ気にかける
+ *   all           — 読んでいるだけでも気にかける
+ *   quiet         — 光らない
+ */
+export type DecoNotify = 'participating' | 'all' | 'quiet';
+
+export const setDecoNotify = (slug: string, notify: DecoNotify) =>
+  req<{ notify: DecoNotify }>('PUT', decoPath(slug, 'notify'), { notify });
 
 /** その板を、いま見た。光りが消える。 */
 export const seenDeco = (slug: string) => req<{ seen: boolean }>('POST', decoPath(slug, 'seen'));

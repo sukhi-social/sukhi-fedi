@@ -5,6 +5,8 @@
     listPosts,
     listFlow,
     seenDeco,
+    setDecoNotify,
+    type DecoNotify,
     startOfToday,
     signedIn,
     when,
@@ -25,6 +27,22 @@
   let error = $state<string | null>(null);
   let done = $state(false);
 
+  // この板をどう知らせてほしいか。一覧にボタンを置かず、板の中に
+  // 畳んで置く ── 既定のままで困らない人がほとんどなので、開くまでは
+  // 目に入らなくていい。
+  let showPrefs = $state(false);
+  let notify = $state<DecoNotify>('participating');
+
+  async function pick(v: DecoNotify) {
+    const prev = notify;
+    notify = v;
+    try {
+      await setDecoNotify(slug, v);
+    } catch {
+      notify = prev;
+    }
+  }
+
   // 話す板は、まず今日のぶんだけ。境目は読む人の時計で決まる。
   // 流れる板でも、終わらない川にはしない ── 今日を読み切ったら
   // そこで一度終わって、その先は自分で「読む」を押す。
@@ -40,6 +58,7 @@
     getDeco(s)
       .then(async (d) => {
         deco = d;
+        notify = d.notify;
         if (d.kind === 'talk') {
           const rows = await listFlow(s, { since: startOfToday() });
           posts = rows;
@@ -156,10 +175,57 @@
     {/if}
   {/if}
 
+  {#if signedIn()}
+    <details class="prefs" bind:open={showPrefs}>
+      <summary class="muted small">{t().mine.notify}</summary>
+      <div class="picks">
+        {#each [['participating', t().mine.participating], ['all', t().mine.all], ['quiet', t().mine.quiet]] as [value, label] (value)}
+          <label class="pick">
+            <input
+              type="radio"
+              name="notify"
+              checked={notify === value}
+              onchange={() => pick(value as DecoNotify)}
+            />
+            <span>{label}</span>
+          </label>
+        {/each}
+      </div>
+    </details>
+  {/if}
+
   <p class="back"><a href="/">{t().common.toDecoList}</a></p>
 {/if}
 
 <style>
+  /* 板の下、戻る道の手前。読みに来た人の邪魔をしない位置に畳んでおく。 */
+  .prefs {
+    margin-top: 2rem;
+    border-top: 1px solid var(--line);
+    padding-top: 0.8rem;
+  }
+
+  .prefs summary {
+    cursor: pointer;
+  }
+
+  .picks {
+    display: grid;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+  }
+
+  .pick {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .pick input {
+    width: auto;
+    min-width: 0;
+  }
+
   .write-btn {
     flex: none;
     text-decoration: none;
