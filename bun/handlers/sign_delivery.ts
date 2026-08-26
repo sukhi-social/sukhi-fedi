@@ -84,24 +84,6 @@ export async function handleSignDelivery(
       outHeaders[k] = v;
     });
 
-    // 401 を食い続けたとき、実際に署名された header set を覗きたい。
-    // 1〜2 deploy 分の追加情報のためのコンソール出力。落ち着いたら剥がす。
-    // [[fedify-401-diagnostic]]
-    console.error(
-      JSON.stringify({
-        event: "sign.done",
-        inbox: payload.inbox,
-        spec,
-        body_bytes: bodyBuf.byteLength,
-        key_id: payload.keyId,
-        // Signature header の中身まで全部出す ─ "Failed to verify
-        // the request signature." を食い続けていて、`headers="..."`
-        // 句が何を含んでいるか・algorithm が何になっているかが
-        // 知りたいので。落ち着いたら切り詰めに戻す。
-        out_headers: outHeaders,
-      }),
-    );
-
     // 自己検証 ─ 「Failed to verify the request signature」が消えない
     // ので、我々が作った署名を我々自身の公開鍵で verify できるかを
     // 確かめる。これが false なら署名そのものがおかしい(鍵 import の

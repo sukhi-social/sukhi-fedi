@@ -192,16 +192,6 @@ PEM modulus も bit-identical。手前のヘッダ最小化 (v0.1.72) も効か�
            が往復するかスモーク
         5. 通ったら本番
 
-- [ ] **診断ログを剥がす.** v0.1.69〜v0.1.73 で足した:
-      - `bun/handlers/sign_delivery.ts` の `sign.done` 全 header
-        出力と `sign.selftest` 自己 verify
-      - `bun/handlers/fetch.ts` の `fetch.failed` JSON 出力
-      - `delivery/lib/sukhi_delivery/delivery/worker.ex` の
-        `delivery POST ...` 全 header 出力と `delivery 4xx from`
-        body 残し
-      Federation 周りが落ち着いたら sign.done と delivery POST の
-      フル出力は外す。sign.selftest と非 2xx の body は残してよさそう。
-
 ## Admin frontend (work in progress — paused mid-implementation)
 
 Server-rendered HTML admin UI for the gateway. Stack chosen: **htmx +
