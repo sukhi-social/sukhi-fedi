@@ -764,11 +764,13 @@ addonをまたぐ FK を禁じてる `ADDONS.md §Migrations` のルールを
 `POST /api/v1/media` は `multipart/form-data` を受ける（apiノードは
 Plugパイプラインを動かしてないので、自前の `SukhiApi.Multipart` で
 パース）。capability はファイルバイト列を `:rpc` でゲートウェイに
-渡し、`SukhiFedi.Addons.Media.create_from_upload/3` が `MEDIA_DIR`
-（デフォルト `priv/static/uploads`）に書き出す。ゲートウェイは
-`/uploads/<key>` を `MEDIA_DIR` から path-traversal ガード付きで
-直接配信。インライン上限は **8 MiB**（分散Erlang転送に乗る範囲）。
-それより大きいファイル向けの presigned-URL フローは `TODO.md`。
+渡し、`SukhiFedi.Addons.Media.create_from_upload/3` が S3 互換ストレージ
+（本番では rustfs accessory）へ PUT する。ゲートウェイの
+`/uploads/<key>` はそこから proxy して返すので、バケットの場所と
+credential は外に出ない。ディスクに置く道は無い ── S3 が未設定なら
+`{:error, :s3_not_configured}` で止まる。インライン上限は **8 MiB**
+（分散Erlang転送に乗る範囲）。それより大きいファイル向けの
+presigned-URL フローは `TODO.md`。
 
 既存の `generate_upload_url/3`（S3/R2 presigned PUT）はクライアント
 直接アップロードに将来使うために残してあるけど、まだcapability化
@@ -816,8 +818,7 @@ Plugパイプラインを動かしてないので、自前の `SukhiApi.Multipar
 | `RELEASE_COOKIE`                     | Elixir+api  | `sukhi_fedi_dev_cookie`   | 分散Erlang共有シークレット          |
 | `DOMAIN` / `INSTANCE_TITLE`          | api         | `localhost:4000` / `sukhi-fedi` | NodeInfo / WebFinger の出力 |
 | `ENABLED_ADDONS` / `DISABLE_ADDONS`  | 全部        | `all` / `""`              | カンマ区切りのアドオンid            |
-| `MEDIA_DIR`                          | Elixir      | `priv/static/uploads`     | `/uploads/<key>` の実体ディレクトリ |
-| `S3_BUCKET` / `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_REGION` / `S3_PUBLIC_URL` | Elixir | _(未設定)_ | S3/R2 presigned-URL フロー（`Media.generate_upload_url/3`）用 |
+| `S3_BUCKET` / `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_REGION` / `S3_PUBLIC_URL` | Elixir | _(未設定)_ | メディアの置き場（本番では rustfs）。未設定だとアップロードは通らない |
 
 ## 11. ローカルで動かす
 

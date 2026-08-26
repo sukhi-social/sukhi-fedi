@@ -113,7 +113,8 @@ payload で audience を運ぶか。delivery: 既存 fan-out で十分。
    で `{upload_url, fields, media_id}` を返す**（**Recommended**)。
    クライアントが直 PUT → 完了後 `POST /api/v1/media/:id/finalize` で確定。
 2. **TUS プロトコル.** Mastodon は採用していない。互換性のため却下。
-3. **既存の 8 MiB 上限のまま据え置く.** `MEDIA_DIR` で当面回す。
+3. **既存の 8 MiB 上限のまま据え置く.** バイト列を api → gateway → S3 と
+   通す既存経路で当面回す。
 
 **影響範囲.** `:sukhi_api` capability 2 個 + S3 SDK 依存追加。
 `SukhiFedi.Addons.Media.generate_upload_url/3` は既存なのでブリッジのみ。

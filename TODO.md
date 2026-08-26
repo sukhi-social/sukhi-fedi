@@ -40,10 +40,6 @@ files are complementary: TODO is "do this", OPEN_QUESTIONS is
       は相手 outbox を fetch しない (Mastodon 標準ではある)。
       UX として「フォローしたのに静か」が痒い。意図的後回し。
       ([memory: sukhi-fedi-follow-backfill](../.claude/projects/-Users-nyanrus--shiro/memory/sukhi-fedi-follow-backfill.md))
-- [ ] **`MEDIA_DIR` 残骸.** `lib/.../web/router.ex:117-120` の
-      コメントと `media.ex` の moduledoc がまだ `MEDIA_DIR
-      (default priv/static/uploads)` を語っている。rustfs 移行で
-      実装上は無効。嘘になっているので落とす。
 - [ ] **Inbound `manuallyApprovesFollowers` の保存.**
       `RemoteAccounts.upsert_from_actor_json/1` で
       `manuallyApprovesFollowers` を読んで `:locked` に流し込む。

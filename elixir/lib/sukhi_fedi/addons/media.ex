@@ -6,25 +6,31 @@ defmodule SukhiFedi.Addons.Media do
 
   * **Server-side (Mastodon `POST /api/v1/media`)** —
     `create_from_upload/3` accepts the file bytes already received by
-    the api plugin node, writes them to local storage (or S3 in
-    future), and inserts a `Media` row.
+    the api plugin node, PUTs them to the S3-compatible store, and
+    inserts a `Media` row. Inline size caps at `@max_inline_bytes`
+    (the distributed Erlang transport limit).
 
   * **Presigned client-direct upload** — `generate_upload_url/3`
     returns an S3 PUT URL the client uses directly. Not exposed via
     the Mastodon REST surface yet (Mastodon clients always POST bytes
     to the server); kept here for future use.
 
-  Required env for S3 presigned mode:
+  There is no on-disk path. Both modes need S3 configured — without
+  it `create_from_upload/3` stops at `{:error, :s3_not_configured}`
+  rather than falling back to the filesystem, so an instance either
+  has object storage or has no uploads.
 
     * `S3_BUCKET` (default `"sukhi-media"`)
     * `S3_REGION` (default `"auto"`)
     * `S3_ENDPOINT` — e.g. `https://<account>.r2.cloudflarestorage.com`
+      (in prod: the rustfs accessory)
     * `S3_ACCESS_KEY`, `S3_SECRET_KEY`
     * `S3_PUBLIC_URL` — CDN URL
 
-  For server-side uploads, files land under `MEDIA_DIR` (default
-  `priv/static/uploads`) and are served via `Plug.Static` from the
-  gateway.
+  Stored bytes are never addressed by their S3 URL from outside. The
+  row's `url` is always `https://<domain>/uploads/<key>` and the
+  gateway route proxies it back out of the store, so the bucket's
+  location and credentials stay one instance's business.
   """
 
   use SukhiFedi.Addon, id: :media

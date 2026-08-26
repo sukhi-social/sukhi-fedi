@@ -881,10 +881,12 @@ the client only at mint time.
 `POST /api/v1/media` accepts `multipart/form-data` (parsed by the
 plug-less `SukhiApi.Multipart` since the api node doesn't run a Plug
 pipeline). The capability forwards the file bytes to gateway via
-`:rpc`, and `SukhiFedi.Addons.Media.create_from_upload/3` writes
-them under `MEDIA_DIR` (default `priv/static/uploads`). The gateway
-router serves `/uploads/<key>` directly from `MEDIA_DIR` with
-path-traversal guards. Inline cap is **8 MiB** to fit the
+`:rpc`, and `SukhiFedi.Addons.Media.create_from_upload/3` PUTs them
+into the S3-compatible store (in prod: the rustfs accessory). The
+gateway route `/uploads/<key>` proxies them back out of that store,
+so the bucket URL and credentials never leave the instance. There is
+no on-disk path — without S3 configured the upload stops at
+`{:error, :s3_not_configured}`. Inline cap is **8 MiB** to fit the
 distributed Erlang transport; presigned-URL flow for larger uploads
 is in `TODO.md`.
 
@@ -933,9 +935,8 @@ Custom metrics to emit as we build each feature:
 | `RELEASE_COOKIE`                 | Elixir+api | `sukhi_fedi_dev_cookie` | distributed Erlang shared secret |
 | `DOMAIN` / `INSTANCE_TITLE`      | api     | `localhost:4000` / `sukhi-fedi` | NodeInfo / WebFinger output |
 | `ENABLED_ADDONS` / `DISABLE_ADDONS` | all  | `all` / `""`            | Comma-separated addon ids          |
-| `MEDIA_DIR`                      | Elixir  | `priv/static/uploads`   | On-disk root for `/uploads/<key>`  |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `MAIL_FROM` | Elixir | _(unset → log transport)_ | Transactional mail (email verification / login codes). Point at OCI Email Delivery (`smtp.email.<region>.oci.oraclecloud.com:587`, approved sender as `MAIL_FROM`) or any SMTP relay |
-| `S3_BUCKET` / `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_REGION` / `S3_PUBLIC_URL` | Elixir | _(unset)_ | Optional S3/R2 presigned-URL flow (`Media.generate_upload_url/3`) |
+| `S3_BUCKET` / `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_REGION` / `S3_PUBLIC_URL` | Elixir | _(unset)_ | Where media lives (rustfs in prod). Uploads fail without it |
 
 ## 11. Running locally
 
