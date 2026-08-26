@@ -36,6 +36,7 @@ defmodule SukhiApi.Capabilities.Deco do
       {:put, "/api/v1/deco/:slug/notify", &set_notify/1, scope: "write:accounts"},
       {:put, "/api/v1/deco/:slug/topic", &set_topic/1, scope: "write:statuses"},
       {:post, "/api/v1/deco", &create_deco/1, scope: "write:statuses"},
+      {:get, "/api/v1/deco/veranda", &peek/1, scope: "read:statuses"},
       {:get, "/api/v1/deco/posts/:id", &show_post/1},
       {:patch, "/api/v1/deco/posts/:id", &update_post/1, scope: "write:statuses"},
       {:delete, "/api/v1/deco/posts/:id", &delete_post/1, scope: "write:statuses"},
@@ -152,6 +153,22 @@ defmodule SukhiApi.Capabilities.Deco do
       |> put_viewer(viewer(req))
 
     call(:list_flow, [req[:path_params]["slug"], opts], &ok(200, &1))
+  end
+
+  # ベランダ ── よその板を、追う前に覗く。引くだけで何も残さない。
+  #
+  # トークンを要るのは、外へ取りに行かせる口だから ── 誰でも叩けると、
+  # この鯖が任意の URL を引く道具になる。読むもの自体は誰のものでもない
+  # ので、板の中と違って viewer で見えかたは変わらない。
+  def peek(req) do
+    with %{} = _v <- viewer(req) do
+      case parse_query(req[:query])["at"] do
+        q when is_binary(q) and q != "" -> call(:peek, [q], &ok(200, &1))
+        _ -> ok(400, %{error: "at is required"})
+      end
+    else
+      _ -> ok(403, %{error: "this endpoint requires a user-bound token"})
+    end
   end
 
   def show_post(req) do

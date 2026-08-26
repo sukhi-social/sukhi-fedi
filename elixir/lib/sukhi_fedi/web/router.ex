@@ -582,6 +582,11 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  # ベランダ ── よその板を、追う前に覗く場所。
+  get "/veranda" do
+    serve_spa(conn)
+  end
+
   get "/api/nodeinfo" do
     if nodeinfo_monitor_enabled?(),
       do: ViewerController.nodeinfo_lookup(conn, []),

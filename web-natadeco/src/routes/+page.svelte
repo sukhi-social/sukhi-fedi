@@ -105,6 +105,10 @@
       <a class="name" href="/notifications">{t().notices.title}</a>
       <p class="desc muted">{t().notices.subtitle}</p>
     </li>
+    <li class="card">
+      <a class="name" href="/veranda">{t().veranda.name}</a>
+      <p class="desc muted">{t().veranda.subtitle}</p>
+    </li>
   </ul>
 {/if}
 

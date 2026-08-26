@@ -231,6 +231,39 @@ export const personPosts = (id: string) =>
 export const replyToPerson = (inReplyToId: string, status: string) =>
   req<Status>('POST', '/api/v1/statuses', { status, in_reply_to_id: inReplyToId });
 
+// ── ベランダ ──────────────────────────────────────────────────────
+//
+// よその板を、追う前に覗く場所。引くだけで何も残らない ── だから
+// 通報も削除もこちらではできないし、できないのが正しい。ここに出て
+// いるのはよそのおうちの話で、natadeco が載せているものではない。
+
+export type VerandaPost = {
+  id: string;
+  url: string;
+  title: string | null;
+  content_html: string | null;
+  author: string | null;
+  published: string | null;
+};
+
+export type Veranda = {
+  actor: {
+    id: string;
+    name: string | null;
+    handle: string | null;
+    summary: string | null;
+    url: string;
+    icon: string | null;
+    type: string | null;
+  };
+  posts: VerandaPost[];
+  // 上限で切ったか。黙って切ると、続きがあることを誰も知らない。
+  truncated: boolean;
+};
+
+export const peekVeranda = (at: string) =>
+  req<Veranda>('GET', `/api/v1/deco/veranda?at=${encodeURIComponent(at)}`);
+
 // ── 通知 ──────────────────────────────────────────────────────────
 //
 // 友デコを出すと「返事が来ても気づけない」が目に見える形になるので、

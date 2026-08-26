@@ -223,6 +223,19 @@ type Dict = {
   footer: { terms: string; privacy: string };
   visibility: { label: string; public: string; local: string; hint: string; badge: string };
   reactions: { add: string };
+  veranda: {
+    name: string;
+    title: string;
+    subtitle: string;
+    railing: string;
+    placeholder: string;
+    look: string;
+    empty: string;
+    error: string;
+    openersOnly: string;
+    truncated: string;
+    openRemote: string;
+  };
   article: { label: string; hint: string };
   topic: { now: string; set: string; edit: string; save: string; cancel: string; by: (who: string) => string };
   mine: {
@@ -509,6 +522,19 @@ const ja: Dict = {
     mention: (who) => `${who} が、あなたに`,
     other: (who) => `${who} から`
   },
+  veranda: {
+    name: 'ベランダ',
+    title: 'ベランダ',
+    subtitle: 'よその板を、追う前に見てみる。',
+    railing: 'ここから先は、よそのおうちです。読むだけで、なにも持ち帰りません。',
+    placeholder: 'fediverse@lemmy.world',
+    look: 'のぞく',
+    empty: 'まだ、なにも読めていません。',
+    error: 'そこは読めませんでした',
+    openersOnly: '見えているのは、立った話だけです。中の会話は、むこうの家で。',
+    truncated: 'ここまでにしておきます。',
+    openRemote: 'むこうの家で見る'
+  },
   article: {
     label: '長い文章として出す',
     hint: '外のサーバでは、題と書き出しとリンクになります。本文はここに読みに来てもらう形です。じっくり書いたものに向いています。'
@@ -784,6 +810,19 @@ const ko: Dict = {
     follow: (who) => `${who} 님이 팔로우하기 시작했어요`,
     mention: (who) => `${who} 님이 당신에게`,
     other: (who) => `${who} 님으로부터`
+  },
+  veranda: {
+    name: '베란다',
+    title: '베란다',
+    subtitle: '다른 데코를 팔로우하기 전에 살펴봐요.',
+    railing: '여기서부터는 다른 집이에요. 읽기만 하고, 아무것도 가져오지 않아요.',
+    placeholder: 'fediverse@lemmy.world',
+    look: '들여다보기',
+    empty: '아직 읽은 게 없어요.',
+    error: '거기는 읽지 못했어요',
+    openersOnly: '보이는 건 새로 선 이야기뿐이에요. 안쪽 대화는 그쪽 집에서.',
+    truncated: '여기까지만 볼게요.',
+    openRemote: '그쪽 집에서 보기'
   },
   article: {
     label: '긴 글로 내보내기',

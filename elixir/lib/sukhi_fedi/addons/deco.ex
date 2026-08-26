@@ -43,6 +43,7 @@ defmodule SukhiFedi.Addons.Deco do
   alias SukhiFedi.{Notes, Notifications, Outbox, Repo, Snowflake}
   alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
   alias SukhiFedi.Notes.Create, as: NotesCreate
+  alias SukhiFedi.Federation.CollectionFetcher
   alias SukhiFedi.Notes.Ids
   alias SukhiFedi.Schema.{Account, Deco, DecoFollower, DecoNote, DecoPref, Note}
 
@@ -946,6 +947,84 @@ defmodule SukhiFedi.Addons.Deco do
       _ -> params
     end
   end
+
+  # ── ベランダ（外の板を見に行く） ─────────────────────────────
+
+  @doc """
+  よその板を覗く。追う前に、どんな場所か見るための口。
+
+  引くだけで、**何も残さない** ── `notes` にも `accounts` にも書かない。
+  だから通報も削除もこちらではできないし、できないのが正しい。ここに
+  出ているのはよそのおうちの話で、natadeco が載せているものではない。
+  それが手すり。
+
+  相手の Group actor(`{slug}@host` の形か、actor URI そのもの)を引いて、
+  その outbox を読む。Lemmy / PieFed / NodeBB はどれも
+  `Announce(Create(Page|Note))` を本文ごと並べているので、一度引けば
+  開き手が丸ごと手に入る。
+
+  **開き手しか取れない相手がいる。** Lemmy 0.19 の板の outbox には
+  コメントが一件も入っていない(数えた)。会話の中まで読むには相手が
+  `context`(FEP-7888)を出している必要があり、それは PieFed と NodeBB
+  だけ。取れないものは取れないまま出す ── 「全部見えている」ふりを
+  しない。
+  """
+  @spec peek(String.t()) :: {:ok, map()} | {:error, term()}
+  def peek(handle_or_uri) when is_binary(handle_or_uri) do
+    with {:ok, actor} <- fetch_remote_actor(handle_or_uri),
+         outbox when is_binary(outbox) <- actor["outbox"],
+         {:ok, items, meta} <-
+           CollectionFetcher.fetch(outbox, sign_as: SukhiFedi.Accounts.signing_identity()) do
+      {:ok,
+       %{
+         actor: remote_actor_view(actor),
+         posts: items |> Enum.map(&remote_post_view/1) |> Enum.reject(&is_nil/1),
+         truncated: meta.truncated
+       }}
+    else
+      nil -> {:error, :no_outbox}
+      {:error, _} = err -> err
+      other -> {:error, other}
+    end
+  end
+
+  defp fetch_remote_actor("http" <> _ = uri), do: SukhiFedi.Federation.ActorFetcher.fetch(uri)
+
+  defp fetch_remote_actor(handle) do
+    case SukhiFedi.Federation.WebFinger.resolve_self(handle) do
+      {:ok, uri} when is_binary(uri) -> SukhiFedi.Federation.ActorFetcher.fetch(uri)
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp remote_actor_view(a) do
+    %{
+      id: a["id"],
+      name: a["name"] || a["preferredUsername"],
+      handle: a["preferredUsername"],
+      summary: a["summary"],
+      url: a["url"] || a["id"],
+      icon: get_in(a, ["icon", "url"]),
+      type: a["type"]
+    }
+  end
+
+  # `Announce(Create(Page|Note))` も、素の `Create` も、剥いた本体も来る。
+  # 本文の在るものだけを拾って、無いものは黙って落とす。
+  defp remote_post_view(%{"object" => inner}) when is_map(inner), do: remote_post_view(inner)
+
+  defp remote_post_view(%{"type" => t} = o) when t in ["Page", "Note", "Article", "Question"] do
+    %{
+      id: o["id"],
+      url: o["url"] || o["id"],
+      title: o["name"],
+      content_html: o["content"],
+      author: o["attributedTo"],
+      published: o["published"]
+    }
+  end
+
+  defp remote_post_view(_), do: nil
 
   # ── 板を追う人（外から） ─────────────────────────────────────
 
