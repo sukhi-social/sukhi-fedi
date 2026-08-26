@@ -66,6 +66,14 @@ defmodule SukhiFedi.Integration.SpaRoutesTest do
     |> Router.call(@opts)
   end
 
+  # 見張りサービスの多くは HEAD で叩く。Plug.Router の `get` は GET しか
+  # 拾わないので、pipeline の Plug.Head が抜けると全部 404 になる。
+  defp browser_head(path) do
+    conn(:head, path)
+    |> Plug.Conn.put_req_header("accept", "text/html,application/xhtml+xml")
+    |> Router.call(@opts)
+  end
+
   defp spa?(conn) do
     conn.status == 200 or (conn.status == 404 and conn.resp_body =~ @not_built)
   end
@@ -77,6 +85,13 @@ defmodule SukhiFedi.Integration.SpaRoutesTest do
       assert spa?(conn),
              "#{unquote(path)} を SPA が拾っていない ── router.ex に serve_spa の一行が要る"
     end
+  end
+
+  test "HEAD でも同じ道が開く ── 見張りに「落ちている」と読まれないこと" do
+    conn = browser_head("/")
+
+    assert spa?(conn),
+           "HEAD / を SPA が拾っていない ── router.ex の pipeline に Plug.Head が要る"
   end
 
   test "無い道は、ちゃんと無い ── 上の見分けが効いていること" do

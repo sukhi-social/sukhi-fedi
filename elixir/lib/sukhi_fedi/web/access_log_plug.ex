@@ -16,6 +16,9 @@ defmodule SukhiFedi.Web.AccessLogPlug do
 
   def call(conn, _opts) do
     start = System.monotonic_time(:millisecond)
+    # method は入り口で控える ── この後ろの Plug.Head が HEAD を GET に
+    # 書き換えるので、返すときに読むと HEAD が一つも残らない。
+    method = conn.method
 
     register_before_send(conn, fn conn ->
       elapsed = System.monotonic_time(:millisecond) - start
@@ -26,7 +29,7 @@ defmodule SukhiFedi.Web.AccessLogPlug do
       query = if conn.query_string in [nil, ""], do: "", else: "?#{conn.query_string}"
 
       Logger.info(
-        "ACCESS #{conn.method} #{conn.request_path}#{query} -> #{conn.status} " <>
+        "ACCESS #{method} #{conn.request_path}#{query} -> #{conn.status} " <>
           "(#{elapsed}ms) ip=#{remote} ua=#{inspect(ua)} accept=#{inspect(accept)} #{sig}"
       )
 

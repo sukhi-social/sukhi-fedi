@@ -35,6 +35,14 @@ defmodule SukhiFedi.Web.Router do
   # like /up from k8s LBs still fit easily. Tighten per-endpoint via
   # dedicated forwarders when needed.
   plug(SukhiFedi.Web.RateLimitPlug, bucket: "global", limit: 500, scale_ms: 60_000)
+  # HEAD を GET として捌く。Plug.Router の `get` は GET しか拾わないので、
+  # これが無いと HEAD は一つ残らず 404 になる ── 見張りサービスの多くは
+  # HEAD で叩くので、開いているページが「落ちている」と読まれる。
+  # method を書き換えるだけで、本文を出さないのと Content-Length は
+  # Bandit が wire の method を見て面倒を見る。ログの二つより後に置くのは、
+  # HEAD を HEAD のまま記録するため(AccessLogPlug は返すときに書くので、
+  # あちらでは入り口の method を控えてある)。
+  plug(Plug.Head)
   plug(:match)
 
   # multipart/form-data はここでは parse しない。account の avatar/header
