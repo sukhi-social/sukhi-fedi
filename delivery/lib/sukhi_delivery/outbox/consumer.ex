@@ -17,6 +17,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
       sns.outbox.reaction.created   → Bun `emoji_react`       → note author + relays
       sns.outbox.reaction.undone    → Bun `undo` (EmojiReact) → note author
       sns.outbox.announce.created   → Bun `announce`          → note author + followers
+                                      （板から出るぶんは板の followers へ）
       sns.outbox.announce.undone    → Bun `undo` (Announce)   → note author + followers
       sns.outbox.add.created        → Bun `add` (featured)    → followers
       sns.outbox.remove.created     → Bun `remove` (featured) → followers
@@ -451,6 +452,32 @@ defmodule SukhiDelivery.Outbox.Consumer do
   end
 
   defp maybe_attach_emoji_tag(payload, _), do: payload
+
+  # 板が新しく立った話を配る。人の boost と同じ `announce` translator を
+  # 通すが、actor も配り先も板のもの ── 板は accounts に居ないので、
+  # 下の `account_id` 前提の節には落ちない。
+  #
+  # 形は `Announce(<note の URI>)`。FEP-1b12 は `Announce(Create(…))` を
+  # 本筋と書いているが、Mastodon の Announce は object がオブジェクトで
+  # ある前提なので、中身がアクティビティだと弾かれる。掲示板を持つ実装
+  # は URI を引きに来て、そこで `audience` を見つけられる。
+  defp handle_announce(
+         %{"deco_actor" => actor_uri, "object" => object, "inboxes" => inboxes} = p,
+         :create
+       )
+       when is_binary(actor_uri) and is_binary(object) and is_list(inboxes) do
+    recipients = Enum.uniq(inboxes)
+    activity_id = p["activity_id"] || "#{actor_uri}/announces/#{:erlang.phash2(object)}"
+
+    payload = %{
+      actor: actor_uri,
+      object: object,
+      activityId: activity_id,
+      recipientInboxes: recipients
+    }
+
+    translate_and_fanout("announce", payload, actor_uri, activity_id, recipients)
+  end
 
   defp handle_announce(%{"account_id" => account_id, "note_ap_id" => note_ap_id} = p, mode) do
     case actor_for(account_id) do

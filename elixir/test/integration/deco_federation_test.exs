@@ -233,6 +233,75 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
       assert body["orderedItems"] == ["https://remote.test/users/a"]
     end
 
+    test "新しい話が立つと、追っている相手へ配る積み荷ができる", %{deco: deco} do
+      {:ok, author} =
+        LocalAccounts.create_admin("ann_#{System.unique_integer([:positive])}", "long-enough-pass")
+
+      author =
+        author
+        |> Ecto.Changeset.change(
+          created_at: DateTime.add(DateTime.utc_now(), -48, :hour) |> DateTime.truncate(:second)
+        )
+        |> SukhiFedi.Repo.update!()
+
+      :ok = D.record_follow(uri_of(deco), "https://remote.test/users/a", "https://remote.test/inbox")
+
+      {:ok, post} = D.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+
+      ev = last_announce()
+      assert ev, "板の Announce が outbox に積まれていない"
+      assert ev.payload["deco_actor"] == uri_of(deco)
+      assert ev.payload["inboxes"] == ["https://remote.test/inbox"]
+      assert ev.payload["object"] =~ "/notes/#{post.id}"
+    end
+
+    test "返信は配らない ── 追った人の面に一言ずつは流さない", %{deco: deco} do
+      {:ok, author} =
+        LocalAccounts.create_admin("ann2_#{System.unique_integer([:positive])}", "long-enough-pass")
+
+      author =
+        author
+        |> Ecto.Changeset.change(
+          created_at: DateTime.add(DateTime.utc_now(), -48, :hour) |> DateTime.truncate(:second)
+        )
+        |> SukhiFedi.Repo.update!()
+
+      :ok = D.record_follow(uri_of(deco), "https://remote.test/users/a", "https://remote.test/inbox")
+      {:ok, post} = D.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      before = last_announce()
+
+      {:ok, _} = D.reply(author, post.id, %{"status" => "つづき"})
+
+      assert last_announce().id == before.id, "返信でも Announce が積まれている"
+    end
+
+    test "追っている人が居なければ、積まない", %{deco: deco} do
+      {:ok, author} =
+        LocalAccounts.create_admin("ann3_#{System.unique_integer([:positive])}", "long-enough-pass")
+
+      author =
+        author
+        |> Ecto.Changeset.change(
+          created_at: DateTime.add(DateTime.utc_now(), -48, :hour) |> DateTime.truncate(:second)
+        )
+        |> SukhiFedi.Repo.update!()
+
+      {:ok, _} = D.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      refute last_announce()
+    end
+
+    defp last_announce do
+      import Ecto.Query
+
+      SukhiFedi.Repo.one(
+        from(e in SukhiFedi.Schema.OutboxEvent,
+          where: e.subject == "sns.outbox.announce.created" and e.aggregate_type == "deco",
+          order_by: [desc: e.id],
+          limit: 1
+        )
+      )
+    end
+
     test "無い板の followers は 404" do
       assert get_ap("/users/nope-deco/followers").status == 404
     end

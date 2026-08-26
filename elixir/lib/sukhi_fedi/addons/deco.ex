@@ -40,7 +40,7 @@ defmodule SukhiFedi.Addons.Deco do
 
   import Ecto.Query
 
-  alias SukhiFedi.{Notes, Notifications, Repo, Snowflake}
+  alias SukhiFedi.{Notes, Notifications, Outbox, Repo, Snowflake}
   alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
   alias SukhiFedi.Notes.Create, as: NotesCreate
   alias SukhiFedi.Notes.Ids
@@ -531,6 +531,9 @@ defmodule SukhiFedi.Addons.Deco do
           |> Repo.insert()
           |> case do
             {:ok, dn} ->
+              # 板を追っている相手に、新しく立った話を配る（開き手だけ）。
+              announce_new_post(deco_id, note.id)
+
               # `create_status/2` は `:account` を preload して返すので、
               # 書いた人をもう一度引きに行かなくていい。
               {:ok, post_view(note, dn, note.account)}
@@ -945,6 +948,51 @@ defmodule SukhiFedi.Addons.Deco do
   end
 
   # ── 板を追う人（外から） ─────────────────────────────────────
+
+  @doc """
+  板が、新しく立った話を追っている相手に配る（FEP-1b12 の `Announce`）。
+
+  **開き手だけ。返信は流さない。** 板を追うと会話の一言ずつが流れて
+  くる形にはしない ── 追った人の面に流れるのは「ここで新しい話が
+  立った」だけでいい。Lemmy の板の outbox も、数えると開き手しか
+  入っていない。
+
+  形は `Announce(<note の URI>)`。FEP-1b12 は `Announce(Create(…))` を
+  本筋と書いているが、Mastodon の Announce は object が**オブジェクト
+  である前提**で組まれていて、中身がアクティビティだと弾かれる
+  (`status_from_object` が nil になる)。掲示板を持つ実装は URI を
+  引きに来て、そこで `audience` を見つけられる ── 一つの形で両方に
+  届くほうを採った。
+
+  `local_only` の投稿は配らない。表札の無い板は追われようがない。
+  """
+  @spec announce_new_post(integer(), integer()) :: :ok
+  def announce_new_post(deco_id, note_id) when is_integer(deco_id) and is_integer(note_id) do
+    with %Note{} = note <- Repo.get(Note, note_id),
+         true <- is_nil(note.in_reply_to_ap_id),
+         %DecoNote{local_only: false} <- Repo.get_by(DecoNote, note_id: note_id),
+         {slug, true} <-
+           Repo.one(from(d in Deco, where: d.id == ^deco_id, select: {d.slug, d.has_actor})),
+         [_ | _] = inboxes <- follower_inboxes(deco_id),
+         %Account{username: username} <- Repo.get(Account, note.account_id) do
+      actor = SukhiFedi.AP.GroupJson.actor_uri(slug)
+      object = SukhiFedi.Notes.Ids.note_ap_id(note_id) || local_note_uri(username, note_id)
+
+      Outbox.enqueue("sns.outbox.announce.created", "deco", deco_id, %{
+        deco_actor: actor,
+        object: object,
+        activity_id: "#{actor}/announces/#{note_id}",
+        inboxes: inboxes
+      })
+    end
+
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp local_note_uri(username, note_id),
+    do: "https://#{SukhiFedi.Config.domain!()}/users/#{username}/notes/#{note_id}"
 
   @doc """
   板への `Follow` を控える。`manuallyApprovesFollowers` は false と

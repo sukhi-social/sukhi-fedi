@@ -321,11 +321,29 @@ defmodule SukhiDelivery.Delivery.Worker do
 
     case SukhiDelivery.Accounts.by_local_username(username) do
       %Account{private_key_jwk: jwk} when not is_nil(jwk) -> jwk
-      _ -> nil
+      # `{slug}-deco` は板の actor。鍵は accounts ではなく decos が
+      # 自分で持っている ── 板の Announce は板自身が署名する。
+      _ -> deco_private_key_jwk(username)
     end
   end
 
   defp get_private_key_jwk(_), do: nil
+
+  @deco_suffix "-deco"
+
+  defp deco_private_key_jwk(username) do
+    if String.ends_with?(username, @deco_suffix) do
+      slug = String.trim_trailing(username, @deco_suffix)
+
+      case SukhiDelivery.Repo.get_by(SukhiDelivery.Schema.Deco, slug: slug) do
+        %{private_key_jwk: jwk} when not is_nil(jwk) -> jwk
+        _ -> nil
+      end
+    end
+  rescue
+    # deco addon の無い鯖には decos 表が無い。
+    _ -> nil
+  end
 
   defp already_delivered?(nil, _inbox_url), do: false
 
