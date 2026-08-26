@@ -44,7 +44,7 @@ defmodule SukhiFedi.Addons.Deco do
   alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
   alias SukhiFedi.Notes.Create, as: NotesCreate
   alias SukhiFedi.Notes.Ids
-  alias SukhiFedi.Schema.{Account, Deco, DecoNote, DecoPref, Note}
+  alias SukhiFedi.Schema.{Account, Deco, DecoFollower, DecoNote, DecoPref, Note}
 
   # ── 板 ───────────────────────────────────────────────────────────────
 
@@ -944,6 +944,72 @@ defmodule SukhiFedi.Addons.Deco do
     end
   end
 
+  # ── 板を追う人（外から） ─────────────────────────────────────
+
+  @doc """
+  板への `Follow` を控える。`manuallyApprovesFollowers` は false と
+  名乗っているので、受けた時点で通っている ── 待たせる状態は持たない。
+
+  板の actor URI(`{slug}-deco`)で受け取る。表札を出していない板は
+  そもそも引けないので、ここには来ない。
+  """
+  @spec record_follow(String.t(), String.t(), String.t() | nil) :: :ok | {:error, :not_found}
+  def record_follow(deco_actor_uri, follower_uri, inbox_url) do
+    case deco_id_from_audience(deco_actor_uri) do
+      nil ->
+        {:error, :not_found}
+
+      deco_id ->
+        %DecoFollower{}
+        |> DecoFollower.changeset(%{
+          "deco_id" => deco_id,
+          "follower_uri" => follower_uri,
+          "inbox_url" => inbox_url
+        })
+        |> Repo.insert(on_conflict: :nothing, conflict_target: [:deco_id, :follower_uri])
+
+        :ok
+    end
+  end
+
+  @doc "板を追うのをやめた人を落とす（`Undo(Follow)`）。"
+  @spec drop_follow(String.t(), String.t()) :: :ok
+  def drop_follow(deco_actor_uri, follower_uri) do
+    case deco_id_from_audience(deco_actor_uri) do
+      nil ->
+        :ok
+
+      deco_id ->
+        from(f in DecoFollower,
+          where: f.deco_id == ^deco_id and f.follower_uri == ^follower_uri
+        )
+        |> Repo.delete_all()
+
+        :ok
+    end
+  end
+
+  @doc "その板を追っている相手の inbox。Announce の配り先。"
+  @spec follower_inboxes(integer()) :: [String.t()]
+  def follower_inboxes(deco_id) when is_integer(deco_id) do
+    from(f in DecoFollower,
+      where: f.deco_id == ^deco_id and not is_nil(f.inbox_url),
+      select: f.inbox_url,
+      distinct: true
+    )
+    |> Repo.all()
+  end
+
+  @doc "板を追っている相手の actor URI（followers コレクション用）。"
+  @spec follower_uris(String.t()) :: {:ok, [String.t()]} | {:error, :not_found}
+  def follower_uris(slug) when is_binary(slug) do
+    with {:ok, %Deco{id: id}} <- get_actor_record(slug) do
+      {:ok,
+       from(f in DecoFollower, where: f.deco_id == ^id, select: f.follower_uri, order_by: f.id)
+       |> Repo.all()}
+    end
+  end
+
   @doc """
   この一件が、線の上で名乗るぶん ── どの板のものか(`audience`)と、
   長い文章として出すか(`as_article`)。
@@ -1010,6 +1076,8 @@ defmodule SukhiFedi.Addons.Deco do
 
   # `{slug}-deco` の actor URI から板を引く。他所の板の audience は
   # ここで外れる（自分の domain の形にしか合わないので）。
+  # actor URI から板を引く。`audience` と Follow の宛先が同じ形なので
+  # 一本で足りる。
   defp deco_id_from_audience(uri) when is_binary(uri) do
     prefix = "https://#{SukhiFedi.Config.domain!()}/users/"
 

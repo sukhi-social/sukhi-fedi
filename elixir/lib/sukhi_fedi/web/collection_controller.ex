@@ -17,25 +17,41 @@ defmodule SukhiFedi.Web.CollectionController do
     username = conn.path_params["name"]
     actor_uri = ActorJson.actor_uri(username)
 
-    account = SukhiFedi.Accounts.by_local_username(username)
+    # `{slug}-deco` は板の actor。accounts には居ないので、先に見る。
+    case followers_of(username) do
+      {:ok, items} ->
+        collection = %{
+          "@context" => "https://www.w3.org/ns/activitystreams",
+          "id" => "#{actor_uri}/followers",
+          "type" => "OrderedCollection",
+          "totalItems" => length(items),
+          "orderedItems" => items
+        }
 
-    if account do
-      items = Social.list_followers(account.id)
-      total = length(items)
+        conn
+        |> put_resp_content_type("application/activity+json")
+        |> send_resp(200, JSON.encode!(collection))
 
-      collection = %{
-        "@context" => "https://www.w3.org/ns/activitystreams",
-        "id" => "#{actor_uri}/followers",
-        "type" => "OrderedCollection",
-        "totalItems" => total,
-        "orderedItems" => items
-      }
+      :error ->
+        not_found(conn)
+    end
+  end
 
-      conn
-      |> put_resp_content_type("application/activity+json")
-      |> send_resp(200, JSON.encode!(collection))
-    else
-      not_found(conn)
+  @deco_suffix "-deco"
+
+  defp followers_of(username) do
+    cond do
+      String.ends_with?(username, @deco_suffix) and SukhiFedi.Addon.Registry.enabled?(:deco) ->
+        case SukhiFedi.Addons.Deco.follower_uris(String.trim_trailing(username, @deco_suffix)) do
+          {:ok, items} -> {:ok, items}
+          _ -> :error
+        end
+
+      true ->
+        case SukhiFedi.Accounts.by_local_username(username) do
+          nil -> :error
+          account -> {:ok, Social.list_followers(account.id)}
+        end
     end
   end
 

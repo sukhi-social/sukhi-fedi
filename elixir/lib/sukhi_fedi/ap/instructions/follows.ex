@@ -58,11 +58,33 @@ defmodule SukhiFedi.AP.Instructions.Follows do
   end
 
   defp accept_follow_now(save_data, reply, inbox_url) do
-    insert_follow(save_data)
-    maybe_notify_follow(save_data)
+    # 板宛ての Follow は accounts に相手が居ない ── そのままだと Accept
+    # だけ返って、誰が追ってきたか残らない（実際にそうだった）。
+    if maybe_deco_follow(save_data, inbox_url) == :deco do
+      deliver_accept(reply, inbox_url, save_data["followeeUri"])
+    else
+      insert_follow(save_data)
+      maybe_notify_follow(save_data)
+      deliver_accept(reply, inbox_url, save_data["followeeUri"])
+      account_follow_extras(save_data["followeeUri"], inbox_url)
+    end
+  end
 
+  # deco addon を切ってあるインスタンスでは、板の話は無い。
+  defp maybe_deco_follow(save_data, inbox_url) do
     followee_uri = save_data["followeeUri"]
+    follower_uri = save_data["follow"] && Extract.extract_uri(save_data["follow"]["actor"])
 
+    with true <- SukhiFedi.Addon.Registry.enabled?(:deco),
+         true <- is_binary(followee_uri) and is_binary(follower_uri),
+         :ok <- SukhiFedi.Addons.Deco.record_follow(followee_uri, follower_uri, inbox_url) do
+      :deco
+    else
+      _ -> :account
+    end
+  end
+
+  defp deliver_accept(reply, inbox_url, followee_uri) do
     Oban.insert!(
       SukhiFedi.Oban,
       Oban.Job.new(
@@ -71,17 +93,15 @@ defmodule SukhiFedi.AP.Instructions.Follows do
         queue: @delivery_queue
       )
     )
+  end
 
-    # Nudge the follower to refresh our cached actor (so their follower
-    # count reflects us immediately instead of after their 24h TTL).
+  # 板には要らないもの ── actor の更新催促も、過去の投稿の巻き戻しも、
+  # 人のアカウントの話。
+  defp account_follow_extras(followee_uri, inbox_url) do
     maybe_enqueue_actor_update(followee_uri, inbox_url)
-
-    # Replay our recent public posts to the new follower's inbox. Without
-    # this they only see posts published after the Accept lands, which
-    # means a quiet account looks empty on their server until we post
-    # something new.
     maybe_backfill_recent_notes(followee_uri, inbox_url)
   end
+
 
   # Park a Follow aimed at a locked account. Idempotent on (followee,
   # follower) so a re-sent Follow doesn't pile up, and it notifies the
@@ -275,6 +295,12 @@ defmodule SukhiFedi.AP.Instructions.Follows do
   def undo_follow(actor_uri, inner) do
     followee_uri = Extract.extract_object_id(inner["object"])
     followee_id = followee_uri && Resolve.local_account_id_from_uri(followee_uri)
+
+    # 板を追うのをやめた相手 ── accounts には居ないので、上の
+    # `local_account_id_from_uri` は nil を返す。
+    if is_binary(followee_uri) and SukhiFedi.Addon.Registry.enabled?(:deco) do
+      SukhiFedi.Addons.Deco.drop_follow(followee_uri, actor_uri)
+    end
 
     if followee_id do
       from(f in Follow,

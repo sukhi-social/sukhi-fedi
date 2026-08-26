@@ -190,6 +190,54 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
     end
   end
 
+  describe "板を追う（外から）" do
+    alias SukhiFedi.Addons.Deco, as: D
+
+    defp uri_of(deco), do: SukhiFedi.AP.GroupJson.actor_uri(deco.slug)
+
+    test "Follow を受けると、その相手が残る", %{deco: deco} do
+      assert :ok = D.record_follow(uri_of(deco), "https://remote.test/users/a", "https://remote.test/inbox")
+
+      assert {:ok, ["https://remote.test/users/a"]} = D.follower_uris(deco.slug)
+      assert D.follower_inboxes(deco.id) == ["https://remote.test/inbox"]
+    end
+
+    test "二度来ても一度きり", %{deco: deco} do
+      :ok = D.record_follow(uri_of(deco), "https://remote.test/users/a", "https://remote.test/inbox")
+      :ok = D.record_follow(uri_of(deco), "https://remote.test/users/a", "https://remote.test/inbox")
+
+      assert {:ok, [_one]} = D.follower_uris(deco.slug)
+    end
+
+    test "やめれば落ちる", %{deco: deco} do
+      :ok = D.record_follow(uri_of(deco), "https://remote.test/users/a", "https://remote.test/inbox")
+      :ok = D.drop_follow(uri_of(deco), "https://remote.test/users/a")
+
+      assert {:ok, []} = D.follower_uris(deco.slug)
+    end
+
+    test "無い板への Follow は :not_found", %{} do
+      assert {:error, :not_found} =
+               D.record_follow("https://localhost:4000/users/nope-deco", "https://remote.test/users/a", nil)
+    end
+
+    test "followers コレクションが引ける", %{deco: deco} do
+      :ok = D.record_follow(uri_of(deco), "https://remote.test/users/a", "https://remote.test/inbox")
+
+      conn = get_ap("/users/#{deco.slug}-deco/followers")
+      assert conn.status == 200
+
+      body = JSON.decode!(conn.resp_body)
+      assert body["type"] == "OrderedCollection"
+      assert body["totalItems"] == 1
+      assert body["orderedItems"] == ["https://remote.test/users/a"]
+    end
+
+    test "無い板の followers は 404" do
+      assert get_ap("/users/nope-deco/followers").status == 404
+    end
+  end
+
   test "板の slug 自体(suffix 無し)は、板の actor としては解決しない", %{deco: deco} do
     # `hinata@domain` は個人アカウントの名前空間 ── デコの actor はいつも
     # `hinata-deco@domain` の方。無いアカウントとして 404 になる。
