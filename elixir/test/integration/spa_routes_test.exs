@@ -47,6 +47,7 @@ defmodule SukhiFedi.Integration.SpaRoutesTest do
     "/hello",
     "/tomo",
     "/veranda",
+    "/about",
     "/people/1",
     "/d/hinata",
     "/d/hinata/new",

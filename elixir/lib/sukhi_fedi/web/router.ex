@@ -587,6 +587,12 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  # このばしょの約束 ── 変えないと決めていることの一枚。
+  # (足し忘れて、また直リンクだけ 404 にした。二度目。)
+  get "/about" do
+    serve_spa(conn)
+  end
+
   get "/api/nodeinfo" do
     if nodeinfo_monitor_enabled?(),
       do: ViewerController.nodeinfo_lookup(conn, []),
