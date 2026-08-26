@@ -17,11 +17,25 @@
         var t = localStorage.getItem('nd.theme');
         if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
       } catch {}
-      // 同じ理由で、選んである表示言語も描画の前に当てる ── html[lang]
+      // 同じ理由で、表示言語も描画の前に当てる ── html[lang]
       // は言語ごとの文字の大きさ補正(--type-scale)の元にもなるので、
       // 遅れて切り替わると本文の大きさまで一瞬ずれて見える。
+      // まだ選んでいない人には、端末の言語で開く(i18n.svelte.ts の
+      // detectLang と同じ見かた ── ここは import できないので二度書く)。
       try {
         var l = localStorage.getItem('nd.lang');
+        if (l !== 'ja' && l !== 'ko') {
+          var tags = navigator.languages && navigator.languages.length
+            ? navigator.languages
+            : [navigator.language || ''];
+          for (var i = 0; i < tags.length; i++) {
+            var base = String(tags[i]).toLowerCase().split('-')[0];
+            if (base === 'ko' || base === 'ja') {
+              l = base;
+              break;
+            }
+          }
+        }
         if (l === 'ko') document.documentElement.lang = 'ko';
       } catch {}
     </script>

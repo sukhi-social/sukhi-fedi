@@ -69,6 +69,13 @@
 
 <svelte:window onclick={onWindowClick} onkeydown={onWindowKeydown} />
 
+<!-- タブに出る名前も、いま見ている言語で ── 韓国語で開いた人のタブだけ
+     日本語のまま、にならないように。辞書から取るので、切り替えた瞬間に
+     こちらも一緒に動く。 -->
+<svelte:head>
+  <title>{t().siteName}</title>
+</svelte:head>
+
 <header>
   <div class="measure bar">
     <a class="mark" href="/">{t().siteName}</a>

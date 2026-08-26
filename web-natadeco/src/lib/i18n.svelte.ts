@@ -1,5 +1,5 @@
 // 表示言語(日本語/韓国語)。仕組みは theme.ts と同じ ── 選べば
-// localStorage に残り、選ばなければ日本語のまま。ここは全ページから
+// localStorage に残り、選んでいなければ端末の言語で開く。ここは全ページから
 // 読まれるので、$state をモジュールに持たせて共有する(theme.ts は
 // コンポーネントごとに読み直す作りだったが、こちらは辞書がページ全体に
 // 散らばるので、切り替えた瞬間に画面全体が動いてほしい)。
@@ -15,9 +15,29 @@ export const langNames: Record<Lang, string> = {
   ko: '한국어'
 };
 
+/**
+ * まだ選んでいない人に、最初の一枚をどちらで出すか ── 端末の言語を
+ * 上から順に見て、韓国語のほうが先に来たら韓国語で開く。日本語が先なら
+ * 日本語、どちらも無ければ日本語(この場所の地の言語)。
+ *
+ * ここで localStorage には書かない ── 感知は「選んだこと」ではないので。
+ * 端末の設定が変われば、こちらもそのまま付いていく。
+ */
+function detectLang(): Lang {
+  const tags = navigator.languages?.length ? navigator.languages : [navigator.language ?? ''];
+  for (const tag of tags) {
+    const base = tag.toLowerCase().split('-')[0];
+    if (base === 'ko') return 'ko';
+    if (base === 'ja') return 'ja';
+  }
+  return 'ja';
+}
+
 function readStored(): Lang {
   if (!browser) return 'ja';
-  return localStorage.getItem(KEY) === 'ko' ? 'ko' : 'ja';
+  const saved = localStorage.getItem(KEY);
+  if (saved === 'ja' || saved === 'ko') return saved;
+  return detectLang();
 }
 
 let lang = $state<Lang>(readStored());
