@@ -71,6 +71,11 @@
   // 話す板では、ひとこと置くのに見出しを考えさせない ── 欄そのものを
   // 出さないので、埋まっているかも問わない。
   const talk = $derived(deco?.kind === 'talk');
+
+  // 長い文章として出すか。既定は Note ── 外でも本文がそのまま読める。
+  // 選ぶと Article になって、外では題と書き出しとリンクだけになる。
+  // 話す板には題が無いので、この選択も出さない。
+  let asArticle = $state(false);
   const jaComplete = $derived(talk ? !!text.trim() : !!title.trim() && !!text.trim());
   const koComplete = $derived(talk ? !!textKo.trim() : !!titleKo.trim() && !!textKo.trim());
   const canSubmit = $derived(jaComplete || koComplete);
@@ -89,9 +94,10 @@
               status: text,
               title_i18n: koComplete ? { ko: titleKo.trim() } : undefined,
               content_i18n: koComplete ? { ko: textKo.trim() } : undefined,
-              visibility
+              visibility,
+              as_article: asArticle
             }
-          : { title: titleKo.trim(), status: textKo, visibility }
+          : { title: titleKo.trim(), status: textKo, visibility, as_article: asArticle }
       );
       clearDraft(slug);
       await goto(`/posts/${made.id}`);
@@ -120,6 +126,16 @@
   <form class="card stack" onsubmit={write}>
     <LangTabs bind:active={lang} />
     <VisibilityPicker bind:active={visibility} />
+
+    {#if !talk}
+      <label class="check">
+        <input type="checkbox" bind:checked={asArticle} />
+        <span>
+          {t().article.label}
+          <span class="muted small">{t().article.hint}</span>
+        </span>
+      </label>
+    {/if}
 
     {#if lang === 'ja'}
       {#if !talk}
@@ -184,6 +200,24 @@
 {/if}
 
 <style>
+  /* 印と言葉が横に、説明は下に。選ぶのは一度きりなので、説明を
+     選択肢の中に置く ── 別に注釈を出すと、どちらの話か目で追うことになる。 */
+  .check {
+    display: flex;
+    align-items: start;
+    gap: 0.5rem;
+  }
+
+  .check input {
+    width: auto;
+    min-width: 0;
+    margin-top: 0.25rem;
+  }
+
+  .check span span {
+    display: block;
+  }
+
   .stack {
     display: grid;
     gap: 0.85rem;

@@ -76,6 +76,36 @@ defmodule SukhiFedi.Fedi.BuildersTest do
       assert content =~ "&amp;y"
     end
 
+    test "既定は Note ── 選ばなければ本文が外でも読める" do
+      assert titled!()["type"] == "Note"
+      refute Map.has_key?(titled!(), "summary")
+    end
+
+    test "選べば Article ── 意味の上では題を持つものの型" do
+      object = titled!(%{"asArticle" => true})
+
+      assert object["type"] == "Article"
+      assert object["name"] == "寝過ぎた"
+    end
+
+    test "Article には書き出しを添える ── 無いと題とリンクだけになる" do
+      object = titled!(%{"asArticle" => true, "content" => "<p>ながい はなし</p>"})
+
+      # Mastodon は Article の content を出さず、題・summary・リンクを
+      # 並べる。summary が空だと、外の人には何も届かない。
+      assert object["summary"] =~ "ながい はなし"
+      refute object["summary"] =~ "<p>"
+    end
+
+    test "自分で書いた CW は、抜粋で上書きしない" do
+      object = titled!(%{"asArticle" => true, "summary" => "しんどい話です"})
+      assert object["summary"] == "しんどい話です"
+    end
+
+    test "題が無ければ Article にはならない ── 話す板は素の Note" do
+      assert titled!(%{"asArticle" => true, "title" => nil})["type"] == "Note"
+    end
+
     test "題が無ければ、何も足さない ── 話す板の投稿は素のまま" do
       object = titled!(%{"title" => nil})
 

@@ -87,6 +87,10 @@ defmodule SukhiFedi.Notes.Create do
     # 止める ── outbox payload に載せるだけで、notes 側には持たせない。
     local_only? = !!(params[:local_only] || params["local_only"])
 
+    # 長い文章として出すか(AP の `Article`)。notes には持たせない ──
+    # `local_only` と同じで、連合の側にだけ効く上乗せ。
+    as_article? = !!(params[:as_article] || params["as_article"])
+
     if visibility == "direct" do
       create_direct_status(account_id, params)
     else
@@ -166,6 +170,7 @@ defmodule SukhiFedi.Notes.Create do
             # ここの画面は題も名前ももう出しているので、保存する本文には
             # 入れない ── 同じことを二度書かせない。
             title: n.title,
+            as_article: as_article?,
             author_handle: author_handle(n),
             author_uri: author_uri(n)
           }

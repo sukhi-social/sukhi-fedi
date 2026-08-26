@@ -126,7 +126,7 @@ defmodule SukhiFedi.Fedi.Builders do
   defp note_object(p, audience) do
     %{
       "id" => p["noteId"],
-      "type" => "Note",
+      "type" => object_type(p),
       "attributedTo" => p["actor"],
       "content" => titled_content(p),
       "published" => p["published"] || now(),
@@ -140,7 +140,7 @@ defmodule SukhiFedi.Fedi.Builders do
     # Mastodon は `Note` の `name` を一度も読まないので、向こうで題が
     # 消える ── だから題は本文の頭にも引用として置く(`titled_content/1`)。
     |> put_if("name", p["title"])
-    |> put_if("summary", p["summary"])
+    |> put_if("summary", summary_for(p))
     |> put_if("sensitive", p["sensitive"])
     # FEP-044f canonical `quote` (signed), plus the authorization stamp
     # once the quoted author granted it. The Misskey aliases + FEP-e232
@@ -149,6 +149,48 @@ defmodule SukhiFedi.Fedi.Builders do
     |> put_if("quoteAuthorization", p["quoteAuthorization"])
     |> Map.put("interactionPolicy", @quote_policy)
   end
+
+  # 既定は `Note`。`Article` は書いた人が選んだときだけ。
+  #
+  # 意味の上では題を持つものは `Article` だが、Mastodon は `Article` を
+  # CONVERTED_TYPES に入れていて、`content` を一行も出さない ── 題と
+  # summary とリンクだけになる。長い文章なら「続きはリンク先で」が
+  # 自然だが、一行の書き込みでそれをやると、外の人には何も届かない。
+  # だから選べるものにして、既定は Note にした。
+  defp object_type(p), do: if(p["asArticle"] && titled?(p), do: "Article", else: "Note")
+
+  defp titled?(p), do: is_binary(p["title"]) and p["title"] != ""
+
+  # `Article` の `summary` は、Mastodon では本文の代わりに出る場所
+  # (CONVERTED_TYPES の `processed_text` が題・summary・リンクを並べる)。
+  # 空のままだと題とリンクだけになるので、本文の書き出しを入れておく ──
+  # 選んだ人が思っているより何も伝わらない、を避けるため。
+  #
+  # 自分で CW を書いている人のぶんは触らない。それはその人の言葉で、
+  # 抜粋で上書きしていいものではない。
+  defp summary_for(p) do
+    cond do
+      is_binary(p["summary"]) and p["summary"] != "" -> p["summary"]
+      p["asArticle"] && titled?(p) -> excerpt(p["content"])
+      true -> p["summary"]
+    end
+  end
+
+  @excerpt_len 220
+
+  defp excerpt(html) when is_binary(html) do
+    text =
+      html
+      |> String.replace(~r{<[^>]*>}, " ")
+      |> String.replace(~r{\s+}, " ")
+      |> String.trim()
+
+    if String.length(text) > @excerpt_len,
+      do: String.slice(text, 0, @excerpt_len) <> "…",
+      else: text
+  end
+
+  defp excerpt(_), do: nil
 
   # 題つきの投稿は、本文の頭に「> 題 — @書いた人」を引用で置く。
   #

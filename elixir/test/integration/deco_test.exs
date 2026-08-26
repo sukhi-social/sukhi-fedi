@@ -1055,4 +1055,33 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert row.topic_by.acct == owner.username
     end
   end
+
+  describe "長い文章として出す" do
+    # 既定は Note ── 外でも本文がそのまま読める。Article は選んだ人だけ。
+    test "既定では選ばれていない", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      assert post.as_article == false
+    end
+
+    test "選べば、その一件に残る", %{author: author, deco: deco} do
+      {:ok, post} =
+        Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文", "as_article" => true})
+
+      assert post.as_article == true
+
+      assert {:ok, read} = Deco.get_post(post.id)
+      assert read.as_article == true
+    end
+
+    test "話す板でも器は同じ ── 題が無ければ線の上で Note のまま", %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, talk} =
+        Deco.create_deco(author, %{"slug" => "talk#{n}", "name" => "はなす板", "kind" => "talk"})
+
+      {:ok, post} = Deco.post(author, talk.slug, %{"status" => "ひとこと", "as_article" => true})
+      assert post.as_article == true
+      assert is_nil(post.title)
+    end
+  end
 end

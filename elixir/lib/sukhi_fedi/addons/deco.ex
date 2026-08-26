@@ -488,6 +488,9 @@ defmodule SukhiFedi.Addons.Deco do
 
     # 書く人が選べば、それが通る。選ばなければ板の既定 ── 一件ごとに
     # 訊かれ続けないための既定であって、板が決めてしまう錠ではない。
+    # 長い文章として出すか。既定は Note ── 選んだ人だけ Article になる。
+    as_article? = truthy(Map.get(rest, "as_article"))
+
     local_only? =
       case {Map.get(rest, "visibility"), default_local} do
         {"local", _} -> true
@@ -495,7 +498,7 @@ defmodule SukhiFedi.Addons.Deco do
         {_, nil} -> deco_local_default(deco_id)
         {_, inherited} -> inherited
       end
-    note_params = Map.put(rest, "local_only", local_only?)
+    note_params = rest |> Map.put("local_only", local_only?) |> Map.put("as_article", as_article?)
 
     with :ok <- check_pace(account_id) do
       # note を先に作り、そのあと板に結ぶ。note づくりは Notes 側の
@@ -505,7 +508,15 @@ defmodule SukhiFedi.Addons.Deco do
         {:ok, note} ->
           %DecoNote{}
           |> DecoNote.changeset(
-            Map.merge(%{"deco_id" => deco_id, "note_id" => note.id, "local_only" => local_only?}, i18n)
+            Map.merge(
+              %{
+                "deco_id" => deco_id,
+                "note_id" => note.id,
+                "local_only" => local_only?,
+                "as_article" => as_article?
+              },
+              i18n
+            )
           )
           |> Repo.insert()
           |> case do
@@ -916,6 +927,8 @@ defmodule SukhiFedi.Addons.Deco do
   end
 
   # その板の、公開範囲の既定。無い板は外に出る側（移行前の振る舞い）。
+  defp truthy(v), do: v not in [nil, false, "false", 0, "0", ""]
+
   defp deco_local_default(deco_id) do
     Repo.one(from(d in Deco, where: d.id == ^deco_id, select: d.local_only)) || false
   end
@@ -960,7 +973,8 @@ defmodule SukhiFedi.Addons.Deco do
       # でここを上書きする ── 書いたばかりの投稿は本当に空なので、
       # 書く口はそのままでいい。
       reactions: [],
-      local_only: dn.local_only || false
+      local_only: dn.local_only || false,
+      as_article: dn.as_article || false
     }
   end
 
@@ -980,7 +994,8 @@ defmodule SukhiFedi.Addons.Deco do
       reply_count: reply_count(n),
       in_reply_to_ap_id: n.in_reply_to_ap_id,
       reactions: [],
-      local_only: false
+      local_only: false,
+      as_article: false
     }
   end
 

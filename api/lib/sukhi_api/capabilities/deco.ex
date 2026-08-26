@@ -166,7 +166,7 @@ defmodule SukhiApi.Capabilities.Deco do
         [
           viewer,
           req[:path_params]["slug"],
-          take(body, ["title", "status", "title_i18n", "content_i18n", "visibility"])
+          take(body, ["title", "status", "title_i18n", "content_i18n", "visibility", "as_article"])
         ],
         &ok(201, &1)
       )

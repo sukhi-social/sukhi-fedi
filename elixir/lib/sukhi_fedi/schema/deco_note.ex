@@ -19,6 +19,10 @@ defmodule SukhiFedi.Schema.DecoNote do
     # ── これは deco 独自の、配達側だけが見る上乗せ。
     field(:local_only, :boolean, default: false)
 
+    # 長い文章として出すか（AP の `Article`）。既定は `Note` ──
+    # Mastodon は Article の本文を出さないので、選んだ人だけのもの。
+    field(:as_article, :boolean, default: false)
+
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end
 
@@ -29,7 +33,7 @@ defmodule SukhiFedi.Schema.DecoNote do
 
   def changeset(deco_note, attrs) do
     deco_note
-    |> cast(attrs, [:deco_id, :note_id, :title_i18n, :content_i18n, :local_only])
+    |> cast(attrs, [:deco_id, :note_id, :title_i18n, :content_i18n, :local_only, :as_article])
     |> validate_required([:deco_id, :note_id])
     |> unique_constraint(:note_id)
     |> validate_i18n_map(:title_i18n, 120)

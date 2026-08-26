@@ -77,6 +77,9 @@ export type Post = {
   created_at: string;
   reply_count: number;
   local_only: boolean;
+  // 長い文章として出したか（AP の `Article`）。外では題と書き出しと
+  // リンクになって、本文は natadeco に読みに来てもらう形。
+  as_article: boolean;
   emojis: Emoji[];
   reactions: Reaction[];
   replies?: Post[];
@@ -164,6 +167,7 @@ function fromStatus(s: Status): Post {
     reply_count: 0,
     // 友デコには板の「ここだけ」の印は無い ── 出どころが板ではないので。
     local_only: false,
+    as_article: false,
     emojis: s.emojis ?? [],
     reactions: s.reactions ?? [],
     parent: s.parent
@@ -366,6 +370,7 @@ export const createPost = (
     title_i18n?: Record<string, string>;
     content_i18n?: Record<string, string>;
     visibility?: Visibility;
+    as_article?: boolean;
   }
 ) => req<Post>('POST', `/api/v1/deco/${encodeURIComponent(slug)}/posts`, body);
 

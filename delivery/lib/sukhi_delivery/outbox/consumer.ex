@@ -927,6 +927,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
         |> Map.put(:title, t)
         |> Map.put(:authorHandle, p["author_handle"])
         |> Map.put(:authorUri, p["author_uri"])
+        |> Map.put(:asArticle, !!p["as_article"])
 
       _ ->
         payload

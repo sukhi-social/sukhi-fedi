@@ -223,6 +223,7 @@ type Dict = {
   footer: { terms: string; privacy: string };
   visibility: { label: string; public: string; local: string; hint: string; badge: string };
   reactions: { add: string };
+  article: { label: string; hint: string };
   topic: { now: string; set: string; edit: string; save: string; cancel: string; by: (who: string) => string };
   mine: {
     minding: string;
@@ -508,6 +509,10 @@ const ja: Dict = {
     mention: (who) => `${who} が、あなたに`,
     other: (who) => `${who} から`
   },
+  article: {
+    label: '長い文章として出す',
+    hint: '外のサーバでは、題と書き出しとリンクになります。本文はここに読みに来てもらう形です。じっくり書いたものに向いています。'
+  },
   topic: {
     now: 'いま',
     set: 'いま話していることを、書く',
@@ -779,6 +784,10 @@ const ko: Dict = {
     follow: (who) => `${who} 님이 팔로우하기 시작했어요`,
     mention: (who) => `${who} 님이 당신에게`,
     other: (who) => `${who} 님으로부터`
+  },
+  article: {
+    label: '긴 글로 내보내기',
+    hint: '바깥 서버에서는 제목과 첫머리와 링크로 보여요. 본문은 여기로 읽으러 오는 형태예요. 공들여 쓴 글에 어울려요.'
   },
   topic: {
     now: '지금',
