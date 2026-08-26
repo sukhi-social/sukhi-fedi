@@ -1,5 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
+# Retired 2026-08-26, kept for reference. Production moved to DeployEx
+# in Docker; nothing runs from this file any more, so the image tags,
+# env names and memory numbers below drift with every release and are
+# checked by nothing. Read it as a worked example of the Coolify shape
+# — not as a file to point Coolify at. Start from `docker-compose.yml`
+# plus an override and re-derive.
+#
 # Self-contained Coolify compose for a 2 CPU / 12 GiB VPS.
 #
 # Coolify takes a single compose file path — set this file as the
