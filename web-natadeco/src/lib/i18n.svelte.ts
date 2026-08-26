@@ -114,6 +114,13 @@ type Dict = {
     deleteConfirm: string;
     deleteConfirmYes: string;
     deleteError: string;
+    report: string;
+    reportPrompt: string;
+    reportSend: string;
+    reported: string;
+    reportError: string;
+    folded: string;
+    unfold: string;
   };
   login: {
     title: string;
@@ -220,7 +227,14 @@ type Dict = {
     failedTitle: string;
     working: string;
   };
-  footer: { terms: string; privacy: string };
+  footer: { terms: string; privacy: string; about: string };
+  // 変えないと決めていることの一枚。正体は、決めごとのほうにある。
+  about: {
+    title: string;
+    intro: string;
+    promises: { head: string; body: string }[];
+    closing: string;
+  };
   visibility: { label: string; public: string; local: string; hint: string; badge: string };
   reactions: { add: string };
   veranda: {
@@ -373,7 +387,14 @@ const ja: Dict = {
     delete: 'なくす',
     deleteConfirm: '本当に、なくす? もとには戻せません。',
     deleteConfirmYes: 'なくす',
-    deleteError: '消せませんでした'
+    deleteError: '消せませんでした',
+    report: '管理する人に知らせる',
+    reportPrompt: '気になったことを、管理する人に知らせます。理由があれば書いてください(なくても大丈夫)。',
+    reportSend: 'つたえる',
+    reported: '管理する人に知らせました。見ておきます。',
+    reportError: '知らせられませんでした',
+    folded: 'いくつか知らせが届いたので、いったんたたんであります。',
+    unfold: 'ひらく'
   },
   login: {
     title: '入る',
@@ -481,7 +502,31 @@ const ja: Dict = {
     failedTitle: '入れませんでした',
     working: '入っています…'
   },
-  footer: { terms: '利用規約', privacy: 'プライバシーポリシー' },
+  footer: { terms: '利用規約', privacy: 'プライバシーポリシー', about: 'このばしょの約束' },
+  about: {
+    title: 'このばしょの約束',
+    intro:
+      'ナタデコは、ほっとする話を、ゆっくり置いていく板です。変えないと決めていることを、ここに書いておきます。',
+    promises: [
+      {
+        head: '下向きの矢印はありません',
+        body: '「いいね」にあたるものはあっても、「よくない」を押す手はありません。気になる投稿は、管理する人に知らせてください。'
+      },
+      {
+        head: '書いた人を隠しません',
+        body: '投稿には、書いた人の名前がいつも添えてあります。匿名の板ではありません。'
+      },
+      {
+        head: '終わりがあります',
+        body: 'どのページも、下まで行けば終わります。ずっと読み続けさせる作りにはしていません。'
+      },
+      {
+        head: 'ひなたの絵は、AIが描いたものです',
+        body: '看板のひなたは、AIで描かれた絵です。見せる前に、見てもいいか訊きます。'
+      }
+    ],
+    closing: '「好」という字が、このばしょと、隣の小さなお星さま(sukhi)の両方に居ます。見つけた人だけの、ちいさな印です。'
+  },
   visibility: {
     label: '公開範囲',
     public: '全域',
@@ -654,7 +699,14 @@ const ko: Dict = {
     delete: '지우기',
     deleteConfirm: '정말 지울까요? 되돌릴 수 없어요.',
     deleteConfirmYes: '지우기',
-    deleteError: '지울 수 없었어요'
+    deleteError: '지울 수 없었어요',
+    report: '관리하는 분에게 알리기',
+    reportPrompt: '신경 쓰이는 점을 관리하는 분에게 알려요. 이유가 있으면 적어 주세요 (없어도 괜찮아요).',
+    reportSend: '전하기',
+    reported: '관리하는 분에게 알렸어요. 살펴볼게요.',
+    reportError: '알릴 수 없었어요',
+    folded: '몇 분이 알려 주셔서, 잠시 접어 두었어요.',
+    unfold: '펼치기'
   },
   login: {
     title: '들어가기',
@@ -762,7 +814,30 @@ const ko: Dict = {
     failedTitle: '들어갈 수 없었어요',
     working: '들어가는 중…'
   },
-  footer: { terms: '이용약관', privacy: '개인정보 처리방침' },
+  footer: { terms: '이용약관', privacy: '개인정보 처리방침', about: '이곳의 약속' },
+  about: {
+    title: '이곳의 약속',
+    intro: '나타데코는 따스한 이야기를 천천히 놓아 두는 게시판이에요. 바꾸지 않기로 한 것들을 여기에 적어 둘게요.',
+    promises: [
+      {
+        head: '아래로 향하는 화살표는 없어요',
+        body: '"좋아요"에 해당하는 건 있어도, "별로예요"를 누르는 손은 없어요. 신경 쓰이는 글은 관리하는 분에게 알려 주세요.'
+      },
+      {
+        head: '쓴 사람을 숨기지 않아요',
+        body: '글에는 언제나 쓴 사람의 이름이 함께 있어요. 익명 게시판이 아니에요.'
+      },
+      {
+        head: '끝이 있어요',
+        body: '어느 페이지든 아래까지 내려가면 끝나요. 계속 읽게 만드는 구조로는 만들지 않았어요.'
+      },
+      {
+        head: '히나타의 그림은 AI가 그렸어요',
+        body: '간판의 히나타는 AI로 그린 그림이에요. 보여 드리기 전에, 봐도 괜찮은지 먼저 물어요.'
+      }
+    ],
+    closing: '"好"라는 글자가 이곳과, 옆의 작은 별(sukhi) 양쪽에 있어요. 찾은 사람만 아는, 작은 표시예요.'
+  },
   visibility: {
     label: '공개 범위',
     public: '전역',

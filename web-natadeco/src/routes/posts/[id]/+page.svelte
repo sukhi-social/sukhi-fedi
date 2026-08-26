@@ -6,6 +6,7 @@
     createReply,
     updatePost,
     deletePost,
+    reportPost,
     getCurrentAccount,
     signedIn,
     when,
@@ -134,6 +135,45 @@
     }
   }
 
+  // 知らせる。消す手は書いた人にしか無いので、それ以外の人には
+  // 「運営に知らせる」手がある。一言は添えても添えなくてもいい。
+  let reportingId = $state<number | null>(null);
+  let reportComment = $state('');
+  let reportBusy = $state(false);
+  let reportError = $state<string | null>(null);
+  // このページで知らせ終えたもの。二度目のボタンは出さない。
+  let reported = $state<number[]>([]);
+
+  function askReport(targetId: number) {
+    reportingId = targetId;
+    reportComment = '';
+    reportError = null;
+  }
+
+  function cancelReport() {
+    reportingId = null;
+  }
+
+  async function sendReport(target: Post) {
+    if (reportBusy) return;
+    reportBusy = true;
+    reportError = null;
+    try {
+      await reportPost(target.id, reportComment.trim() || undefined);
+      reported = [...reported, target.id];
+      reportingId = null;
+    } catch {
+      reportError = t().postDetail.reportError;
+    } finally {
+      reportBusy = false;
+    }
+  }
+
+  // たたまれた投稿を、この場でひらいたもの。ひらくのは読む人の手で、
+  // 読み込み直せばまたたたまれる ── 決めるのは運営だから。
+  let opened = $state<number[]>([]);
+  const shown = (p: Post) => !p.folded || opened.includes(p.id);
+
   $effect(() => {
     const target = id;
     loading = true;
@@ -233,6 +273,43 @@
   {#if deleteError}<p class="error">{deleteError}</p>{/if}
 {/snippet}
 
+{#snippet reportForm(target: Post)}
+  <form
+    class="report-form"
+    onsubmit={(e) => {
+      e.preventDefault();
+      void sendReport(target);
+    }}
+  >
+    <p class="muted small">{t().postDetail.reportPrompt}</p>
+    <textarea class="body-input" bind:value={reportComment} rows="2" use:autoresize></textarea>
+    <div class="row">
+      <button class="btn" type="submit" disabled={reportBusy}>{t().postDetail.reportSend}</button>
+      <button class="btn ghost" type="button" onclick={cancelReport}>{t().postDetail.editCancel}</button>
+    </div>
+    {#if reportError}<p class="error">{reportError}</p>{/if}
+  </form>
+{/snippet}
+
+{#snippet folded(target: Post)}
+  <p class="folded">
+    {t().postDetail.folded}
+    <button type="button" class="linklike" onclick={() => (opened = [...opened, target.id])}
+      >{t().postDetail.unfold}</button
+    >
+  </p>
+{/snippet}
+
+{#snippet otherActions(target: Post)}
+  {#if signedIn() && myAcct !== null && myAcct !== target.author.acct}
+    {#if reported.includes(target.id)}
+      <span class="muted small">{t().postDetail.reported}</span>
+    {:else}
+      <button type="button" class="linklike" onclick={() => askReport(target.id)}>{t().postDetail.report}</button>
+    {/if}
+  {/if}
+{/snippet}
+
 {#if loading}
   <p class="muted">{t().common.loading}</p>
 {:else if !post}
@@ -251,18 +328,27 @@
           {#if post.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
         </p>
       </div>
-      <div class="body">{@html renderEmojis(localized(post.content_html, post.content_html_i18n), post.emojis)}</div>
-      <Reactions id={post.id} bind:reactions={post.reactions} />
-      <div class="actions">
-        {#if myAcct === post.author.acct}
-          <button type="button" class="linklike" onclick={() => post && startEdit(post)}
-            >{t().postDetail.edit}</button
-          >
-          <button type="button" class="linklike" onclick={() => post && askDelete(post.id)}
-            >{t().postDetail.delete}</button
-          >
+      {#if !shown(post)}
+        {@render folded(post)}
+      {:else}
+        <div class="body">{@html renderEmojis(localized(post.content_html, post.content_html_i18n), post.emojis)}</div>
+        <Reactions id={post.id} bind:reactions={post.reactions} />
+        <div class="actions">
+          {#if myAcct === post.author.acct}
+            <button type="button" class="linklike" onclick={() => post && startEdit(post)}
+              >{t().postDetail.edit}</button
+            >
+            <button type="button" class="linklike" onclick={() => post && askDelete(post.id)}
+              >{t().postDetail.delete}</button
+            >
+          {:else}
+            {@render otherActions(post)}
+          {/if}
+        </div>
+        {#if reportingId === post.id}
+          {@render reportForm(post)}
         {/if}
-      </div>
+      {/if}
     {/if}
   </article>
 
@@ -279,16 +365,25 @@
               <Author author={r.author} at={when(r.created_at)} />
               {#if r.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
             </p>
-            <div class="body">{@html renderEmojis(localized(r.content_html, r.content_html_i18n), r.emojis)}</div>
-            <Reactions id={r.id} bind:reactions={r.reactions} />
-            <div class="actions">
-              {#if myAcct === r.author.acct}
-                <button type="button" class="linklike" onclick={() => startEdit(r)}>{t().postDetail.edit}</button>
-                <button type="button" class="linklike" onclick={() => askDelete(r.id)}
-                  >{t().postDetail.delete}</button
-                >
+            {#if !shown(r)}
+              {@render folded(r)}
+            {:else}
+              <div class="body">{@html renderEmojis(localized(r.content_html, r.content_html_i18n), r.emojis)}</div>
+              <Reactions id={r.id} bind:reactions={r.reactions} />
+              <div class="actions">
+                {#if myAcct === r.author.acct}
+                  <button type="button" class="linklike" onclick={() => startEdit(r)}>{t().postDetail.edit}</button>
+                  <button type="button" class="linklike" onclick={() => askDelete(r.id)}
+                    >{t().postDetail.delete}</button
+                  >
+                {:else}
+                  {@render otherActions(r)}
+                {/if}
+              </div>
+              {#if reportingId === r.id}
+                {@render reportForm(r)}
               {/if}
-            </div>
+            {/if}
           {/if}
         </li>
       {/each}
@@ -475,5 +570,27 @@
     gap: 0.5rem 0.9rem;
     margin: 0;
     color: var(--ink-soft);
+  }
+
+  /* 知らせる欄は、消すときの確認と同じ温度で ── 目立たせない。 */
+  .report-form {
+    margin-top: 0.8rem;
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .report-form .muted {
+    margin: 0;
+  }
+
+  /* たたんだ投稿は、本文の場所に一行だけ。 */
+  .folded {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.9rem;
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
   }
 </style>

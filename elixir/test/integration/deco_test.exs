@@ -1163,4 +1163,89 @@ defmodule SukhiFedi.Integration.DecoTest do
       refute Enum.any?(rows, &(&1.content_html =~ "よそから"))
     end
   end
+
+  describe "知らせる・たたむ" do
+    defp reader(n) do
+      {:ok, a} =
+        LocalAccounts.create_admin(
+          "reader_#{n}_#{System.unique_integer([:positive])}",
+          "long-enough-pass"
+        )
+
+      a
+    end
+
+    test "知らせは reports の行になり、運営が同じ列で見る", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+
+      assert {:ok, %{folded: false}} = Deco.report_post(reader(1), post.id, "ちょっと気になって")
+
+      {:ok, {reports, _}} =
+        SukhiFedi.Addons.Moderation.list_reports("open", %{offset: 0, limit: 50})
+
+      [r] = Enum.filter(reports, &(&1.note_id == post.id))
+      assert r.target_id == author.id
+      assert r.comment == "ちょっと気になって"
+    end
+
+    test "同じ人が二度言っても、行は一つ", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      r = reader(2)
+
+      assert {:ok, _} = Deco.report_post(r, post.id)
+      assert {:ok, _} = Deco.report_post(r, post.id)
+
+      assert 1 ==
+               SukhiFedi.Repo.aggregate(
+                 from(x in SukhiFedi.Schema.Report, where: x.note_id == ^post.id),
+                 :count
+               )
+    end
+
+    test "自分の投稿には知らせない ── 消せる人だから", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      assert {:error, :forbidden} = Deco.report_post(author, post.id)
+    end
+
+    test "無い投稿は not_found", %{author: author} do
+      assert {:error, :not_found} = Deco.report_post(author, 1)
+    end
+
+    test "三人から届くとたたまれる ── 消えはしない", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      {:ok, reply} = Deco.reply(author, post.id, %{"status" => "つづき"})
+
+      assert {:ok, %{folded: false}} = Deco.report_post(reader(3), reply.id)
+      assert {:ok, %{folded: false}} = Deco.report_post(reader(4), reply.id)
+      assert {:ok, %{folded: true}} = Deco.report_post(reader(5), reply.id)
+
+      # 投稿ページ: 親は開いたまま、レスだけたたまれる。本文は来ている。
+      assert {:ok, read} = Deco.get_post(post.id)
+      refute read.folded
+      [folded_reply] = read.replies
+      assert folded_reply.folded
+      assert folded_reply.content_html =~ "つづき"
+
+      # 流れも同じ印を持つ。
+      assert {:ok, rows} = Deco.list_flow(deco.slug)
+      assert Enum.find(rows, &(&1.id == reply.id)).folded
+      refute Enum.find(rows, &(&1.id == post.id)).folded
+    end
+
+    test "運営が見終えると、ひらく", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+
+      for n <- 6..8, do: {:ok, _} = Deco.report_post(reader(n), post.id)
+      assert {:ok, %{folded: true}} = Deco.get_post(post.id)
+
+      {:ok, {reports, _}} =
+        SukhiFedi.Addons.Moderation.list_reports("open", %{offset: 0, limit: 50})
+
+      for r <- reports, r.note_id == post.id do
+        {:ok, _} = SukhiFedi.Addons.Moderation.resolve_report(r.id, author.id)
+      end
+
+      assert {:ok, %{folded: false}} = Deco.get_post(post.id)
+    end
+  end
 end

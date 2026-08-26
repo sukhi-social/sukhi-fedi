@@ -41,11 +41,16 @@ defmodule SukhiFedi.Addons.Deco do
   import Ecto.Query
 
   alias SukhiFedi.{Notes, Notifications, Outbox, Repo, Snowflake}
+  alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
   alias SukhiFedi.Notes.Create, as: NotesCreate
   alias SukhiFedi.Federation.CollectionFetcher
   alias SukhiFedi.Notes.Ids
-  alias SukhiFedi.Schema.{Account, Deco, DecoFollower, DecoNote, DecoPref, Note}
+  alias SukhiFedi.Schema.{Account, Deco, DecoFollower, DecoNote, DecoPref, Note, Report}
+
+  # 何人から知らせが届いたら、いったんたたむか。人数で数える(同じ人が
+  # 何度言っても一人)。運営が見るまでのあいだの、読む人の側の手当て。
+  @fold_after 3
 
   # ── 板 ───────────────────────────────────────────────────────────────
 
@@ -623,6 +628,81 @@ defmodule SukhiFedi.Addons.Deco do
     end
   end
 
+  @doc """
+  気になった投稿・レスを、運営に知らせる。
+
+  知らせは `reports` の行(`Moderation.create_report/1`)── sukhi の
+  通報と同じ列に並び、運営は同じ画面で見る。板の口を別に持つのは、
+  natadeco の画面が投稿しか知らないから(書いた人の id を配っていない)。
+  相手はここで note から引く。
+
+  同じ人が同じ投稿に二度言っても、行は一つ。自分の投稿には言えない
+  (`{:error, :forbidden}`)── 消せる人が知らせる意味は無いので。
+
+  返りは `{:ok, %{folded: boolean}}`。`@fold_after` 人からの知らせが
+  開いたままなら、その投稿は読む側でたたまれる(`post_view` の
+  `folded`)。ここで消したり隠したりはしない ── 決めるのは運営で、
+  たたむのは決まるまでの手当て。
+  """
+  @spec report_post(Account.t() | integer(), integer() | String.t(), String.t() | nil) ::
+          {:ok, %{folded: boolean()}} | {:error, :not_found | :forbidden}
+  def report_post(reporter, note_id, comment \\ nil) do
+    reporter_id = id_of(reporter)
+    id = to_int(note_id)
+
+    case Repo.get(Note, id) do
+      nil ->
+        {:error, :not_found}
+
+      %Note{account_id: ^reporter_id} ->
+        {:error, :forbidden}
+
+      %Note{account_id: target_id} ->
+        already? =
+          Repo.exists?(
+            from(r in Report,
+              where: r.note_id == ^id and r.account_id == ^reporter_id and r.status == "open"
+            )
+          )
+
+        result =
+          if already?,
+            do: {:ok, :already},
+            else:
+              Moderation.create_report(%{
+                account_id: reporter_id,
+                target_id: target_id,
+                note_id: id,
+                comment: comment || ""
+              })
+
+        case result do
+          {:ok, _} -> {:ok, %{folded: id in folded_ids([id])}}
+          {:error, cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+        end
+    end
+  end
+
+  # この頁の投稿のうち、たたむ人数に届いているもの。note_id の列で一回引く。
+  defp folded_ids([]), do: []
+
+  defp folded_ids(note_ids) do
+    from(r in Report,
+      where: r.note_id in ^note_ids and r.status == "open",
+      group_by: r.note_id,
+      having: count(r.account_id, :distinct) >= @fold_after,
+      select: r.note_id
+    )
+    |> Repo.all()
+  end
+
+  defp with_folded([]), do: []
+
+  defp with_folded(views) do
+    folded = MapSet.new(folded_ids(Enum.map(views, & &1.id)))
+    Enum.map(views, fn v -> %{v | folded: MapSet.member?(folded, v.id)} end)
+  end
+
   defp fetch_owned(id, account_id) do
     case Repo.one(
            from(dn in DecoNote,
@@ -743,7 +823,8 @@ defmodule SukhiFedi.Addons.Deco do
        |> Enum.map(fn {n, dn, a, at} ->
          Map.put(post_view(n, dn, a), :last_activity_at, to_utc(at))
        end)
-       |> with_reactions(opts[:viewer_id])}
+       |> with_reactions(opts[:viewer_id])
+       |> with_folded()}
     end
   end
 
@@ -800,6 +881,7 @@ defmodule SukhiFedi.Addons.Deco do
       {:ok,
        views
        |> with_reactions(opts[:viewer_id])
+       |> with_folded()
        |> with_parents()}
     end
   end
@@ -881,10 +963,9 @@ defmodule SukhiFedi.Addons.Deco do
         # 本体と返信をひとつの列にしてから乗せる ── リアクションの
         # 問い合わせが、この頁ぜんぶで一回で済む。
         [post | replies] =
-          with_reactions(
-            [post_view(note, dn, author) | replies_of(note, dn.deco_id)],
-            viewer_id
-          )
+          [post_view(note, dn, author) | replies_of(note, dn.deco_id)]
+          |> with_reactions(viewer_id)
+          |> with_folded()
 
         {:ok, Map.put(post, :replies, replies)}
     end
@@ -1278,7 +1359,9 @@ defmodule SukhiFedi.Addons.Deco do
       # 書く口はそのままでいい。
       reactions: [],
       local_only: dn.local_only || false,
-      as_article: dn.as_article || false
+      as_article: dn.as_article || false,
+      # 既定は開いたまま。読む口が `with_folded/1` で上書きする。
+      folded: false
     }
   end
 
@@ -1299,7 +1382,8 @@ defmodule SukhiFedi.Addons.Deco do
       in_reply_to_ap_id: n.in_reply_to_ap_id,
       reactions: [],
       local_only: false,
-      as_article: false
+      as_article: false,
+      folded: false
     }
   end
 

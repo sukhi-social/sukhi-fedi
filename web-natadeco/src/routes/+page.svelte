@@ -229,6 +229,8 @@
 {/if}
 
 <footer class="legal-foot">
+  <a href="/about">{t().footer.about}</a>
+  <span class="sep" aria-hidden="true">·</span>
   <a href={getLang() === 'ko' ? '/terms?lang=ko' : '/terms'}>{t().footer.terms}</a>
   <span class="sep" aria-hidden="true">·</span>
   <a href={getLang() === 'ko' ? '/privacy?lang=ko' : '/privacy'}>{t().footer.privacy}</a>

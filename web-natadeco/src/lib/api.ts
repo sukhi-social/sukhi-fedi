@@ -83,6 +83,9 @@ export type Post = {
   as_article: boolean;
   emojis: Emoji[];
   reactions: Reaction[];
+  // 何人かから知らせが届いて、運営が見るまでのあいだ、たたんである。
+  // 本文は来ている ── ひらくかどうかは読む人が決める。
+  folded: boolean;
   replies?: Post[];
   // 話す板の流れでだけ入る。返信が「誰に向けた言葉か」を、一段だけ。
   // 手元に無い親（連合越しなど）は null。
@@ -171,6 +174,8 @@ function fromStatus(s: Status): Post {
     as_article: false,
     emojis: s.emojis ?? [],
     reactions: s.reactions ?? [],
+    // 友デコの知らせは、そのサーバの側で扱う ── ここではたたまない。
+    folded: false,
     parent: s.parent
       ? { id: s.parent.id as unknown as number, author: s.parent.author, excerpt: s.parent.excerpt }
       : null
@@ -428,6 +433,10 @@ export const updatePost = (
 
 /** 自分の投稿・レスを消す。取り消せない。 */
 export const deletePost = (id: number | string) => req<null>('DELETE', `/api/v1/deco/posts/${id}`);
+
+/** 気になった投稿・レスを運営に知らせる。一言は無くてもいい。 */
+export const reportPost = (id: number | string, comment?: string) =>
+  req<{ folded: boolean }>('POST', `/api/v1/deco/posts/${id}/report`, comment ? { comment } : {});
 
 /** push 通知に要る、サーバの VAPID 公開鍵。無ければ push は未設定。 */
 export async function getVapidPublicKey(): Promise<string | null> {

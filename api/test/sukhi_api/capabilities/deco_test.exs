@@ -450,4 +450,28 @@ defmodule SukhiApi.Capabilities.DecoTest do
       assert %{"display_name" => "アリス", "acct" => "alice"} = body["author"]
     end
   end
+
+  describe "知らせる" do
+    test "一言を添えて知らせる ── たたまれたかが返る" do
+      stub([{{:report_post, [@viewer, "42", "気になって"]}, {:ok, %{folded: true}}}])
+
+      {:ok, resp} = post("/api/v1/deco/posts/42/report", %{comment: "気になって"})
+      assert resp.status == 200
+      assert %{"folded" => true} = JSON.decode!(resp.body)
+    end
+
+    test "一言が無ければ nil で渡す" do
+      stub([{{:report_post, [@viewer, "42", nil]}, {:ok, %{folded: false}}}])
+
+      {:ok, resp} = post("/api/v1/deco/posts/42/report", %{})
+      assert resp.status == 200
+    end
+
+    test "自分の投稿には 403" do
+      stub([{{:report_post, [@viewer, "42", nil]}, {:error, :forbidden}}])
+
+      {:ok, resp} = post("/api/v1/deco/posts/42/report", %{})
+      assert resp.status == 403
+    end
+  end
 end

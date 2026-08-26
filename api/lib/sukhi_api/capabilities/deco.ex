@@ -41,6 +41,7 @@ defmodule SukhiApi.Capabilities.Deco do
       {:patch, "/api/v1/deco/posts/:id", &update_post/1, scope: "write:statuses"},
       {:delete, "/api/v1/deco/posts/:id", &delete_post/1, scope: "write:statuses"},
       {:post, "/api/v1/deco/posts/:id/replies", &reply/1, scope: "write:statuses"},
+      {:post, "/api/v1/deco/posts/:id/report", &report_post/1, scope: "write:reports"},
       {:get, "/api/v1/deco/:slug", &show/1},
       {:delete, "/api/v1/deco/:slug", &delete_deco/1, scope: "write:statuses"},
       {:get, "/api/v1/deco/:slug/posts", &list_posts/1},
@@ -232,6 +233,20 @@ defmodule SukhiApi.Capabilities.Deco do
         {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
         _ -> ok(500, %{error: "internal_error"})
       end
+    else
+      _ -> ok(403, %{error: "this endpoint requires a user-bound token"})
+    end
+  end
+
+  # 気になった投稿を運営に知らせる。相手(書いた人)は gateway が note から
+  # 引くので、ここは投稿の id と、あれば一言だけ渡す。
+  def report_post(req) do
+    with %{} = viewer <- viewer(req) do
+      body = decode_body(req)
+
+      call(:report_post, [viewer, req[:path_params]["id"], body["comment"]], fn result ->
+        ok(200, %{folded: result.folded})
+      end)
     else
       _ -> ok(403, %{error: "this endpoint requires a user-bound token"})
     end

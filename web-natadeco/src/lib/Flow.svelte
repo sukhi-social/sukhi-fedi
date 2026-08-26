@@ -26,6 +26,10 @@
     // 列は新しい順なので、prev のほうが後の時刻。
     return new Date(prev.created_at).getTime() - new Date(row.created_at).getTime() < GROUP_MS;
   }
+
+  // たたまれた行を、この場でひらいたもの。ひらくのは読む人の手。
+  let opened = $state<number[]>([]);
+  const shown = (row: Post) => !row.folded || opened.includes(row.id);
 </script>
 
 <ol class="flow">
@@ -50,14 +54,23 @@
         <h2 class="title"><a href="/posts/{row.id}">{localized(row.title, row.title_i18n)}</a></h2>
       {/if}
 
-      <div class="body">
-        {@html renderEmojis(localized(row.content_html, row.content_html_i18n), row.emojis)}
-      </div>
+      {#if !shown(row)}
+        <p class="folded">
+          {t().postDetail.folded}
+          <button type="button" class="linklike" onclick={() => (opened = [...opened, row.id])}
+            >{t().postDetail.unfold}</button
+          >
+        </p>
+      {:else}
+        <div class="body">
+          {@html renderEmojis(localized(row.content_html, row.content_html_i18n), row.emojis)}
+        </div>
 
-      <div class="foot">
-        <Reactions id={row.id} bind:reactions={rows[i].reactions} />
-        <a class="muted small" href="/posts/{row.id}">{t().flow.open}</a>
-      </div>
+        <div class="foot">
+          <Reactions id={row.id} bind:reactions={rows[i].reactions} />
+          <a class="muted small" href="/posts/{row.id}">{t().flow.open}</a>
+        </div>
+      {/if}
     </li>
   {/each}
 </ol>
@@ -141,5 +154,36 @@
     border: 1px solid var(--line);
     border-radius: 999px;
     padding: 0 0.4rem;
+  }
+
+  /* たたんだ行は、本文の場所に一行だけ(投稿ページと同じ見た目)。 */
+  .folded {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.9rem;
+    margin: 0.2rem 0;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+
+  .linklike {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    margin: -0.7rem 0;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--ink-soft);
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.8rem;
+  }
+
+  .linklike:hover {
+    text-decoration-color: var(--sun);
   }
 </style>
