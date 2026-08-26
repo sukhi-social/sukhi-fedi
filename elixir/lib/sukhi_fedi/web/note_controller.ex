@@ -12,7 +12,7 @@ defmodule SukhiFedi.Web.NoteController do
   """
 
   import Plug.Conn
-  alias SukhiFedi.AP.{ActorJson, MediaSerialize}
+  alias SukhiFedi.AP.{ActorJson, MediaSerialize, Titled}
   alias SukhiFedi.Notes.Replies
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.{Account, Note}
@@ -85,17 +85,24 @@ defmodule SukhiFedi.Web.NoteController do
   end
 
   defp note_to_ap(%Note{} = n, actor_uri, username) do
+    # 題つきの投稿が線の上で名乗るぶんは `SukhiFedi.AP.Titled` が組む ──
+    # 配る側(`Fedi.Builders`)と同じ一箇所。ここを別に書くと、返信されて
+    # 引かれたときにだけ題が消える、という見つけにくい形になる（実際に
+    # 一度そうなっていた）。
+    wire = deco_wire_info(n.id)
+    handle = Titled.handle(username)
+
     %{
       "@context" => @context,
       "id" => "#{actor_uri}/notes/#{n.id}",
-      "type" => "Note",
+      "type" => Titled.type(wire.as_article, n.title),
       # 人が読む頁のありか。`id` は機械の識別子なので、別に要る ──
       # 無いと、受け取った側は「元の投稿を見る」の行き先を作れない。
       # actor と同じ抜けかたをしていた。
       "url" => "https://#{SukhiFedi.Config.domain!()}/@#{username}/#{n.id}",
       "attributedTo" => actor_uri,
       # AP `content` is HTML by contract, so the rendered form goes out.
-      "content" => Note.html(n),
+      "content" => Titled.content(Note.html(n), n.title, handle, actor_uri),
       "published" => DateTime.to_iso8601(n.created_at),
       "to" => [@public_ns],
       "cc" => ["#{actor_uri}/followers"],
@@ -104,8 +111,30 @@ defmodule SukhiFedi.Web.NoteController do
       # We let anyone quote our public posts with automatic approval.
       "interactionPolicy" => @quote_policy
     }
+    |> put_if("name", n.title)
+    |> put_if("audience", wire.audience)
+    |> put_if("summary", Titled.summary(n.cw, wire.as_article, n.title, Note.html(n)))
+    |> put_mention(n.title, handle, actor_uri)
     |> put_quote(n)
     |> put_attachment(n.media)
+  end
+
+  defp put_mention(map, title, handle, actor_uri) do
+    with true <- Titled.titled?(title),
+         %{} = tag <- Titled.mention(handle, actor_uri) do
+      Map.put(map, "tag", List.wrap(map["tag"] || []) ++ [tag])
+    else
+      _ -> map
+    end
+  end
+
+  # deco addon を切ってあるインスタンスでは、板の話は無い。
+  defp deco_wire_info(note_id) do
+    if SukhiFedi.Addon.Registry.enabled?(:deco) do
+      SukhiFedi.Addons.Deco.wire_info(note_id)
+    else
+      %{audience: nil, as_article: false}
+    end
   end
 
   # FEP-044f canonical `quote` + the Misskey aliases, plus the

@@ -945,6 +945,35 @@ defmodule SukhiFedi.Addons.Deco do
   end
 
   @doc """
+  この一件が、線の上で名乗るぶん ── どの板のものか(`audience`)と、
+  長い文章として出すか(`as_article`)。
+
+  引かれる側(`Web.NoteController`)が使う。配るほうは outbox の payload
+  に載って行くが、GET は note 行しか手元に無いので、ここで訊く。
+  板に属さない note は両方 nil/false。
+  """
+  @spec wire_info(integer()) :: %{audience: String.t() | nil, as_article: boolean()}
+  def wire_info(note_id) when is_integer(note_id) do
+    case Repo.one(
+           from(dn in DecoNote,
+             join: d in Deco,
+             on: d.id == dn.deco_id,
+             where: dn.note_id == ^note_id,
+             select: {d.slug, d.has_actor, dn.as_article}
+           )
+         ) do
+      {slug, true, article?} ->
+        %{audience: SukhiFedi.AP.GroupJson.actor_uri(slug), as_article: !!article?}
+
+      {_slug, _no_actor, article?} ->
+        %{audience: nil, as_article: !!article?}
+
+      nil ->
+        %{audience: nil, as_article: false}
+    end
+  end
+
+  @doc """
   外から届いた一件を、板に結ぶ。
 
   結んでおかないと、板の一覧にも流れにも出てこない ── どちらも

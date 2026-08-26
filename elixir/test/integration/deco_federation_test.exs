@@ -56,6 +56,97 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
 
   test "無い板の slug-deco は 404", do: assert(get_ap("/users/no-such-slug-deco").status == 404)
 
+  describe "引かれたときも、配るときと同じことを名乗る" do
+    # 同じ note が二つの道で外へ出る ── 配るとき(`Fedi.Builders`)と、
+    # 引かれるとき(`Web.NoteController`)。返信してきた相手のサーバは
+    # たいてい引きに来るので、片方だけ整えると「返信されたときにだけ
+    # 題も板も消える」という見つけにくい形になる。2026-08-26 に一度
+    # そうなった。組み立ては `SukhiFedi.AP.Titled` の一箇所にある。
+    setup %{deco: deco} do
+      {:ok, author} =
+        LocalAccounts.create_admin("wire_#{System.unique_integer([:positive])}", "long-enough-pass")
+
+      # 新規アカウントの投稿ペース制限に巻き込まれないよう、古参として
+      # 作る ── ここの主題は「線の上でどう名乗るか」なので。
+      author =
+        author
+        |> Ecto.Changeset.change(
+          created_at: DateTime.add(DateTime.utc_now(), -48, :hour) |> DateTime.truncate(:second)
+        )
+        |> SukhiFedi.Repo.update!()
+
+      {:ok, post} =
+        Deco.post(author, deco.slug, %{"title" => "夜ごはんの話", "status" => "なにたべよう"})
+
+      %{author: author, post: post}
+    end
+
+    defp fetched(author, post), do: get_ap("/users/#{author.username}/notes/#{post.id}") |> then(&JSON.decode!(&1.resp_body))
+
+    test "題は `name` に載る", %{author: author, post: post} do
+      assert fetched(author, post)["name"] == "夜ごはんの話"
+    end
+
+    test "どの板のものかを名乗る", %{author: author, post: post, deco: deco} do
+      body = fetched(author, post)
+
+      assert body["audience"] == "https://localhost:4000/users/#{deco.slug}-deco"
+      # `to` に入れると Mastodon が板を silent mention として解決する。
+      refute body["audience"] in List.wrap(body["to"])
+      refute body["audience"] in List.wrap(body["cc"])
+    end
+
+    test "本文の頭に「題 — @書いた人」が付く", %{author: author, post: post} do
+      body = fetched(author, post)
+
+      assert String.starts_with?(body["content"], "<blockquote>")
+      assert body["content"] =~ "夜ごはんの話"
+      assert body["content"] =~ "@#{author.username}@localhost:4000"
+      assert body["content"] =~ "なにたべよう"
+    end
+
+    test "書いた人は本物の Mention", %{author: author, post: post} do
+      tags = fetched(author, post)["tag"] || []
+
+      assert Enum.any?(tags, fn t ->
+               t["type"] == "Mention" and t["name"] == "@#{author.username}@localhost:4000"
+             end)
+    end
+
+    test "既定は Note ── 選ばなければ本文が外でも読める", %{author: author, post: post} do
+      body = fetched(author, post)
+      assert body["type"] == "Note"
+      refute Map.has_key?(body, "summary")
+    end
+
+    test "長い文章として出したものは Article + 書き出し", %{author: author, deco: deco} do
+      {:ok, long} =
+        Deco.post(author, deco.slug, %{
+          "title" => "ながい話",
+          "status" => "ずっとつづく はなし",
+          "as_article" => true
+        })
+
+      body = fetched(author, long)
+      assert body["type"] == "Article"
+      assert body["summary"] =~ "ずっとつづく"
+    end
+
+    test "題の無い投稿は、素の Note のまま", %{author: author} do
+      n = System.unique_integer([:positive])
+
+      {:ok, talk} =
+        Deco.create_deco(author, %{"slug" => "talk#{n}", "name" => "はなす板", "kind" => "talk"})
+
+      {:ok, post} = Deco.post(author, talk.slug, %{"status" => "ひとこと"})
+      body = fetched(author, post)
+
+      assert body["type"] == "Note"
+      refute Map.has_key?(body, "name")
+      refute String.starts_with?(body["content"], "<blockquote>")
+    end
+  end
+
   test "webfinger が acct:slug-deco@domain を解決する", %{deco: deco} do
     conn = get_ap("/.well-known/webfinger?resource=acct:#{deco.slug}-deco@localhost:4000")
 

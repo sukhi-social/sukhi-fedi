@@ -24,6 +24,7 @@ defmodule SukhiFedi.Fedi.Builders do
   exactly as uncovering as it already was.
   """
 
+  alias SukhiFedi.AP.Titled
   alias SukhiFedi.Fedi.{Audience, JWK, LdSignature, Oip}
 
   # One shared @context for everything we emit. AS + security/v1 (for
@@ -155,97 +156,33 @@ defmodule SukhiFedi.Fedi.Builders do
     |> Map.put("interactionPolicy", @quote_policy)
   end
 
-  # 既定は `Note`。`Article` は書いた人が選んだときだけ。
-  #
-  # 意味の上では題を持つものは `Article` だが、Mastodon は `Article` を
-  # CONVERTED_TYPES に入れていて、`content` を一行も出さない ── 題と
-  # summary とリンクだけになる。長い文章なら「続きはリンク先で」が
-  # 自然だが、一行の書き込みでそれをやると、外の人には何も届かない。
-  # だから選べるものにして、既定は Note にした。
-  defp object_type(p), do: if(p["asArticle"] && titled?(p), do: "Article", else: "Note")
+  # 題つきの投稿の形は `SukhiFedi.AP.Titled` に一箇所だけ置いてある ──
+  # 配るとき(ここ)と引かれるとき(`Web.NoteController`)で、同じ組み立てを
+  # 二度書かないため。片方だけ整えると、返信されたときにだけ題が消える、
+  # という見つけにくい形になる。
+  defp object_type(p), do: Titled.type(!!p["asArticle"], p["title"])
 
-  defp titled?(p), do: is_binary(p["title"]) and p["title"] != ""
+  defp titled_content(p),
+    do: Titled.content(p["content"], p["title"], p["authorHandle"], p["authorUri"])
 
-  # `Article` の `summary` は、Mastodon では本文の代わりに出る場所
-  # (CONVERTED_TYPES の `processed_text` が題・summary・リンクを並べる)。
-  # 空のままだと題とリンクだけになるので、本文の書き出しを入れておく ──
-  # 選んだ人が思っているより何も伝わらない、を避けるため。
-  #
-  # 自分で CW を書いている人のぶんは触らない。それはその人の言葉で、
-  # 抜粋で上書きしていいものではない。
-  defp summary_for(p) do
-    cond do
-      is_binary(p["summary"]) and p["summary"] != "" -> p["summary"]
-      p["asArticle"] && titled?(p) -> excerpt(p["content"])
-      true -> p["summary"]
+  defp summary_for(p),
+    do: Titled.summary(p["summary"], !!p["asArticle"], p["title"], p["content"])
+
+  defp inject_author_mention(activity, p) do
+    case Titled.mention(p["authorHandle"], p["authorUri"]) do
+      nil ->
+        activity
+
+      tag ->
+        if Titled.titled?(p["title"]) do
+          update_object(activity, fn object ->
+            Map.put(object, "tag", List.wrap(object["tag"] || []) ++ [tag])
+          end)
+        else
+          activity
+        end
     end
   end
-
-  @excerpt_len 220
-
-  defp excerpt(html) when is_binary(html) do
-    text =
-      html
-      |> String.replace(~r{<[^>]*>}, " ")
-      |> String.replace(~r{\s+}, " ")
-      |> String.trim()
-
-    if String.length(text) > @excerpt_len,
-      do: String.slice(text, 0, @excerpt_len) <> "…",
-      else: text
-  end
-
-  defp excerpt(_), do: nil
-
-  # 題つきの投稿は、本文の頭に「> 題 — @書いた人」を引用で置く。
-  #
-  # 保存する本文には入れない ── natadeco の画面は題も名前ももう出して
-  # いるので、そこで二度読ませない。ここ(線の上)だけで足りる。外では
-  # 題が本文の外に無い(Mastodon は `name` を読まない)し、ブーストされて
-  # 文脈から離れたときも、これが付いていれば何の話か分かる。
-  defp titled_content(p) do
-    case p["title"] do
-      t when is_binary(t) and t != "" -> title_header(t, p) <> (p["content"] || "")
-      _ -> p["content"]
-    end
-  end
-
-  defp title_header(title, p) do
-    who =
-      case {p["authorHandle"], p["authorUri"]} do
-        {h, u} when is_binary(h) and is_binary(u) ->
-          " — <a href=\"#{esc(u)}\" class=\"mention\">#{esc(h)}</a>"
-
-        _ ->
-          ""
-      end
-
-    "<blockquote><p>#{esc(title)}#{who}</p></blockquote>"
-  end
-
-  defp esc(s) do
-    s
-    |> to_string()
-    |> String.replace("&", "&amp;")
-    |> String.replace("<", "&lt;")
-    |> String.replace(">", "&gt;")
-    |> String.replace("\"", "&quot;")
-  end
-
-  # 頭に置いた `@handle` を、本物の Mention にする。付けないと向こうでは
-  # ただの文字で、押しても誰にも行き着かない。
-  #
-  # 自分宛てなので通知は増えない ── `Notes.Create.notify_local_mentions/1`
-  # は自分を弾くし、向こうから見れば書いた人は remote。
-  defp inject_author_mention(activity, %{"title" => t, "authorHandle" => h, "authorUri" => u})
-       when is_binary(t) and t != "" and is_binary(h) and is_binary(u) do
-    update_object(activity, fn object ->
-      tags = List.wrap(object["tag"] || [])
-      Map.put(object, "tag", tags ++ [%{"type" => "Mention", "href" => u, "name" => h}])
-    end)
-  end
-
-  defp inject_author_mention(activity, _), do: activity
 
   # Sign → post-sign compatibility injections → FEP-8b32 proof, then wrap
   # under `key` ("note" for Create, "update" for Update). The injections
