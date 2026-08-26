@@ -158,6 +158,8 @@ defmodule SukhiDelivery.Outbox.Consumer do
           # 題つきの投稿は、線の上で本文の頭に「> 題 — @書いた人」を
           # 添える。組むのは builders 側 ── ここは運ぶだけ。
           |> maybe_put_titled(p)
+          # FEP-1b12: どの板のものか。表札のある板だけが持つ。
+          |> maybe_put_audience(p["audience"])
 
         translate_and_fanout("note", translator_payload, actor_uri, activity_id, recipients,
           extract_note: true
@@ -919,6 +921,11 @@ defmodule SukhiDelivery.Outbox.Consumer do
 
   # A note may quote another (Misskey 引用ノート). Thread the quoted
   # AP id through to the `note` translator only when one is present.
+  defp maybe_put_audience(payload, a) when is_binary(a) and a != "",
+    do: Map.put(payload, :audience, a)
+
+  defp maybe_put_audience(payload, _), do: payload
+
   # 題が無ければ何も足さない ── 話す板の投稿は素の Note のまま。
   defp maybe_put_titled(payload, p) do
     case p["title"] do

@@ -82,6 +82,11 @@ defmodule SukhiFedi.AP.Instructions.Mirror do
             MediaIngest.attach(nid, account_id, note["attachment"])
             Polls.ingest_remote_poll(nid, note)
             if notify?, do: notify_mentions(note, nid, account_id)
+            # 外から届いた返信を、板に結ぶ。結ばないと板の一覧にも
+            # 流れにも出てこない(どちらも `deco_notes` を join する)。
+            # 読むたびに親を遡って探すこともできるが、それは頁を開く
+            # たびに払う値段になる ── 書き込みの一度で済ませる。
+            bind_to_deco(nid, note)
             fetch_referenced_notes(attrs)
             :ok
 
@@ -95,6 +100,15 @@ defmodule SukhiFedi.AP.Instructions.Mirror do
   end
 
   def maybe_mirror_create_note(_, _), do: :ok
+
+  # deco addon を切ってあるインスタンス(sukhi 本体など)では何もしない。
+  defp bind_to_deco(note_id, raw) do
+    if SukhiFedi.Addon.Registry.enabled?(:deco) do
+      SukhiFedi.Addons.Deco.bind_inbound(note_id, raw)
+    end
+
+    :ok
+  end
 
   @doc """
   Inbound `Delete` activity: drop the local mirror of whatever the

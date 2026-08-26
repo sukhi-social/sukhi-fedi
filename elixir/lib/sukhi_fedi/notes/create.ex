@@ -91,6 +91,9 @@ defmodule SukhiFedi.Notes.Create do
     # `local_only` と同じで、連合の側にだけ効く上乗せ。
     as_article? = !!(params[:as_article] || params["as_article"])
 
+    # FEP-1b12 の `audience` ── どの板の投稿か。deco が入れてくる。
+    audience = params[:audience] || params["audience"]
+
     if visibility == "direct" do
       create_direct_status(account_id, params)
     else
@@ -171,6 +174,7 @@ defmodule SukhiFedi.Notes.Create do
             # 入れない ── 同じことを二度書かせない。
             title: n.title,
             as_article: as_article?,
+            audience: audience,
             author_handle: author_handle(n),
             author_uri: author_uri(n)
           }

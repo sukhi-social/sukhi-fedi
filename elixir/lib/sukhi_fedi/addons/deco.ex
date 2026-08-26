@@ -498,7 +498,17 @@ defmodule SukhiFedi.Addons.Deco do
         {_, nil} -> deco_local_default(deco_id)
         {_, inherited} -> inherited
       end
-    note_params = rest |> Map.put("local_only", local_only?) |> Map.put("as_article", as_article?)
+    # FEP-1b12 の `audience` ── どの板の投稿か。掲示板を持つ実装は
+    # ここを読んで、板の中に置いてくれる。`to` には入れない: 入れると
+    # Mastodon が板を silent mention として解決してしまうし、FEP-1b12 も
+    # `audience` を本筋、`to` は既存実装の互換と書いている。
+    #
+    # 表札を出していない板は actor が引けないので、指し先を作らない。
+    note_params =
+      rest
+      |> Map.put("local_only", local_only?)
+      |> Map.put("as_article", as_article?)
+      |> put_audience(deco_id)
 
     with :ok <- check_pace(account_id) do
       # note を先に作り、そのあと板に結ぶ。note づくりは Notes 側の
@@ -927,6 +937,66 @@ defmodule SukhiFedi.Addons.Deco do
   end
 
   # その板の、公開範囲の既定。無い板は外に出る側（移行前の振る舞い）。
+  defp put_audience(params, deco_id) do
+    case Repo.one(from(d in Deco, where: d.id == ^deco_id, select: {d.slug, d.has_actor})) do
+      {slug, true} -> Map.put(params, "audience", SukhiFedi.AP.GroupJson.actor_uri(slug))
+      _ -> params
+    end
+  end
+
+  @doc """
+  外から届いた一件を、板に結ぶ。
+
+  結んでおかないと、板の一覧にも流れにも出てこない ── どちらも
+  `deco_notes` を join するので。読むたびに親を遡って板を探すことも
+  できるが、それは頁を開くたびに払う値段になる。書き込みの一度で済む。
+
+  どの板かは二段で決める:
+
+    1. `audience`(FEP-1b12) ── 掲示板を持つ実装は自分で名乗ってくれる
+    2. 名乗らない相手(Mastodon など)は、返信先を遡って探す
+
+  結べなかったものは、そのまま置く。板の外の会話として普通に流れる。
+  """
+  @spec bind_inbound(integer(), map()) :: :ok
+  def bind_inbound(note_id, raw) when is_integer(note_id) and is_map(raw) do
+    with %Note{} = note <- Repo.get(Note, note_id),
+         deco_id when is_integer(deco_id) <- inbound_deco_id(note, raw) do
+      %DecoNote{}
+      |> DecoNote.changeset(%{"deco_id" => deco_id, "note_id" => note_id})
+      |> Repo.insert(on_conflict: :nothing, conflict_target: :note_id)
+    end
+
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp inbound_deco_id(%Note{} = note, raw) do
+    case deco_id_from_audience(raw["audience"]) do
+      nil -> deco_id_for_thread(note)
+      id -> id
+    end
+  end
+
+  # `{slug}-deco` の actor URI から板を引く。他所の板の audience は
+  # ここで外れる（自分の domain の形にしか合わないので）。
+  defp deco_id_from_audience(uri) when is_binary(uri) do
+    prefix = "https://#{SukhiFedi.Config.domain!()}/users/"
+
+    with true <- String.starts_with?(uri, prefix),
+         name <- String.trim_leading(uri, prefix),
+         true <- String.ends_with?(name, "-deco"),
+         slug <- String.trim_trailing(name, "-deco"),
+         %Deco{id: id} <- Repo.get_by(Deco, slug: slug) do
+      id
+    else
+      _ -> nil
+    end
+  end
+
+  defp deco_id_from_audience(_), do: nil
+
   defp truthy(v), do: v not in [nil, false, "false", 0, "0", ""]
 
   defp deco_local_default(deco_id) do

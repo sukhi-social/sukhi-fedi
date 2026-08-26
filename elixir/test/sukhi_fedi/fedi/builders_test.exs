@@ -76,6 +76,19 @@ defmodule SukhiFedi.Fedi.BuildersTest do
       assert content =~ "&amp;y"
     end
 
+    test "audience はどの板かを名乗る ── `to` には入れない" do
+      object = titled!(%{"audience" => "https://sukhi.test/users/hinata-deco"})
+
+      assert object["audience"] == "https://sukhi.test/users/hinata-deco"
+      # `to` に入れると Mastodon が板を silent mention として解決する。
+      refute "https://sukhi.test/users/hinata-deco" in List.wrap(object["to"])
+      refute "https://sukhi.test/users/hinata-deco" in List.wrap(object["cc"])
+    end
+
+    test "表札の無い板は audience を持たない" do
+      refute Map.has_key?(titled!(), "audience")
+    end
+
     test "既定は Note ── 選ばなければ本文が外でも読める" do
       assert titled!()["type"] == "Note"
       refute Map.has_key?(titled!(), "summary")

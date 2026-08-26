@@ -139,6 +139,11 @@ defmodule SukhiFedi.Fedi.Builders do
     # 題。掲示板を持つ実装(NodeBB / PieFed / Lemmy)はここを読む。
     # Mastodon は `Note` の `name` を一度も読まないので、向こうで題が
     # 消える ── だから題は本文の頭にも引用として置く(`titled_content/1`)。
+    # FEP-1b12 の `audience` ── どの板のものか。掲示板を持つ実装
+    # (NodeBB / PieFed / Lemmy)はここを読んで、板の中に置いてくれる。
+    # `to` には入れない: 入れると Mastodon が板を silent mention として
+    # 解決してしまう。FEP-1b12 も `audience` を本筋と書いている。
+    |> put_if("audience", p["audience"])
     |> put_if("name", p["title"])
     |> put_if("summary", summary_for(p))
     |> put_if("sensitive", p["sensitive"])

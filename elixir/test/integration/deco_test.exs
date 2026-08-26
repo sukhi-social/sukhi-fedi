@@ -1084,4 +1084,83 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert is_nil(post.title)
     end
   end
+
+  describe "外から届いた返信を、板に結ぶ" do
+    alias SukhiFedi.AP.Instructions.Mirror
+
+    # 相手のアカウントを先に置いておく。無いと `resolve_or_ingest_actor`
+    # が本当に取りに行って、fedify(NATS)が要る ── ここで試したいのは
+    # 「板に結べるか」なので、取ってくるところは外す。
+    setup do
+      SukhiFedi.Repo.insert!(%SukhiFedi.Schema.Account{
+        username: "someone",
+        display_name: "someone",
+        summary: "",
+        domain: "remote.test",
+        actor_uri: "https://remote.test/users/someone",
+        inbox_url: "https://remote.test/users/someone/inbox"
+      })
+
+      :ok
+    end
+
+    defp inbound(note) do
+      Mirror.maybe_mirror_create_note(%{
+        "type" => "Create",
+        "actor" => note["attributedTo"],
+        "object" => note
+      })
+    end
+
+    defp remote_note(attrs) do
+      n = System.unique_integer([:positive])
+
+      Map.merge(
+        %{
+          "type" => "Note",
+          "id" => "https://remote.test/notes/#{n}",
+          "attributedTo" => "https://remote.test/users/someone",
+          "content" => "<p>よそから</p>",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"]
+        },
+        attrs
+      )
+    end
+
+    test "audience を名乗る相手は、そのまま板に入る", %{deco: deco} do
+      uri = SukhiFedi.AP.GroupJson.actor_uri(deco.slug)
+      :ok = inbound(remote_note(%{"audience" => uri}))
+
+      assert {:ok, rows} = Deco.list_flow(deco.slug)
+      assert Enum.any?(rows, &(&1.content_html =~ "よそから"))
+    end
+
+    test "名乗らない相手は、返信先を遡って決まる", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
+      parent_ap = SukhiFedi.Notes.Ids.note_ap_id(post.id)
+
+      :ok = inbound(remote_note(%{"inReplyTo" => parent_ap}))
+
+      assert {:ok, read} = Deco.get_post(post.id)
+      assert Enum.any?(read.replies, &(&1.content_html =~ "よそから"))
+
+      # 流れにも出る ── 結んであるので join が拾う。
+      assert {:ok, rows} = Deco.list_flow(deco.slug)
+      assert Enum.any?(rows, &(&1.content_html =~ "よそから"))
+    end
+
+    test "どの板でもないものは、結ばれずにそのまま", %{deco: deco} do
+      :ok = inbound(remote_note(%{}))
+
+      assert {:ok, rows} = Deco.list_flow(deco.slug)
+      refute Enum.any?(rows, &(&1.content_html =~ "よそから"))
+    end
+
+    test "他所の板の audience は、こちらの板にならない", %{deco: deco} do
+      :ok = inbound(remote_note(%{"audience" => "https://elsewhere.test/users/x-deco"}))
+
+      assert {:ok, rows} = Deco.list_flow(deco.slug)
+      refute Enum.any?(rows, &(&1.content_html =~ "よそから"))
+    end
+  end
 end
