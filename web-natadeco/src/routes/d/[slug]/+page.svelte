@@ -6,8 +6,6 @@
     listFlow,
     seenDeco,
     setDecoNotify,
-    setDecoTopic,
-    when as fmt,
     type DecoNotify,
     startOfToday,
     signedIn,
@@ -28,32 +26,6 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let done = $state(false);
-
-  // いま話していること。題を一件ずつに背負わせる代わりに、場が一本
-  // 持つ ── 話が流れたら、居る人の誰かが書き換える。
-  //
-  // 誰が変えたかを一緒に出すのは、それが抑止だから。板の顔になる一行を
-  // 黙って書き換えられる形にはしない。
-  let editingTopic = $state(false);
-  let topicDraft = $state('');
-  let topicError = $state(false);
-
-  function startTopic() {
-    topicDraft = deco?.topic ?? '';
-    topicError = false;
-    editingTopic = true;
-  }
-
-  async function saveTopic() {
-    if (!deco) return;
-    try {
-      deco = await setDecoTopic(slug, topicDraft);
-      editingTopic = false;
-    } catch {
-      // 通りすがりは変えられない（サーバが 403）。断られたことだけ出す。
-      topicError = true;
-    }
-  }
 
   // この板をどう知らせてほしいか。一覧にボタンを置かず、板の中に
   // 畳んで置く ── 既定のままで困らない人がほとんどなので、開くまでは
@@ -143,40 +115,6 @@
     {/snippet}
   </PageHeader>
 
-  <div class="topic">
-    {#if editingTopic}
-      <input
-        type="text"
-        bind:value={topicDraft}
-        maxlength="120"
-        placeholder={t().topic.set}
-        onkeydown={(e) => e.key === 'Enter' && saveTopic()}
-      />
-      <button class="linklike" type="button" onclick={saveTopic}>{t().topic.save}</button>
-      <button class="linklike" type="button" onclick={() => (editingTopic = false)}
-        >{t().topic.cancel}</button
-      >
-    {:else if deco.topic}
-      <p>
-        <span class="muted small">{t().topic.now}</span>
-        <span class="line">{deco.topic}</span>
-        {#if deco.topic_by}
-          <span class="muted small"
-            >{t().topic.by(deco.topic_by.display_name)}{deco.topic_at
-              ? ` · ${fmt(deco.topic_at)}`
-              : ''}</span
-          >
-        {/if}
-        {#if signedIn()}
-          <button class="linklike small" type="button" onclick={startTopic}>{t().topic.edit}</button>
-        {/if}
-      </p>
-    {:else if signedIn()}
-      <button class="linklike muted small" type="button" onclick={startTopic}>{t().topic.set}</button>
-    {/if}
-    {#if topicError}<p class="error small">{t().postDetail.error}</p>{/if}
-  </div>
-
   {#if !signedIn()}
     <p class="muted">
       {t().board.readOnly.prefix}<a href="/login?next=/d/{slug}/new">{t().board.readOnly.link}</a
@@ -260,28 +198,6 @@
 {/if}
 
 <style>
-  /* 板の名前のすぐ下。一件ずつの題ではなく、場が持つ一行。 */
-  .topic {
-    margin: -0.4rem 0 1rem;
-  }
-
-  .topic p {
-    margin: 0;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.45rem;
-  }
-
-  .topic .line {
-    font-weight: 600;
-  }
-
-  .topic input {
-    width: 100%;
-    margin-bottom: 0.4rem;
-  }
-
   /* 板の下、戻る道の手前。読みに来た人の邪魔をしない位置に畳んでおく。 */
   .prefs {
     margin-top: 2rem;

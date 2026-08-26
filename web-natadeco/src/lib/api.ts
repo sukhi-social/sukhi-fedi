@@ -17,8 +17,9 @@ export type Deco = {
   local_only: boolean;
   // 読まれかた。'thread' は題つき・bump、'talk' は平ら・書かれた順。
   kind: 'thread' | 'talk';
-  // いま話していること（IRC の /topic）。書いたことがある人と、立てた
-  // 人が変えられる。誰が・いつ を一緒に出すのは、それが抑止だから。
+  // いま話していること（IRC の /topic）。サーバは持っているが、画面は
+  // まだ出していない ── `description` が「どんな板か」を持っていて、
+  // 「いまの話」がそれと離れるほど板が忙しくなっていないので。
   topic: string | null;
   topic_by: Author | null;
   topic_at: string | null;
@@ -359,10 +360,6 @@ export type DecoNotify = 'participating' | 'all' | 'quiet';
 
 export const setDecoNotify = (slug: string, notify: DecoNotify) =>
   req<{ notify: DecoNotify }>('PUT', decoPath(slug, 'notify'), { notify });
-
-/** いま話していること。空にすると、誰が・いつ も一緒に消える。 */
-export const setDecoTopic = (slug: string, topic: string) =>
-  req<Deco>('PUT', decoPath(slug, 'topic'), { topic });
 
 /** その板を、いま見た。光りが消える。 */
 export const seenDeco = (slug: string) => req<{ seen: boolean }>('POST', decoPath(slug, 'seen'));

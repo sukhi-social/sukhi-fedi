@@ -237,7 +237,6 @@ type Dict = {
     openRemote: string;
   };
   article: { label: string; hint: string };
-  topic: { now: string; set: string; edit: string; save: string; cancel: string; by: (who: string) => string };
   mine: {
     minding: string;
     others: string;
@@ -539,14 +538,6 @@ const ja: Dict = {
     label: '長い文章として出す',
     hint: '外のサーバでは、題と書き出しとリンクになります。本文はここに読みに来てもらう形です。じっくり書いたものに向いています。'
   },
-  topic: {
-    now: 'いま',
-    set: 'いま話していることを、書く',
-    edit: 'なおす',
-    save: 'これにする',
-    cancel: 'やめる',
-    by: (who) => `${who} が`
-  },
   mine: {
     minding: '書いた板',
     others: 'ほかの板',
@@ -781,8 +772,8 @@ const ko: Dict = {
   },
   reactions: { add: '가볍게 남기기' },
   tomo: {
-    name: '토모데코',
-    title: '토모데코',
+    name: '벗님데코',
+    title: '벗님데코',
     subtitle: '팔로우한 사람들이 한 말.',
     yoursOnly: '여기는 당신만의 자리예요. 다른 사람에게는 보이지 않아요.',
     find: '찾기',
@@ -797,7 +788,7 @@ const ko: Dict = {
     requested: '기다리는 중',
     noPosts: '아직 보이는 글이 없어요.',
     openRemote: '그쪽 집에서 보기',
-    backToTomo: '토모데코로 돌아가기',
+    backToTomo: '벗님데코로 돌아가기',
     counts: (p, fg, fw) => `글 ${p} · 팔로잉 ${fg} · 팔로워 ${fw}`
   },
   notices: {
@@ -827,14 +818,6 @@ const ko: Dict = {
   article: {
     label: '긴 글로 내보내기',
     hint: '바깥 서버에서는 제목과 첫머리와 링크로 보여요. 본문은 여기로 읽으러 오는 형태예요. 공들여 쓴 글에 어울려요.'
-  },
-  topic: {
-    now: '지금',
-    set: '지금 이야기하는 걸 적기',
-    edit: '고치기',
-    save: '이걸로',
-    cancel: '그만두기',
-    by: (who) => `${who} 님이`
   },
   mine: {
     minding: '글을 쓴 데코',
