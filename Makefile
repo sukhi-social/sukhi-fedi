@@ -164,14 +164,13 @@ push-natadeco:  ## build web-natadeco and rsync it to natadeco's override dir
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(NATADECO_STATIC_DIR) && sudo chown $(DEPLOY_USER) $(NATADECO_STATIC_DIR)"
 	rsync -av --delete --chmod=D755,F644 web-natadeco/build/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(NATADECO_STATIC_DIR)/
 
-# natadeco's backend. The combined image is its web role and it still runs a
-# separate api node, so both images move together.
-natadeco-images:  ## (re)build natadeco's combined + api images on the box
-	IMAGE_PREFIX=natadeco bash bin/build-on-box.sh combined api
+# natadeco's backend. One image: the combined release carries :sukhi_api
+# too, and natadeco stopped running a separate api node on 2026-08-26.
+natadeco-images:  ## (re)build natadeco's combined image on the box
+	IMAGE_PREFIX=natadeco bash bin/build-on-box.sh combined
 	@echo
 	@echo "next, in ~/repos/natadeco-deploy:"
-	@echo "  kamal deploy --skip-push --version=v0   # web role"
-	@echo "  kamal accessory reboot api"
+	@echo "  kamal deploy --skip-push --version=v0"
 
 # Bake a release tarball on the box and hand it to DeployEx, which swaps
 # the running BEAM for it. No image, no registry, no container restart —
