@@ -19,11 +19,16 @@ config :sukhi_delivery, Oban,
   # out into `delivery` jobs. Low concurrency — a few events a day, and
   # each one only translates and enqueues.
   queues: [delivery: 10, federation: 3, push: 3, outbox_dispatch: 2],
-  # `discarded` is the dead-letter shelf (see Outbox.DispatchWorker), so
-  # the Pruner must not sweep it — without the `:states` override its
-  # 60-second default would delete a dead-lettered activity a minute
+  # `discarded` is the dead-letter shelf (see Outbox.DispatchWorker), and
+  # the Pruner is what decides how long it lasts. Open-source Oban's
+  # Pruner cannot be told *which* states to keep (`:states` is a Pro
+  # option — passing it here fails at boot, not at compile time), so the
+  # only lever is `:max_age`, in seconds, applied to every finished job.
+  # Its 60-second default would delete a dead-lettered activity a minute
   # after it gave up, which is the failure the OUTBOX_DLQ stream used to
-  # cover. Completed and cancelled jobs still age out as before.
+  # cover. 30 days is exactly the TTL that stream carried. The cost is
+  # that `completed` rows also linger 30 days, which this node can afford
+  # — a handful of events a day, fanned out to a small follower set.
   #
   # Lifeline is what makes a hard crash lossless. Oban never rescues an
   # `executing` job on its own: if the BEAM dies by SIGKILL or OOM
@@ -41,7 +46,7 @@ config :sukhi_delivery, Oban,
   # either way — `delivery_receipts` makes the POST idempotent and a
   # re-dispatched event just re-enqueues jobs that same table absorbs.
   plugins: [
-    {Oban.Plugins.Pruner, states: [:completed, :cancelled]},
+    {Oban.Plugins.Pruner, max_age: 30 * 24 * 60 * 60},
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(15)}
   ]
 
