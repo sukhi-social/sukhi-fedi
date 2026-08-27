@@ -21,7 +21,7 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
     #
     # So: try in a continue, retry on failure, and let the app finish
     # booting either way. Same shape as SukhiFedi.WtRelayTelemetry.
-    {:ok, %{subscribed: false}, {:continue, :subscribe}}
+    {:ok, %{subscribed: false, gnat: nil}, {:continue, :subscribe}}
   end
 
   @impl true
@@ -29,9 +29,20 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
 
   defp try_subscribe(%{subscribed: true} = state), do: state
 
+  # 購読は `:gnat` の接続プロセスにぶら下がっている。NATS が落ちて
+  # ConnectionSupervisor が新しい接続を立て直すと、購読も一緒に消えるのに、
+  # こちらには何も届かない ── 2026-08-27 に NATS を再起動したとき、
+  # `fedify.>` の micro service は自分で張り直したのに、ここだけ黙って
+  # 止まったままになった。だから接続プロセスを見張って、落ちたら張り直す。
+  #
+  # `whereis` を `Gnat.sub` より先に取るのは、二重購読を作らないため ──
+  # あいだで接続が入れ替わったら、monitor した古い pid がすぐ `:DOWN` で
+  # 返ってきて、そこから張り直しに入る。
   defp try_subscribe(state) do
-    case Gnat.sub(:gnat, self(), @subject) do
-      {:ok, _sub} -> %{state | subscribed: true}
+    with pid when is_pid(pid) <- Process.whereis(:gnat),
+         {:ok, _sub} <- Gnat.sub(:gnat, self(), @subject) do
+      %{state | subscribed: true, gnat: Process.monitor(pid)}
+    else
       _ -> schedule_resubscribe(state)
     end
   rescue
@@ -49,6 +60,14 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
 
   @impl true
   def handle_info(:resubscribe, state), do: {:noreply, try_subscribe(state)}
+
+  # 接続ごと購読が消えた。新しい接続が立つのを待って張り直す。
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, %{gnat: ref} = state) do
+    {:noreply, schedule_resubscribe(%{state | subscribed: false, gnat: nil})}
+  end
+
+  # もう見ていない monitor（張り直したあとに届いた前の分）は捨てる。
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, state), do: {:noreply, state}
 
   def handle_info({:msg, %{topic: @subject, body: body}}, state) do
     case JSON.decode(body) do

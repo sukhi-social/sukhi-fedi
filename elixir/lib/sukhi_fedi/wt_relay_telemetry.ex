@@ -35,7 +35,8 @@ defmodule SukhiFedi.WtRelayTelemetry do
   def init(_) do
     # :gnat がまだ繋がっていなくても落ちないよう、subscribe は continue で試み、
     # 失敗したら後で再試行する（NATS が起動途中／一時的に落ちていても回復する）。
-    {:ok, %{prev: nil, curr: nil, received_at: nil, subscribed: false}, {:continue, :subscribe}}
+    {:ok, %{prev: nil, curr: nil, received_at: nil, subscribed: false, gnat: nil},
+     {:continue, :subscribe}}
   end
 
   @impl true
@@ -43,9 +44,20 @@ defmodule SukhiFedi.WtRelayTelemetry do
 
   defp try_subscribe(%{subscribed: true} = state), do: state
 
+  # 購読は `:gnat` の接続プロセスにぶら下がっている。NATS が落ちて
+  # ConnectionSupervisor が新しい接続を立て直すと、購読も一緒に消えるのに、
+  # こちらには何も届かない ── 2026-08-27 に NATS を再起動したとき、
+  # `fedify.>` の micro service は自分で張り直したのに、ここだけ黙って
+  # 止まったままになった。だから接続プロセスを見張って、落ちたら張り直す。
+  #
+  # `whereis` を `Gnat.sub` より先に取るのは、二重購読を作らないため ──
+  # あいだで接続が入れ替わったら、monitor した古い pid がすぐ `:DOWN` で
+  # 返ってきて、そこから張り直しに入る。
   defp try_subscribe(state) do
-    case Gnat.sub(:gnat, self(), @subject) do
-      {:ok, _sub} -> %{state | subscribed: true}
+    with pid when is_pid(pid) <- Process.whereis(:gnat),
+         {:ok, _sub} <- Gnat.sub(:gnat, self(), @subject) do
+      %{state | subscribed: true, gnat: Process.monitor(pid)}
+    else
       _ -> schedule_resubscribe(state)
     end
   rescue
@@ -64,6 +76,11 @@ defmodule SukhiFedi.WtRelayTelemetry do
 
   @impl true
   def handle_info(:resubscribe, state), do: {:noreply, try_subscribe(state)}
+
+  # 接続ごと購読が消えた。新しい接続が立つのを待って張り直す。
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, %{gnat: ref} = state) do
+    {:noreply, schedule_resubscribe(%{state | subscribed: false, gnat: nil})}
+  end
 
   def handle_info({:msg, %{body: body}}, state) do
     case decode(body) do
