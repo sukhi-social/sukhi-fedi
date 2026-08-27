@@ -20,13 +20,12 @@ defmodule SukhiDelivery.Application do
          default: Application.get_env(:sukhi_delivery, :finch_pool, size: 50, count: 4)
        }},
       {Oban, [name: SukhiDelivery.Oban] ++ Application.fetch_env!(:sukhi_delivery, Oban)},
-      # Transactional Outbox relay: publishes `outbox` rows (written by
-      # the gateway) to NATS JetStream.
-      SukhiDelivery.Outbox.Relay,
-      # Durable JetStream consumer that turns published outbox events
-      # into Oban delivery jobs (FedifyClient.translate → Worker fan-out).
-      # Routing lives in SukhiDelivery.Outbox.Consumer.
-      SukhiDelivery.Outbox.PullConsumer
+      # Transactional Outbox relay: turns `outbox` rows (written by the
+      # gateway) into Oban dispatch jobs — the job insert and the row's
+      # flip to `published` share one transaction. The job then runs
+      # FedifyClient.translate → Worker fan-out; routing lives in
+      # SukhiDelivery.Outbox.Consumer.
+      SukhiDelivery.Outbox.Relay
     ]
 
     opts = [strategy: :one_for_one, name: SukhiDelivery.Supervisor]

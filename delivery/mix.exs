@@ -33,7 +33,7 @@ defmodule SukhiDelivery.MixProject do
       # Job queue
       {:oban, "~> 2.18"},
 
-      # NATS client (JetStream + Micro to Bun)
+      # NATS client (Micro request/reply + core pub/sub)
       {:gnat, "~> 1.8"},
 
       # HTTP client for outbound inbox POSTs

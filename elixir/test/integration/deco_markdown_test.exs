@@ -4,7 +4,7 @@ defmodule SukhiFedi.Integration.DecoMarkdownTest do
   natadeco の `/posts/:id`。ブラウザ以外(LLM のクローラ等)には、空の SPA
   shell ではなく投稿そのものを Markdown で返す。
 
-      podman compose -f docker-compose.test.yml up -d postgres nats nats-bootstrap
+      podman compose -f docker-compose.test.yml up -d postgres nats
       MIX_ENV=test mix sukhi.migrate
       mix test --only integration test/integration/deco_markdown_test.exs
   """

@@ -31,7 +31,7 @@ ActivityPub の JSON-LD と HTTP 署名は `SukhiFedi.Fedi` が BEAM の中で
  ╔══════════════════════════════════╗     ╔══════════════════════════════════╗
  ║      elixir — 案内人              ║     ║      delivery — 配達員            ║
  ║  Bandit/Plug / WS streaming      ║     ║  Outbox.Relay                     ║
- ║  OAuth / WebAuthn / session      ║     ║  （LISTEN/NOTIFY → JetStream）    ║
+ ║  OAuth / WebAuthn / session      ║     ║  （LISTEN/NOTIFY → Oban）         ║
  ║  inbox POST 受付 + dispatch      ║     ║  Oban :delivery / :federation     ║
  ║  Outbox の書き込み側（Ecto.Multi）║     ║  外向き HTTP POST + リトライ      ║
  ║  WebFinger / NodeInfo            ║     ║  Collection-Synchronization       ║
@@ -42,12 +42,12 @@ ActivityPub の JSON-LD と HTTP 署名は `SukhiFedi.Fedi` が BEAM の中で
                 PostgreSQL（真実の源、Ecto経由）◄──── outbox を読む ──────┘
                 + outbox（gateway が書き、delivery が読む）
                 + delivery_receipts（delivery が書く、冪等性）
-                + oban_jobs（共有テーブル、キューは分離）
+                + oban_jobs（共有テーブル、キューは分離。`discarded` が待避線）
                                │
                                ▼
-                NATS JetStream
-                ├─ stream OUTBOX        (sns.outbox.>)     — delivery が publish
-                └─ stream DOMAIN_EVENTS (sns.events.>)     — streaming 用
+                NATS（素の core ── JetStream は無い、耐久も無い）
+                ├─ fedify.*.v1  request/reply — 翻訳 / 署名 / 検証
+                └─ stream.*     pub/sub       — streaming の配り
                                │
                 ┌──────────────┼─────────────────┐
                 ▼                                ▼
@@ -158,7 +158,7 @@ sukhi-fedi/
 │   │   ├── application.ex                 # 監視ツリー
 │   │   ├── repo.ex
 │   │   ├── outbox/
-│   │   │   ├── relay.ex                   # LISTEN/NOTIFY → JetStream
+│   │   │   ├── relay.ex                   # LISTEN/NOTIFY → Oban dispatch job
 │   │   │   └── consumer.ex                # Gnat.sub on sns.outbox.>
 │   │   │                                    10種のsubjectをBun translator +
 │   │   │                                    Worker fan-out にルーティング
@@ -241,7 +241,6 @@ sukhi-fedi/
 │   └── Dockerfile
 │
 ├── infra/
-│   ├── nats/bootstrap.sh                  # JetStreamストリームのブート
 │   ├── cloud-init.yaml.tmpl               # 共通VMブート用テンプレ
 │   └── terraform/ · terraform-x64-freetier/ # infra-as-code (OCI ARM + x64)
 │
@@ -256,18 +255,21 @@ sukhi-fedi/
 
 ## 4. NATS のトポロジー
 
-### 4.1 JetStream ストリーム
+### 4.1 NATS には耐久を載せていない
 
-`infra/nats/bootstrap.sh` が宣言的に作ってくれる（composeでは
-`nats-bootstrap` サイドカーが走らせる）。
+JetStream は使っていないよ。NATS が運ぶのは request/reply（`fedify.*`）と
+best-effort な pub/sub（`stream.*`）だけ。どっちも落ちても大丈夫なもの ──
+呼んだ側がやり直すか、そのまま見送るか。
 
-| ストリーム         | Subject          | 保存   | 保持       | ひとこと                                               |
-| ------------------ | ---------------- | ------ | ---------- | ------------------------------------------------------ |
-| `OUTBOX`           | `sns.outbox.>`   | file   | WorkQueue  | 実質exactly-onceのリレー。fan-out / timeline 消費      |
-| `DOMAIN_EVENTS`    | `sns.events.>`   | file   | Limits 7d  | WebSocket・通知用のブロードキャスト                    |
+耐久はぜんぶ Postgres の仕事。`SukhiFedi.Outbox.enqueue_multi/6` が
+それを起こした変更と同じトランザクションで `outbox` 行を書き、
+`SukhiDelivery.Outbox.Relay` がその行を Oban ジョブに変えるのも、また一つの
+トランザクション。そこから先は `oban_jobs` が運ぶ。あいだにブローカーを
+挟むと、増えるのは dual write ── 片方だけがイベントを持っている一瞬 ──
+だけで、それは outbox パターンがまさに閉じたかった穴なの。
 
-`dupe-window = 2m` と `Nats-Msg-Id = outbox-<id>` の組み合わせで
-ストリーム側の重複排除も効くよ。
+下の `sns.outbox.*` という名前は、`outbox` 表の *subject* 列として生きてる。
+`Outbox.Consumer` が振り分けに使う鍵のまま、ブローカーには出ないだけ。
 
 ### 4.2 Subject の命名規則
 
@@ -289,8 +291,6 @@ sns.<コンテキスト>.<集約>.<操作>[.<バリアント>]
 | `sns.outbox.add.created`           | pub  | `Notes.pin/2`                                | `Outbox.Consumer` → fan-out         |
 | `sns.outbox.remove.created`        | pub  | `Notes.unpin/2`                              | `Outbox.Consumer` → fan-out         |
 | `sns.outbox.oauth.app_registered`  | pub  | `OAuth.register_app/1`                       | _(ローカル監査のみ)_               |
-| `sns.events.timeline.home.updated` | pub  | timeline-updater (addon)                     | streaming-fanout                    |
-| `sns.events.notification.mention`  | pub  | inbox ハンドラ                               | streaming-fanout                    |
 
 ### 4.3 NATS Micro サービス（`fedify`）
 
@@ -411,18 +411,19 @@ DBコミット ⇒ outbox行は永続化。それだけ。
 2. 起床トリガー: トリガーからのNOTIFY、または30秒のフォールバックタイマー。
 3. 1tickごとに:
    ```
-   SELECT FROM outbox WHERE status='pending' AND attempts<10
+   SELECT FROM outbox WHERE status='pending'
    ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED
    ```
    — `SKIP LOCKED` のおかげで将来複数リレーが同時に走っても安全。
-4. 取った行ごとに `Gnat.pub/4` で JetStreamへ発行。ヘッダに
-   `Nats-Msg-Id: outbox-<id>`（重複排除のため）。
-5. 結果をバケット分けしてtick終了:
-   - 成功は全idまとめて1回の `update_all` で
-     `status='published', published_at=now()`。
-   - 失敗は行ごとに更新（`last_error` が行ごとに違うし、このパスは
-     `max_attempts=10` で上限がある）。リトライ上限に達したら
-     `status='failed'` に切り替え。
+4. 取った行ごとに `SukhiDelivery.Outbox.DispatchWorker` のジョブを1本、
+   `Oban.insert_all/2` で。
+5. 取った id をまとめて1回の `update_all` で
+   `status='published', published_at=now()`。
+
+4 と 5 は、行を取ったのと同じトランザクションの中。だから「published
+なのにジョブが無い」も「ジョブがあるのに行が pending」も起きない。
+途中で何か上がったらバッチごと巻き戻って、行は `pending` のまま次の
+tick を待つ ── リトライの予算は行じゃなくて Oban のジョブが持ってる。
 
 ## 6. エンドツーエンドの流れ
 
@@ -446,9 +447,11 @@ SukhiFedi.Notes.create_status/2
                          │
                          ▼
               SukhiDelivery.Outbox.Relay（起きる）
-                         │  Gnat.pub で JetStream OUTBOX へ
+                         │  行ごとに Oban ジョブ + published 印を
+                         │  ひとつのトランザクションで
                          ▼
-         SukhiDelivery.Outbox.Consumer (Gnat.sub on sns.outbox.>)
+         SukhiDelivery.Outbox.DispatchWorker (queue :outbox_dispatch)
+                         │  → SukhiDelivery.Outbox.Consumer
                          │  actorとrecipient inbox を解決
                          │  （フォロワー + リレー + 各種特例）
                          │  FedifyClient.translate("note", payload)
@@ -483,10 +486,12 @@ favourite / unfavourite / reblog / unreblog / pin / unpin もカバー。
 Worker の形は同じ。`sns.outbox.actor.updated` は `Update(Actor)`
 ラッパーが Bun 側にまだないので今は `:skipped`（TODO）。
 
-Consumer は今のところ素の `Gnat.sub` を使ってるから、JetStream の
-OUTBOX ストリームは ACK ベースで刈られない。durable な JetStream
-consumer は `TODO.md` で追跡中。Worker の `delivery_receipts` が
-冪等性を担保してるので、再配信は安全。
+dispatch ジョブの一過性の失敗 ── translator が再起動していて、数秒
+のあいだ何にも署名できない、みたいなとき ── は `{:error, _}` で返って、
+Oban が `DispatchWorker.backoff/1` でリトライする。11回、およそ27分
+かけて間隔を空けて、それでもだめなら `discarded` で休む。そこが待避線。
+あとの回が前の回より先へ進めたときは、Worker の `delivery_receipts` が
+冪等性を担保してるので大丈夫。
 
 ### 6.2 他のサーバーが私たちのinboxに配達
 
@@ -824,7 +829,7 @@ presigned-URL フローは `TODO.md`。
 
 ### 開発用スタック
 ```bash
-# postgres + nats + nats-bootstrap + gateway + delivery + api（bun は退役、
+# postgres + nats + gateway + delivery + api（bun は退役、
 # `disabled` プロファイルの裏）。ホストから届かせる最小の .env と
 # ソースビルドの override は README のクイックスタート参照。
 docker-compose up --build
@@ -905,7 +910,7 @@ cd bun && bun run check
                                  note/follow/like/announce/add/remove subjects を
                                  Bun translator + Worker fan-out に流す。
                                  残ったやつは TODO.md（Misskey API、
-                                 streaming WS、push、durable JetStream consumer など）。
+                                 streaming WS、push など）。
 ```
 
 機能を追加するときは、まず自分がどのステージに属するのか、

@@ -31,7 +31,7 @@ subjects); the Bun worker that used to own that slice is retired
  ╔══════════════════════════════════╗     ╔══════════════════════════════════╗
  ║      elixir — 案内人 (gateway)    ║     ║      delivery — 配達員            ║
  ║  Bandit/Plug  / WS streaming     ║     ║  Outbox.Relay                     ║
- ║  OAuth / WebAuthn / session      ║     ║  (LISTEN/NOTIFY → JetStream)      ║
+ ║  OAuth / WebAuthn / session      ║     ║  (LISTEN/NOTIFY → Oban)           ║
  ║  inbox POST receive + dispatch   ║     ║  Oban :delivery / :federation     ║
  ║  Outbox *write side* (Ecto.Multi)║     ║  HTTP POST + retries              ║
  ║  WebFinger / NodeInfo            ║     ║  Collection-Synchronization       ║
@@ -42,12 +42,12 @@ subjects); the Bun worker that used to own that slice is retired
                 PostgreSQL (system of record, Ecto) ◄───reads outbox────┘
                 + outbox (gateway writes, delivery reads)
                 + delivery_receipts (delivery writes, idempotency)
-                + oban_jobs (shared table, disjoint queues)
+                + oban_jobs (shared table, disjoint queues; `discarded` = dead letters)
                                │
                                ▼
-                NATS JetStream
-                ├─ stream OUTBOX        (sns.outbox.>)    — delivery publishes
-                └─ stream DOMAIN_EVENTS (sns.events.>)    — streaming
+                NATS (plain core — no JetStream, nothing durable)
+                ├─ fedify.*.v1  request/reply — translate / sign / verify
+                └─ stream.*     pub/sub       — streaming fan-out
                                │
                 ┌──────────────┼────────────────┐
                 ▼                               ▼
@@ -197,7 +197,7 @@ sukhi-fedi/
 │   │   ├── application.ex                 # supervision tree
 │   │   ├── repo.ex
 │   │   ├── outbox/
-│   │   │   ├── relay.ex                   # LISTEN/NOTIFY → JetStream
+│   │   │   ├── relay.ex                   # LISTEN/NOTIFY → Oban dispatch job
 │   │   │   └── consumer.ex                # Gnat.sub on sns.outbox.>
 │   │   │                                    routes 11 subjects to Bun
 │   │   │                                    translators + Worker fan-out;
@@ -310,7 +310,6 @@ sukhi-fedi/
 │   └── Dockerfile                         # small single-box image
 │
 ├── infra/
-│   ├── nats/bootstrap.sh                  # JetStream stream bootstrap
 │   ├── cloud-init.yaml.tmpl               # shared VM bootstrap template
 │   └── terraform/ · terraform-x64-freetier/ # infra-as-code (OCI ARM + x64)
 │
@@ -326,18 +325,22 @@ sukhi-fedi/
 
 ## 4. NATS topology
 
-### 4.1 JetStream streams
+### 4.1 Nothing durable rides on NATS
 
-Defined declaratively in `infra/nats/bootstrap.sh` (run by the
-`nats-bootstrap` sidecar in compose).
+There is no JetStream. NATS carries request/reply (`fedify.*`) and
+best-effort pub/sub (`stream.*`) — both fine to lose, both retried or
+simply skipped by the caller.
 
-| Stream          | Subjects         | Storage | Retention  | Notes                                              |
-| --------------- | ---------------- | ------- | ---------- | -------------------------------------------------- |
-| `OUTBOX`        | `sns.outbox.>`   | file    | WorkQueue  | Exactly-once relay; consumed by fan-out / timeline |
-| `DOMAIN_EVENTS` | `sns.events.>`   | file    | Limits 7d  | Broadcast events for WebSocket / notifications     |
+Durability is Postgres's job end to end: `SukhiFedi.Outbox.enqueue_multi/6`
+writes an `outbox` row in the same transaction as the thing it describes,
+`SukhiDelivery.Outbox.Relay` turns that row into an Oban job in *another*
+single transaction, and `oban_jobs` carries it from there. A broker in the
+middle could only add a dual write — a window where one side has the event
+and the other doesn't — which is what an outbox pattern exists to close.
 
-`dupe-window = 2m` on both, which combined with `Nats-Msg-Id = outbox-<id>`
-on publish gives stream-level dedup.
+The `sns.outbox.*` names below survive as the *subject* column of the
+`outbox` table: still the routing key `Outbox.Consumer` dispatches on,
+just never published to a broker.
 
 ### 4.2 Subject taxonomy
 
@@ -359,8 +362,6 @@ sns.<context>.<aggregate>.<op>[.<variant>]
 | `sns.outbox.add.created`           | pub       | `Notes.pin/2`                               | `Outbox.Consumer` → fan-out  |
 | `sns.outbox.remove.created`        | pub       | `Notes.unpin/2`                             | `Outbox.Consumer` → fan-out  |
 | `sns.outbox.oauth.app_registered`  | pub       | `OAuth.register_app/1`                      | _(local audit only)_         |
-| `sns.events.timeline.home.updated` | pub       | timeline-updater (addon)                    | streaming-fanout             |
-| `sns.events.notification.mention`  | pub       | inbox handler                               | streaming-fanout             |
 
 ### 4.3 NATS Micro service (`fedify`)
 
@@ -482,19 +483,20 @@ refresh, session lookups.
 2. Wakeup triggers: NOTIFY from trigger, or a 30 s fallback timer.
 3. Each tick:
    ```
-   SELECT FROM outbox WHERE status='pending' AND attempts<10
+   SELECT FROM outbox WHERE status='pending'
    ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED
    ```
    — the `SKIP LOCKED` lets multiple relay instances cooperate safely
    for future horizontal scale.
-4. For each claimed row: `Gnat.pub/4` to JetStream with
-   `Nats-Msg-Id: outbox-<id>` header (stream dedup).
-5. Outcomes are bucketed, then two statements finish the tick:
-   - one `update_all` flips all successful ids to `status='published',
-     published_at=now()`;
-   - failures keep per-row updates (each row's `last_error` differs,
-     and the cold path is bounded by `max_attempts=10`). Failed rows
-     flip to `status='failed'` once attempts reach the cap.
+4. For each claimed row: one `SukhiDelivery.Outbox.DispatchWorker` job,
+   via `Oban.insert_all/2`.
+5. One `update_all` flips the claimed ids to `status='published',
+   published_at=now()`.
+
+Steps 4 and 5 share the transaction the rows were claimed in, so a row
+is never published without its job, nor a job left without its row. If
+anything raises, the whole batch rolls back and stays `pending` for the
+next tick — the retry budget lives on the Oban job, not on the row.
 
 ## 6. End-to-end flows
 
@@ -518,9 +520,11 @@ SukhiFedi.Notes.create_status/2
                          │
                          ▼
               SukhiDelivery.Outbox.Relay (wakes up)
-                         │  Gnat.pub to JetStream OUTBOX
+                         │  one Oban job per row + mark published,
+                         │  in one transaction
                          ▼
-         SukhiDelivery.Outbox.Consumer (Gnat.sub on sns.outbox.>)
+         SukhiDelivery.Outbox.DispatchWorker (queue :outbox_dispatch)
+                         │  → SukhiDelivery.Outbox.Consumer
                          │  resolves actor + recipient inboxes
                          │  (followers + relays + recipient-specific extras)
                          │  FedifyClient.translate("note", payload)
@@ -553,10 +557,12 @@ maps to a different Bun translator key but the Relay → Consumer →
 Worker shape is identical. `sns.outbox.actor.updated` is currently
 `:skipped` until Bun grows an `Update(Actor)` wrapper (TODO).
 
-The Consumer uses plain `Gnat.sub` today, so the JetStream OUTBOX
-stream grows without ACK-based pruning. A durable JetStream consumer
-is tracked in `TODO.md`; the Worker's `delivery_receipts` already
-covers idempotency on redelivery.
+A transient failure in the dispatch job — the translator restarting, so
+nothing can be signed for a few seconds — comes back as `{:error, _}`
+and Oban retries it on `DispatchWorker.backoff/1`: 11 spaced attempts
+over ~27 minutes, then the job rests in `discarded`, which is the
+dead-letter shelf. The Worker's `delivery_receipts` covers idempotency
+if a later attempt gets further than the one before it.
 
 ### 6.2 Remote server delivers to our inbox
 
@@ -942,7 +948,7 @@ Custom metrics to emit as we build each feature:
 
 ### Dev stack
 ```bash
-# postgres + nats + nats-bootstrap + gateway + delivery + api (bun is retired,
+# postgres + nats + gateway + delivery + api (bun is retired,
 # behind the `disabled` profile). See the README quick start for the minimal
 # .env + build-from-source override that makes this reachable on the host.
 docker-compose up --build
@@ -1023,7 +1029,7 @@ independently.
                               note/follow/like/announce/add/remove subjects
                               into Bun translators + Worker fan-out.
                               See TODO.md for what's deferred (Misskey API,
-                              streaming WS, push, durable JetStream consumer).
+                              streaming WS, push).
 ```
 
 If you're adding a feature, first decide which stage it belongs in and

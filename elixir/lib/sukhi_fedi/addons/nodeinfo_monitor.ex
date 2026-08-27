@@ -8,7 +8,8 @@ defmodule SukhiFedi.Addons.NodeinfoMonitor do
   one `MonitoredInstance` row. Polling runs under Oban cron (see
   `elixir/config/config.exs`); version changes flow through the
   standard Outbox → Delivery pipeline (gateway writes a notes row +
-  outbox event; the delivery node's `Outbox.PullConsumer` fans out).
+  outbox event; the delivery node's `Outbox.Relay` picks it up and its
+  dispatch job fans out).
   """
 
   use SukhiFedi.Addon, id: :nodeinfo_monitor

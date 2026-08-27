@@ -3,7 +3,7 @@ defmodule SukhiDelivery.Schema.OutboxEvent do
   @moduledoc """
   Read-side projection of the gateway's `outbox` table. The delivery
   node's `SukhiDelivery.Outbox.Relay` picks up pending rows and publishes
-  them to NATS JetStream; writes happen on the gateway via
+  them into Oban dispatch jobs; writes happen on the gateway via
   `SukhiFedi.Outbox.enqueue_multi/6`.
   """
 

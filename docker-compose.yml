@@ -38,23 +38,16 @@ services:
   nats:
     image: nats:2-alpine
     logging: *logging
-    command: ["--jetstream", "--store_dir", "/data", "--http_port", "8222"]
-    volumes:
-      - nats_data:/data
+    # Plain core NATS: request/reply for `fedify.*` and pub/sub for the
+    # `stream.*` streaming subjects. Nothing durable rides on it — the
+    # outbox relay hands rows to Oban in the same DB transaction — so
+    # there is no JetStream and nothing to persist.
+    command: ["--http_port", "8222"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 5
-
-  nats-bootstrap:
-    image: ghcr.io/${SUKHI_REPO_OWNER:-nyanrus}/sukhi-fedi-nats-bootstrap:${SUKHI_VERSION:-v1}
-    depends_on:
-      nats:
-        condition: service_healthy
-    environment:
-      NATS_URL: nats://nats:4222
-    restart: "no"
 
   # ── Application ──────────────────────────────────────────────────────────────
 
@@ -85,8 +78,6 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
-      nats-bootstrap:
-        condition: service_completed_successfully
     restart: unless-stopped
 
   # Retired in production (v0.3.0). The native SukhiFedi.Fedi service inside
@@ -107,8 +98,6 @@ services:
     depends_on:
       nats:
         condition: service_healthy
-      nats-bootstrap:
-        condition: service_completed_successfully
     restart: unless-stopped
 
   # ── Delivery node ────────────────────────────────────────────────────────
@@ -137,8 +126,6 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
-      nats-bootstrap:
-        condition: service_completed_successfully
       gateway:
         condition: service_started
     restart: unless-stopped
@@ -221,4 +208,3 @@ services:
 
 volumes:
   postgres_data:
-  nats_data:

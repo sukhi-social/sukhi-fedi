@@ -26,8 +26,6 @@ defmodule SukhiFedi.Metrics do
   Sample `SystemMetrics` once and persist it as a row. Returns the
   inserted `MetricSample`.
   """
-  @dlq_stream "OUTBOX_DLQ"
-
   @spec record() :: struct()
   def record do
     SystemMetrics.snapshot()
@@ -38,22 +36,28 @@ defmodule SukhiFedi.Metrics do
   end
 
   @doc """
-  Current OUTBOX_DLQ depth (undelivered, dead-lettered outbound
-  activities), or `nil` if the stream doesn't exist yet or NATS can't be
-  reached. A standing non-zero value means federation delivery is failing
-  for someone — the sampler logs a warning and it rides the history series.
+  How many jobs have given up — Oban rows in `discarded`. `oban_jobs` is
+  one shared table, so this counts both sides: the delivery node
+  (`Outbox.DispatchWorker`, `Delivery.Worker` — an activity that never
+  reached anyone's inbox) and the gateway's own queues. Federation is
+  what normally lands here, which is why the sampler words its warning
+  that way. (This used to be the depth of the `OUTBOX_DLQ` JetStream
+  stream; the dead-letter shelf moved into Oban with the outbox relay.)
+
+  `nil` when the count can't be taken — `oban_jobs` is the delivery app's
+  table and the DB is shared, so on a gateway whose delivery migrations
+  haven't run there is nothing to count. A standing non-zero value means
+  federation delivery is failing for someone: the sampler logs a warning
+  and it rides the history series.
   """
   @spec dlq_depth() :: non_neg_integer() | nil
   def dlq_depth do
-    case Gnat.Jetstream.API.Stream.info(:gnat, @dlq_stream) do
-      {:ok, %{state: %{messages: n}}} when is_integer(n) -> n
+    case Repo.query("SELECT count(*) FROM oban_jobs WHERE state = 'discarded'", []) do
+      {:ok, %{rows: [[n]]}} when is_integer(n) -> n
       _ -> nil
     end
   rescue
     _ -> nil
-  catch
-    # :gnat not registered (e.g. NATS supervisor not up) raises an exit.
-    :exit, _ -> nil
   end
 
   @doc """

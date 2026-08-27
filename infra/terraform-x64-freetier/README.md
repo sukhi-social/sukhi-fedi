@@ -102,7 +102,7 @@ ssh ubuntu@$IP 'cloud-init status --wait && free -h && lsblk && docker --version
 
 # コンテナ起動確認
 ssh deploy@$IP 'docker compose -f docker-compose.yml -f docker-compose.x64-freetier.yml ps'
-# 期待: postgres / nats / nats-bootstrap / gateway / delivery / bun / watchtower (api は無し)
+# 期待: postgres / nats / gateway / delivery / bun / watchtower (api は無し)
 
 # メモリ使用量
 ssh deploy@$IP 'docker stats --no-stream'

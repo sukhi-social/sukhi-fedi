@@ -2,7 +2,7 @@
 
 Federated SNS server. Mastodon/Misskey API compatible.
 Elixir gateway + Elixir delivery node + distributed-Erlang api plugin,
-coordinated by PostgreSQL + NATS JetStream. ActivityPub translation
+coordinated by PostgreSQL + NATS. ActivityPub translation
 (JSON-LD, HTTP Signatures) runs natively in Elixir (`SukhiFedi.Fedi`); the
 original Bun/Fedify NATS Micro worker is retired (v0.3.0) — no compose stack
 starts it anymore; it's kept behind a `disabled` profile as a rollback path
@@ -65,7 +65,7 @@ ERLANG_COOKIE=$(openssl rand -hex 32)
 SECRET_KEY_BASE=$(openssl rand -hex 64)
 EOF
 
-# 2. Build-from-source override: builds gateway/delivery/api/nats-bootstrap,
+# 2. Build-from-source override: builds gateway/delivery/api,
 #    publishes the gateway port, and skips the prod-only anubis/watchtower.
 #    Both .env and docker-compose.override.yml are gitignored.
 cp docker-compose.override.example.yml docker-compose.override.yml
@@ -119,7 +119,7 @@ cd elixir && MIX_ENV=test mix sukhi.migrate && mix test --only integration
 | Web (natadeco) | natadeco.com's own frontend (`web-natadeco/`), for the `deco` board addon. A second site running this server, not a second server — it lives here because it is the addon's only client and the two have to change together. Builds with bun; `make push-natadeco` |
 | Bun        | NATS Micro service (JSON-LD build, HTTP Signature, verify) — **retired** (v0.3.0), now served natively by `SukhiFedi.Fedi`; no compose stack starts it (`disabled` profile), kept for rollback & golden fixtures |
 | PostgreSQL | System of record; shared `outbox` / `delivery_receipts` / `oban_jobs`    |
-| NATS       | JetStream `OUTBOX` + `DOMAIN_EVENTS`; Micro service `fedify`             |
+| NATS       | Micro service `fedify`; `stream.*` pub/sub. No JetStream                 |
 | Anubis     | Proof-of-work bot gate in front of the gateway; challenges HTML navigation, allow-lists federation/API/static |
 | PromEx     | Prometheus metrics at `/metrics` (gateway :4000, delivery :4001)         |
 

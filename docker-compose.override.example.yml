@@ -28,11 +28,6 @@ services:
       context: .
       dockerfile: api/Dockerfile
 
-  nats-bootstrap:
-    build:
-      context: infra/nats
-      dockerfile: infra/nats/Dockerfile
-
   # Not needed for a local trial — skip to avoid the third-party pulls.
   anubis:
     profiles: ["disabled"]

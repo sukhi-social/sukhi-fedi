@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiDelivery.Outbox.Consumer do
   @moduledoc """
-  Subscribes to `sns.outbox.>` and turns each event into one or more
-  Oban delivery jobs.
+  Turns one `sns.outbox.*` event into one or more Oban delivery jobs.
 
   ## Subject coverage
 
@@ -29,18 +28,18 @@ defmodule SukhiDelivery.Outbox.Consumer do
   Ignored:
     * `sns.outbox.oauth.app_registered` — local-only, no federation
 
-  ## Stream cleanup
+  ## Retries
 
-  This module is the *dispatch* surface. Subscription + ACK happens in
-  `SukhiDelivery.Outbox.PullConsumer`, which uses a durable JetStream
-  consumer with explicit ACK — the OUTBOX stream is a WorkQueue, so
-  each message is deleted as soon as it's ACKed.
+  This module is the *dispatch* surface. Getting here — and the retry
+  budget — belongs to `SukhiDelivery.Outbox.DispatchWorker`, one Oban
+  job per `outbox` row.
 
-  Return values inform the PullConsumer's ack policy: anything that
-  could succeed on retry returns `:translate_failed` or `:crashed`
-  (→ NACK); structural problems (`:missing_*`, `:no_*`, `:bad_json`,
-  `:ignored`, `:no_handler`) return immediately (→ ACK; retry can't
-  help).
+  Return values inform that worker's retry policy: anything that could
+  succeed on retry returns `:translate_failed` or `:crashed` (the job
+  errors, Oban retries it on a backoff, and after 12 attempts it rests
+  in `discarded`); structural problems (`:missing_*`, `:no_*`,
+  `:bad_json`, `:ignored`, `:no_handler`) return immediately — the job
+  is done, retry can't help.
 
   ## Recipient inbox resolution
 

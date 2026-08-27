@@ -160,7 +160,7 @@ their version changes.
 ## Rolling tags & Watchtower
 
 Images are published to
-`ghcr.io/<owner>/sukhi-fedi-{gateway,api,bun,nats-bootstrap}` with
+`ghcr.io/<owner>/sukhi-fedi-{gateway,api,bun}` with
 rolling tags:
 
 - `:vX.Y.Z` — immutable, never moves

@@ -29,8 +29,8 @@ defmodule SukhiFedi.MetricsTest do
       assert %MetricSample{} = row
       assert row.cpu_percent >= 0.0
       assert %DateTime{} = row.sampled_at
-      # DLQ depth rides along: nil when the stream/NATS is absent (as in
-      # the test stack), a count otherwise.
+      # DLQ depth rides along: nil when `oban_jobs` isn't there (the
+      # delivery migrations are the delivery app's), a count otherwise.
       assert is_nil(row.outbox_dlq_depth) or is_integer(row.outbox_dlq_depth)
       assert Repo.aggregate(MetricSample, :count, :id) == before + 1
     end

@@ -11,8 +11,7 @@
 #      by bun (the same thing scripts/test-pglite.sh uses for tests).
 #      Persisted in .pglite-dev/, so your accounts and posts survive a
 #      restart. Delete that directory to start from nothing.
-#   2. nats-server with JetStream, *if* it is on your PATH, plus the
-#      OUTBOX / DOMAIN_EVENTS streams if the `nats` CLI is there too.
+#   2. nats-server (plain core), *if* it is on your PATH.
 #      Without them the app still runs — streaming and outbound
 #      federation are simply off, and you are told so.
 #   3. The combined release's projects (gateway + delivery + api in one
@@ -31,7 +30,6 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PGLITE_PORT="${PGLITE_PORT:-15434}"
 PGLITE_DATA="${PGLITE_DATA:-$ROOT/.pglite-dev}"
 NATS_PORT="${NATS_PORT:-14223}"
-NATS_DATA="${NATS_DATA:-$ROOT/.nats-dev}"
 
 # Shutting down is not instant: PGlite flushes its whole data directory
 # (tens of MB) before it exits, so the ports stay held for a few seconds
@@ -67,26 +65,19 @@ echo "→ PGlite on 127.0.0.1:$PGLITE_PORT  (data: ${PGLITE_DATA#"$ROOT"/})"
 pids+=("$!")
 wait_for_port "$PGLITE_PORT" "PGlite"
 
-# NATS carries streaming (DOMAIN_EVENTS) and the outbox relay that feeds
-# outbound federation. Both are optional for working on the UI or the
-# REST surface, so a missing nats-server is a notice, not an error.
+# NATS carries the `stream.*` streaming subjects and the `fedify.*`
+# request/reply the delivery side signs through. Both are optional for
+# working on the UI or the REST surface, so a missing nats-server is a
+# notice, not an error. Plain core NATS — nothing to bootstrap, since the
+# outbox relay hands rows to Oban rather than to a stream.
 if command -v nats-server >/dev/null 2>&1; then
-  echo "→ nats-server on 127.0.0.1:$NATS_PORT  (JetStream)"
-  mkdir -p "$NATS_DATA"
-  nats-server --port "$NATS_PORT" --jetstream --store_dir "$NATS_DATA" >/dev/null 2>&1 &
+  echo "→ nats-server on 127.0.0.1:$NATS_PORT"
+  nats-server --port "$NATS_PORT" >/dev/null 2>&1 &
   pids+=("$!")
   wait_for_port "$NATS_PORT" "nats-server"
-
-  if command -v nats >/dev/null 2>&1; then
-    NATS_URL="nats://127.0.0.1:$NATS_PORT" "$ROOT/infra/nats/bootstrap.sh" >/dev/null
-    echo "  streams bootstrapped"
-  else
-    echo "  no \`nats\` CLI — streams not created; the outbox relay will idle"
-    echo "  (brew install nats)"
-  fi
 else
-  echo "→ no nats-server on PATH — streaming and outbound federation are off"
-  echo "  (brew install nats-server nats)"
+  echo "→ no nats-server on PATH — streaming and outbound signing are off"
+  echo "  (brew install nats-server)"
 fi
 
 # The addon set stays the same either way, on purpose. Deriving it from

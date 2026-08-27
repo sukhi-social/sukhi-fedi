@@ -78,7 +78,7 @@ defmodule SukhiFedi.Metrics.Sampler do
   # (the depth also lands in the metric_samples series for /admin/system
   # and offline analysis).
   defp alert_on_dlq(%{outbox_dlq_depth: n}) when is_integer(n) and n > 0 do
-    Logger.warning("metrics sampler: OUTBOX_DLQ depth=#{n} — outbound federation is failing")
+    Logger.warning("metrics sampler: #{n} discarded job(s) — outbound federation is failing")
   end
 
   defp alert_on_dlq(_), do: :ok

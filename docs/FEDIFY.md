@@ -243,7 +243,7 @@ doesn't apply to us because we don't use `Federation`. Our equivalents:
   `Repo.insert(on_conflict: :nothing)` on the Follow insert.
 - **Sending side**: `delivery_receipts(activity_id, inbox_url)` unique
   index, checked before every POST in `Delivery.Worker`.
-- **Transport**: JetStream `Nats-Msg-Id = outbox-<id>` + 2-minute
+- **Transport**: the `outbox` row id + 2-minute
   dedup window in the OUTBOX stream.
 
 Three layers, same goal. Don't bolt on the fedify feature — it

@@ -31,4 +31,3 @@ analysis/Manifest.toml
 
 # Local dev sidecars (make dev)
 .pglite-dev/
-.nats-dev/

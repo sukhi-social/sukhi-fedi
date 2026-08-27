@@ -6,7 +6,7 @@ defmodule SukhiFedi.Outbox do
   Use `enqueue_multi/6` inside an `Ecto.Multi` alongside the domain
   write so that the DB commit itself makes the event durable — the
   `SukhiDelivery.Outbox.Relay` process on the delivery node then
-  publishes pending rows to NATS JetStream.
+  turns pending rows into Oban delivery jobs.
 
   ## Example
 

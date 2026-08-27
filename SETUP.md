@@ -9,7 +9,7 @@
 | Elixir           | ~> 1.20                              |
 | OTP              | 27 (bundled with Elixir 1.20)        |
 | PostgreSQL       | 16                                   |
-| NATS             | 2 (JetStream enabled)                |
+| NATS             | 2 (plain core, no JetStream)         |
 | Docker + Compose | any recent version                   |
 | Bun              | 1.x — only for `bun/` fixtures/rollback (retired in prod, v0.3.0) |
 
@@ -164,7 +164,7 @@ Two Terraform stacks available:
 ### Step 1 — Provision with Terraform
 
 Creates the OCI VM, VCN/subnet, and a block volume mounted at `/mnt/data`
-(used by PostgreSQL and NATS JetStream). cloud-init on first boot installs
+(used by PostgreSQL). cloud-init on first boot installs
 Docker CE, creates the `deploy` user with your SSH key, locks down UFW
 (SSH only; Cloudflare Tunnel handles HTTP ingress), tunes sysctl, and
 creates a swap file on RAM-tight hosts.

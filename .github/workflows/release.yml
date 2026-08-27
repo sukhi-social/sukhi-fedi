@@ -47,7 +47,6 @@ jobs:
           - { name: delivery, context: ./delivery }
           - { name: api, context: ., file: api/Dockerfile }
           - { name: bun, context: ./bun }
-          - { name: nats-bootstrap, context: ./infra/nats }
           - { name: anubis, context: ./config/anubis }
         platform:
           - { name: amd64, runner: ubuntu-24.04, docker: linux/amd64 }
@@ -97,7 +96,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [gateway, delivery, api, bun, nats-bootstrap, anubis]
+        image: [gateway, delivery, api, bun, anubis]
     steps:
       - uses: actions/download-artifact@v4
         with:

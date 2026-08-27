@@ -5,7 +5,7 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
   段階の最初(actor が引ける・webfinger で見つかる)だけを確かめる。
   Follow の受理・followers の中身はまだ先の段。
 
-      podman compose -f docker-compose.test.yml up -d postgres nats nats-bootstrap
+      podman compose -f docker-compose.test.yml up -d postgres nats
       MIX_ENV=test mix sukhi.migrate
       mix test --only integration test/integration/deco_federation_test.exs
   """

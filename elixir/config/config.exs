@@ -26,7 +26,17 @@ config :sukhi_fedi, Oban,
        # Daily read-only archive health check (counts + S3 HEAD of the
        # latest inbound original). Logs a WARNING if the archive drifted.
        {"30 3 * * *", SukhiFedi.Maintenance.ArchiveIntegrity}
-     ]}
+     ]},
+    # The same two guards the delivery node keeps (delivery/config/config.exs).
+    # Pruner ages out finished jobs but must leave `discarded` alone —
+    # that is where a job which used up its attempts can still be found
+    # and re-run. Lifeline rescues jobs orphaned in `executing` when the
+    # BEAM dies mid-job (SIGKILL, OOM); Oban never does that on its own,
+    # so without it a hard crash silently drops whatever was running.
+    # 15 minutes clears the slowest job here — an S3 archive PUT or a
+    # NodeInfo/preview fetch — by a wide margin.
+    {Oban.Plugins.Pruner, states: [:completed, :cancelled]},
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(15)}
   ]
 
 config :sukhi_fedi, SukhiFedi.PromEx,

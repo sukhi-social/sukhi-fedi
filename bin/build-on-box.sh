@@ -17,7 +17,6 @@
 # 使い方:
 #   bin/build-on-box.sh                  # 既定: builder deployex を焼く
 #   bin/build-on-box.sh anubis           # config/anubis を変えたとき
-#   bin/build-on-box.sh nats-bootstrap   # infra/nats を変えたとき
 #   IMAGE_PREFIX=natadeco bin/build-on-box.sh combined api   # natadeco の版上げ
 # その後:
 #   kamal accessory reboot deployex      # deployex を焼き直したとき
@@ -57,7 +56,6 @@ build_one() {
     combined)       ctx="."               file="combined/Dockerfile"        ;;
     api)            ctx="."               file="api/Dockerfile"             ;;
     bun)            ctx="bun"             file="bun/Dockerfile"             ;;
-    nats-bootstrap) ctx="infra/nats"      file="infra/nats/Dockerfile"      ;;
     anubis)         ctx="config/anubis"   file="config/anubis/Dockerfile"   ;;
     # DeployEx とその中で動くアプリの土台。年に数回しか変わらない ── アプリ
     # の版は image ではなく tarball で運ぶ(bin/release-on-box.sh)。

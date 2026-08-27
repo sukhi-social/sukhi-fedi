@@ -3,7 +3,7 @@ defmodule SukhiFedi.Integration.DecoTest do
   @moduledoc """
   natadeco の板（デコ）。器と、呼び名。
 
-      podman compose -f docker-compose.test.yml up -d postgres nats nats-bootstrap
+      podman compose -f docker-compose.test.yml up -d postgres nats
       MIX_ENV=test mix sukhi.migrate
       mix test --only integration test/integration/deco_test.exs
   """

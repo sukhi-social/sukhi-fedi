@@ -6,7 +6,7 @@ defmodule SukhiFedi.Addons.NodeinfoMonitor.PollWorker do
     1. fetch NodeInfo
     2. persist a snapshot + update last-polled state
     3. if the version changed, publish a Note from the bot actor
-       (Outbox → delivery node's PullConsumer → fan out)
+       (Outbox → delivery node's Relay → dispatch job → fan out)
     4. on failure: bump consecutive_failures; when the last successful
        poll is older than 7 days *and* failures are still accruing, the
        instance is flipped to `inactive` and stops being polled.

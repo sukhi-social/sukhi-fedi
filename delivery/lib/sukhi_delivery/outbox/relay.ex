@@ -2,8 +2,13 @@
 defmodule SukhiDelivery.Outbox.Relay do
   @moduledoc """
   Consumes pending rows from the shared `outbox` table (written by the
-  gateway via `SukhiFedi.Outbox.enqueue_multi/6`) and publishes them to
-  NATS JetStream. "DB commit = NATS durable" semantics.
+  gateway via `SukhiFedi.Outbox.enqueue_multi/6`) and hands each one to
+  `SukhiDelivery.Outbox.DispatchWorker`.
+
+  Both halves happen in one transaction: the Oban job is inserted and the
+  row flips to `published` together, or neither does. Same database, so
+  there is no dual write and no window where a row says "done" while
+  nothing is queued to act on it.
 
   Wakeups:
     * Postgres `NOTIFY outbox_new` (fired by the AFTER INSERT trigger
@@ -18,12 +23,12 @@ defmodule SukhiDelivery.Outbox.Relay do
   require Logger
   import Ecto.Query
 
+  alias SukhiDelivery.Outbox.DispatchWorker
   alias SukhiDelivery.Repo
   alias SukhiDelivery.Schema.OutboxEvent
 
   @poll_interval_ms 30_000
   @batch_size 100
-  @max_attempts 10
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -61,30 +66,14 @@ defmodule SukhiDelivery.Outbox.Relay do
 
   defp publish_pending do
     Repo.transaction(fn ->
-      events =
-        from(e in OutboxEvent,
-          where: e.status == "pending" and e.attempts < @max_attempts,
-          order_by: [asc: e.id],
-          limit: @batch_size,
-          lock: "FOR UPDATE SKIP LOCKED"
-        )
-        |> Repo.all()
-
-      {published_ids, poison} =
-        events
-        |> Stream.map(&{&1, do_publish(&1)})
-        |> tally()
-
-      deferred = length(events) - length(published_ids) - length(poison)
-
-      if deferred > 0 do
-        Logger.warning(
-          "Outbox.Relay: NATS unreachable, deferred #{deferred} pending event(s) " <>
-            "— attempts untouched, will retry on reconnect"
-        )
-      end
-
-      apply_results(published_ids, poison)
+      from(e in OutboxEvent,
+        where: e.status == "pending",
+        order_by: [asc: e.id],
+        limit: @batch_size,
+        lock: "FOR UPDATE SKIP LOCKED"
+      )
+      |> Repo.all()
+      |> dispatch()
     end)
   rescue
     e ->
@@ -92,89 +81,34 @@ defmodule SukhiDelivery.Outbox.Relay do
       :error
   end
 
-  @doc """
-  Fold per-event publish outcomes into `{published_ids, poison}`.
+  # Insert one dispatch job per claimed row and mark the rows published.
+  # Anything that raises here (a payload Postgres won't take, the job
+  # table gone) rolls the whole batch back, leaving the rows `pending` for
+  # the next tick — the retry budget lives on the Oban job, not here.
+  defp dispatch([]), do: :ok
 
-  Stops at the first `:disconnected` outcome — NATS being unreachable is the
-  connection's fault, not the event's, so that row and every one after it
-  stay `pending` with `attempts` untouched. Only `:poison` (a row we can
-  never encode) is collected to count against `attempts`. Driven over a
-  `Stream`, the `:halt` also stops further publish attempts mid-batch.
-  """
-  @spec tally(Enumerable.t()) :: {list(), list()}
-  def tally(outcomes) do
-    Enum.reduce_while(outcomes, {[], []}, fn
-      {event, :ok}, {ok_ids, poison} ->
-        {:cont, {[event.id | ok_ids], poison}}
+  defp dispatch(events) do
+    events
+    |> Enum.map(&job_for/1)
+    |> then(&Oban.insert_all(SukhiDelivery.Oban, &1))
 
-      {event, {:poison, reason}}, {ok_ids, poison} ->
-        {:cont, {ok_ids, [{event, reason} | poison]}}
-
-      {_event, {:disconnected, _reason}}, acc ->
-        {:halt, acc}
-    end)
-  end
-
-  defp apply_results([], []), do: :ok
-
-  defp apply_results(published_ids, poison) do
-    now = DateTime.utc_now()
-
-    unless published_ids == [] do
-      from(e in OutboxEvent, where: e.id in ^published_ids)
-      |> Repo.update_all(set: [status: "published", published_at: now])
-    end
-
-    Enum.each(poison, fn {event, reason} ->
-      new_attempts = event.attempts + 1
-      new_status = if new_attempts >= @max_attempts, do: "failed", else: "pending"
-
-      event
-      |> Ecto.Changeset.change(%{
-        attempts: new_attempts,
-        last_error: inspect(reason),
-        status: new_status
-      })
-      |> Repo.update!()
-
-      Logger.warning(
-        "Outbox.Relay could not encode event (attempt #{new_attempts}) " <>
-          "id=#{event.id} subject=#{event.subject}: #{inspect(reason)}"
-      )
-    end)
+    from(e in OutboxEvent, where: e.id in ^Enum.map(events, & &1.id))
+    |> Repo.update_all(set: [status: "published", published_at: DateTime.utc_now()])
 
     :ok
   end
 
-  # Classify one event's publish attempt:
-  #   :ok                 — handed to NATS.
-  #   {:poison, reason}   — payload can't be encoded; this row will never
-  #                         succeed, so it counts against `attempts`.
-  #   {:disconnected, _}  — NATS unreachable; the event is fine. The caller
-  #                         defers it without touching `attempts`, so an
-  #                         outage can't burn the poison-retry budget.
-  defp do_publish(event) do
-    case encode_body(event.payload) do
-      {:ok, body} -> publish(event.id, event.subject, body)
-      {:error, reason} -> {:poison, reason}
-    end
-  end
-
-  defp encode_body(payload) do
-    {:ok, JSON.encode!(payload)}
-  rescue
-    e -> {:error, {:encode, Exception.message(e)}}
-  end
-
-  defp publish(id, subject, body) do
-    headers = [{"Nats-Msg-Id", "outbox-#{id}"}]
-
-    case Gnat.pub(:gnat_delivery, subject, body, headers: headers) do
-      :ok -> :ok
-      other -> {:disconnected, other}
-    end
-  rescue
-    e -> {:disconnected, Exception.message(e)}
+  @doc """
+  The Oban changeset for one outbox row. `outbox_id` rides along so a
+  discarded job can be traced back to the row that produced it.
+  """
+  @spec job_for(OutboxEvent.t()) :: Ecto.Changeset.t()
+  def job_for(%OutboxEvent{} = event) do
+    DispatchWorker.new(%{
+      "outbox_id" => event.id,
+      "subject" => event.subject,
+      "payload" => event.payload
+    })
   end
 
   defp postgrex_config do

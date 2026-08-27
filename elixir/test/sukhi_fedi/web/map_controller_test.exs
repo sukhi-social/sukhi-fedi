@@ -37,8 +37,12 @@ defmodule SukhiFedi.Web.MapControllerTest do
     assert is_list(peers)
     assert {:ok, _, _} = DateTime.from_iso8601(at)
 
-    # stream ごとに nil（NATS 不在＝運転見合わせ）か {seq, held}。
-    for key <- ~w(outbox outbox_dlq events) do
+    # `events` は DOMAIN_EVENTS の名残り。streaming は plain NATS で数を
+    # 刻まないので、数えるものがそもそも無い＝いつも nil。
+    assert Map.fetch!(streams, "events") == nil
+
+    # 線ごとに nil（数字が取れない＝運転見合わせ）か {seq, held}。
+    for key <- ~w(outbox outbox_dlq) do
       case Map.fetch!(streams, key) do
         nil -> :ok
         %{"seq" => seq, "held" => held} -> assert is_integer(seq) and is_integer(held)

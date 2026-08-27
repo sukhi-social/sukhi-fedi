@@ -5,8 +5,8 @@ defmodule SukhiFedi.Web.MapController do
 
   返すのは粗い数と現在時刻だけ:
 
-    * JetStream 各 stream の `last_seq`（累積通し番号）と滞留数
-      （OUTBOX / OUTBOX_DLQ / DOMAIN_EVENTS）
+    * outbox 表の通し番号（最新の行 id）と、まだ渡していない行の数
+    * 待避線 ── 配達をあきらめた便の数（`SukhiFedi.Metrics.dlq_depth/0`）
     * この 1 日に生まれた note の数（ローカル / リモート別）
     * この 1 日に連合へ届けた便の数（delivery_receipts の delivered）
     * 宇宙図の星（`SukhiFedi.MapPeers` の allow-list に載る domain と、
@@ -15,7 +15,7 @@ defmodule SukhiFedi.Web.MapController do
   1 日基準なのは、しずかな星でも「この星の一日」が見えるように。
   宛先・本文・アカウントは含まれないので認証なしで開けてよく、
   `/api/*` は Anubis も素通し。無認証の口なので、結果を短く（5 秒）持ち回して
-  訪問者の数だけ NATS/DB を叩かないようにしている。
+  訪問者の数だけ DB を叩かないようにしている。
 
   `METRICS_TOKEN` 門番つきの `GET /api/metrics`（ホスト資源の歴史）とは別物。
   こちらは「いま、どの線路を、どのくらい列車が走っているか」だけ。
@@ -25,10 +25,9 @@ defmodule SukhiFedi.Web.MapController do
   import Plug.Conn
 
   alias SukhiFedi.MapPeers
+  alias SukhiFedi.Metrics
   alias SukhiFedi.Repo
-  alias SukhiFedi.Schema.Note
-
-  @streams %{outbox: "OUTBOX", outbox_dlq: "OUTBOX_DLQ", events: "DOMAIN_EVENTS"}
+  alias SukhiFedi.Schema.{Note, OutboxEvent}
   @cache_ms 5_000
   @window_hours 24
 
@@ -39,7 +38,7 @@ defmodule SukhiFedi.Web.MapController do
     |> send_resp(200, JSON.encode!(payload()))
   end
 
-  # 直近の結果を :persistent_term に持ち回す。無認証の口が DB/NATS の
+  # 直近の結果を :persistent_term に持ち回す。無認証の口が DB の
   # 直通にならないための、いちばん小さい弁。
   defp payload do
     now = System.monotonic_time(:millisecond)
@@ -60,7 +59,7 @@ defmodule SukhiFedi.Web.MapController do
 
     %{
       at: DateTime.utc_now() |> DateTime.to_iso8601(),
-      streams: Map.new(@streams, fn {key, name} -> {key, stream_state(name)} end),
+      streams: %{outbox: outbox_state(), outbox_dlq: siding_state(), events: nil},
       notes_24h: recent_notes(since),
       deliveries_24h: recent_deliveries(since),
       peers: peers(since)
@@ -88,18 +87,34 @@ defmodule SukhiFedi.Web.MapController do
     Enum.map(domains, fn d -> %{domain: d, notes_24h: Map.get(counts, d, 0)} end)
   end
 
-  # stream が無い / NATS に届かないときは nil のまま返す（ページ側は
-  # その線を「運転見合わせ」表示にする）。Metrics.dlq_depth/0 と同じ守り。
-  defp stream_state(name) do
-    case Gnat.Jetstream.API.Stream.info(:gnat, name) do
-      {:ok, %{state: %{messages: held, last_seq: seq}}} -> %{seq: seq, held: held}
+  # 連合線。`seq` は outbox 表の通し番号、`held` はまだ渡していない行
+  # （ふだんは 0 ── Relay が NOTIFY で即つかむ）。数字が取れないときは
+  # nil のまま返す＝ページ側はその線を「運転見合わせ」にする。
+  defp outbox_state do
+    from(e in OutboxEvent,
+      select: {coalesce(max(e.id), 0), filter(count(e.id), e.status == "pending")}
+    )
+    |> Repo.one()
+    |> case do
+      {seq, held} -> %{seq: seq, held: held}
       _ -> nil
     end
   rescue
     _ -> nil
-  catch
-    :exit, _ -> nil
   end
+
+  # 待避線。あきらめた便が停まっている数。累計＝いまの数なので seq と
+  # held は同じ（Oban の discarded は掃かれずに残る）。
+  defp siding_state do
+    case Metrics.dlq_depth() do
+      n when is_integer(n) -> %{seq: n, held: n}
+      _ -> nil
+    end
+  end
+
+  # `events` は DOMAIN_EVENTS の名残り。streaming の実配線は plain NATS の
+  # `stream.new_post` で数を刻まないので、ここでは数えられない（ページ側は
+  # この 1 日の note 数で場内放送を描いている）。キーだけ残して nil。
 
   defp recent_notes(since) do
     rows =

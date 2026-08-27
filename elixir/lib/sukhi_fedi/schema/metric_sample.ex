@@ -29,8 +29,8 @@ defmodule SukhiFedi.Schema.MetricSample do
     field :disk_total, :integer
     field :disk_used_percent, :float
 
-    # OUTBOX_DLQ depth — undelivered (dead-lettered) outbound activities.
-    # NULL when NATS/the stream couldn't be queried.
+    # Oban jobs that gave up (`discarded`) — mostly outbound activities
+    # that never reached an inbox. NULL when `oban_jobs` can't be queried.
     field :outbox_dlq_depth, :integer
   end
 end

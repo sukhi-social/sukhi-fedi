@@ -2,8 +2,8 @@
 #
 # Compose file for integration / E2E tests.
 #
-# Brings up an isolated Postgres, NATS (with OUTBOX + DOMAIN_EVENTS streams),
-# and the Bun fedify NATS Micro service. Elixir tests run on the host via
+# Brings up an isolated Postgres, plain core NATS, and the Bun fedify
+# NATS Micro service. Elixir tests run on the host via
 # `mix test --only integration` and connect to these services on the ports
 # below.
 #
@@ -32,29 +32,15 @@ services:
 
   nats:
     image: nats:2-alpine
-    command: ["--jetstream", "--store_dir", "/data", "--http_port", "8222"]
+    command: ["--http_port", "8222"]
     ports:
       - "14222:4222"
       - "18222:8222"
-    tmpfs:
-      - /data
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
       interval: 2s
       timeout: 3s
       retries: 15
-
-  nats-bootstrap:
-    image: natsio/nats-box:latest
-    depends_on:
-      nats:
-        condition: service_healthy
-    environment:
-      NATS_URL: nats://nats:4222
-    volumes:
-      - ./infra/nats/bootstrap.sh:/bootstrap.sh:ro
-    command: ["sh", "/bootstrap.sh"]
-    restart: "no"
 
   rustfs:
     image: rustfs/rustfs:1.0.0-beta.5
@@ -75,8 +61,6 @@ services:
     depends_on:
       nats:
         condition: service_healthy
-      nats-bootstrap:
-        condition: service_completed_successfully
     environment:
       NATS_URL: nats://nats:4222
     command: ["bun", "run", "services/fedify_service.ts"]

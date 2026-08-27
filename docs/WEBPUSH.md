@@ -191,7 +191,7 @@ blip — the same standard the federation outbox holds itself to
 (ARCHITECTURE §5). But push is **not** ActivityPub: a push endpoint is
 not a fedi inbox, the payloads are different, and (critically) **a push
 failure is never a federation event**. So push does *not* ride the
-`sns.outbox.>` JetStream / `Outbox.Relay` machinery. Reusing it would
+`sns.outbox.*` / `Outbox.Relay` machinery. Reusing it would
 smear two unrelated durability concerns into one stream.
 
 Recommended shape, mirroring the *pattern* (durable queue + bounded

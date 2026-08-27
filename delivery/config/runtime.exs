@@ -38,7 +38,9 @@ if config_env() == :prod do
     queues: [
       delivery: String.to_integer(System.get_env("OBAN_DELIVERY_CONCURRENCY", "10")),
       federation: String.to_integer(System.get_env("OBAN_FEDERATION_CONCURRENCY", "3")),
-      push: String.to_integer(System.get_env("OBAN_PUSH_CONCURRENCY", "3"))
+      push: String.to_integer(System.get_env("OBAN_PUSH_CONCURRENCY", "3")),
+      outbox_dispatch:
+        String.to_integer(System.get_env("OBAN_OUTBOX_DISPATCH_CONCURRENCY", "2"))
     ]
 
   # Outbound HTTP pool sizing. Consumed by SukhiDelivery.Application.

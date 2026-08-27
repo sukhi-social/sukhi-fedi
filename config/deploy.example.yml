@@ -46,7 +46,7 @@ proxy:
   app_port: 8080
 
 # The real config also defines accessories: gateway, delivery, api, postgres,
-# nats, nats-bootstrap, rustfs. Each accessory can move to its own host by
+# nats, rustfs. Each accessory can move to its own host by
 # changing its `host:` field — that's the "scale by adding servers" axis.
 #
 # Required secrets: REGISTRY_PASSWORD,

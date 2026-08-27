@@ -215,10 +215,23 @@ if config_env() == :prod do
   # Oban monitor queue concurrency override. NodeInfo polling fans out
   # one job per monitored instance; on a 1 GB box 5 parallel Finch
   # requests + JSON decode buffers is more than we want resident.
-  # Shallow-merges with the compile-time Oban config — `:repo` and
-  # `:plugins` (Cron) are inherited unchanged.
+  # Config.config/3 shallow-merges keyword lists, so `:repo` and
+  # `:plugins` come through from compile time unchanged. The `:queues`
+  # list itself, though, is replaced wholesale — a queue missing from
+  # here simply never drains in prod, quietly. Name every one. (Only
+  # `monitor` was named until 2026-08-27, which left `inbound_archive`,
+  # `outbound_archive`, `publish` and `preview` stopped in production.)
+  # Defaults match the compile-time list in config/config.exs.
   config :sukhi_fedi, Oban,
-    queues: [monitor: String.to_integer(System.get_env("OBAN_MONITOR_CONCURRENCY", "5"))]
+    queues: [
+      monitor: String.to_integer(System.get_env("OBAN_MONITOR_CONCURRENCY", "5")),
+      inbound_archive:
+        String.to_integer(System.get_env("OBAN_INBOUND_ARCHIVE_CONCURRENCY", "10")),
+      outbound_archive:
+        String.to_integer(System.get_env("OBAN_OUTBOUND_ARCHIVE_CONCURRENCY", "10")),
+      publish: String.to_integer(System.get_env("OBAN_PUBLISH_CONCURRENCY", "5")),
+      preview: String.to_integer(System.get_env("OBAN_PREVIEW_CONCURRENCY", "3"))
+    ]
 end
 
 # Dev runs the whole system as one BEAM (`make dev` boots combined/,
