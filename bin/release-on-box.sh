@@ -7,8 +7,13 @@
 # も要らない。
 #
 # 使い方:
-#   bin/release-on-box.sh            # 焼いて置く（DeployEx が数秒で拾う）
-#   bin/release-on-box.sh --sync     # ツリーを送るところまで（build しない）
+#   bin/release-on-box.sh                     # 焼いて置く（DeployEx が数秒で拾う）
+#   bin/release-on-box.sh --sync              # ツリーを送るところまで（build しない）
+#   INSTANCE=natadeco bin/release-on-box.sh   # natadeco.com のほうを焼く
+#
+# 一つの箱に sukhi-fedi が二つ住んでいる。焼くものは同じ combined release で、
+# 違うのは「どのフロントを積むか」と「どこへ置くか」だけ ── だから分岐は
+# 下の case 一箇所に集めてある。切り替えは env で、DEPLOY_HOST と同じ渡しかた。
 #
 # その後は何もしなくていい。DeployEx が current.json の version が変わった
 # のを見て、tarball を展開し、pre_commands(migration)を走らせ、古い BEAM を
@@ -22,11 +27,38 @@
 set -euo pipefail
 
 BOX="rocky@${DEPLOY_HOST:?set DEPLOY_HOST to the box ip/hostname}"
-SRC_DIR='$HOME/sukhi-build'           # 箱の中のビルド木（_build/deps が住む）
-STAGE_DIR='$HOME/sukhi-stage'         # git archive をそのまま置く場所（比較用）
-DIST_DIR=/var/lib/sukhi-fedi/releases
-BUILDER=sukhi-fedi-builder:v0
+BUILDER=sukhi-fedi-builder:v0         # toolchain だけ。二つのインスタンスで共用
 APP=combined
+
+INSTANCE="${INSTANCE:-sukhi}"
+case "$INSTANCE" in
+  sukhi)
+    BUILD=sukhi-build                 # 箱の中のビルド木（_build/deps が住む）
+    STAGE=sukhi-stage                 # git archive をそのまま置く場所（比較用）
+    DIST_DIR=/var/lib/sukhi-fedi/releases
+    SPA=web                           # 焼くフロント
+    SPA_INSTALL='npm install --no-audit --no-fund'
+    SPA_BUILD='npm run build'
+    DASH_PORT=5001
+    ;;
+  natadeco)
+    BUILD=natadeco-build
+    STAGE=natadeco-stage
+    DIST_DIR=/var/lib/natadeco/releases
+    SPA=web-natadeco                  # bun とその lockfile のまま（Makefile と同じ）
+    SPA_INSTALL='bun install'
+    SPA_BUILD='bun run build'
+    DASH_PORT=5002
+    ;;
+  *)
+    echo "unknown INSTANCE=$INSTANCE (sukhi | natadeco)" >&2
+    exit 1
+    ;;
+esac
+
+# 箱の中で展開させたいので `$HOME` は literal のまま渡す。
+SRC_DIR="\$HOME/$BUILD"
+STAGE_DIR="\$HOME/$STAGE"
 
 SHA=$(git rev-parse --short HEAD)
 VERSION="$(tr -d '[:space:]' < VERSION)+${SHA}"
@@ -50,20 +82,20 @@ sync_only=false
 # 中身をもらう `elixir/priv/static` も同じ ── どれも gitignore されていて
 # git archive に載らないので、素朴に --delete をかけると毎回まるごと消えて、
 # SvelteKit が毎回ゼロから焼き直すことになる。
-echo "→ ship committed tree (HEAD=$SHA, version=$VERSION)"
+echo "→ ship committed tree to $INSTANCE (HEAD=$SHA, version=$VERSION)"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 git archive HEAD | tar -x -C "$TMP"
 
 ssh "$BOX" "mkdir -p $STAGE_DIR $SRC_DIR"
-rsync -a --delete "$TMP/" "$BOX:sukhi-stage/"
+rsync -a --delete "$TMP/" "$BOX:$STAGE/"
 
 ssh "$BOX" "rsync -a --delete --checksum \
   --exclude='_build/' \
   --exclude='deps/' \
   --exclude='node_modules/' \
-  --exclude='/web/.svelte-kit/' \
-  --exclude='/web/build/' \
+  --exclude='/$SPA/.svelte-kit/' \
+  --exclude='/$SPA/build/' \
   --exclude='/elixir/priv/static/' \
   $STAGE_DIR/ $SRC_DIR/"
 
@@ -85,20 +117,26 @@ ssh "$BOX" "docker run --rm \
   -e MIX_ENV=prod \
   -e SUKHI_RELEASE_VERSION='$VERSION' \
   -e SUKHI_STATIC_SOURCE=release \
-  -v \$HOME/sukhi-build:/repo \
+  -v $SRC_DIR:/repo \
   -w /repo \
   $BUILDER bash -euo pipefail -c '
-    cd /repo/web
-    npm install --no-audit --no-fund
-    npm run build
+    cd /repo/$SPA
+    $SPA_INSTALL
+    $SPA_BUILD
 
     # SPA を gateway の priv/static へ（combined/Dockerfile と同じ場所）
-    mkdir -p /repo/elixir/priv/static/styles
-    cp -r /repo/web/build/. /repo/elixir/priv/static/
-    cp /repo/web/src/styles/tokens.css \
-       /repo/web/src/styles/base.css \
-       /repo/web/src/styles/app.css \
-       /repo/elixir/priv/static/styles/
+    cp -r /repo/$SPA/build/. /repo/elixir/priv/static/
+
+    # サーバが描くページ(/login など)が読む素の token CSS。build 出力には
+    # 居ないので別に運ぶ。web-natadeco はこれを持たない ── あちらの CSS は
+    # bundle の中で、いま箱の override にも styles/ は無い。
+    if [ -d /repo/$SPA/src/styles ]; then
+      mkdir -p /repo/elixir/priv/static/styles
+      cp /repo/$SPA/src/styles/tokens.css \
+         /repo/$SPA/src/styles/base.css \
+         /repo/$SPA/src/styles/app.css \
+         /repo/elixir/priv/static/styles/
+    fi
 
     cd /repo/combined
     mix deps.get --only prod
@@ -114,7 +152,7 @@ echo "→ publish $TARBALL"
 ssh "$BOX" "set -euo pipefail
   sudo mkdir -p $DIST_DIR/dist/$APP $DIST_DIR/versions/$APP/prod
   sudo chown -R rocky:rocky $DIST_DIR
-  cp \$HOME/sukhi-build/combined/_build/prod/$TARBALL $DIST_DIR/dist/$APP/
+  cp $SRC_DIR/combined/_build/prod/$TARBALL $DIST_DIR/dist/$APP/
 
   # 古いのを 5 個だけ残す。展開済みの release は DeployEx 側にあるので、
   # ここの tarball を消しても動いているものには触らない。
@@ -131,4 +169,4 @@ JSON
 "
 
 echo "✓ $VERSION published — DeployEx picks it up within ~5s"
-echo "  watch: ssh -L 5001:127.0.0.1:5001 $BOX  →  http://localhost:5001"
+echo "  watch: ssh -L $DASH_PORT:127.0.0.1:$DASH_PORT $BOX  →  http://localhost:$DASH_PORT"

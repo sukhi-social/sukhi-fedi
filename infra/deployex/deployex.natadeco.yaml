@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# DeployEx configuration for natadeco.com — the second instance on the
+# same box. Its sibling is deployex.yaml (sukhi.f3liz.casa); the two
+# files are deliberately separate rather than one file with two
+# `applications:` entries, because sharing one DeployEx would mean
+# writing each instance's secrets into a per-app `env:` block, and those
+# land in a generated shell script on disk. See
+# natadeco-deploy/deployex-migration.md §4.
+#
+# Same as its sibling, this is *not* baked into the image. It lives on
+# the host at /var/lib/natadeco/deployex/deployex.yaml and is
+# bind-mounted read-only at /etc/deployex. Push it with:
+#
+#   make push-natadeco-deployex-config
+#
+# Everything that differs from deployex.yaml is marked "↔ sukhi".
+
+# ↔ sukhi: same value, and that is fine. account_name only names a
+# subdirectory under release_bucket (versions/combined/<account>/), and
+# the two instances have different buckets. Keeping it identical means
+# bin/release-on-box.sh needs no third variable.
+account_name: "prod"
+
+# ↔ sukhi: "sukhi-fedi-deployex". This is DeployEx's own label for the
+# host it is running on — what the dashboard shows — not the container
+# hostname. The container hostname is set in natadeco-deploy's
+# config/deploy.yml and must NOT be `deployex`: both containers sit on
+# the shared `kamal` docker network, and a duplicate DNS name there is
+# the 2026-08-20 `api` incident all over again.
+hostname: "natadeco-deployex"
+
+# ↔ sukhi: 5001. 5000 is the box registry, 5001 is sukhi's dashboard.
+port: 5002
+
+# ↔ sukhi: /var/lib/sukhi-releases. Container-side path; the host side is
+# /var/lib/natadeco/releases (see the accessory's volumes). Filled in by
+#   INSTANCE=natadeco bin/release-on-box.sh
+#   dist/combined/combined-<version>.tar.gz
+#   versions/combined/prod/current.json      ← "prod" is account_name
+release_adapter: "local"
+release_bucket: "/var/lib/natadeco-releases"
+
+# DEPLOYEX_SECRET_KEY_BASE / DEPLOYEX_ERLANG_COOKIE /
+# DEPLOYEX_ADMIN_HASHED_PASSWORD come straight from the container
+# environment (Kamal secrets). `secrets_path` is unused by the env
+# adapter but the field is read, so it stays here as a label.
+secrets_adapter: "env"
+secrets_path: "kamal-env"
+
+version: "0.9.13"
+otp_version: 28
+os_target: "ubuntu-24.04"
+
+# Generated on first boot by infra/deployex/entrypoint.sh, into this
+# container's own volume — the two instances never share a CA.
+otp_tls_certificates: "/var/lib/deployex/certs"
+
+install_path: "/opt/deployex"
+var_path: "/var/lib/deployex"
+log_path: "/var/log/deployex"
+monitored_app_log_path: "/var/log/monitored-apps"
+
+# ↔ sukhi: there, host memory has `enable_restart: true`. Here it does
+# not, and that is the one place where "two DeployEx on one box" changes
+# an answer.
+#
+# The memory watchdog reads *host* memory — the same number both
+# instances see. At 92% they would both fire, each restarting its own
+# app, and the box would lose natadeco.com and sukhi.f3liz.casa in the
+# same second. Worse, neither can see the other's processes, so the
+# "restart the hungriest monitored app" rule picks the hungriest of its
+# own — which need not be the one that filled the box.
+#
+# So one trigger per box, and it stays with the bigger tenant. Here the
+# threshold is a warning only: it still shows up on the dashboard and in
+# the logs, which is what it is actually good for. If natadeco turns out
+# to be the one that grows, this is the knob to move — and then sukhi's
+# should come off at the same time, not join it.
+monitoring:
+  - type: "memory"
+    enable_restart: false
+    warning_threshold_percent: 80
+    restart_threshold_percent: 92
+  - type: "atom"
+    enable_restart: false
+  - type: "process"
+    enable_restart: false
+  - type: "port"
+    enable_restart: false
+
+applications:
+  - name: "combined"
+    language: "elixir"
+
+    # One, and no port juggling — the same reasoning as its sibling.
+    # DeployEx starts the new BEAM before stopping the old, and its usual
+    # answer is `replica_ports`. kamal-proxy has a single target and
+    # cannot follow that, so the app shares one port instead: the
+    # listener sets SO_REUSEPORT and both instances hold :4000 for the
+    # seconds they overlap. See the `endpoint` comment in
+    # elixir/lib/sukhi_fedi/application.ex.
+    replicas: 1
+
+    # No `env:` block, on purpose — the same trap documented in
+    # deployex.yaml. DeployEx builds one unquoted `export A=1 B=2` line
+    # out of it, so anything containing a space (ERL_FLAGS) becomes a
+    # shell syntax error and the app dies before it starts. Everything
+    # the app needs arrives through the container environment instead,
+    # which Kamal fills from natadeco-deploy's config/deploy.yml and
+    # .kamal/secrets — so no secret is written to a file on the box.
+
+    # Migrations are pre_commands in current.json, written by
+    # bin/release-on-box.sh.
+
+    monitoring:
+      - type: "atom"
+        enable_restart: true
+      - type: "process"
+        enable_restart: true
+      - type: "port"
+        enable_restart: true

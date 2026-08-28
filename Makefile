@@ -6,7 +6,8 @@
 .PHONY: help setup dev dev-web test test-elixir test-delivery test-api test-web \
         test-pglite test-e2e check check-presets up down preflight \
         push-static push-styles clear-static static-status \
-        release release-images push-deployex-config \
+        release release-natadeco release-images push-deployex-config \
+        push-natadeco-deployex-config \
         push-natadeco natadeco-images
 
 # The toolchain lives in mise.toml (elixir / erlang / node). mise puts
@@ -178,6 +179,11 @@ natadeco-images:  ## (re)build natadeco's combined image on the box
 release:  ## build a release on the box and deploy it (DeployEx)
 	@bash bin/release-on-box.sh
 
+# The same thing for natadeco.com. Its own build tree, its own dist dir,
+# its own frontend (web-natadeco, bun) — one script, switched by INSTANCE.
+release-natadeco:  ## build natadeco's release on the box and deploy it
+	@INSTANCE=natadeco bash bin/release-on-box.sh
+
 # The two images the box needs but that almost never change: the toolchain
 # that bakes releases, and DeployEx itself. Run after touching
 # infra/builder/, infra/deployex/Dockerfile, or the toolchain pins.
@@ -192,3 +198,12 @@ DEPLOYEX_DIR ?= /var/lib/sukhi-fedi/deployex
 push-deployex-config:  ## rsync infra/deployex/deployex.yaml to the box
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(DEPLOYEX_DIR) && sudo chown $(DEPLOY_USER) $(DEPLOYEX_DIR)"
 	rsync -av infra/deployex/deployex.yaml $(DEPLOY_USER)@$(DEPLOY_HOST):$(DEPLOYEX_DIR)/
+
+# natadeco's own DeployEx reads the same filename out of its own
+# directory, so the source file carries the instance in its name and the
+# rsync drops the suffix on the way.
+NATADECO_DEPLOYEX_DIR ?= /var/lib/natadeco/deployex
+
+push-natadeco-deployex-config:  ## rsync deployex.natadeco.yaml to natadeco's config dir
+	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(NATADECO_DEPLOYEX_DIR) && sudo chown $(DEPLOY_USER) $(NATADECO_DEPLOYEX_DIR)"
+	rsync -av infra/deployex/deployex.natadeco.yaml $(DEPLOY_USER)@$(DEPLOY_HOST):$(NATADECO_DEPLOYEX_DIR)/deployex.yaml
