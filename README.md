@@ -21,6 +21,8 @@ document and the code. Read it first.
   build, e2e)
 - [`docs/anubis.md`](docs/anubis.md) — the proof-of-work bot gate that sits
   in front of the gateway
+- [`docs/web-surface.md`](docs/web-surface.md) — which routes face the
+  internet, and the test that makes you say so when you cut a new door
 - [`TODO.md`](TODO.md) — punch list of work deferred from the
   Mastodon-API MVP push; pick anything off it
 - [`SETUP.md`](SETUP.md) — self-host deployment with docker compose + Watchtower
