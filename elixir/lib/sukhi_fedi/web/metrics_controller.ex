@@ -1,21 +1,33 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Web.MetricsController do
   @moduledoc """
-  Token-guarded JSON metrics for offline analysis (Julia → anomaly
-  baselines, capacity forecasting). Distinct from the open Prometheus
-  `/metrics` (scrape format) and the public viewer SSE stream.
+  Token-guarded metrics, in two shapes. Distinct from the public viewer
+  SSE stream, which carries only what the front page already shows.
 
   Auth is a single dedicated bearer — `config :sukhi_fedi, :metrics_token`,
   set from `METRICS_TOKEN` in prod. Machine-to-machine, so it stays out
   of the OAuth user-token system entirely. No token configured → the
   endpoint 404s (feature off), exactly like the nodeinfo-monitor routes.
 
-  Two shapes off one path:
+  JSON, for offline analysis (Julia → anomaly baselines, capacity
+  forecasting):
 
     * `GET /api/metrics` — one live host snapshot (same source as the
       SSE card, returned once).
     * `GET /api/metrics?since=<unix>[&until=<unix>][&limit=<n>]` — the
       stored time series in that window, oldest first.
+
+  Prometheus scrape format:
+
+    * `GET /metrics` — PromEx output, behind the same bearer.
+
+  `/metrics` used to be open. It carries no personal data, but it does
+  hand over the exact version of every dependency, the internal database
+  host and name, every table name, and the shape of the load — which is
+  the homework someone looking for a known vulnerability would otherwise
+  have to do themselves. Nothing there is worth being public, so it is
+  closed by default now: an operator who wants a scraper points it here
+  with the bearer. See `docs/web-surface.md`.
   """
 
   import Plug.Conn
@@ -28,6 +40,16 @@ defmodule SukhiFedi.Web.MetricsController do
       :off -> send_json(conn, 404, %{error: "not_found"})
       :unauthorized -> send_json(conn, 401, %{error: "unauthorized"})
       :ok -> serve(conn)
+    end
+  end
+
+  # `GET /metrics` — the Prometheus scrape. Same bearer as the JSON above,
+  # so there is one answer to "who may read this host's telemetry".
+  def prometheus(conn, _opts) do
+    case authorize(conn) do
+      :off -> send_json(conn, 404, %{error: "not_found"})
+      :unauthorized -> send_json(conn, 401, %{error: "unauthorized"})
+      :ok -> PromEx.Plug.call(conn, PromEx.Plug.init(prom_ex_module: SukhiFedi.PromEx))
     end
   end
 

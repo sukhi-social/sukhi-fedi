@@ -632,13 +632,16 @@ defmodule SukhiFedi.Web.Router do
     send_resp(conn, 200, "ok")
   end
 
+  # Prometheus scrape. Behind the `:metrics_token` bearer, 404 when
+  # unconfigured. It used to be open, and while it carries nothing
+  # personal it did hand anyone the exact version of every dependency,
+  # the internal database host and name, and every table name.
   get "/metrics" do
-    PromEx.Plug.call(conn, PromEx.Plug.init(prom_ex_module: SukhiFedi.PromEx))
+    MetricsController.prometheus(conn, [])
   end
 
   # Token-guarded JSON metrics for offline analysis (history time series
-  # + live snapshot). Separate from the open Prometheus `/metrics` above:
-  # bearer auth via `:metrics_token`, 404 when unconfigured.
+  # + live snapshot). Same bearer as `/metrics` above.
   get "/api/metrics" do
     MetricsController.show(conn, [])
   end

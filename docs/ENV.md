@@ -111,6 +111,19 @@ Passed through Docker env. The release respects them.
 | `ERL_FULLSWEEP_AFTER` | `20` (normal) / `10` (tight memory) | Full GC interval. Lower = more aggressive memory return to OS at minor CPU cost. |
 | `ERL_MAX_PORTS` | `4096` | Lift if you hit `:emfile`-style errors under extreme load. Default usually fine. |
 
+## Telemetry (gateway)
+
+| Var | Required | Default | Notes |
+|---|---|---|---|
+| `METRICS_TOKEN` | no | — | Bearer for **both** `GET /metrics` (Prometheus scrape) and `GET /api/metrics` (JSON snapshot + stored history). Unset means those two paths answer `404` — telemetry off, not open. Generate with `openssl rand -hex 32`, and give it to your scraper as `Authorization: Bearer …`. Treat as secret. |
+
+`/metrics` was open until 2026-08-28. It carries nothing personal, but it
+does name every dependency and its exact version, the internal database
+host and name, every table, and the shape of the load — which is the
+homework someone looking for a known vulnerability would otherwise have
+to do themselves. Closed by default now; see
+[`web-surface.md`](web-surface.md).
+
 ## Container build / image pulls
 
 These aren't read by the app — they're consumed by Docker Compose /
