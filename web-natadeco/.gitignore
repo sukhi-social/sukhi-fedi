@@ -5,3 +5,6 @@ node_modules/
 
 # Twemoji SVGs copied from @twemoji/svg at build time (prebuild script).
 static/twemoji
+
+# スクショ(shots/run.mjs が作る絵)。焼き直せるものは置いていかない。
+shots/out

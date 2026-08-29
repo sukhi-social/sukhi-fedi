@@ -10,7 +10,8 @@
     "prebuild": "node scripts/copy-twemoji.mjs",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "shots": "npm run build && node shots/run.mjs"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.10",

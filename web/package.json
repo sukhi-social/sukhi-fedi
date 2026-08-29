@@ -12,7 +12,8 @@
     "postbuild": "node scripts/static-manifest.mjs",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "shots": "npm run build && node shots/run.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.0",

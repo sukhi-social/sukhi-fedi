@@ -10,3 +10,6 @@ static/twemoji
 test-results
 playwright-report
 /playwright/.cache
+
+# スクショ(shots/run.mjs が作る絵)。焼き直せるものは置いていかない。
+shots/out
