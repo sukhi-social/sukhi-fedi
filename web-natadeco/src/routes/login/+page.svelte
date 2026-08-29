@@ -1,29 +1,23 @@
 <script lang="ts">
+  // 店先。合言葉とパスキーは、ここで一段目を通って cookie を立てる ──
+  // どちらも「もう自分のものを持っている人」の道なので、関所は挟まない。
+  // メールの道だけは、送るところから関所(/check)の向こうへ渡す。
+  // そのあとの OAuth も、みんな /check を通って始まる。
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import {
-    isLoggedIn,
-    loginWithPassword,
-    loginWithEmailCode,
-    loginWithPasskey,
-    requestEmailLoginCode,
-    startLogin
-  } from '$lib/auth';
+  import { isLoggedIn, loginWithPassword, loginWithPasskey, saveLoginEmail, goToCheck } from '$lib/auth';
   import { passkeySupported } from '$lib/webauthn';
   import { t } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
   // メールのコードを先頭に ── 合言葉を持たないアカウントもあるので。
   let method = $state<'email' | 'password'>('email');
-  let phase = $state<'first' | 'code'>('first');
 
   let username = $state('');
   let password = $state('');
   let email = $state('');
-  let code = $state('');
 
   let error = $state<string | null>(null);
-  let notice = $state<string | null>(null);
   let busy = $state(false);
 
   // ブラウザに WebAuthn があるか。サーバ側ではいつも false になるので
@@ -34,20 +28,17 @@
   });
 
   // 「〇〇に書くには入って」から来た人を、入ったあと元の場所へ戻す。
-  // OAuth の往復(→ /oauth/authorize → /app/callback)を挟むので、
+  // OAuth の往復(→ /check → /oauth/authorize → /app/callback)を挟むので、
   // ここでは sessionStorage に置いておく(callback 側が読む)。
   const next = page.url.searchParams.get('next');
   if (next && next.startsWith('/')) sessionStorage.setItem('nd.next', next);
 
   if (isLoggedIn()) void goto(next && next.startsWith('/') ? next : '/');
 
-  async function finishLogin() {
-    error = null;
-    try {
-      await startLogin();
-    } catch {
-      error = t().login.errorGeneric;
-    }
+  // 一段目が通ったあと。SPA のナビでは関所の前を通らないので、
+  // フルリロードで /check へ渡す。
+  function finishLogin() {
+    goToCheck('login');
   }
 
   async function submitPasskey() {
@@ -56,14 +47,13 @@
     error = null;
     try {
       await loginWithPasskey();
-      await finishLogin();
+      finishLogin();
     } catch (e) {
       // 認証器のダイアログを自分で閉じたときは、何も言わない ──
       // 「やめた」に、エラーを返さない。
       if (!(e instanceof DOMException && e.name === 'NotAllowedError')) {
         error = t().login.passkeyFailed;
       }
-    } finally {
       busy = false;
     }
   }
@@ -75,42 +65,21 @@
     error = null;
     try {
       await loginWithPassword(username, password);
-      await finishLogin();
+      finishLogin();
     } catch (e) {
       error = e instanceof Error && e.message === 'invalid' ? t().login.errorInvalid : t().login.errorGeneric;
-    } finally {
       busy = false;
     }
   }
 
-  async function sendCode(e: SubmitEvent) {
+  // メールの道: アドレスを持って関所へ。コードを送るのも、聞くのも、
+  // 向こう側 ── ここからメールは出ない。
+  function goEmailCheck(e: SubmitEvent) {
     e.preventDefault();
     if (busy) return;
     busy = true;
-    error = null;
-    try {
-      await requestEmailLoginCode(email);
-      notice = t().login.codeSent(email);
-      phase = 'code';
-    } catch {
-      error = t().login.errorSendFailed;
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function submitCode(e: SubmitEvent) {
-    e.preventDefault();
-    if (busy) return;
-    busy = true;
-    error = null;
-    try {
-      await loginWithEmailCode(email, code);
-      await finishLogin();
-    } catch {
-      error = t().login.errorCodeInvalid;
-      busy = false;
-    }
+    saveLoginEmail(email);
+    goToCheck('login-email');
   }
 </script>
 
@@ -131,7 +100,6 @@
     type="button"
     onclick={() => {
       method = 'email';
-      phase = 'first';
       error = null;
     }}>{t().login.tabEmail}</button
   >
@@ -158,22 +126,13 @@
     </label>
     <button class="btn" type="submit" disabled={busy}>{t().login.submit}</button>
   </form>
-{:else if phase === 'first'}
-  <form class="card stack" onsubmit={sendCode}>
+{:else}
+  <form class="card stack" onsubmit={goEmailCheck}>
     <label>
       <span class="muted">{t().login.email}</span>
       <input type="email" bind:value={email} required autocomplete="email" />
     </label>
     <button class="btn" type="submit" disabled={busy}>{t().login.sendCode}</button>
-  </form>
-{:else}
-  <form class="card stack" onsubmit={submitCode}>
-    {#if notice}<p class="muted">{notice}</p>{/if}
-    <label>
-      <span class="muted">{t().login.code}</span>
-      <input type="text" bind:value={code} required inputmode="numeric" pattern="[0-9]{'{6}'}" autofocus />
-    </label>
-    <button class="btn" type="submit" disabled={busy}>{t().login.submit}</button>
   </form>
 {/if}
 

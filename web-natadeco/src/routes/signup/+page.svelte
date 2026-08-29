@@ -1,27 +1,18 @@
 <script lang="ts">
+  // 店先。ここでは何も起こらない ── 打ったものを下書きとして置いて、
+  // 関所(/check)へ渡すだけ。コードの送信も、アカウントを作るのも、
+  // 向こう側で。Anubis を通れた人の手でだけ、それが起こるように。
   import { goto } from '$app/navigation';
-  import {
-    requestSignupEmailCode,
-    confirmSignupEmailCode,
-    signup,
-    setWarmthNote,
-    startSignupSession,
-    registerPasskey,
-    isLoggedIn
-  } from '$lib/auth';
-  import { passkeySupported } from '$lib/webauthn';
+  import { isLoggedIn, saveSignupDraft, loadSignupDraft, goToCheck } from '$lib/auth';
   import { t, getLang } from '$lib/i18n.svelte';
   import Hinata from '$lib/Hinata.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
 
-  let phase = $state<'form' | 'code' | 'passkey' | 'warmth' | 'working'>('form');
-
   let username = $state('');
   let email = $state('');
   let password = $state('');
-  let code = $state('');
-  let warmth = $state('');
   let agreed = $state(false);
+  let busy = $state(false);
 
   // 利用規約・プライバシーは、どちらも signup=true(下に「読みました」で
   // /signup に戻れる)へ。sukhi-fedi 本体の signup ページと同じ型 ──
@@ -31,180 +22,64 @@
   const termsAnchor = $derived(`<a href="${termsHref}">${t().footer.terms}</a>`);
   const privacyAnchor = $derived(`<a href="${privacyHref}">${t().footer.privacy}</a>`);
 
-  let token = $state('');
-
-  // パスキーのおさそいは、鍵を置ける人にだけ出す ── ブラウザが
-  // WebAuthn を持っていて、かつ加入直後の cookie が立ったとき。
-  // (登録の口は cookie 専用なので、立たなかったら黙って飛ばす。)
-  let passkeyNotice = $state<string | null>(null);
-
-  let error = $state<string | null>(null);
-  let notice = $state<string | null>(null);
-  let busy = $state(false);
-
   if (isLoggedIn()) void goto('/');
 
-  async function sendCode(e: SubmitEvent) {
+  // 関所で転んで戻ってきた人に、打ち直させない。合言葉だけは戻らない
+  // ── API を呼ぶ直前に落としているので(auth.ts の clearSignupPassword)。
+  const draft = loadSignupDraft();
+  if (draft) {
+    username = draft.username;
+    email = draft.email;
+  }
+
+  function toCheck(e: SubmitEvent) {
     e.preventDefault();
     if (busy) return;
     busy = true;
-    error = null;
-    try {
-      await requestSignupEmailCode(email);
-      notice = t().signup.codeSent(email);
-      phase = 'code';
-    } catch (e) {
-      error = t().signup.errorSendFailed;
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function confirmAndCreate(e: SubmitEvent) {
-    e.preventDefault();
-    if (busy) return;
-    busy = true;
-    error = null;
-    try {
-      const proof = await confirmSignupEmailCode(email, code);
-      phase = 'working';
-      const created = await signup(username, proof, password || undefined);
-      token = created.access_token;
-      const session = await startSignupSession(proof);
-      phase = session && passkeySupported() ? 'passkey' : 'warmth';
-      busy = false;
-    } catch (e) {
-      busy = false;
-      phase = 'code';
-      const msg = e instanceof Error ? e.message : '';
-      if (msg === 'email_taken') error = t().signup.errorEmailTaken;
-      else if (msg === 'email_proof_invalid') error = t().signup.errorCodeInvalid;
-      else if (msg.includes('validation')) error = t().signup.errorValidation;
-      else error = t().signup.errorGeneric;
-    }
-  }
-
-  async function addPasskey() {
-    if (busy) return;
-    busy = true;
-    passkeyNotice = null;
-    try {
-      await registerPasskey('');
-      phase = 'warmth';
-    } catch (e) {
-      // 途中でやめた人は、そのまま次へ ── ここで足踏みさせない。
-      if (e instanceof DOMException && e.name === 'NotAllowedError') phase = 'warmth';
-      else passkeyNotice = t().signup.passkeyFailed;
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function finish() {
-    if (busy) return;
-    busy = true;
-    if (warmth.trim()) await setWarmthNote(token, warmth.trim());
-    await goto('/');
+    saveSignupDraft({ username, email, password: password || undefined });
+    goToCheck('signup');
   }
 </script>
 
 <PageHeader title={t().signup.title} />
 
-{#if phase === 'form'}
-  <Hinata src="/hinata-signup.png" side="right" big scale={1.5} inline>
-    <p>{t().signup.welcome}</p>
-    <p>{t().signup.intro}</p>
-  </Hinata>
+<Hinata src="/hinata-signup.png" side="right" big scale={1.5} inline>
+  <p>{t().signup.welcome}</p>
+  <p>{t().signup.intro}</p>
+</Hinata>
 
-  <p class="read-first">{@html t().signup.readFirst(termsAnchor)}</p>
+<p class="read-first">{@html t().signup.readFirst(termsAnchor)}</p>
 
-  <form class="card stack" onsubmit={sendCode}>
-    <label>
-      <span class="muted">{t().signup.handle}</span>
-      <input
-        type="text"
-        value={username}
-        oninput={(e) => (username = e.currentTarget.value.toLowerCase())}
-        required
-        pattern="[a-z0-9_]{'{1,30}'}"
-        autocomplete="username"
-      />
-    </label>
-    <label>
-      <span class="muted">{t().signup.email}</span>
-      <input type="email" bind:value={email} required autocomplete="email" />
-      <span class="muted small">{t().signup.emailHint}</span>
-    </label>
-    <label>
-      <span class="muted">{t().signup.password}</span>
-      <input type="password" bind:value={password} autocomplete="new-password" minlength="8" />
-    </label>
-    <label class="agree">
-      <input type="checkbox" bind:checked={agreed} required />
-      <span>{@html t().signup.agree(termsAnchor, privacyAnchor)}</span>
-    </label>
-    <button class="btn" type="submit" disabled={busy || !agreed}>{t().signup.sendCode}</button>
-  </form>
-{:else if phase === 'code'}
-  <form class="card stack" onsubmit={confirmAndCreate}>
-    {#if notice}<p class="muted">{notice}</p>{/if}
-    <label>
-      <span class="muted">{t().signup.code}</span>
-      <input type="text" bind:value={code} required inputmode="numeric" pattern="[0-9]{'{6}'}" autofocus />
-    </label>
-    <button class="btn" type="submit" disabled={busy}>{t().signup.create}</button>
-  </form>
-{:else if phase === 'passkey'}
-  <Hinata src="/hinata-signup.png" side="right" big scale={1.5} inline>
-    <p>{t().signup.passkeyTitle}</p>
-    <p>
-      {t().signup.passkeyBody1}<br />
-      {t().signup.passkeyBody2}
-    </p>
-  </Hinata>
+<form class="card stack" onsubmit={toCheck}>
+  <label>
+    <span class="muted">{t().signup.handle}</span>
+    <input
+      type="text"
+      value={username}
+      oninput={(e) => (username = e.currentTarget.value.toLowerCase())}
+      required
+      pattern="[a-z0-9_]{'{1,30}'}"
+      autocomplete="username"
+    />
+  </label>
+  <label>
+    <span class="muted">{t().signup.email}</span>
+    <input type="email" bind:value={email} required autocomplete="email" />
+    <span class="muted small">{t().signup.emailHint}</span>
+  </label>
+  <label>
+    <span class="muted">{t().signup.password}</span>
+    <input type="password" bind:value={password} autocomplete="new-password" minlength="8" />
+  </label>
+  <label class="agree">
+    <input type="checkbox" bind:checked={agreed} required />
+    <span>{@html t().signup.agree(termsAnchor, privacyAnchor)}</span>
+  </label>
+  <button class="btn" type="submit" disabled={busy || !agreed}>{t().signup.sendCode}</button>
+</form>
 
-  <div class="card stack">
-    {#if passkeyNotice}<p class="muted">{passkeyNotice}</p>{/if}
-    <button class="btn" type="button" disabled={busy} onclick={addPasskey}>
-      {busy ? t().signup.passkeyAdding : t().signup.passkeyAdd}
-    </button>
-    <button class="later" type="button" onclick={() => (phase = 'warmth')}>
-      {t().signup.passkeySkip}
-    </button>
-  </div>
-{:else if phase === 'warmth'}
-  <Hinata src="/hinata-signup.png" side="right" big scale={1.5} inline>
-    <p>{t().signup.warmthTitle}</p>
-    <p>
-      {t().signup.warmthBody1}<br />
-      {t().signup.warmthBody2}
-    </p>
-    <p>{t().signup.warmthQuestion}</p>
-  </Hinata>
-
-  <form
-    class="card stack"
-    onsubmit={(e) => {
-      e.preventDefault();
-      void finish();
-    }}
-  >
-    <label>
-      <span class="muted">{t().signup.warmthField}</span>
-      <input type="text" bind:value={warmth} maxlength="140" placeholder={t().signup.warmthPlaceholder} />
-    </label>
-    <button class="btn" type="submit" disabled={busy}>{busy ? t().signup.finishing : t().signup.finish}</button>
-  </form>
-{:else}
-  <p class="muted">{t().signup.creating}</p>
-{/if}
-
-{#if error}<p class="error">{error}</p>{/if}
-
-{#if phase === 'form'}
-  <p class="prose-small"><a href="/login">{t().signup.loginLink}</a></p>
-  <p class="prose-small"><a href="/hello">{t().signup.backToHello}</a></p>
-{/if}
+<p class="prose-small"><a href="/login">{t().signup.loginLink}</a></p>
+<p class="prose-small"><a href="/hello">{t().signup.backToHello}</a></p>
 
 <style>
 
@@ -248,26 +123,6 @@
 
   .small {
     font-size: 0.8rem;
-  }
-
-  /* 「あとで」は、断りやすいように静かに。でもタップ領域は 44px。 */
-  .later {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 2.75rem;
-    background: transparent;
-    border: none;
-    color: var(--ink-soft);
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-
-  .error {
-    margin-top: 1rem;
-    background: var(--sun-soft);
-    border-radius: var(--radius);
-    padding: 0.6rem 0.9rem;
   }
 
   .prose-small {

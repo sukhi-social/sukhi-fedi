@@ -104,6 +104,82 @@ async function loadOrRegisterClient(): Promise<ClientCreds> {
   return creds;
 }
 
+// ── 関所(/check)へ渡すもの ───────────────────────────────────────────
+//
+// Anubis が CHALLENGE するのは `/check` の一本だけ。店先(/login /signup)
+// は素通しで、そこで打ったものは sessionStorage に置いて関所へ渡す ──
+// URL には載せない(メールアドレスも合言葉も、履歴に残る場所ではない)。
+//
+// **API を先に叩いて後で PoW、にはしない。** メールの送信もアカウントの
+// 作成も、関所を通れた人の手でだけ起こる ── 逆にすると、PoW を通れない
+// 人のアカウントが先に出来てしまう。
+
+const DRAFT_KEY = 'nd.signup_draft';
+const LOGIN_EMAIL_KEY = 'nd.login_email';
+
+// email_proof は /signup/email/confirm が返す「このメールボックスを開けた」
+// 証明(20分)。秘密ではないので、作成が転んだときのために draft に残す
+// ── 打ち直しが要るのは合言葉だけになる。
+export type SignupDraft = {
+  username: string;
+  email: string;
+  password?: string;
+  email_proof?: string;
+};
+
+export function saveSignupDraft(d: SignupDraft): void {
+  if (!browser) return;
+  sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+}
+
+export function loadSignupDraft(): SignupDraft | null {
+  if (!browser) return null;
+  const raw = sessionStorage.getItem(DRAFT_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SignupDraft;
+  } catch {
+    return null;
+  }
+}
+
+// 合言葉だけ落とした draft で上書きする。/check が signup() を呼ぶ直前に
+// 必ず通す ── 成功でも失敗でも、そこから先の sessionStorage に合言葉は
+// 無い。
+export function clearSignupPassword(): void {
+  if (!browser) return;
+  const d = loadSignupDraft();
+  if (!d) return;
+  const { password: _password, ...rest } = d;
+  sessionStorage.setItem(DRAFT_KEY, JSON.stringify(rest));
+}
+
+export function clearSignupDraft(): void {
+  if (!browser) return;
+  sessionStorage.removeItem(DRAFT_KEY);
+}
+
+export function saveLoginEmail(email: string): void {
+  if (!browser) return;
+  sessionStorage.setItem(LOGIN_EMAIL_KEY, email);
+}
+
+export function loadLoginEmail(): string | null {
+  if (!browser) return null;
+  return sessionStorage.getItem(LOGIN_EMAIL_KEY);
+}
+
+export function clearLoginEmail(): void {
+  if (!browser) return;
+  sessionStorage.removeItem(LOGIN_EMAIL_KEY);
+}
+
+// 関所へ入る。**必ずフルリロード**で ── SPA のナビだとサーバに request が
+// 行かないので、Anubis がそこに居ることにならない。
+export function goToCheck(intent: 'login' | 'signup' | 'login-email'): void {
+  window.location.assign(`/check?intent=${intent}`);
+}
+
 // ── 加入 ─────────────────────────────────────────────────────────────
 //
 // メールボックスを開けた証明(email_proof)と引き換えに、その場で

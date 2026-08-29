@@ -1,4 +1,6 @@
-# Anubis bot policies for sukhi-fedi.
+# Anubis bot policies for sukhi-fedi ── **natadeco.com も同じこの一枚で
+# 立っている**。二つの場所で違うのは imprint(通れなかった人の連絡先)
+# だけなので、policy は分けていない。Dockerfile を見て。
 #
 # 守る対象は `/check` だけ。ログインも加入も ─ そして 2026-06-13
 # からはメールの 6 桁コードの送信・入力も ─ ここを経由する。

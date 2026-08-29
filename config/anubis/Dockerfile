@@ -1,8 +1,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Anubis with sukhi-fedi's policy + imprint baked in. Kamal pulls
-# this image as the public web role; it gates `/check` and forwards
-# everything else to the gateway accessory. See docs/anubis.md.
+# Anubis with the policy + imprints baked in. haloy runs this image as
+# the thing standing in front; it gates `/check` and forwards everything
+# else to the app behind it. See docs/anubis.md.
+#
+# **This one image serves both sukhi.f3liz.casa and natadeco.com.** The
+# policy is byte-for-byte the same for both — only the imprint (who to
+# write to when you can't get through) differs, so both are baked and
+# `IMPRINT_FILE` picks one per target. No second image to keep in step:
+# a copy left behind stops receiving what the original learns. If the
+# policies ever have to diverge, bake a second `botPolicies.*.yaml` the
+# same way and point `POLICY_FNAME` at it.
 #
 # CI builds this on every tag push (same workflow as gateway/api).
 # To change policy: edit botPolicies.yaml or imprint.md, push a tag,
@@ -16,12 +24,13 @@
 # Read the release notes, bump this line, then rebuild.
 FROM ghcr.io/techarohq/anubis:v1.27.0
 
-# Kamal verifies the web role image carries `service=sukhi-fedi` before
-# deploying it (anti-misconfig guard). The base anubis image has no
-# such label, so we add it here.
+# Left over from Kamal, which verified the web role image carried
+# `service=sukhi-fedi` before deploying it (anti-misconfig guard). haloy
+# doesn't check it; the label is harmless and costs nothing to keep.
 LABEL service="sukhi-fedi"
 
-# `POLICY_FNAME` and `IMPRINT_FILE` env vars (set in config/deploy.yml)
-# point at these paths.
+# `POLICY_FNAME` and `IMPRINT_FILE` env vars (set in each deploy repo's
+# haloy.yaml) point at these paths.
 COPY botPolicies.yaml /data/cfg/botPolicies.yaml
 COPY imprint.md /data/cfg/imprint.md
+COPY imprint.natadeco.md /data/cfg/imprint.natadeco.md

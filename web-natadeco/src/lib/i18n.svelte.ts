@@ -199,6 +199,20 @@ type Dict = {
     passkeySkip: string;
     passkeyFailed: string;
   };
+  // 関所(/check)。Anubis がここだけを CHALLENGE するので、実際に起こる
+  // ことは全部この上にある ── 送ることばは、待たせている画面のことば。
+  check: {
+    guiding: string;
+    codeTitle: string;
+    resend: string;
+    codePrevValid: string;
+    failedTitle: string;
+    retry: string;
+    noDraft: string;
+    unknownIntent: string;
+    backToLogin: string;
+    backToSignup: string;
+  };
   settings: {
     title: string;
     loadError: TwoPart;
@@ -472,6 +486,18 @@ const ja: Dict = {
     passkeyAdding: '登録しています…',
     passkeySkip: 'あとで',
     passkeyFailed: '登録できませんでした。あとから設定でできます。'
+  },
+  check: {
+    guiding: '入り口へご案内しています…',
+    codeTitle: 'メールを見てください',
+    resend: 'もう一度送る',
+    codePrevValid: 'さっき送ったコードが、まだ使えます',
+    failedTitle: 'ここから先へ進めませんでした',
+    retry: 'もう一度',
+    noDraft: '書いたものが残っていませんでした',
+    unknownIntent: 'この道は、分かりませんでした',
+    backToLogin: '入るところへもどる',
+    backToSignup: '書いたところへもどる(消えていません)'
   },
   settings: {
     title: 'プロフィール',
@@ -784,6 +810,18 @@ const ko: Dict = {
     passkeyAdding: '등록하는 중…',
     passkeySkip: '나중에',
     passkeyFailed: '등록할 수 없었어요. 나중에 설정에서 할 수 있어요.'
+  },
+  check: {
+    guiding: '입구로 안내하고 있어요…',
+    codeTitle: '메일을 확인해 주세요',
+    resend: '다시 보내기',
+    codePrevValid: '아까 보낸 코드, 아직 쓸 수 있어요',
+    failedTitle: '여기서 더 나아갈 수 없었어요',
+    retry: '다시 한 번',
+    noDraft: '적으신 내용이 남아 있지 않았어요',
+    unknownIntent: '이 길은 알 수 없었어요',
+    backToLogin: '들어가는 곳으로 돌아가기',
+    backToSignup: '적던 곳으로 돌아가기 (지워지지 않았어요)'
   },
   settings: {
     title: '프로필',
