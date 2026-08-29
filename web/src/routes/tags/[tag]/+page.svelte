@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { fetchTimeline, type Status } from '$lib/api';
@@ -25,9 +25,16 @@
   });
 
   // タグが変わったら（/tags/A → /tags/B の遷移）頭から読み直す。
+  //
+  // **引き金だけを依存にする。** load は先頭で loading を読むので、それが
+  // 依存に乗ると `loading = true` / `finally { loading = false }` が自分を
+  // 呼び戻して止まらなくなる ── タグのページを開いているあいだ、ずっと
+  // 取り直しつづける。untrack で切る（/messages と /messages/[id] が同じ形）。
   $effect(() => {
     void tag;
-    if (isLoggedIn()) void load(true);
+    untrack(() => {
+      if (isLoggedIn()) void load(true);
+    });
   });
 
   async function load(reset: boolean) {
