@@ -69,6 +69,15 @@ const PAGES = [
   { name: 'notifications', path: '/notifications' },
   { name: 'settings', path: '/settings' },
   { name: 'settings-security', path: '/settings/security' },
+  {
+    name: 'settings-security-rename',
+    path: '/settings/security',
+    // 鍵の名前を書き直しているところ。欄が鍵の下に開く形を、絵に残す。
+    act: async (page) => {
+      await page.click('.keys li:first-child button:has-text("名前を変える"), .keys li:first-child button:has-text("이름 바꾸기")');
+      await page.waitForSelector('form.edit', { timeout: 5000 });
+    }
+  },
   { name: 'about', path: '/about', signedIn: false }
 ];
 

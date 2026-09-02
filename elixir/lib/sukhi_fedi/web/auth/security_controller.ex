@@ -13,6 +13,7 @@ defmodule SukhiFedi.Web.Auth.SecurityController do
       POST /settings/totp/disable           {password?|reauth_code?}
       POST /settings/passkeys/options       → {ref, publicKey}
       POST /settings/passkeys               {ref, attestation…, nickname}
+      POST /settings/passkeys/:id/rename    {nickname}
       POST /settings/passkeys/:id/delete    {password?|reauth_code?}
       GET  /settings/sessions               active sessions (current one marked)
       POST /settings/sessions/:id/revoke    {password?|reauth_code?}
@@ -250,6 +251,19 @@ defmodule SukhiFedi.Web.Auth.SecurityController do
         {:error, :already_registered} -> json(conn, 422, %{error: "already_registered"})
         {:error, :invalid_challenge} -> json(conn, 422, %{error: "challenge"})
         {:error, :verification_failed} -> json(conn, 422, %{error: "verification"})
+      end
+    end)
+  end
+
+  # A label is not a factor: changing it neither adds nor removes a way in,
+  # so it needs no owner re-proof — same footing as registering.
+  def passkey_rename(conn) do
+    with_session(conn, fn account ->
+      with {id, ""} <- Integer.parse(to_string(conn.path_params["id"] || "")),
+           {:ok, cred} <- Passkeys.rename(account, id, conn.body_params["nickname"]) do
+        json(conn, 200, %{ok: true, passkey: render_passkey(cred)})
+      else
+        _ -> json(conn, 404, %{error: "not_found"})
       end
     end)
   end

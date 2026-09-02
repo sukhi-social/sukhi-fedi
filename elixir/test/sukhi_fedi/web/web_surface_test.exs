@@ -55,6 +55,7 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     "post /settings/totp/disable",
     "post /settings/passkeys/options",
     "post /settings/passkeys",
+    "post /settings/passkeys/:id/rename",
     "post /settings/passkeys/:id/delete",
     "get /settings/sessions",
     "post /settings/sessions/:id/revoke",

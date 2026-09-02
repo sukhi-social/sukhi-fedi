@@ -4,6 +4,7 @@
   import {
     fetchAuthState,
     registerPasskey,
+    renamePasskey,
     deletePasskey,
     requestReauthCode,
     type AuthState,
@@ -20,6 +21,10 @@
   let nickname = $state('');
   let busy = $state(false);
   let error = $state<string | null>(null);
+
+  // 名前を変える。鍵の横でそのまま書き直す ── 別の画面へは行かない。
+  let renaming = $state<number | null>(null);
+  let newName = $state('');
 
   // はずす前の本人確認。合言葉を持っている人は合言葉、持っていない人は
   // メールに届く6桁 ── どちらの道も、開くのは「はずす」を押してから。
@@ -79,8 +84,37 @@
     }
   }
 
+  function startRename(pk: Passkey) {
+    renaming = pk.id;
+    newName = pk.nickname ?? '';
+    removing = null;
+    error = null;
+  }
+
+  function cancelRename() {
+    renaming = null;
+    error = null;
+  }
+
+  async function confirmRename(e: SubmitEvent) {
+    e.preventDefault();
+    if (busy || renaming === null) return;
+    busy = true;
+    error = null;
+    try {
+      await renamePasskey(renaming, newName.trim());
+      renaming = null;
+      await load();
+    } catch (e) {
+      error = explain(e);
+    } finally {
+      busy = false;
+    }
+  }
+
   function startRemove(id: number) {
     removing = id;
+    renaming = null;
     password = '';
     reauthCode = '';
     reauthSent = false;
@@ -162,8 +196,23 @@
                   : t().security.neverUsed}
               </span>
             </div>
-            {#if removing === pk.id}
-              <form class="remove stack" onsubmit={confirmRemove}>
+            {#if renaming === pk.id}
+              <form class="edit stack" onsubmit={confirmRename}>
+                <label>
+                  <span class="muted">{t().security.renameLabel}</span>
+                  <input type="text" bind:value={newName} maxlength="200" />
+                </label>
+                <div class="row">
+                  <button class="btn" type="submit" disabled={busy}>
+                    {busy ? t().security.saving : t().security.save}
+                  </button>
+                  <button class="quiet" type="button" onclick={cancelRename}>
+                    {t().security.cancel}
+                  </button>
+                </div>
+              </form>
+            {:else if removing === pk.id}
+              <form class="edit stack" onsubmit={confirmRemove}>
                 <p class="muted small">{t().security.removeIntro}</p>
                 {#if auth.has_password}
                   <label>
@@ -204,9 +253,14 @@
                 </div>
               </form>
             {:else}
-              <button class="quiet" type="button" onclick={() => startRemove(pk.id)}>
-                {t().security.remove}
-              </button>
+              <div class="row">
+                <button class="quiet" type="button" onclick={() => startRename(pk)}>
+                  {t().security.rename}
+                </button>
+                <button class="quiet" type="button" onclick={() => startRemove(pk.id)}>
+                  {t().security.remove}
+                </button>
+              </div>
             {/if}
           </li>
         {/each}
@@ -299,7 +353,8 @@
     cursor: pointer;
   }
 
-  .remove {
+  /* 名前を書き直す欄も、はずす前の確認も、鍵の下に一段ぶん広がる。 */
+  .edit {
     flex-basis: 100%;
   }
 

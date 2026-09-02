@@ -242,6 +242,10 @@ type Dict = {
     add: string;
     adding: string;
     unsupported: string;
+    rename: string;
+    renameLabel: string;
+    save: string;
+    saving: string;
     remove: string;
     removing: string;
     removeIntro: string;
@@ -529,6 +533,10 @@ const ja: Dict = {
     add: 'この端末を鍵にする',
     adding: '登録しています…',
     unsupported: 'このブラウザでは、パスキーを使えません。',
+    rename: '名前を変える',
+    renameLabel: 'この鍵の名前',
+    save: '決める',
+    saving: '変えています…',
     remove: 'はずす',
     removing: 'はずしています…',
     removeIntro: 'はずす前に、本人確認をします。',
@@ -853,6 +861,10 @@ const ko: Dict = {
     add: '이 기기를 열쇠로 만들기',
     adding: '등록하는 중…',
     unsupported: '이 브라우저에서는 패스키를 쓸 수 없어요.',
+    rename: '이름 바꾸기',
+    renameLabel: '이 열쇠의 이름',
+    save: '정하기',
+    saving: '바꾸는 중…',
     remove: '빼기',
     removing: '빼는 중…',
     removeIntro: '빼기 전에, 본인 확인을 할게요.',

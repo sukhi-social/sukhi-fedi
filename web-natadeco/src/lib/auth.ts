@@ -493,6 +493,11 @@ export async function registerPasskey(nickname: string): Promise<void> {
   await settingsPost('/settings/passkeys', { ref, nickname, ...payload });
 }
 
+// 名前だけ変える。鍵そのものは触らないので、本人確認は要らない。
+export async function renamePasskey(id: number, nickname: string): Promise<void> {
+  await settingsPost(`/settings/passkeys/${id}/rename`, { nickname });
+}
+
 export async function deletePasskey(id: number, reauth: Reauth): Promise<void> {
   await settingsPost(`/settings/passkeys/${id}/delete`, reauth);
 }

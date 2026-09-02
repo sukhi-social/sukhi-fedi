@@ -201,6 +201,10 @@ defmodule SukhiFedi.Web.Router do
     SecurityController.passkey_register(conn)
   end
 
+  post "/settings/passkeys/:id/rename" do
+    SecurityController.passkey_rename(conn)
+  end
+
   post "/settings/passkeys/:id/delete" do
     SecurityController.passkey_delete(conn)
   end

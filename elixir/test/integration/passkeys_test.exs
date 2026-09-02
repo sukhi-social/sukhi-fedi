@@ -209,6 +209,23 @@ defmodule SukhiFedi.Integration.PasskeysTest do
     assert {:error, :unknown_credential} = Passkeys.login_finish(response)
   end
 
+  test "rename changes only the label", %{account: account, authenticator: auth} do
+    assert {:ok, cred} = register(account, auth)
+    assert {:ok, renamed} = Passkeys.rename(account, cred.id, "  居間の iPad  ")
+    assert renamed.nickname == "居間の iPad"
+    assert renamed.credential_id == cred.credential_id
+    assert renamed.sign_count == cred.sign_count
+
+    # An empty label means "no label", not an empty string.
+    assert {:ok, %{nickname: nil}} = Passkeys.rename(account, cred.id, "   ")
+
+    assert {:error, :not_found} = Passkeys.rename(account, cred.id + 1, "x")
+
+    {ref, options} = Passkeys.login_options()
+    response = auth |> assertion_response(account, options.challenge, 1) |> Map.put("ref", ref)
+    assert {:ok, _} = Passkeys.login_finish(response)
+  end
+
   test "registering the same credential twice is refused", %{account: account, authenticator: auth} do
     assert {:ok, _} = register(account, auth)
 

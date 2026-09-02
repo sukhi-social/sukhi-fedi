@@ -24,9 +24,8 @@ defmodule SukhiFedi.Auth.Passkeys do
 
   @challenge_ttl_seconds 300
   # Bound storage/abuse, but generously: a real device label ("Bob's iPhone 15
-  # Pro") is far shorter, and there's no rename endpoint, so a tight 50-char cap
-  # silently ate the tail of a longer label with no way to fix it. Stay under the
-  # varchar(255) column.
+  # Pro") is far shorter, and a tight 50-char cap once silently ate the tail
+  # of a longer label. Stay under the varchar(255) column.
   @nickname_max 200
 
   # ── registration (signed-in) ─────────────────────────────────────────────
@@ -165,6 +164,24 @@ defmodule SukhiFedi.Auth.Passkeys do
   def list(%Account{id: account_id}) do
     from(c in WebauthnCredential, where: c.account_id == ^account_id, order_by: c.id)
     |> Repo.all()
+  end
+
+  # Only the label moves. The key itself, its counter and its dates stay as
+  # they are — a renamed key is the same key.
+  @spec rename(Account.t(), term(), term()) ::
+          {:ok, WebauthnCredential.t()} | {:error, :not_found}
+  def rename(%Account{id: account_id}, id, nickname) do
+    {n, rows} =
+      from(c in WebauthnCredential,
+        where: c.account_id == ^account_id and c.id == ^id,
+        select: c
+      )
+      |> Repo.update_all(set: [nickname: nickname(nickname)])
+
+    case {n, rows} do
+      {1, [cred]} -> {:ok, cred}
+      _ -> {:error, :not_found}
+    end
   end
 
   @spec delete(Account.t(), term()) :: :ok | {:error, :not_found}
