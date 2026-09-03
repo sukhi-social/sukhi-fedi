@@ -3,7 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ナタデコ</title>
+    <!-- 題はここに置かない ── +layout.svelte の svelte:head が言語に合わせて
+         出す。ここにも書くと、サーバで描いた一枚に題が二つ並んで、先の
+         ほう(=この静的なほう)をタブが拾う。 -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

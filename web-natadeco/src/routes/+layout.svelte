@@ -1,13 +1,20 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { page } from '$app/state';
   import '../app.css';
   import { isLoggedIn, signOutServer } from '$lib/auth';
   import { currentTheme, toggleTheme } from '$lib/theme';
-  import { t, getLang, toggleLang, langNames } from '$lib/i18n.svelte';
+  import { t, getLang, setLang, toggleLang, langNames } from '$lib/i18n.svelte';
   import BoardNav from '$lib/BoardNav.svelte';
+  import type { LayoutProps } from './$types';
 
-  let { children } = $props();
+  let { children, data }: LayoutProps = $props();
+
+  // サーバで描くときの言語。ブラウザでは localStorage の選択が勝つので
+  // 触らない(+layout.server.ts に理由)。
+  // svelte-ignore state_referenced_locally
+  if (!browser) setLang(data.lang);
 
   // ログイン状態はページ遷移ごとに読み直す ── goto() はレイアウトを
   // 作り直さないので、page.url を読んでおいて遷移のたびに

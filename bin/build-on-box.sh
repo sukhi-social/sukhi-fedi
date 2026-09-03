@@ -55,6 +55,9 @@ build_one() {
     # natadeco のビルド経路を一度壊した(2026-08-25 に気づいて戻した)。
     combined)       ctx="."               file="combined/Dockerfile"        ;;
     api)            ctx="."               file="api/Dockerfile"             ;;
+    # natadeco の頁を描く Node(2026-09-03)。Elixir が HTML の要求だけ
+    # ここへ回す。IMAGE_PREFIX=natadeco で焼く。
+    ssr)            ctx="web-natadeco"    file="web-natadeco/Dockerfile"    ;;
     bun)            ctx="bun"             file="bun/Dockerfile"             ;;
     anubis)         ctx="config/anubis"   file="config/anubis/Dockerfile"   ;;
     # DeployEx とその中で動くアプリの土台。年に数回しか変わらない ── アプリ

@@ -13,29 +13,44 @@
   import { t } from '$lib/i18n.svelte';
   import Flow from '$lib/Flow.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
+  import type { PageProps } from './$types';
+
+  let { data }: PageProps = $props();
 
   // 追う前に、その人を見る場所。natadeco のアカウントは本物の
   // fediverse actor なのに、これまでこの画面が無かった。
   const id = $derived(page.params.id ?? '');
 
-  let person = $state<Person | null>(null);
-  let rows = $state<Post[]>([]);
+  // 最初の一枚は load が持ってくる(サーバでも描ける)。取れなかった
+  // ときだけ、ブラウザで取り直す。
+  // svelte-ignore state_referenced_locally
+  let person = $state<Person | null>(data.person);
+  // svelte-ignore state_referenced_locally
+  let rows = $state<Post[]>(data.rows);
   let following = $state(false);
   let requested = $state(false);
   let busy = $state(false);
-  let loading = $state(true);
-  let error = $state<string | null>(null);
+  let loading = $state(false);
+  // svelte-ignore state_referenced_locally
+  let error = $state<string | null>(data.person ? null : t().people.notFound);
 
   $effect(() => {
     const who = id;
-    loading = true;
-    Promise.all([getPerson(who), personPosts(who).catch(() => [])])
-      .then(([p, posts]) => {
-        person = p;
-        rows = posts;
-      })
-      .catch(() => (error = t().people.notFound))
-      .finally(() => (loading = false));
+    person = data.person;
+    rows = data.rows;
+    error = data.person ? null : t().people.notFound;
+
+    if (!data.person) {
+      loading = true;
+      Promise.all([getPerson(who), personPosts(who).catch(() => [])])
+        .then(([p, posts]) => {
+          person = p;
+          rows = posts;
+          error = null;
+        })
+        .catch(() => (error = t().people.notFound))
+        .finally(() => (loading = false));
+    }
 
     if (signedIn()) {
       relationships([who])

@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+defmodule SukhiFedi.Integration.SSRNavigationTest do
+  @moduledoc """
+  The router's side of SSR: SvelteKit's `<path>/__data.json` requests
+  (client-side navigation) must reach the renderer, and stay a 404
+  where there is none. Goes through the whole router, which needs the
+  app up (rate limiting sits in the pipeline), hence integration.
+  """
+
+  use SukhiFedi.IntegrationCase, async: false
+  use Plug.Test
+
+  @moduletag :integration
+
+  setup do
+    prev = System.get_env("SSR_URL")
+    bypass = Bypass.open()
+    System.put_env("SSR_URL", "http://localhost:#{bypass.port}")
+
+    on_exit(fn ->
+      if prev, do: System.put_env("SSR_URL", prev), else: System.delete_env("SSR_URL")
+    end)
+
+    %{bypass: bypass}
+  end
+
+  test "client-side navigation data goes to the renderer too", %{bypass: bypass} do
+    Bypass.expect_once(bypass, "GET", "/d/chai/__data.json", fn conn ->
+      assert conn.query_string == "x-sveltekit-invalidated=01"
+      Plug.Conn.resp(conn, 200, ~s({"type":"data"}))
+    end)
+
+    conn =
+      SukhiFedi.Web.Router.call(conn(:get, "/d/chai/__data.json?x-sveltekit-invalidated=01"), [])
+
+    assert conn.status == 200
+    assert conn.resp_body == ~s({"type":"data"})
+  end
+
+  test "a page route goes to the renderer", %{bypass: bypass} do
+    Bypass.expect_once(bypass, "GET", "/d/chai", fn conn ->
+      Plug.Conn.resp(conn, 200, "<h1>chai</h1>")
+    end)
+
+    conn = SukhiFedi.Web.Router.call(conn(:get, "/d/chai"), [])
+    assert conn.status == 200
+    assert conn.resp_body == "<h1>chai</h1>"
+  end
+
+  test "without SSR, a stray __data.json is a plain 404" do
+    System.delete_env("SSR_URL")
+    conn = SukhiFedi.Web.Router.call(conn(:get, "/d/chai/__data.json"), [])
+    assert conn.status == 404
+  end
+end

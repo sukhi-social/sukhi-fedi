@@ -3,10 +3,28 @@
   import { t, getLang } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
+  import type { PageProps } from './$types';
 
-  let decos = $state<Deco[]>([]);
-  let loading = $state(true);
+  let { data }: PageProps = $props();
+
+  // 最初の一枚は load が持ってくる(サーバでも描ける)。取れなかった
+  // ときと、入っている人の印(minding/unread)は、ブラウザで取り直す。
+  // svelte-ignore state_referenced_locally
+  let decos = $state<Deco[]>(data.decos ?? []);
+  // svelte-ignore state_referenced_locally
+  let loading = $state(data.decos === null);
   let error = $state<string | null>(null);
+
+  async function reload() {
+    try {
+      decos = await listDecos();
+      error = null;
+    } catch {
+      error = t().home.loadError;
+    } finally {
+      loading = false;
+    }
+  }
 
   // 板を立てられるのは admin だけ ── 板の数を、誰かが見て決める場所に
   // しておく(natadeco が小さいうち)。
@@ -24,10 +42,8 @@
   let saving = $state(false);
 
   $effect(() => {
-    listDecos()
-      .then((d) => (decos = d))
-      .catch(() => (error = t().home.loadError))
-      .finally(() => (loading = false));
+    decos = data.decos ?? [];
+    if (data.decos === null || (data.anonymous && signedIn())) void reload();
 
     getCurrentAccount().then((a) => (isAdmin = a?.isAdmin ?? false));
   });

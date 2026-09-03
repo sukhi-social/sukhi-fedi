@@ -724,6 +724,19 @@ defmodule SukhiFedi.Web.Router do
   # 衝突しない。Plug.Router の `*glob` は segment の先頭にしか書けず、
   # `/@` で始まる任意のパスを 1 行で書けないので、catch-all の中で
   # 文字列マッチして SPA に渡す。
+  # SvelteKit の client-side navigation は、次の頁の load の結果を
+  # `<path>/__data.json` で取りに来る(頁ごとの server load があるので、
+  # natadeco では全部の頁がそう)。頁と同じで、横の Node が答える ──
+  # 届かないと、SvelteKit は遷移のたびに丸ごと読み直しに倒れる。
+  # SSR が無いところ(sukhi)では今までどおり下の 404 へ。
+  get "/*path" do
+    if List.last(path) == "__data.json" and SukhiFedi.Web.SSR.enabled?() do
+      SukhiFedi.Web.SSR.render(conn)
+    else
+      send_resp(conn, 404, "not found")
+    end
+  end
+
   match _ do
     if String.starts_with?(conn.request_path, "/@") do
       serve_at_path(conn)
@@ -836,7 +849,13 @@ defmodule SukhiFedi.Web.Router do
     Enum.join(parts)
   end
 
+  # With SSR_URL set (natadeco), the page comes from the Node renderer
+  # next door instead of the static shell — see SukhiFedi.Web.SSR.
   defp serve_spa(conn) do
+    if SukhiFedi.Web.SSR.enabled?(), do: SukhiFedi.Web.SSR.render(conn), else: serve_shell(conn)
+  end
+
+  defp serve_shell(conn) do
     # index.html refers to content-hashed chunks (`_app/immutable/...`).
     # If a CDN (Cloudflare here) caches the HTML, the browser keeps
     # asking for old chunk names and never sees a new SPA push. Force

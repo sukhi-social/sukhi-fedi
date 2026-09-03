@@ -68,6 +68,10 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     # ── Static assets for the SPA + login page
     "get /static/*path",
 
+    # ── SvelteKit's client-side navigation data (`<path>/__data.json`),
+    #    answered by the SSR renderer when SSR_URL is set; 404 otherwise
+    "get /*path",
+
     # ── ActivityPub / well-known (handled natively by Elixir)
     "get /.well-known/webfinger",
     "get /.well-known/host-meta",

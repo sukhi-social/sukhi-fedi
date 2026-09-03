@@ -4,6 +4,7 @@
 // 同じ origin に並べて置くので、入口（ログイン）は一つでいい。natadeco
 // のためにもう一本、認証の道を作らない。
 
+import { browser } from '$app/environment';
 import { getLang } from '$lib/i18n.svelte';
 
 export type Deco = {
@@ -333,16 +334,25 @@ export class ApiError extends Error {
   }
 }
 
+// サーバで描くとき、相対の `/api/...` はどこにも届かない ── Node の横の
+// BEAM を直に指す(INTERNAL_API_URL、haloy では http://natadeco:4000)。
+// トークンは localStorage にあってサーバには無いので、サーバから出る
+// 請求はいつも匿名。ブラウザでは今までどおり同じ origin へ。
+const serverBase = browser ? '' : (process.env.INTERNAL_API_URL ?? 'http://localhost:4000');
+
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
   const t = token();
   if (t) headers.authorization = `Bearer ${t}`;
   if (body !== undefined) headers['content-type'] = 'application/json';
 
-  const res = await fetch(path, {
+  const res = await fetch(serverBase + path, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body)
+    body: body === undefined ? undefined : JSON.stringify(body),
+    // サーバでは待ち過ぎない ── BEAM が黙ったら、頁ごと待たせるより
+    // 読めなかったと言うほうがいい。
+    signal: browser ? undefined : AbortSignal.timeout(8000)
   });
 
   const text = await res.text();

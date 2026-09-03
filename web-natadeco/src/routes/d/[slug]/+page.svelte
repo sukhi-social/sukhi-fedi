@@ -23,6 +23,9 @@
   import Flow from '$lib/Flow.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
   import LangTabs from '$lib/LangTabs.svelte';
+  import type { PageProps } from './$types';
+
+  let { data }: PageProps = $props();
 
   const slug = $derived(page.params.slug ?? '');
   // いま絞っている #タグ。URL に持たせるので、貼って渡せるし、戻るで戻れる。
@@ -30,7 +33,8 @@
 
   // この板で使われている #タグ。誰かが決めて置くカテゴリではなく、
   // 書かれたタグがそのまま棚になる ── だから作る欄も消す欄も無い。
-  let tags = $state<DecoTag[]>([]);
+  // svelte-ignore state_referenced_locally
+  let tags = $state<DecoTag[]>(data.tags);
 
   // 板の名前を変えられるのは admin だけ(立てる・畳むと同じ口)。
   let isAdmin = $state(false);
@@ -81,11 +85,16 @@
     }
   }
 
-  let deco = $state<Deco | null>(null);
-  let posts = $state<Post[]>([]);
-  let loading = $state(true);
-  let error = $state<string | null>(null);
-  let done = $state(false);
+  // 最初の一枚は load が持ってくる(サーバでも描ける)。
+  // svelte-ignore state_referenced_locally
+  let deco = $state<Deco | null>(data.deco);
+  // svelte-ignore state_referenced_locally
+  let posts = $state<Post[]>(data.posts);
+  let loading = $state(false);
+  // svelte-ignore state_referenced_locally
+  let error = $state<string | null>(data.deco ? null : t().board.notFound);
+  // svelte-ignore state_referenced_locally
+  let done = $state(data.deco?.kind !== 'talk' && data.posts.length < 30);
 
   // この板をどう知らせてほしいか。一覧にボタンを置かず、板の中に
   // 畳んで置く ── 既定のままで困らない人がほとんどなので、開くまでは
@@ -109,32 +118,45 @@
   let talk = $derived(deco?.kind === 'talk');
   let atToday = $state(true);
 
+  // ブラウザで取り直す ── サーバは匿名で描いたので、入っている人の
+  // 印(notify・反応の me)と、話す板の「今日」(読む人の時計)はここで。
+  async function reload(s: string, g: string | null) {
+    loading = true;
+    try {
+      const d = await getDeco(s);
+      deco = d;
+      notify = d.notify;
+      if (d.kind === 'talk') {
+        posts = await listFlow(s, { since: startOfToday(), tag: g });
+      } else {
+        const p = await listPosts(s, undefined, g);
+        posts = p;
+        done = p.length < 30;
+      }
+      error = null;
+    } catch {
+      error = t().board.notFound;
+    } finally {
+      loading = false;
+    }
+    listDecoTags(s)
+      .then((rows) => (tags = rows))
+      .catch(() => {});
+  }
+
   $effect(() => {
     const s = slug;
     const g = tag;
-    loading = true;
-    done = false;
+    deco = data.deco;
+    posts = data.posts;
+    tags = data.tags;
+    notify = data.deco?.notify ?? 'participating';
+    error = data.deco ? null : t().board.notFound;
+    done = data.deco?.kind !== 'talk' && data.posts.length < 30;
     atToday = true;
 
-    getDeco(s)
-      .then(async (d) => {
-        deco = d;
-        notify = d.notify;
-        if (d.kind === 'talk') {
-          const rows = await listFlow(s, { since: startOfToday(), tag: g });
-          posts = rows;
-        } else {
-          const p = await listPosts(s, undefined, g);
-          posts = p;
-          done = p.length < 30;
-        }
-      })
-      .catch(() => (error = t().board.notFound))
-      .finally(() => (loading = false));
-
-    listDecoTags(s)
-      .then((rows) => (tags = rows))
-      .catch(() => (tags = []));
+    const talkFromServer = data.anonymous && data.deco?.kind === 'talk';
+    if (!data.deco || talkFromServer || (data.anonymous && signedIn())) void reload(s, g);
 
     // 開いたら、ここまで見たことにする ── 一覧の光りが消える。
     // 入っていない板に投げても害は無い（読んだ位置が一点付くだけ）。

@@ -22,12 +22,19 @@
   import VisibilityPicker from '$lib/VisibilityPicker.svelte';
   import MarkdownToolbar from '$lib/MarkdownToolbar.svelte';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
+  import type { PageProps } from './$types';
 
   const id = $derived(page.params.id ?? '');
 
-  let post = $state<Post | null>(null);
-  let loading = $state(true);
-  let error = $state<string | null>(null);
+  let { data }: PageProps = $props();
+
+  // 最初の一枚は load が持ってくる(サーバでも描ける)。入っている人は
+  // 反応の me のぶんを、ブラウザで取り直す。
+  // svelte-ignore state_referenced_locally
+  let post = $state<Post | null>(data.post);
+  let loading = $state(false);
+  // svelte-ignore state_referenced_locally
+  let error = $state<string | null>(data.post ? null : t().postDetail.notFound);
 
   let text = $state('');
   let textKo = $state('');
@@ -176,14 +183,21 @@
 
   $effect(() => {
     const target = id;
-    loading = true;
-    getPost(target)
-      .then((p) => {
-        post = p;
-        visibility = p.local_only ? 'local' : 'public';
-      })
-      .catch(() => (error = t().postDetail.notFound))
-      .finally(() => (loading = false));
+    post = data.post;
+    error = data.post ? null : t().postDetail.notFound;
+    if (data.post) visibility = data.post.local_only ? 'local' : 'public';
+
+    if (!data.post || (data.anonymous && signedIn())) {
+      loading = !data.post;
+      getPost(target)
+        .then((p) => {
+          post = p;
+          error = null;
+          visibility = p.local_only ? 'local' : 'public';
+        })
+        .catch(() => (error = t().postDetail.notFound))
+        .finally(() => (loading = false));
+    }
   });
 
   // どちらの言語で返信してもいい ── 日本語欄が必須、ではない。

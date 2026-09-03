@@ -314,6 +314,8 @@ const ROUTES = [
 // 見ないと、ページのほうを横取りしてしまう。`/settings` も同じ形で、
 // `/settings` `/settings/security` はページ、`/settings/passkeys` などが口。
 export function isApiPath(pathname, method) {
+  // SvelteKit が遷移のたびに取る load の結果。口ではなく、描く側のもの。
+  if (pathname.endsWith('/__data.json')) return false;
   if (pathname === '/login') return method === 'POST';
   return (
     pathname.startsWith('/api/') ||
@@ -327,7 +329,7 @@ export function isApiPath(pathname, method) {
   );
 }
 
-function answer(pathname) {
+export function answer(pathname) {
   for (const [pat, make] of ROUTES) {
     if (typeof pat === 'string') {
       if (pathname === pat) return make();

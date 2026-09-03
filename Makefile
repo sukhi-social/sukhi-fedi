@@ -160,10 +160,15 @@ push-styles:  ## rsync only the raw token CSS (server-rendered pages)
 # the two package managers is a separate decision from moving the code.
 NATADECO_STATIC_DIR ?= /var/lib/natadeco/static
 
-push-natadeco:  ## build web-natadeco and rsync it to natadeco's override dir
+# Since 2026-09-03 the pages are rendered by a Node next door (see
+# SukhiFedi.Web.SSR and web-natadeco/Dockerfile); what goes into the
+# override dir is only the client side of the build (`build/client/`).
+# Push the static side and the ssr image from the same commit, so the
+# HTML the Node renders names the chunks that are actually there.
+push-natadeco:  ## build web-natadeco and rsync its client assets to natadeco's override dir
 	cd web-natadeco && bun run build
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(NATADECO_STATIC_DIR) && sudo chown $(DEPLOY_USER) $(NATADECO_STATIC_DIR)"
-	rsync -av --delete --chmod=D755,F644 web-natadeco/build/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(NATADECO_STATIC_DIR)/
+	rsync -av --delete --chmod=D755,F644 web-natadeco/build/client/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(NATADECO_STATIC_DIR)/
 
 # natadeco's backend. One image: the combined release carries :sukhi_api
 # too, and natadeco stopped running a separate api node on 2026-08-26.
