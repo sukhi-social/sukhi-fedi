@@ -77,6 +77,8 @@ export type Post = {
   author: Author;
   created_at: string;
   reply_count: number;
+  // 本文に書かれた #タグ(# 抜き・小文字)。板の「カテゴリ」はここから立つ。
+  tags: string[];
   local_only: boolean;
   // 長い文章として出したか（AP の `Article`）。外では題と書き出しと
   // リンクになって、本文は natadeco に読みに来てもらう形。
@@ -169,6 +171,7 @@ function fromStatus(s: Status): Post {
     },
     created_at: s.created_at,
     reply_count: 0,
+    tags: [],
     // 友デコには板の「ここだけ」の印は無い ── 出どころが板ではないので。
     local_only: false,
     as_article: false,
@@ -369,10 +372,20 @@ export const setDecoNotify = (slug: string, notify: DecoNotify) =>
 /** その板を、いま見た。光りが消える。 */
 export const seenDeco = (slug: string) => req<{ seen: boolean }>('POST', decoPath(slug, 'seen'));
 
-export function listPosts(slug: string, beforeId?: number) {
-  const q = beforeId ? `?before_id=${beforeId}` : '';
-  return req<Post[]>('GET', `/api/v1/deco/${encodeURIComponent(slug)}/posts${q}`);
+export function listPosts(slug: string, beforeId?: number, tag?: string | null) {
+  const q = new URLSearchParams();
+  if (beforeId) q.set('before_id', String(beforeId));
+  if (tag) q.set('tag', tag);
+  const qs = q.toString();
+  return req<Post[]>('GET', `/api/v1/deco/${encodeURIComponent(slug)}/posts${qs ? `?${qs}` : ''}`);
 }
+
+/**
+ * この板で使われている #タグ と数。誰かが決めて置くカテゴリではなく、
+ * 書かれたタグから自然に立つもの ── 多い順。
+ */
+export type DecoTag = { name: string; count: number };
+export const listDecoTags = (slug: string) => req<DecoTag[]>('GET', decoPath(slug, 'tags'));
 
 export const getPost = (id: number | string) => req<Post>('GET', `/api/v1/deco/posts/${id}`);
 
@@ -382,10 +395,14 @@ export const getPost = (id: number | string) => req<Post>('GET', `/api/v1/deco/p
  * `since` は「ここまでで終わり」の下限。読む人の真夜中を渡すので、
  * 「今日」の境目を決めるのは読む人の時計 ── サーバは今日を知らない。
  */
-export function listFlow(slug: string, opts: { beforeId?: number; since?: Date } = {}) {
+export function listFlow(
+  slug: string,
+  opts: { beforeId?: number; since?: Date; tag?: string | null } = {}
+) {
   const q = new URLSearchParams();
   if (opts.beforeId) q.set('before_id', String(opts.beforeId));
   if (opts.since) q.set('since', opts.since.toISOString());
+  if (opts.tag) q.set('tag', opts.tag);
   const qs = q.toString();
   return req<Post[]>('GET', `/api/v1/deco/${encodeURIComponent(slug)}/flow${qs ? `?${qs}` : ''}`);
 }
@@ -456,6 +473,10 @@ export const subscribePush = (subscription: PushSubscriptionJSON, alerts: Record
   );
 
 export const unsubscribePush = () => req<null>('DELETE', '/api/v1/push/subscription');
+
+/** 板の名前を変える(admin だけ)。slug は動かない。 */
+export const renameDeco = (slug: string, body: { name: string; name_i18n?: Record<string, string> }) =>
+  req<Deco>('PATCH', `/api/v1/deco/${encodeURIComponent(slug)}`, body);
 
 export const createDeco = (body: {
   slug: string;

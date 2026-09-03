@@ -49,6 +49,17 @@ const PAGES = [
   { name: 'callback-failed', path: '/app/callback', signedIn: false },
   { name: 'decos', path: '/' },
   { name: 'deco-thread', path: '/d/chai' },
+  // 棚を一つ押したところ。絞っている印が付く。
+  { name: 'deco-thread-tag', path: '/d/chai?tag=%E3%81%8A%E8%8C%B6' },
+  {
+    name: 'deco-rename',
+    path: '/d/chai',
+    // admin が板の名前を書き直しているところ。
+    act: async (page) => {
+      await page.click('summary:has-text("板の名前を変える"), summary:has-text("데코 이름 바꾸기")');
+      await page.waitForSelector('form.rename', { timeout: 5000 });
+    }
+  },
   { name: 'deco-talk', path: '/d/yoru' },
   { name: 'deco-new', path: '/d/chai/new' },
   { name: 'post', path: '/posts/101' },

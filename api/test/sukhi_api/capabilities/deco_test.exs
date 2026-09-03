@@ -381,6 +381,50 @@ defmodule SukhiApi.Capabilities.DecoTest do
       assert %{"error" => "admin_required"} = JSON.decode!(resp.body)
     end
 
+    test "板の名前を変えるのは admin だけ" do
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        verify_bearer:
+          {:ok, %{account: @admin, app: %{id: 1, name: "x"}, scopes: ["write:statuses"]}}
+      })
+
+      stub([
+        {{:rename_deco, ["hinata", %{"name" => "ひなたの板", "name_i18n" => %{"ko" => "히나타"}}]},
+         {:ok, %{@deco | name: "ひなたの板"}}}
+      ])
+
+      # slug を混ぜても gateway には渡らない(名前だけの口)
+      {:ok, resp} =
+        patch("/api/v1/deco/hinata", %{name: "ひなたの板", name_i18n: %{ko: "히나타"}, slug: "x"})
+
+      assert resp.status == 200
+      assert %{"name" => "ひなたの板"} = JSON.decode!(resp.body)
+    end
+
+    test "名前を変えるのも admin でなければ 403" do
+      {:ok, resp} = patch("/api/v1/deco/hinata", %{name: "x"})
+      assert resp.status == 403
+    end
+
+    test "板の #タグ は、トークン無しで読める" do
+      stub([{{:list_tags, ["hinata"]}, {:ok, [%{name: "散歩", count: 2}]}}])
+
+      {:ok, resp} = get("/api/v1/deco/hinata/tags")
+      assert resp.status == 200
+      assert [%{"name" => "散歩", "count" => 2}] = JSON.decode!(resp.body)
+    end
+
+    test "?tag= は opts に乗る(投稿一覧も流れも)" do
+      stub([
+        {{:list_posts, ["hinata", [tag: "散歩"]]}, {:ok, [@post]}},
+        {{:list_flow, ["hinata", [tag: "散歩"]]}, {:ok, [@post]}}
+      ])
+
+      {:ok, a} = get("/api/v1/deco/hinata/posts?tag=%E6%95%A3%E6%AD%A9")
+      {:ok, b} = get("/api/v1/deco/hinata/flow?tag=%E6%95%A3%E6%AD%A9")
+      assert a.status == 200
+      assert b.status == 200
+    end
+
     test "板を畳むのも admin だけ" do
       Application.put_env(:sukhi_api, :fake_oauth, %{
         verify_bearer:

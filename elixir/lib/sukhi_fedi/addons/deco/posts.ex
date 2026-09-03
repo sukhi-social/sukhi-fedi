@@ -20,7 +20,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Notes.Create, as: NotesCreate
   alias SukhiFedi.Notes.Ids
-  alias SukhiFedi.Schema.{Account, Deco, DecoNote, Note, Report}
+  alias SukhiFedi.Schema.{Account, Deco, DecoNote, Note, Report, Tag}
 
   # 何人から知らせが届いたら、いったんたたむか。人数で数える(同じ人が
   # 何度言っても一人)。運営が見るまでのあいだの、読む人の側の手当て。
@@ -196,7 +196,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
 
               # `create_status/2` は `:account` を preload して返すので、
               # 書いた人をもう一度引きに行かなくていい。
-              {:ok, post_view(note, dn, note.account)}
+              {:ok, note |> post_view(dn, note.account) |> List.wrap() |> with_tags() |> hd()}
 
             {:error, cs} ->
               Notes.delete_note(account_id, note.id)
@@ -379,8 +379,13 @@ defmodule SukhiFedi.Addons.Deco.Posts do
       end)
       |> case do
         {:ok, {updated_note, updated_dn}} ->
+          # 本文が変わったなら、`#タグ` の付きかたも本文に合わせる。
+          if Map.has_key?(note_attrs, "content"),
+            do: SukhiFedi.Tags.sync_for_note(updated_note.id, updated_note.content)
+
           unless updated_dn.local_only, do: NotesCreate.enqueue_update(updated_note.id)
-          {:ok, post_view(updated_note, updated_dn, account)}
+          view = updated_note |> post_view(updated_dn, account) |> List.wrap() |> with_tags() |> hd()
+          {:ok, view}
 
         {:error, %Ecto.Changeset{} = cs} ->
           {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
@@ -445,6 +450,8 @@ defmodule SukhiFedi.Addons.Deco.Posts do
           select: {n, dn, a, coalesce(la.at, n.created_at)}
         )
 
+      q = with_tag(q, opts[:tag])
+
       q =
         if before_activity_at && before_id do
           where(
@@ -468,6 +475,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
          Map.put(post_view(n, dn, a), :last_activity_at, to_utc(at))
        end)
        |> with_reactions(opts[:viewer_id])
+       |> with_tags()
        |> with_folded()}
     end
   end
@@ -509,6 +517,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
           select: {n, dn, a}
         )
 
+      q = with_tag(q, opts[:tag])
       q = if before_id = opts[:before_id], do: where(q, [dn, n], n.id < ^to_int(before_id)), else: q
 
       q =
@@ -525,9 +534,29 @@ defmodule SukhiFedi.Addons.Deco.Posts do
       {:ok,
        views
        |> with_reactions(opts[:viewer_id])
+       |> with_tags()
        |> with_folded()
        |> with_parents()}
     end
+  end
+
+  # `#タグ` で絞る。板の「カテゴリ」は書かれたタグから自然に立つので、
+  # ここは note_tags を引くだけ ── 板の側に列は増えない。
+  defp with_tag(q, nil), do: q
+  defp with_tag(q, ""), do: q
+
+  defp with_tag(q, tag) when is_binary(tag) do
+    name = tag |> String.trim_leading("#") |> String.trim() |> String.downcase()
+
+    tagged =
+      from(nt in "note_tags",
+        join: t in Tag,
+        on: t.id == nt.tag_id,
+        where: t.name == ^name,
+        select: nt.note_id
+      )
+
+    where(q, [dn, n], n.id in subquery(tagged))
   end
 
   # 下限。id で言われればそのまま、時刻で言われれば snowflake に直す。
@@ -609,6 +638,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
         [post | replies] =
           [post_view(note, dn, author) | replies_of(note, dn.deco_id)]
           |> with_reactions(viewer_id)
+          |> with_tags()
           |> with_folded()
 
         {:ok, Map.put(post, :replies, replies)}
@@ -683,6 +713,26 @@ defmodule SukhiFedi.Addons.Deco.Posts do
     Enum.map(views, fn v -> %{v | reactions: Map.get(by_id, v.id, [])} end)
   end
 
+  # 本文に書かれた `#タグ`。頁ぶんまとめて一度に引く(反応と同じ形)。
+  defp with_tags([]), do: []
+
+  defp with_tags(views) do
+    ids = Enum.map(views, & &1.id)
+
+    by_id =
+      from(nt in "note_tags",
+        join: t in Tag,
+        on: t.id == nt.tag_id,
+        where: nt.note_id in ^ids,
+        order_by: [asc: t.name],
+        select: {nt.note_id, t.name}
+      )
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    Enum.map(views, fn v -> %{v | tags: Map.get(by_id, v.id, [])} end)
+  end
+
   defp post_view(note, dn, author, fallback_deco_id \\ nil)
 
   defp post_view(%Note{} = n, %DecoNote{} = dn, %Account{} = author, _fallback) do
@@ -710,6 +760,8 @@ defmodule SukhiFedi.Addons.Deco.Posts do
       # でここを上書きする ── 書いたばかりの投稿は本当に空なので、
       # 書く口はそのままでいい。
       reactions: [],
+      # 本文の `#タグ`。反応と同じで、読む口が `with_tags/1` で埋める。
+      tags: [],
       local_only: dn.local_only || false,
       as_article: dn.as_article || false,
       # 既定は開いたまま。読む口が `with_folded/1` で上書きする。
@@ -733,6 +785,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
       reply_count: reply_count(n),
       in_reply_to_ap_id: n.in_reply_to_ap_id,
       reactions: [],
+      tags: [],
       local_only: false,
       as_article: false,
       folded: false

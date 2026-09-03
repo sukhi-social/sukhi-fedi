@@ -65,6 +65,8 @@ defmodule SukhiFedi.Addons.Deco do
   defdelegate get_actor_record(slug), to: Boards
   defdelegate get_deco_record(slug), to: Boards
   defdelegate create_deco(account_or_id, attrs), to: Boards
+  defdelegate rename_deco(slug, attrs), to: Boards
+  defdelegate list_tags(slug), to: Boards
   defdelegate delete_deco(slug), to: Boards
 
   # ── 書く・直す・読む ─────────────────────────────────────────────

@@ -6,8 +6,10 @@ defmodule SukhiApi.Capabilities.Deco do
       GET  /api/v1/deco                    板の一覧（誰でも）
       POST /api/v1/deco                    板を立てる            write:statuses + admin
       GET  /api/v1/deco/:slug              板一枚
+      PATCH /api/v1/deco/:slug             板の名前を変える      write:statuses + admin
       DELETE /api/v1/deco/:slug            板を畳む(中の投稿も)   write:statuses + admin
-      GET  /api/v1/deco/:slug/posts        その板の投稿（親だけ）
+      GET  /api/v1/deco/:slug/tags         その板の #タグ と数
+      GET  /api/v1/deco/:slug/posts        その板の投稿（親だけ、?tag= で絞れる）
       POST /api/v1/deco/:slug/posts        書く                  write:statuses
       GET  /api/v1/deco/posts/:id          一件＋ぶら下がり
       PATCH /api/v1/deco/posts/:id         直す(自分のだけ)      write:statuses
@@ -43,7 +45,9 @@ defmodule SukhiApi.Capabilities.Deco do
       {:post, "/api/v1/deco/posts/:id/replies", &reply/1, scope: "write:statuses"},
       {:post, "/api/v1/deco/posts/:id/report", &report_post/1, scope: "write:reports"},
       {:get, "/api/v1/deco/:slug", &show/1},
+      {:patch, "/api/v1/deco/:slug", &rename_deco/1, scope: "write:statuses"},
       {:delete, "/api/v1/deco/:slug", &delete_deco/1, scope: "write:statuses"},
+      {:get, "/api/v1/deco/:slug/tags", &list_tags/1},
       {:get, "/api/v1/deco/:slug/posts", &list_posts/1},
       {:get, "/api/v1/deco/:slug/flow", &list_flow/1},
       {:post, "/api/v1/deco/:slug/posts", &post/1, scope: "write:statuses"}
@@ -108,6 +112,20 @@ defmodule SukhiApi.Capabilities.Deco do
     end
   end
 
+  # 板の名前を変えるのも admin ── 立てる・畳むと同じ口。slug は動かない。
+  def rename_deco(req) do
+    with {:ok, _admin} <- AdminAuth.require_admin(req) do
+      body = decode_body(req)
+      attrs = take(body, ["name", "name_i18n"])
+      call(:rename_deco, [req[:path_params]["slug"], attrs], &ok(200, &1))
+    else
+      {:error, :forbidden} -> ok(403, %{error: "admin_required"})
+    end
+  end
+
+  # その板で使われている #タグ と数。読むのは誰でも。
+  def list_tags(req), do: call(:list_tags, [req[:path_params]["slug"]], &ok(200, &1))
+
   # 板を畳むのも admin だけ ── 立てるのと対称。取り消せない。
   def delete_deco(req) do
     with {:ok, _admin} <- AdminAuth.require_admin(req) do
@@ -130,6 +148,7 @@ defmodule SukhiApi.Capabilities.Deco do
       |> put_int(:limit, q["limit"])
       |> put_int(:before_id, q["before_id"])
       |> put_datetime(:before_activity_at, q["before_activity_at"])
+      |> put_tag(q["tag"])
 
     # 読むのは誰でも(viewer は無くていい)。居るときだけ渡すのは、
     # リアクションの `me` を立てるため。
@@ -151,6 +170,7 @@ defmodule SukhiApi.Capabilities.Deco do
       # 「今日」の境目は読む人の時計が決める ── ここは受け取った時刻を
       # そのまま渡すだけで、サーバは今日を知らない。
       |> put_datetime(:since, q["since"])
+      |> put_tag(q["tag"])
       |> put_viewer(viewer(req))
 
     call(:list_flow, [req[:path_params]["slug"], opts], &ok(200, &1))
@@ -292,6 +312,10 @@ defmodule SukhiApi.Capabilities.Deco do
       _ -> opts
     end
   end
+
+  # `?tag=` で絞る。空なら絞らない。
+  defp put_tag(opts, tag) when is_binary(tag) and tag != "", do: Keyword.put(opts, :tag, tag)
+  defp put_tag(opts, _), do: opts
 
   defp put_datetime(opts, _key, nil), do: opts
   defp put_datetime(opts, _key, ""), do: opts

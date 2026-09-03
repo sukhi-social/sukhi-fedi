@@ -83,6 +83,69 @@ defmodule SukhiFedi.Integration.DecoTest do
     end
   end
 
+  describe "板の名前を変える" do
+    test "名前だけ変わって、slug はそのまま", %{deco: deco} do
+      assert {:ok, renamed} =
+               Deco.rename_deco(deco.slug, %{
+                 "name" => "くろい板",
+                 "name_i18n" => %{"ko" => "검은 데코"},
+                 "slug" => "hacked"
+               })
+
+      assert renamed.name == "くろい板"
+      assert renamed.name_i18n == %{"ko" => "검은 데코"}
+      assert renamed.slug == deco.slug
+      assert {:ok, %{name: "くろい板"}} = Deco.get_deco(deco.slug)
+    end
+
+    test "空の名前は断る", %{deco: deco} do
+      assert {:error, {:validation, %{name: _}}} = Deco.rename_deco(deco.slug, %{"name" => ""})
+    end
+
+    test "無い板は :not_found" do
+      assert {:error, :not_found} = Deco.rename_deco("nai", %{"name" => "x"})
+    end
+  end
+
+  describe "#タグで束ねる" do
+    test "書かれたタグが投稿に付き、板のタグ一覧に数で立つ", %{author: author, deco: deco} do
+      {:ok, a} = Deco.post(author, deco.slug, %{"title" => "朝", "status" => "#散歩 してきた #朝日"})
+      {:ok, b} = Deco.post(author, deco.slug, %{"title" => "夕", "status" => "夕方も #散歩"})
+      {:ok, _} = Deco.post(author, deco.slug, %{"title" => "無", "status" => "タグなし"})
+
+      assert Enum.sort(a.tags) == ["散歩", "朝日"]
+      assert b.tags == ["散歩"]
+
+      assert {:ok, [%{name: "散歩", count: 2}, %{name: "朝日", count: 1}]} = Deco.list_tags(deco.slug)
+    end
+
+    test "?tag= で絞ると、そのタグの投稿だけ", %{author: author, deco: deco} do
+      {:ok, a} = Deco.post(author, deco.slug, %{"title" => "朝", "status" => "#散歩"})
+      {:ok, _} = Deco.post(author, deco.slug, %{"title" => "無", "status" => "タグなし"})
+
+      assert {:ok, [only]} = Deco.list_posts(deco.slug, tag: "散歩")
+      assert only.id == a.id
+      # 先頭の # や大文字は、書いた側の揺れなので吸う
+      assert {:ok, [_]} = Deco.list_posts(deco.slug, tag: "#散歩")
+      assert {:ok, []} = Deco.list_posts(deco.slug, tag: "ない")
+    end
+
+    test "題つきの板では、レスのタグは数えない", %{author: author, deco: deco} do
+      {:ok, parent} = Deco.post(author, deco.slug, %{"title" => "親", "status" => "本文"})
+      {:ok, _} = Deco.reply(author, parent.id, %{"status" => "レスに #返事"})
+
+      assert {:ok, []} = Deco.list_tags(deco.slug)
+    end
+
+    test "直すと、タグも本文に合わせて付け替わる", %{author: author, deco: deco} do
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "朝", "status" => "#散歩"})
+      assert {:ok, updated} = Deco.update_post(author, post.id, %{"status" => "#昼寝 にした"})
+
+      assert updated.tags == ["昼寝"]
+      assert {:ok, [%{name: "昼寝", count: 1}]} = Deco.list_tags(deco.slug)
+    end
+  end
+
   describe "多言語(板・投稿)" do
     test "板の名前・説明に、他言語を上乗せできる", %{author: author} do
       n = System.unique_integer([:positive])

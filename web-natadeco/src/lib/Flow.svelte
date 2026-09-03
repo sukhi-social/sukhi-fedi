@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import { when, localized, type Post } from '$lib/api';
   import { renderEmojis } from '$lib/emoji';
   import { t } from '$lib/i18n.svelte';
@@ -10,7 +11,20 @@
   // スレッドを組まない代わりに、返信は親を一段だけ抱える ── IRC の
   // `nick:` が一段しか指さないのと同じ深さで、それで会話は追える。
   // 祖父まで辿ると、画面が入れ子で埋まっていく。
-  let { rows = $bindable() }: { rows: Post[] } = $props();
+  //
+  // `slug` は本文の `#タグ` の行き先。サーバの HTML は sukhi の
+  // `/tags/…` を指しているが、natadeco ではその棚は板の中にある
+  // (`/d/:slug?tag=…`)ので、押されたらそちらへ向ける。
+  let { rows = $bindable(), slug }: { rows: Post[]; slug?: string } = $props();
+
+  function onBodyClick(e: MouseEvent) {
+    if (!slug) return;
+    const a = (e.target as Element | null)?.closest?.('a.hashtag');
+    const name = a?.textContent?.replace(/^#/, '').trim();
+    if (!name) return;
+    e.preventDefault();
+    void goto(`/d/${slug}?tag=${encodeURIComponent(name.toLowerCase())}`);
+  }
 
   // 同じ人が続けて書いたら、名前は一度だけ。雑談は連投になるので、
   // 出し続けると名前で画面が埋まる。切れる条件は三つ ──
@@ -62,7 +76,8 @@
           >
         </p>
       {:else}
-        <div class="body">
+        <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
+        <div class="body" onclick={onBodyClick}>
           {@html renderEmojis(localized(row.content_html, row.content_html_i18n), row.emojis)}
         </div>
 

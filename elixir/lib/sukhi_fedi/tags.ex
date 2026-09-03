@@ -98,4 +98,26 @@ defmodule SukhiFedi.Tags do
         Enum.map(tags, & &1.name)
     end
   end
+
+  @doc """
+  Make the note's tag links match its (edited) content: links to tags
+  the text no longer mentions are dropped, new ones are added. Returns
+  the names now attached. `upsert_for_note/2` only ever adds, which is
+  right for a fresh note and wrong for an edit.
+  """
+  @spec sync_for_note(integer(), String.t() | nil) :: [String.t()]
+  def sync_for_note(note_id, content) when is_integer(note_id) do
+    names = extract(content)
+
+    keep_ids =
+      case names do
+        [] -> []
+        _ -> from(t in Tag, where: t.name in ^names, select: t.id) |> Repo.all()
+      end
+
+    from(nt in "note_tags", where: nt.note_id == ^note_id and nt.tag_id not in ^keep_ids)
+    |> Repo.delete_all()
+
+    upsert_for_note(note_id, content)
+  end
 end

@@ -4,9 +4,13 @@
     getDeco,
     listPosts,
     listFlow,
+    listDecoTags,
+    renameDeco,
     seenDeco,
     setDecoNotify,
+    getCurrentAccount,
     type DecoNotify,
+    type DecoTag,
     startOfToday,
     signedIn,
     when,
@@ -14,12 +18,68 @@
     type Deco,
     type Post
   } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
+  import { t, getLang } from '$lib/i18n.svelte';
   import Author from '$lib/Author.svelte';
   import Flow from '$lib/Flow.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
+  import LangTabs from '$lib/LangTabs.svelte';
 
   const slug = $derived(page.params.slug ?? '');
+  // いま絞っている #タグ。URL に持たせるので、貼って渡せるし、戻るで戻れる。
+  const tag = $derived(page.url.searchParams.get('tag'));
+
+  // この板で使われている #タグ。誰かが決めて置くカテゴリではなく、
+  // 書かれたタグがそのまま棚になる ── だから作る欄も消す欄も無い。
+  let tags = $state<DecoTag[]>([]);
+
+  // 板の名前を変えられるのは admin だけ(立てる・畳むと同じ口)。
+  let isAdmin = $state(false);
+  let renaming = $state(false);
+  let name = $state('');
+  let nameKo = $state('');
+  let lang = $state<'ja' | 'ko'>(getLang());
+  let saving = $state(false);
+  let renameError = $state<string | null>(null);
+
+  // `name` は立てた人が実際に書いた言語で、`name_i18n` にもう一方が
+  // 添えてある。ja が添えてあれば主は韓国語、そうでなければ主は日本語。
+  function startRename() {
+    if (!deco) return;
+    if (deco.name_i18n.ja) {
+      name = deco.name_i18n.ja;
+      nameKo = deco.name;
+    } else {
+      name = deco.name;
+      nameKo = deco.name_i18n.ko ?? '';
+    }
+    lang = getLang();
+    renameError = null;
+    renaming = true;
+  }
+
+  // 主になるのは、埋まっているほうの名前。両方あれば表示言語のほうを
+  // 主にして、もう一方を添える(立てるときと同じ決めかた)。
+  async function confirmRename(e: SubmitEvent) {
+    e.preventDefault();
+    const ja = name.trim();
+    const ko = nameKo.trim();
+    if (saving || !(ja || ko)) return;
+    saving = true;
+    renameError = null;
+    try {
+      deco = await renameDeco(
+        slug,
+        ja
+          ? { name: ja, name_i18n: ko ? { ko } : {} }
+          : { name: ko, name_i18n: {} }
+      );
+      renaming = false;
+    } catch {
+      renameError = t().board.renameError;
+    } finally {
+      saving = false;
+    }
+  }
 
   let deco = $state<Deco | null>(null);
   let posts = $state<Post[]>([]);
@@ -51,6 +111,7 @@
 
   $effect(() => {
     const s = slug;
+    const g = tag;
     loading = true;
     done = false;
     atToday = true;
@@ -60,10 +121,10 @@
         deco = d;
         notify = d.notify;
         if (d.kind === 'talk') {
-          const rows = await listFlow(s, { since: startOfToday() });
+          const rows = await listFlow(s, { since: startOfToday(), tag: g });
           posts = rows;
         } else {
-          const p = await listPosts(s);
+          const p = await listPosts(s, undefined, g);
           posts = p;
           done = p.length < 30;
         }
@@ -71,9 +132,14 @@
       .catch(() => (error = t().board.notFound))
       .finally(() => (loading = false));
 
+    listDecoTags(s)
+      .then((rows) => (tags = rows))
+      .catch(() => (tags = []));
+
     // 開いたら、ここまで見たことにする ── 一覧の光りが消える。
     // 入っていない板に投げても害は無い（読んだ位置が一点付くだけ）。
     if (signedIn()) void seenDeco(s).catch(() => {});
+    if (signedIn()) getCurrentAccount().then((a) => (isAdmin = a?.isAdmin ?? false));
   });
 
   // 「もっと読む」。終わりのないスクロールにはしない ── 読み終えた、
@@ -81,7 +147,7 @@
   async function more() {
     const last = posts.at(-1);
     if (!last) return;
-    const next = await listPosts(slug, last.id);
+    const next = await listPosts(slug, last.id, tag);
     posts = [...posts, ...next];
     if (next.length === 0) done = true;
   }
@@ -90,7 +156,7 @@
   // そこから先はふつうの「もっと読む」になる。
   async function earlier() {
     const last = posts.at(-1);
-    const rows = await listFlow(slug, { beforeId: last?.id });
+    const rows = await listFlow(slug, { beforeId: last?.id, tag });
     posts = [...posts, ...rows];
     atToday = false;
     if (rows.length === 0) done = true;
@@ -124,11 +190,23 @@
 
   {#if error}<p class="error">{error}</p>{/if}
 
+  {#if tags.length > 0}
+    <!-- 棚。書かれた #タグ がそのまま並ぶ。押すと、その話だけになる。 -->
+    <nav class="tags" aria-label="tags">
+      <a class="chip" class:on={!tag} href="/d/{slug}">{t().board.allTags}</a>
+      {#each tags as tg (tg.name)}
+        <a class="chip" class:on={tag === tg.name} href="/d/{slug}?tag={encodeURIComponent(tg.name)}"
+          >#{tg.name}<span class="muted count">{tg.count}</span></a
+        >
+      {/each}
+    </nav>
+  {/if}
+
   {#if talk}
     {#if posts.length === 0}
-      <p class="muted empty">{t().flow.empty}</p>
+      <p class="muted empty">{tag ? t().board.tagEmpty(tag) : t().flow.empty}</p>
     {:else}
-      <Flow bind:rows={posts} />
+      <Flow bind:rows={posts} {slug} />
     {/if}
 
     {#if done}
@@ -140,7 +218,7 @@
       <button class="btn" type="button" onclick={earlier}>{t().board.more}</button>
     {/if}
   {:else if posts.length === 0}
-    <p class="muted empty">{t().board.empty}</p>
+    <p class="muted empty">{tag ? t().board.tagEmpty(tag) : t().board.empty}</p>
   {:else}
     <div class="table-wrap">
       <table class="board-table">
@@ -159,6 +237,9 @@
               <td class="title-cell">
                 <a href="/posts/{post.id}">{localized(post.title, post.title_i18n) || t().board.untitled}</a>
                 {#if post.reply_count > 0}<span class="muted count">{post.reply_count}</span>{/if}
+                {#each post.tags as tg (tg)}
+                  <a class="tag muted" href="/d/{slug}?tag={encodeURIComponent(tg)}">#{tg}</a>
+                {/each}
               </td>
               <td data-label={t().board.colAuthor}><Author author={post.author} compact /></td>
               <td class="date muted" data-label={t().board.colDate}>{when(post.created_at)}</td>
@@ -173,6 +254,34 @@
     {:else}
       <button class="btn" type="button" onclick={more}>{t().board.more}</button>
     {/if}
+  {/if}
+
+  {#if isAdmin}
+    <details class="prefs" open={renaming} ontoggle={(e) => (renaming = e.currentTarget.open) && startRename()}>
+      <summary class="muted small">{t().board.rename}</summary>
+      {#if renaming}
+        <form class="rename" onsubmit={confirmRename}>
+          <LangTabs bind:active={lang} />
+          {#if lang === 'ja'}
+            <label>
+              <span class="muted">{t().home.fields.name}</span>
+              <input type="text" bind:value={name} maxlength="60" />
+            </label>
+          {:else}
+            <label>
+              <span class="muted">{t().home.fields.name}</span>
+              <input type="text" bind:value={nameKo} maxlength="60" />
+            </label>
+          {/if}
+          <div class="row">
+            <button class="btn" type="submit" disabled={saving || !(name.trim() || nameKo.trim())}>
+              {saving ? t().board.renameSaving : t().board.renameSave}
+            </button>
+          </div>
+          {#if renameError}<p class="error">{renameError}</p>{/if}
+        </form>
+      {/if}
+    </details>
   {/if}
 
   {#if signedIn()}
@@ -229,6 +338,63 @@
   .write-btn {
     flex: none;
     text-decoration: none;
+  }
+
+  /* 棚。横に並べて、はみ出したら折り返す。押せるものは丸く。 */
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0 0 1rem;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 2rem;
+    padding: 0.2rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    text-decoration: none;
+    color: var(--ink-soft);
+  }
+
+  .chip.on {
+    background: var(--sun-soft);
+    color: var(--ink);
+    border-color: transparent;
+  }
+
+  .chip .count {
+    font-size: 0.75rem;
+  }
+
+  /* 題の横に添える印。押すと、その棚へ。 */
+  .tag {
+    margin-left: 0.4rem;
+    font-size: 0.8rem;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .rename {
+    display: grid;
+    gap: 0.85rem;
+    max-width: 32rem;
+    margin-top: 0.6rem;
+  }
+
+  .rename label {
+    display: grid;
+    gap: 0.3rem;
+  }
+
+  .rename .row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
   }
 
   /* 表がはみ出すときは、ページごと横に伸ばさず、表だけ横スクロール

@@ -104,9 +104,17 @@ const post = (id, decoId, title, titleKo, body, bodyKo, who, mins, extra = {}) =
   as_article: false,
   emojis: [],
   reactions: [],
+  tags: [],
   folded: false,
   ...extra
 });
+
+// 板の棚。書かれた #タグ がそのまま並ぶ(多い順)。
+export const TAGS = [
+  { name: 'お茶', count: 3 },
+  { name: 'ほうじ茶', count: 1 },
+  { name: '海', count: 1 }
+];
 
 const REACTIONS = [
   { name: '🍵', count: 3, me: false },
@@ -123,7 +131,7 @@ export const POSTS = [
     '프라이팬으로. 부엌 전체가 좋은 냄새로 가득 차서, 그것만으로 하루치만큼 기뻤어요.',
     kuro,
     35,
-    { reply_count: 2, reactions: REACTIONS }
+    { reply_count: 2, reactions: REACTIONS, tags: ['お茶', 'ほうじ茶'] }
   ),
   post(
     102,
@@ -258,6 +266,7 @@ const ROUTES = [
   [/^\/api\/v1\/deco\/posts\/\d+$/, () => POST_DETAIL],
   [/^\/api\/v1\/deco\/[^/]+\/posts$/, () => POSTS],
   [/^\/api\/v1\/deco\/[^/]+\/flow$/, () => FLOW],
+  [/^\/api\/v1\/deco\/[^/]+\/tags$/, () => TAGS],
   [/^\/api\/v1\/deco\/([^/]+)$/, (m) => DECOS.find((d) => d.slug === m[1]) ?? DECOS[0]],
   ['/api/v1/timelines/home', () => HOME],
   ['/api/v1/notifications', () => NOTICES],

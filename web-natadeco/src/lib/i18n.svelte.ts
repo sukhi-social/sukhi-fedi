@@ -101,6 +101,12 @@ type Dict = {
     untitled: string;
     end: string;
     more: string;
+    allTags: string;
+    tagEmpty: (tag: string) => string;
+    rename: string;
+    renameSave: string;
+    renameSaving: string;
+    renameError: string;
   };
   newPost: {
     notFound: string;
@@ -392,7 +398,13 @@ const ja: Dict = {
     colDate: '作成日',
     untitled: '(無題)',
     end: 'ここまでです。',
-    more: 'もっと読む'
+    more: 'もっと読む',
+    allTags: 'すべて',
+    tagEmpty: (tag) => `#${tag} の話は、まだありません。`,
+    rename: '板の名前を変える',
+    renameSave: '決める',
+    renameSaving: '変えています…',
+    renameError: '変えられませんでした'
   },
   newPost: {
     notFound: 'この板は見つかりませんでした',
@@ -720,7 +732,13 @@ const ko: Dict = {
     colDate: '작성일',
     untitled: '(제목 없음)',
     end: '여기까지예요.',
-    more: '더 보기'
+    more: '더 보기',
+    allTags: '전체',
+    tagEmpty: (tag) => `#${tag} 이야기는 아직 없어요.`,
+    rename: '데코 이름 바꾸기',
+    renameSave: '정하기',
+    renameSaving: '바꾸는 중…',
+    renameError: '바꿀 수 없었어요'
   },
   newPost: {
     notFound: '이 데코를 찾을 수 없었어요',

@@ -22,7 +22,7 @@ defmodule SukhiFedi.Addons.Deco.Boards do
   alias SukhiFedi.Addons.Deco.View
   alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
   alias SukhiFedi.Notes.Create, as: NotesCreate
-  alias SukhiFedi.Schema.{Account, Deco, DecoNote, DecoPref, Note}
+  alias SukhiFedi.Schema.{Account, Deco, DecoNote, DecoPref, Note, Tag}
 
   @doc """
   板の一覧。新しい順ではなく、名前順 ── 数で競わせないため。
@@ -315,6 +315,59 @@ defmodule SukhiFedi.Addons.Deco.Boards do
     |> case do
       {:ok, d} -> {:ok, View.deco(d, 0)}
       {:error, cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+    end
+  end
+
+  @doc """
+  板の名前を変える。渡された欄だけ差し替わる(`name` と `name_i18n`)。
+  slug は動かさない ── URL と表札(`{slug}-deco@domain`)がそこに
+  掛かっているので、名前は変わっても場所は同じ。
+
+  立てる・畳むと同じで admin の口。中の人が変えられる `topic` とは
+  役割が違う ── あちらは「いま何の話か」、こちらは板そのものの名前。
+  """
+  @spec rename_deco(String.t(), map()) ::
+          {:ok, map()} | {:error, :not_found | {:validation, map()}}
+  def rename_deco(slug, attrs) when is_binary(slug) do
+    with {:ok, %Deco{} = d} <- get_deco_record(slug) do
+      d
+      |> Deco.changeset(attrs |> stringify() |> Map.take(["name", "name_i18n"]))
+      |> Repo.update()
+      |> case do
+        {:ok, updated} -> {:ok, View.deco(updated, count_posts(updated.id))}
+        {:error, cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+      end
+    end
+  end
+
+  @doc """
+  この板で使われているハッシュタグと、その数。板の「カテゴリ」は
+  誰かが決めて置くものではなく、書かれた `#タグ` から自然に立つ ──
+  だからここは数えるだけで、作る口も消す口も無い。
+
+  数えるのは、その板の読み口が返すもの。題つきの板(`thread`)は親だけ、
+  話す板(`talk`)は流れに並ぶ全部。多い順、同じなら名前順。
+  """
+  @spec list_tags(String.t()) :: {:ok, [map()]} | {:error, :not_found}
+  def list_tags(slug) when is_binary(slug) do
+    with {:ok, %Deco{} = d} <- get_deco_record(slug) do
+      q =
+        from(dn in DecoNote,
+          join: n in Note,
+          on: n.id == dn.note_id,
+          join: nt in "note_tags",
+          on: nt.note_id == n.id,
+          join: t in Tag,
+          on: t.id == nt.tag_id,
+          where: dn.deco_id == ^d.id and n.visibility == "public",
+          group_by: t.name,
+          order_by: [desc: count(n.id), asc: t.name],
+          select: %{name: t.name, count: count(n.id)}
+        )
+
+      q = if d.kind == "talk", do: q, else: where(q, [dn, n], is_nil(n.in_reply_to_ap_id))
+
+      {:ok, Repo.all(q)}
     end
   end
 
