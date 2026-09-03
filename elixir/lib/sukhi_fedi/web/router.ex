@@ -483,7 +483,11 @@ defmodule SukhiFedi.Web.Router do
   # SvelteKit がビルド出力に `_app/` を使うので、こちらも static として
   # 配る(`/static/` と同じ priv/static ルート、prefix だけ別)。
   get "/_app/*path" do
-    serve_static(conn, ["_app" | path])
+    # SSR のときは Node から。HTML が指す chunk と同じビルドでないと
+    # いけない(SukhiFedi.Web.SSR.proxy/1 に理由)。
+    if SukhiFedi.Web.SSR.enabled?(),
+      do: SukhiFedi.Web.SSR.proxy(conn),
+      else: serve_static(conn, ["_app" | path])
   end
 
   # Self-hosted Twemoji SVGs, baked into priv/static/twemoji by the SPA

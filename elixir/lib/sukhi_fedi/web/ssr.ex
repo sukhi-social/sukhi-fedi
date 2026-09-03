@@ -84,6 +84,47 @@ defmodule SukhiFedi.Web.SSR do
     end
   end
 
+  @doc """
+  Pass a build asset (`/_app/...`) through from the renderer.
+
+  The HTML the renderer sends names content-hashed chunks, and two
+  builds of the same commit do not agree on those names — the entry
+  chunks carry the build's version stamp. So the chunks must come from
+  the same build as the HTML, which means from the same container.
+  Unlike `render/1`, the renderer's cache headers are kept: adapter-node
+  marks `immutable/` as cache-forever, and it is.
+  """
+  @spec proxy(Plug.Conn.t()) :: Plug.Conn.t()
+  def proxy(conn) do
+    target = url() <> conn.request_path <> query(conn)
+
+    case Req.get(target,
+           finch: SukhiFedi.Finch,
+           retry: false,
+           redirect: false,
+           decode_body: false,
+           receive_timeout: 10_000
+         ) do
+      {:ok, %Req.Response{status: status, body: body} = resp} ->
+        conn
+        |> put_resp_content_type(content_type(resp))
+        |> copy_header(resp, "cache-control")
+        |> put_resp_header("x-static-source", "ssr")
+        |> send_resp(status, body)
+
+      {:error, reason} ->
+        Logger.warning("ssr: renderer unreachable for asset: #{inspect(reason)}")
+        send_resp(conn, 503, "")
+    end
+  end
+
+  defp copy_header(conn, resp, name) do
+    case Req.Response.get_header(resp, name) do
+      [v | _] -> put_resp_header(conn, name, v)
+      [] -> conn
+    end
+  end
+
   defp query(%Plug.Conn{query_string: ""}), do: ""
   defp query(%Plug.Conn{query_string: q}), do: "?" <> q
 

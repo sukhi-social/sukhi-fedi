@@ -59,4 +59,19 @@ defmodule SukhiFedi.Web.SSRTest do
     assert conn.status == 503
     assert conn.resp_body =~ "もういちど"
   end
+
+  test "a build asset passes through with the renderer's cache headers", %{bypass: bypass} do
+    Bypass.expect_once(bypass, "GET", "/_app/immutable/entry/start.abc.js", fn conn ->
+      conn
+      |> Plug.Conn.put_resp_content_type("text/javascript")
+      |> Plug.Conn.put_resp_header("cache-control", "public, max-age=31536000, immutable")
+      |> Plug.Conn.resp(200, "console.log(1)")
+    end)
+
+    conn = SSR.proxy(conn(:get, "/_app/immutable/entry/start.abc.js"))
+    assert conn.status == 200
+    assert conn.resp_body == "console.log(1)"
+    assert get_resp_header(conn, "cache-control") == ["public, max-age=31536000, immutable"]
+    assert ["text/javascript" <> _] = get_resp_header(conn, "content-type")
+  end
 end
