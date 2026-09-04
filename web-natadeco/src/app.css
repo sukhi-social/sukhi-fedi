@@ -128,6 +128,16 @@ a:hover {
   text-decoration-color: var(--sun);
 }
 
+/* 本文の code。指定が無いとブラウザ既定の等幅(Safari は Courier)に
+   なって、ā や ṃ のような字形を持たず、その字だけ別の字体から借りて
+   一語の中で混ざる。哲学の板でパーリ語などの原語を code に置くので、
+   字形のある等幅を先に並べる。 */
+code,
+pre {
+  font-family: ui-monospace, Menlo, 'SF Mono', 'DejaVu Sans Mono', 'Noto Sans Mono', monospace;
+  font-size: 0.95em;
+}
+
 h1,
 h2 {
   font-family: var(--font-round);
