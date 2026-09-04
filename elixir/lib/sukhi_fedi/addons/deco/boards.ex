@@ -331,7 +331,9 @@ defmodule SukhiFedi.Addons.Deco.Boards do
   def rename_deco(slug, attrs) when is_binary(slug) do
     with {:ok, %Deco{} = d} <- get_deco_record(slug) do
       d
-      |> Deco.changeset(attrs |> stringify() |> Map.take(["name", "name_i18n"]))
+      # 読まれかた(`kind`)も、名前と同じ admin の口で変えられる。題つきの板を
+      # 話す板に開くのは板そのものの性格の話なので、立てる・畳むと同じ手に置く。
+      |> Deco.changeset(attrs |> stringify() |> Map.take(["name", "name_i18n", "kind"]))
       |> Repo.update()
       |> case do
         {:ok, updated} -> {:ok, View.deco(updated, count_posts(updated.id))}

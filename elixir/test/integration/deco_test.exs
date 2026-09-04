@@ -98,6 +98,13 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert {:ok, %{name: "くろい板"}} = Deco.get_deco(deco.slug)
     end
 
+    test "読まれかた(kind)も同じ口で変わる ── 題つきの板を、話す板に", %{author: author, deco: deco} do
+      assert {:ok, %{kind: "talk"}} = Deco.rename_deco(deco.slug, %{"kind" => "talk"})
+      assert {:ok, post} = Deco.post(author, deco.slug, %{"status" => "題なしで置ける"})
+      assert is_nil(post.title)
+      assert {:error, {:validation, %{kind: _}}} = Deco.rename_deco(deco.slug, %{"kind" => "shout"})
+    end
+
     test "空の名前は断る", %{deco: deco} do
       assert {:error, {:validation, %{name: _}}} = Deco.rename_deco(deco.slug, %{"name" => ""})
     end

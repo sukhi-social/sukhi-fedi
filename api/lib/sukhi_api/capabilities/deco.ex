@@ -116,7 +116,7 @@ defmodule SukhiApi.Capabilities.Deco do
   def rename_deco(req) do
     with {:ok, _admin} <- AdminAuth.require_admin(req) do
       body = decode_body(req)
-      attrs = take(body, ["name", "name_i18n"])
+      attrs = take(body, ["name", "name_i18n", "kind"])
       call(:rename_deco, [req[:path_params]["slug"], attrs], &ok(200, &1))
     else
       {:error, :forbidden} -> ok(403, %{error: "admin_required"})

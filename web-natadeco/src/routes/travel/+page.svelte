@@ -63,7 +63,11 @@
   const hasPlaces = $derived(rows.some((r) => r.place));
 </script>
 
-<PageHeader title={t().travel.title} subtitle={t().travel.entrance}>
+<!-- 題は板の名前(admin が付けたもの)。玄関の一行は、ひなたのことば。 -->
+<PageHeader
+  title={data.deco ? localized(data.deco.name, data.deco.name_i18n) : t().travel.title}
+  subtitle={t().travel.entrance}
+>
   {#snippet actions()}
     {#if signedIn()}
       <a class="btn" href="/new">{t().travel.write}</a>
