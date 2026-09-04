@@ -23,8 +23,8 @@ defmodule SukhiFedi.LocalAccounts do
 
   alias Ecto.Multi
   alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
-  alias SukhiFedi.{InviteCodes, Repo}
-  alias SukhiFedi.Schema.{Account, Session}
+  alias SukhiFedi.{InviteCodes, OAuth, Repo}
+  alias SukhiFedi.Schema.{Account, AdminAudit, OauthApp, Session}
 
   require Logger
 
@@ -145,6 +145,113 @@ defmodule SukhiFedi.LocalAccounts do
         {:ok, a} -> {:ok, a}
         {:error, cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
       end
+    end
+  end
+
+  @doc """
+  Create a local account whose only door is a bearer token — no
+  password, no email, no session. For the hands that write on behalf
+  of someone (a study-notes bot, a bridge) rather than for people.
+
+  Admin-only: the caller is recorded in `admin_audits` (`bot_created`).
+  The row is born with `is_bot: true` so it shows as a bot everywhere
+  the Mastodon `bot` flag is read. The token is minted under an OAuth
+  app owned by the bot itself — that app is how `rotate_bot_token/2`
+  finds its way back. The plaintext token is returned exactly once.
+  """
+  @spec create_bot(integer(), map()) ::
+          {:ok, %{account: Account.t(), token: String.t()}}
+          | {:error, {:validation, map()}}
+          | {:error, term()}
+  def create_bot(admin_id, attrs) when is_integer(admin_id) and is_map(attrs) do
+    username =
+      (attrs["username"] || attrs[:username] || "") |> String.trim() |> String.downcase()
+
+    display_name = trim_or_nil(attrs["display_name"] || attrs[:display_name]) || username
+    keys = KeyGen.generate()
+
+    changeset =
+      %Account{}
+      |> Account.changeset_local(%{
+        username: username,
+        display_name: display_name,
+        public_key_pem: keys.public_pem,
+        public_key_jwk: keys.public_jwk,
+        private_key_jwk: keys.private_jwk,
+        ed25519_private_key_jwk: keys.ed25519_private_jwk,
+        ed25519_public_multibase: keys.ed25519_public_multibase
+      })
+      # put_change, not cast: an ordinary signup can't declare itself a bot.
+      |> Ecto.Changeset.put_change(:is_bot, true)
+
+    Multi.new()
+    |> Multi.insert(:account, changeset)
+    |> Multi.run(:app, fn _repo, %{account: a} ->
+      case OAuth.register_app(%{
+             name: "bot:#{a.username}",
+             redirect_uris: "urn:ietf:wg:oauth:2.0:oob",
+             scopes: "read write",
+             owner_account_id: a.id
+           }) do
+        {:ok, %{app: app}} -> {:ok, app}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+    |> Multi.run(:token, fn _repo, %{account: a, app: app} ->
+      OAuth.issue_bot_token(app.id, a.id)
+    end)
+    |> Multi.insert(:audit, fn %{account: a} ->
+      AdminAudit.changeset(%{
+        action: "bot_created",
+        admin_account_id: admin_id,
+        target_account_id: a.id
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{account: a, token: %{access_token: token}}} ->
+        {:ok, %{account: a, token: token}}
+
+      {:error, :account, %Ecto.Changeset{} = cs, _} ->
+        {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+
+      {:error, _step, reason, _} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Turn a token-only account's key: every live token it holds is revoked
+  and one new one minted, in a single transaction, so there is never a
+  moment with two keys or none. Audited as `bot_token_rotated`.
+
+  Only accounts made by `create_bot/2` qualify — the monitor's bot
+  actors have `is_bot` too, but no app of their own, and answer
+  `:not_found` here.
+  """
+  @spec rotate_bot_token(integer(), integer()) ::
+          {:ok, %{account: Account.t(), token: String.t()}} | {:error, :not_found | term()}
+  def rotate_bot_token(admin_id, bot_id) when is_integer(admin_id) and is_integer(bot_id) do
+    with %Account{is_bot: true, domain: nil} = bot <- Repo.get(Account, bot_id),
+         %OauthApp{} = app <- Repo.get_by(OauthApp, owner_account_id: bot.id) do
+      Multi.new()
+      |> Multi.run(:revoked, fn _repo, _ -> {:ok, OAuth.revoke_account_tokens(bot.id)} end)
+      |> Multi.run(:token, fn _repo, _ -> OAuth.issue_bot_token(app.id, bot.id) end)
+      |> Multi.insert(
+        :audit,
+        AdminAudit.changeset(%{
+          action: "bot_token_rotated",
+          admin_account_id: admin_id,
+          target_account_id: bot.id
+        })
+      )
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{token: %{access_token: token}}} -> {:ok, %{account: bot, token: token}}
+        {:error, _step, reason, _} -> {:error, reason}
+      end
+    else
+      _ -> {:error, :not_found}
     end
   end
 

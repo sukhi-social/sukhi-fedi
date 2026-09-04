@@ -42,6 +42,76 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
     end
   end
 
+  describe "create_bot/2 + rotate_bot_token/2" do
+    setup do
+      {:ok, admin} =
+        LocalAccounts.create_admin(
+          "adm_#{System.unique_integer([:positive])}",
+          "long-enough-pass"
+        )
+
+      %{admin: admin}
+    end
+
+    test "鍵一本だけの垢 ── パスワードもメールも無く、鍵でその垢に届く", %{admin: admin} do
+      name = "bot_#{System.unique_integer([:positive])}"
+
+      assert {:ok, %{account: bot, token: token}} =
+               LocalAccounts.create_bot(admin.id, %{"username" => name, "display_name" => "しろの帳"})
+
+      assert bot.is_bot
+      refute bot.is_admin
+      assert is_nil(bot.domain)
+      assert is_nil(bot.password_hash)
+      assert is_nil(bot.email)
+      assert bot.display_name == "しろの帳"
+
+      assert {:ok, %{account: %{id: id}, scopes: scopes}} = SukhiFedi.OAuth.verify_bearer(token)
+      assert id == bot.id
+      assert "write" in scopes
+
+      # 画面の入り口は閉じている
+      assert {:error, :invalid} = LocalAccounts.authenticate(name, "anything-at-all")
+
+      # 誰が作ったか残る
+      assert Repo.exists?(
+               from(a in SukhiFedi.Schema.AdminAudit,
+                 where:
+                   a.action == "bot_created" and a.admin_account_id == ^admin.id and
+                     a.target_account_id == ^bot.id
+               )
+             )
+    end
+
+    test "取り替えると、古い鍵はその場で閉じ、新しい鍵だけが通る", %{admin: admin} do
+      name = "bot_#{System.unique_integer([:positive])}"
+
+      {:ok, %{account: bot, token: old}} =
+        LocalAccounts.create_bot(admin.id, %{"username" => name})
+
+      assert {:ok, %{token: new}} = LocalAccounts.rotate_bot_token(admin.id, bot.id)
+      refute new == old
+
+      assert {:error, :revoked} = SukhiFedi.OAuth.verify_bearer(old)
+      assert {:ok, %{account: %{id: id}}} = SukhiFedi.OAuth.verify_bearer(new)
+      assert id == bot.id
+    end
+
+    test "人の垢の鍵は、この口では取り替えられない", %{admin: admin} do
+      assert {:error, :not_found} = LocalAccounts.rotate_bot_token(admin.id, admin.id)
+    end
+
+    test "同じ名前は断る", %{admin: admin} do
+      name = "bot_#{System.unique_integer([:positive])}"
+      assert {:ok, _} = LocalAccounts.create_bot(admin.id, %{"username" => name})
+
+      assert {:error, {:validation, errors}} =
+               LocalAccounts.create_bot(admin.id, %{"username" => name})
+
+      assert Map.has_key?(errors, :username)
+    end
+  end
+
   describe "create/1 (signup)" do
     setup do
       SukhiFedi.Mailer.Capture.clear()

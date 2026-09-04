@@ -278,17 +278,50 @@ defmodule SukhiFedi.OAuth do
     end
   end
 
+  @doc """
+  Mint the one key of a token-only account (`LocalAccounts.create_bot/2`).
+
+  No refresh token and no expiry: the account has no password, no
+  email and no session, so an expired token would lock it out for
+  good with nobody to notice. The trade for "valid until revoked" is
+  that an admin holds the ring — `revoke_account_tokens/1` plus a new
+  mint is how the key turns (`LocalAccounts.rotate_bot_token/2`).
+  """
+  @spec issue_bot_token(integer(), integer()) :: {:ok, map()}
+  def issue_bot_token(app_id, account_id) when is_integer(app_id) and is_integer(account_id) do
+    mint_token(app_id, account_id, "read write", refresh: false, expires: false)
+  end
+
+  @doc """
+  Revoke every live token bound to an account. Returns how many turned.
+  """
+  @spec revoke_account_tokens(integer()) :: non_neg_integer()
+  def revoke_account_tokens(account_id) when is_integer(account_id) do
+    {n, _} =
+      from(t in OauthAccessToken, where: t.account_id == ^account_id and is_nil(t.revoked_at))
+      |> Repo.update_all(set: [revoked_at: utc_now()])
+
+    n
+  end
+
   # ── internals ────────────────────────────────────────────────────────────
 
   # Access tokens previously never expired (expires_at NULL), so a leaked
   # bearer was valid forever. Give every minted token a finite absolute
-  # lifetime; verify_bearer already rejects an expired one.
+  # lifetime; verify_bearer already rejects an expired one. The one
+  # exception is `expires: false` for token-only accounts (see
+  # `issue_bot_token/2`).
   @token_ttl_seconds 90 * 24 * 60 * 60
 
-  defp mint_token(app_id, account_id, scopes, refresh: with_refresh?) do
+  defp mint_token(app_id, account_id, scopes, opts) do
+    with_refresh? = Keyword.fetch!(opts, :refresh)
     access = generate_token()
     refresh = if with_refresh?, do: generate_token(), else: nil
-    expires_at = utc_now() |> DateTime.add(@token_ttl_seconds, :second)
+
+    expires_at =
+      if Keyword.get(opts, :expires, true),
+        do: utc_now() |> DateTime.add(@token_ttl_seconds, :second),
+        else: nil
 
     attrs = %{
       token_hash: hash(access),
@@ -311,7 +344,7 @@ defmodule SukhiFedi.OAuth do
        token_type: "Bearer",
        scope: scopes,
        created_at: System.system_time(:second),
-       expires_in: @token_ttl_seconds
+       expires_in: expires_at && @token_ttl_seconds
      }}
   end
 
