@@ -65,6 +65,9 @@ export type Reaction = {
   static_url?: string | null;
 };
 
+/** どこのことか。旅の記録が、場所のある一枚だけ地図に置くための印。 */
+export type Place = { name: string; url: string; lat: number; lng: number };
+
 export type Post = {
   id: number;
   deco_id: number;
@@ -89,6 +92,10 @@ export type Post = {
   // 何人かから知らせが届いて、運営が見るまでのあいだ、たたんである。
   // 本文は来ている ── ひらくかどうかは読む人が決める。
   folded: boolean;
+  // 誰かへの返事なら、その相手の ap_id。記録だけを並べたいときの印。
+  in_reply_to_ap_id?: string | null;
+  // どこのことか(あれば)。
+  place?: Place | null;
   replies?: Post[];
   // 話す板の流れでだけ入る。返信が「誰に向けた言葉か」を、一段だけ。
   // 手元に無い親（連合越しなど）は null。
@@ -433,6 +440,7 @@ export const createPost = (
     content_i18n?: Record<string, string>;
     visibility?: Visibility;
     as_article?: boolean;
+    place?: Place | null;
   }
 ) => req<Post>('POST', `/api/v1/deco/${encodeURIComponent(slug)}/posts`, body);
 

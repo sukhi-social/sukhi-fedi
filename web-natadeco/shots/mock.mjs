@@ -80,6 +80,8 @@ export const DECOS = [
     post_count: 108
   }),
   deco(3, 'machi', 'まちの記録', '동네 기록', '通りすがりに見たもの。', '지나가다 본 것.', 'thread', { post_count: 7 }),
+  // travel.natadeco.com の一枚。話す板と同じ形で、返事も混ざる。
+  deco(9, 'travel', 'たびの記録', '여행 기록', 'ここは、帰ってきてから、そっと置く場所だよ。', '여기는, 돌아오고 나서, 살며시 놓아두는 곳이에요.', 'talk', { post_count: 3 }),
   deco(4, 'tsukuru', 'つくったもの', '만든 것', '手を動かした話なら何でも。', '손을 움직인 이야기라면 뭐든지.', 'thread', {
     minding: true,
     post_count: 19
@@ -181,6 +183,22 @@ export const FLOW = [
   post(303, 2, null, null, '창문 열어 뒀어요. 시원해요.', '창문 열어 뒀어요. 시원해요.', nabi, 47)
 ];
 
+// 旅の記録。場所のあるものと無いものが混ざる。返事は流れには居るが、
+// 玄関には並ばない。
+export const TRAVEL_FLOW = [
+  post(901, 9, '海雲台', '해운대', '波の音が、思ったより低かった。朝の砂は冷たくて、でもあったかい人が多かった。#釜山', '파도 소리가 생각보다 낮았어요. 아침 모래는 차가웠지만, 따뜻한 사람이 많았어요. #부산', hinata, 90, {
+    tags: ['釜山'],
+    place: { name: '海雲台海水浴場', url: 'https://map.naver.com/p/entry/place/11491785', lat: 35.1587, lng: 129.1604 }
+  }),
+  post(902, 9, null, null, 'ありがとう、って言えた気がする。', '고마워요, 라고 말할 수 있었던 것 같아요.', kuro, 200, {
+    parent: { id: 901, author: author(hinata), excerpt: '波の音が、思ったより低かった。' },
+    in_reply_to_ap_id: 'https://natadeco.com/users/hinata/notes/901'
+  }),
+  post(903, 9, null, null, '帰りの電車で、ずっと窓を見てた。どこ、とは言えないけど、あったかかった。', '돌아오는 기차에서 계속 창밖을 봤어요. 어디라고는 말 못 하지만, 따뜻했어요.', nabi, 600)
+];
+
+export const TRAVEL_TAGS = [{ name: '釜山', count: 1 }];
+
 // ── 友デコ(fediverse 側のタイムライン) ────────────────────────────
 
 const status = (id, who, html, mins, extra = {}) => ({
@@ -265,6 +283,8 @@ const ROUTES = [
   [/^\/api\/v1\/deco\/posts\/\d+\/replies$/, () => REPLIES],
   [/^\/api\/v1\/deco\/posts\/\d+$/, () => POST_DETAIL],
   [/^\/api\/v1\/deco\/[^/]+\/posts$/, () => POSTS],
+  ['/api/v1/deco/travel/flow', () => TRAVEL_FLOW],
+  ['/api/v1/deco/travel/tags', () => TRAVEL_TAGS],
   [/^\/api\/v1\/deco\/[^/]+\/flow$/, () => FLOW],
   [/^\/api\/v1\/deco\/[^/]+\/tags$/, () => TAGS],
   [/^\/api\/v1\/deco\/([^/]+)$/, (m) => DECOS.find((d) => d.slug === m[1]) ?? DECOS[0]],

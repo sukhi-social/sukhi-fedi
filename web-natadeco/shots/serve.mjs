@@ -52,7 +52,10 @@ export async function serveBuild(root, port) {
       ...process.env,
       PORT: String(port),
       HOST: '127.0.0.1',
-      ORIGIN: `http://127.0.0.1:${port}`,
+      // 本番と同じく、玄関(host)はヘッダで受ける ── travel の頁は
+      // x-forwarded-host を見て部屋を分けるので、ORIGIN で固定しない。
+      HOST_HEADER: 'x-forwarded-host',
+      PROTOCOL_HEADER: 'x-forwarded-proto',
       INTERNAL_API_URL: `http://127.0.0.1:${apiPort}`
     },
     stdio: ['ignore', 'pipe', 'pipe']

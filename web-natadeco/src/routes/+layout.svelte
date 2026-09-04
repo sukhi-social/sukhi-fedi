@@ -16,6 +16,11 @@
   // svelte-ignore state_referenced_locally
   if (!browser) setLang(data.lang);
 
+  // 旅の部屋では板の一覧(サイドバー)を出さない ── 静かな部屋にしておく。
+  // 表札もそちらの名前に。
+  const travel = $derived(data.site === 'travel');
+  const siteName = $derived(travel ? t().travel.siteName : t().siteName);
+
   // ログイン状態はページ遷移ごとに読み直す ── goto() はレイアウトを
   // 作り直さないので、page.url を読んでおいて遷移のたびに
   // 再チェックする(表示用の一枚だけの、いちばん軽いやりかた)。
@@ -80,12 +85,12 @@
      日本語のまま、にならないように。辞書から取るので、切り替えた瞬間に
      こちらも一緒に動く。 -->
 <svelte:head>
-  <title>{t().siteName}</title>
+  <title>{siteName}</title>
 </svelte:head>
 
 <header>
   <div class="measure bar">
-    <a class="mark" href="/">{t().siteName}</a>
+    <a class="mark" href="/">{siteName}</a>
     <span class="spacer"></span>
     <div class="prefs">
       <button
@@ -163,7 +168,7 @@
 </header>
 
 <div class="shell">
-  <BoardNav />
+  {#if !travel}<BoardNav />{/if}
   <main class="measure">
     {@render children()}
   </main>

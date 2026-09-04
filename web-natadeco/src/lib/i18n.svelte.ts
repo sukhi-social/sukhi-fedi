@@ -353,6 +353,29 @@ type Dict = {
   toolbar: { bold: string; italic: string; link: string; list: string; quote: string; heading: string };
   hinata: { reveal: string; hide: string };
   hello: { title: string; greeting: string; aiNotice: string; start: string };
+  // travel.natadeco.com ── 帰ってきてから、そっと置く場所。
+  travel: {
+    siteName: string;
+    title: string;
+    entrance: string;
+    empty: string;
+    write: string;
+    readOnly: TwoPart & { link: string };
+    notReady: string;
+    toMap: string;
+    mapTitle: string;
+    mapEmpty: string;
+    somewhere: string;
+    open: string;
+    replies: (n: number) => string;
+    back: string;
+    where: string;
+    whereHint: string;
+    whereLooking: string;
+    whereNotFound: string;
+    whereName: string;
+    whereClear: string;
+  };
 };
 
 const ja: Dict = {
@@ -686,6 +709,28 @@ const ja: Dict = {
     greeting: 'ようこそ。ひなたです。',
     aiNotice: 'ひなたの絵は、AIで描かれたものです。見せてもいいですか?下のスイッチで、いつでも切り替えられます。',
     start: 'はじめる'
+  },
+  travel: {
+    siteName: 'ナタデコ たび',
+    title: 'たびの記録',
+    entrance: 'ここは、帰ってきてから、そっと置く場所だよ。',
+    empty: 'まだ、だれも置いてないみたい。……最初の一つ、待ってるね。',
+    write: '置く',
+    readOnly: { prefix: '置くには、', link: 'サインイン', suffix: 'してね。読むだけなら、このままで。' },
+    notReady: 'この部屋は、まだ用意のとちゅうみたい。',
+    toMap: '地図でみる',
+    mapTitle: '地図',
+    mapEmpty: '場所のある記録は、まだありません。',
+    somewhere: 'どこか',
+    open: 'ひらく',
+    replies: (n) => `${n} 件の返事`,
+    back: '記録へもどる',
+    where: 'どこ',
+    whereHint: '地図のリンクを貼ると、場所が付きます。なくてもいい。',
+    whereLooking: '場所をさがしています…',
+    whereNotFound: 'そのリンクから、場所が読めませんでした。座標(35.1587,129.1604)でも大丈夫。',
+    whereName: '場所の名前',
+    whereClear: '場所をはずす'
   }
 };
 
@@ -1019,6 +1064,28 @@ const ko: Dict = {
     greeting: '어서 오세요. 히나타예요.',
     aiNotice: '히나타의 그림은, AI가 그린 거예요. 보여드려도 될까요? 아래 스위치로, 언제든 바꿀 수 있어요.',
     start: '시작하기'
+  },
+  travel: {
+    siteName: '나타데코 여행',
+    title: '여행 기록',
+    entrance: '여기는, 돌아오고 나서, 살며시 놓아두는 곳이에요.',
+    empty: '아직 아무도 놓아두지 않았나 봐요. …… 첫 하나를, 기다리고 있을게요.',
+    write: '놓아두기',
+    readOnly: { prefix: '놓아두려면 ', link: '로그인', suffix: '해 주세요. 읽기만 한다면 이대로도 괜찮아요.' },
+    notReady: '이 방은 아직 준비 중인가 봐요.',
+    toMap: '지도로 보기',
+    mapTitle: '지도',
+    mapEmpty: '장소가 있는 기록은 아직 없어요.',
+    somewhere: '어딘가',
+    open: '펼치기',
+    replies: (n) => `답글 ${n}개`,
+    back: '기록으로 돌아가기',
+    where: '어디',
+    whereHint: '지도 링크를 붙이면 장소가 붙어요. 없어도 괜찮아요.',
+    whereLooking: '장소를 찾고 있어요…',
+    whereNotFound: '그 링크에서는 장소를 읽지 못했어요. 좌표(35.1587,129.1604)도 괜찮아요.',
+    whereName: '장소 이름',
+    whereClear: '장소 빼기'
   }
 };
 

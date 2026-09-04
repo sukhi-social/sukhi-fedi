@@ -89,7 +89,11 @@ const PAGES = [
       await page.waitForSelector('form.edit', { timeout: 5000 });
     }
   },
-  { name: 'about', path: '/about', signedIn: false }
+  { name: 'about', path: '/about', signedIn: false },
+  // 別の部屋。host で玄関を分けるので、x-forwarded-host を添えて撮る。
+  { name: 'travel', path: '/', host: 'travel.natadeco.com' },
+  { name: 'travel-new', path: '/new', host: 'travel.natadeco.com' },
+  { name: 'travel-map', path: '/map', host: 'travel.natadeco.com' }
 ];
 
 // ── 引数 ──────────────────────────────────────────────────────────
@@ -158,6 +162,7 @@ try {
         });
 
         await installMocks(page, { lang, theme, signedIn: spec.signedIn, seed: spec.seed }, unknown);
+        if (spec.host) await page.setExtraHTTPHeaders({ 'x-forwarded-host': spec.host });
 
         const label = `${lang}-${theme}/${spec.name}`;
         try {

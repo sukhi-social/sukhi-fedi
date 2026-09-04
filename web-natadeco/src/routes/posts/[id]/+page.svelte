@@ -341,6 +341,12 @@
           <Author author={post.author} at={when(post.created_at)} />
           {#if post.local_only}<span class="local-badge">{t().visibility.badge}</span>{/if}
         </p>
+        {#if post.place}
+          <!-- どこのことか。旅の記録に添えられた場所 ── 地図のその点へ。 -->
+          <p class="place">
+            <a href="/map#{post.id}">{post.place.name || t().travel.somewhere}</a>
+          </p>
+        {/if}
       </div>
       {#if !shown(post)}
         {@render folded(post)}
@@ -443,6 +449,22 @@
 {/if}
 
 <style>
+  .place {
+    margin: 0.2rem 0 0;
+    font-size: 0.85rem;
+  }
+
+  .place a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--sun);
+  }
+
+  .place a::before {
+    content: '◎ ';
+    color: var(--sun);
+  }
+
   /* ページの主見出しは、どのページでも 1.4rem(app.css の他の h1 と
      揃える ── 「同じ役割は同じ見た目に」)。著者名と詰めて並べたい
      ここだけ margin は 0 のまま。ここは投稿の題(書いた人が決める、

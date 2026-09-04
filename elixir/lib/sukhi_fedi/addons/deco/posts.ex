@@ -144,7 +144,8 @@ defmodule SukhiFedi.Addons.Deco.Posts do
 
   defp write(account_id, deco_id, params, default_local) when is_integer(account_id) do
     params = stringify(params)
-    {i18n, rest} = Map.split(params, ["title_i18n", "content_i18n"])
+    # 板の側だけが持つもの(もう一つの言語ぶん、場所)は notes に渡さない。
+    {overlay, rest} = Map.split(params, ["title_i18n", "content_i18n", "place"])
 
     # 書く人が選べば、それが通る。選ばなければ板の既定 ── 一件ごとに
     # 訊かれ続けないための既定であって、板が決めてしまう錠ではない。
@@ -185,7 +186,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
                 "local_only" => local_only?,
                 "as_article" => as_article?
               },
-              i18n
+              overlay
             )
           )
           |> Repo.insert()
@@ -367,7 +368,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
   defp do_update(note, dn, account, params) do
     with :ok <- validate_title(params) do
       note_attrs = %{} |> maybe_put("content", params["status"]) |> maybe_put("title", params["title"])
-      dn_attrs = Map.take(params, ["title_i18n", "content_i18n"])
+      dn_attrs = Map.take(params, ["title_i18n", "content_i18n", "place"])
 
       Repo.transaction(fn ->
         with {:ok, note} <- maybe_update(note, note_attrs),
@@ -764,6 +765,8 @@ defmodule SukhiFedi.Addons.Deco.Posts do
       tags: [],
       local_only: dn.local_only || false,
       as_article: dn.as_article || false,
+      # どこのことか(あれば)。
+      place: dn.place,
       # 既定は開いたまま。読む口が `with_folded/1` で上書きする。
       folded: false
     }
@@ -788,6 +791,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
       tags: [],
       local_only: false,
       as_article: false,
+      place: nil,
       folded: false
     }
   end

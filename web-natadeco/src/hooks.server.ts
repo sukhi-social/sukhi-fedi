@@ -1,4 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
+import { siteOf } from '$lib/site';
 
 // サーバで描くとき、どちらの言語で描くか。ブラウザなら localStorage の
 // 選択か端末の言語で決める(i18n.svelte.ts の detectLang)が、サーバに
@@ -16,11 +17,20 @@ function pickLang(header: string | null): 'ja' | 'ko' {
 
 export const handle: Handle = async ({ event, resolve }) => {
   event.locals.lang = pickLang(event.request.headers.get('accept-language'));
+  // どの玄関か。Elixir が `x-forwarded-host` に載せて渡してくる
+  // (HOST_HEADER で SvelteKit の url.hostname にもなる)。
+  event.locals.site = siteOf(event.url.hostname);
 
   return resolve(event, {
     // app.html の `<html lang="ja">` を、描く言語に合わせる。ブラウザ側の
     // inline script はそのあと localStorage の選択で上書きする。
+    // 部屋の印(`data-site`)も一緒に。ブラウザ側の道つなぎ(hooks.ts)は
+    // これを見る ── 手元の mock のように、実際の hostname が玄関と
+    // 違うことがあるので、サーバが決めたほうに揃える。
     transformPageChunk: ({ html }) =>
-      html.replace('<html lang="ja">', `<html lang="${event.locals.lang}">`)
+      html.replace(
+        '<html lang="ja">',
+        `<html lang="${event.locals.lang}"${event.locals.site === 'travel' ? ' data-site="travel"' : ''}>`
+      )
   });
 };

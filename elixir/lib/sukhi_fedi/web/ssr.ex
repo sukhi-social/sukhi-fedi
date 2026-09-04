@@ -29,6 +29,14 @@ defmodule SukhiFedi.Web.SSR do
   # negotiation already happened before we got here.
   @forward ~w(accept accept-language user-agent)
 
+  # 描き手に、どの玄関から来た請求かを伝える。同じ Node が
+  # natadeco.com と travel.natadeco.com の両方を描くので、host が
+  # 無いと部屋を分けられない。
+  defp forward_headers(conn) do
+    kept = for {k, v} <- conn.req_headers, k in @forward, do: {k, v}
+    [{"x-forwarded-host", conn.host}, {"x-forwarded-proto", "https"} | kept]
+  end
+
   @spec enabled?() :: boolean()
   def enabled?, do: is_binary(url())
 
@@ -51,8 +59,7 @@ defmodule SukhiFedi.Web.SSR do
   def render(conn) do
     target = url() <> conn.request_path <> query(conn)
 
-    headers =
-      for {k, v} <- conn.req_headers, k in @forward, do: {k, v}
+    headers = forward_headers(conn)
 
     case Req.get(target,
            headers: headers,
@@ -99,6 +106,7 @@ defmodule SukhiFedi.Web.SSR do
     target = url() <> conn.request_path <> query(conn)
 
     case Req.get(target,
+           headers: forward_headers(conn),
            finch: SukhiFedi.Finch,
            retry: false,
            redirect: false,

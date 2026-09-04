@@ -876,6 +876,45 @@ defmodule SukhiFedi.Integration.DecoTest do
       assert {:error, {:validation, %{title: _}}} = Deco.post(author, deco.slug, %{"status" => "題なし"})
     end
 
+    test "場所を添えられる ── 旅の記録が地図に置くための一枚", %{author: author, talk: talk} do
+      place = %{
+        "name" => "海雲台",
+        "url" => "https://map.naver.com/p/entry/place/11491785",
+        "lat" => "35.1587",
+        "lng" => 129.1604
+      }
+
+      assert {:ok, post} =
+               Deco.post(author, talk.slug, %{"status" => "波の音がよかった", "place" => place})
+
+      assert post.place == %{
+               "name" => "海雲台",
+               "url" => place["url"],
+               "lat" => 35.1587,
+               "lng" => 129.1604
+             }
+
+      assert {:ok, again} = Deco.get_post(post.id)
+      assert again.place["lat"] == 35.1587
+
+      assert {:ok, [in_flow]} = Deco.list_flow(talk.slug)
+      assert in_flow.place["name"] == "海雲台"
+
+      # 直すときに外せる。空の map は「場所なし」。
+      assert {:ok, cleared} = Deco.update_post(author, post.id, %{"place" => %{}})
+      assert is_nil(cleared.place)
+    end
+
+    test "地図の上にない座標は断る", %{author: author, talk: talk} do
+      place = %{"name" => "どこか", "url" => "", "lat" => 123.4, "lng" => 0}
+
+      assert {:error, {:validation, %{place: _}}} =
+               Deco.post(author, talk.slug, %{"status" => "…", "place" => place})
+
+      # 断られた投稿は残らない(note を先に作って、結べなければ消す)。
+      assert {:ok, []} = Deco.list_flow(talk.slug)
+    end
+
     test "流れは平ら ── 返信も同じ列に、書かれた順で並ぶ", %{author: author, talk: talk} do
       {:ok, a} = Deco.post(author, talk.slug, %{"status" => "ひとつめ"})
       {:ok, b} = Deco.reply(author, a.id, %{"status" => "それへの返事"})

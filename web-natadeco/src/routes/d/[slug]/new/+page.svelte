@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { getDeco, createPost, signedIn, localized, type Deco, type Visibility } from '$lib/api';
+  import { getDeco, createPost, signedIn, localized, type Deco, type Place, type Visibility } from '$lib/api';
   import { autoresize, submitOnMetaEnter } from '$lib/textarea';
   import { loadDraft, saveDraft, clearDraft, hasSeenComposeTip, markComposeTipSeen } from '$lib/composeDraft';
   import { t, getLang } from '$lib/i18n.svelte';
@@ -31,6 +31,41 @@
   let textElKo = $state<HTMLTextAreaElement | null>(null);
 
   let showTip = $state(false);
+
+  // 旅の部屋でだけ、「どこ」を添えられる。地図のリンクを貼ると、
+  // サーバが名前と座標に読み替える。無くてもいい ── 本文だけで一枚になる。
+  const travel = $derived(page.data.site === 'travel');
+  let whereLink = $state('');
+  let place = $state<Place | null>(null);
+  let placeName = $state('');
+  let looking = $state(false);
+  let whereMissed = $state(false);
+
+  async function lookUp() {
+    const q = whereLink.trim();
+    if (!q) return;
+    looking = true;
+    whereMissed = false;
+    try {
+      const res = await fetch(`/travel/place?url=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error('no place');
+      const found = (await res.json()) as Place;
+      place = found;
+      placeName = found.name;
+    } catch {
+      place = null;
+      whereMissed = true;
+    } finally {
+      looking = false;
+    }
+  }
+
+  function clearPlace() {
+    place = null;
+    placeName = '';
+    whereLink = '';
+    whereMissed = false;
+  }
 
   $effect(() => {
     if (!signedIn()) {
@@ -86,6 +121,7 @@
     posting = true;
     error = null;
     try {
+      const placed = place ? { ...place, name: placeName.trim() } : undefined;
       const made = await createPost(
         slug,
         jaComplete
@@ -95,9 +131,10 @@
               title_i18n: koComplete ? { ko: titleKo.trim() } : undefined,
               content_i18n: koComplete ? { ko: textKo.trim() } : undefined,
               visibility,
-              as_article: asArticle
+              as_article: asArticle,
+              place: placed
             }
-          : { title: titleKo.trim(), status: textKo, visibility, as_article: asArticle }
+          : { title: titleKo.trim(), status: textKo, visibility, as_article: asArticle, place: placed }
       );
       clearDraft(slug);
       await goto(`/posts/${made.id}`);
@@ -183,6 +220,38 @@
       </label>
     {/if}
 
+    {#if travel}
+      <!-- どこ。折りたたんでおく ── 場所の無い記録のほうが多くていい。 -->
+      <details class="where" open={!!place}>
+        <summary class="muted small">{t().travel.where}<span class="muted"> · {t().common.optional}</span></summary>
+        <div class="stack where-body">
+          <span class="muted small">{t().travel.whereHint}</span>
+          <div class="row">
+            <input
+              type="url"
+              bind:value={whereLink}
+              placeholder="https://maps.app.goo.gl/… / https://map.naver.com/…"
+              onchange={lookUp}
+            />
+            <button class="btn" type="button" onclick={lookUp} disabled={looking || !whereLink.trim()}
+              >{looking ? t().travel.whereLooking : t().travel.where}</button
+            >
+          </div>
+          {#if whereMissed}<p class="muted small">{t().travel.whereNotFound}</p>{/if}
+          {#if place}
+            <label>
+              <span class="muted">{t().travel.whereName}</span>
+              <input type="text" bind:value={placeName} maxlength="120" />
+            </label>
+            <p class="muted small">
+              {place.lat.toFixed(4)}, {place.lng.toFixed(4)}
+              <button type="button" class="linklike" onclick={clearPlace}>{t().travel.whereClear}</button>
+            </p>
+          {/if}
+        </div>
+      </details>
+    {/if}
+
     <div class="row">
       <button class="btn" type="submit" disabled={posting || !canSubmit}
         >{posting ? t().newPost.submitting : t().newPost.submit}</button
@@ -200,6 +269,22 @@
 {/if}
 
 <style>
+  .where summary {
+    cursor: pointer;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .where-body {
+    padding-top: 0.5rem;
+  }
+
+  .where-body .row input {
+    flex: 1;
+    min-width: 0;
+  }
+
   /* 印と言葉が横に、説明は下に。選ぶのは一度きりなので、説明を
      選択肢の中に置く ── 別に注釈を出すと、どちらの話か目で追うことになる。 */
   .check {

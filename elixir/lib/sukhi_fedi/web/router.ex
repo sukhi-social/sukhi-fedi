@@ -390,6 +390,13 @@ defmodule SukhiFedi.Web.Router do
     serve_spa(conn)
   end
 
+  # travel.natadeco.com の「置く」道。同じ画面が host で部屋を分けるので、
+  # natadeco.com でここに来ると「ありません」の頁になるだけ。
+  # (`/map` は下の路線図の道がもう SPA に渡している。)
+  get "/new" do
+    serve_spa(conn)
+  end
+
   # 招待リンクの玄関。`:code` は SPA 側が URL から読むので、ここでは
   # shell を返すだけ(signup と同じ)。生死の確認は GET /api/v1/invite/:code。
   get "/invite/:code" do

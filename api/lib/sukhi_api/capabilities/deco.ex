@@ -204,7 +204,7 @@ defmodule SukhiApi.Capabilities.Deco do
         [
           viewer,
           req[:path_params]["slug"],
-          take(body, ["title", "status", "title_i18n", "content_i18n", "visibility", "as_article"])
+          take(body, ["title", "status", "title_i18n", "content_i18n", "visibility", "as_article", "place"])
         ],
         &ok(201, &1)
       )
@@ -234,7 +234,7 @@ defmodule SukhiApi.Capabilities.Deco do
 
       call(
         :update_post,
-        [viewer, req[:path_params]["id"], take(body, ["title", "status", "title_i18n", "content_i18n"])],
+        [viewer, req[:path_params]["id"], take(body, ["title", "status", "title_i18n", "content_i18n", "place"])],
         &ok(200, &1)
       )
     else
