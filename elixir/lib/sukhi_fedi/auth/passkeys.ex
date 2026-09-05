@@ -42,6 +42,7 @@ defmodule SukhiFedi.Auth.Passkeys do
       Wax.new_registration_challenge(
         origin: origin(),
         rp_id: rp_id(),
+        origin_verify_fun: {__MODULE__, :origin_allowed?, []},
         attestation: "none",
         user_verification: "required",
         timeout: @challenge_ttl_seconds
@@ -120,6 +121,7 @@ defmodule SukhiFedi.Auth.Passkeys do
       Wax.new_authentication_challenge(
         origin: origin(),
         rp_id: rp_id(),
+        origin_verify_fun: {__MODULE__, :origin_allowed?, []},
         user_verification: "required",
         allow_credentials: [],
         timeout: @challenge_ttl_seconds
@@ -339,6 +341,25 @@ defmodule SukhiFedi.Auth.Passkeys do
   end
 
   defp b64(_), do: {:error, :verification_failed}
+
+  @doc """
+  Wax's origin check, widened to the house: the origin the browser
+  reports may be the site itself or any subdomain of it over https
+  (`travel.natadeco.com`), since the RP ID is the bare domain and the
+  login cookie walks across those hosts too. `challenge_origin` is the
+  exact origin we minted with; it still matches as-is (dev's
+  `http://localhost:4000` included).
+  """
+  @spec origin_allowed?(String.t(), String.t()) :: boolean()
+  def origin_allowed?(client_origin, challenge_origin) do
+    case URI.parse(client_origin) do
+      %URI{scheme: "https", host: host, port: 443} when is_binary(host) ->
+        host == rp_id() or String.ends_with?(host, "." <> rp_id())
+
+      _ ->
+        client_origin == challenge_origin
+    end
+  end
 
   defp domain, do: Application.get_env(:sukhi_fedi, :domain, "localhost:4000")
 
