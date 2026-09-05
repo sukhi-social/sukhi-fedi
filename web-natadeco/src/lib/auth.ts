@@ -1,6 +1,8 @@
-// OAuth クライアント + トークン保存。sukhi-fedi 本体の web と同じ
-// エンドポイント・同じ localStorage の鍵(sf.client / sf.token)を使う
-// ── api.ts がすでに sf.token を読んでいるので、ここで作る側になる。
+// ログインの道。一段目(合言葉・メールのコード・パスキー)が通れば
+// httpOnly の session cookie が立って、それで終わり ── API はその cookie
+// を読んでいる人として見る(api.ts)。OAuth の往復(/oauth/authorize →
+// /app/callback → sf.token)は、もう始めない。`completeLogin` は、その途中に
+// いた人が戻ってきたときのために残してある。
 //
 // マルチアカウント・アプリ2FA は持たない(natadeco にはまだ要らない)。
 // 要るときに sukhi-fedi/web/src/lib/auth.ts から同じ形で足せる。
@@ -8,11 +10,11 @@
 // 毎回メールのコードを待たなくていい道を、いちばん最初に足した。
 
 import { browser } from '$app/environment';
+import { TOKEN_KEY, cookieSignedIn } from '$lib/api';
 
 // v2: push スコープを足したので、古い(read write だけの)登録済み
 // アプリを使い続けさせない ── キーを変えて再登録を強制する。
 const CLIENT_KEY = 'sf.client.v2';
-const TOKEN_KEY = 'sf.token';
 const STATE_KEY = 'sf.state';
 
 // push が無いと `POST /api/v1/push/subscription` が scope 不足で断られる
@@ -54,18 +56,16 @@ export function clearToken(): void {
   localStorage.removeItem(CLIENT_KEY);
 }
 
-export function isLoggedIn(): boolean {
-  return !!loadToken();
-}
-
 /**
- * いまのトークンに push スコープがあるか。**同期**で見る ── サーバに
- * 問い合わせて確かめる版は、Notification.requestPermission() の前に
- * await を挟んでしまい、ユーザー操作の文脈が切れて Firefox で
- * pushManager.subscribe() が AbortError になる、という実害があった。
- * 保存済みトークンの scope 文字列をその場で見るだけなら、間に何も挟まない。
+ * push スコープがあるか。**同期**で見る ── サーバに問い合わせて確かめる
+ * 版は、Notification.requestPermission() の前に await を挟んでしまい、
+ * ユーザー操作の文脈が切れて Firefox で pushManager.subscribe() が
+ * AbortError になる、という実害があった。
+ * cookie で入っている人は、サーバがいつも `read write push` を与える。
+ * 古いトークンの人は、その scope 文字列をその場で見る。
  */
 export function hasPushScope(): boolean {
+  if (cookieSignedIn()) return true;
   const t = loadToken();
   return !!t && t.scope.split(/\s+/).includes('push');
 }
@@ -275,8 +275,8 @@ export async function startSignupSession(emailProof: string): Promise<boolean> {
 
 // ── ログイン ─────────────────────────────────────────────────────────
 //
-// 一段目(パスワード or メールコード)は cookie を立てるだけ。そこから
-// OAuth の Authorization Code フローで、はじめて sf.token になる。
+// 一段目(パスワード or メールコード or パスキー)が cookie を立てる。
+// それでログインは終わり ── 呼ぶ側は、行きたかった場所へ進むだけ。
 
 export type FirstFactorResult = { ok: true };
 
@@ -316,9 +316,8 @@ export async function loginWithEmailCode(email: string, code: string): Promise<v
 }
 
 // パスキーで入る。options → ブラウザの認証器 → submit まで一息に。
-// 通れば cookie が立つので、あとはメール/合言葉の道と同じく
-// startLogin() の OAuth へ渡す。二段目は無い ── 認証器の
-// 指紋や顔が、その役をしている。
+// 通れば cookie が立つ。二段目は無い ── 認証器の指紋や顔が、その役を
+// している。
 export async function loginWithPasskey(): Promise<void> {
   const { getPasskeyAssertion } = await import('./webauthn');
 
@@ -342,21 +341,8 @@ export async function loginWithPasskey(): Promise<void> {
   if (!res.ok) throw new Error('passkey');
 }
 
-export async function startLogin(): Promise<void> {
-  const client = await loadOrRegisterClient();
-  const state = crypto.randomUUID();
-  localStorage.setItem(STATE_KEY, state);
-
-  const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: client.client_id,
-    redirect_uri: client.redirect_uri,
-    scope: SCOPES,
-    state
-  });
-  window.location.assign(`/oauth/authorize?${params.toString()}`);
-}
-
+// OAuth の往復の戻り(/app/callback)。始める側はもう無いが、この変更の
+// 前に /oauth/authorize へ出ていた人が戻ってきたら、まだここで受ける。
 export async function completeLogin(code: string, state: string): Promise<TokenSet> {
   const expected = localStorage.getItem(STATE_KEY);
   if (!expected || expected !== state) throw new Error('state mismatch');
@@ -394,10 +380,14 @@ export async function setWarmthNote(token: string, note: string): Promise<void> 
   }).catch(() => {});
 }
 
-// RFC 7009。失敗しても、手元のトークンは必ず消す ── サインアウトは
-// 常に終わる。
+// cookie を落とす(POST /logout。302 で返るが、辿らない)。古いトークンを
+// 持っている人は、それも RFC 7009 で戻す。どれが失敗しても手元のものは
+// 必ず消す ── サインアウトは常に終わる。
 export async function signOutServer(): Promise<void> {
   if (!browser) return;
+  await fetch('/logout', { method: 'POST', credentials: 'same-origin', redirect: 'manual' }).catch(
+    () => {}
+  );
   const t = loadToken();
   const raw = localStorage.getItem(CLIENT_KEY);
   if (t && raw) {

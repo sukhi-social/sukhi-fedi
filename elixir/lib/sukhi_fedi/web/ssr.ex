@@ -10,10 +10,10 @@ defmodule SukhiFedi.Web.SSR do
   stay with this BEAM, and the Node fetches its data from us over the
   container network (`INTERNAL_API_URL`).
 
-  The Node never sees a token — bearers live in the browser's
-  localStorage — so it renders every page as an anonymous reader, and
-  the page fetches the signed-in view again after it hydrates. Pages
-  that only make sense signed in opt out of SSR on their side
+  The request's `cookie` goes along, so the Node can hand the
+  `session_token` to the API and render the signed-in view (the API
+  reads that cookie as the viewer — `SukhiApi.Router`). Pages that
+  only make sense signed in still opt out of SSR on their side
   (`export const ssr = false`) and come back as a shell.
 
   Unset, `render/1` is never reached: `serve_spa` keeps serving the
@@ -25,9 +25,9 @@ defmodule SukhiFedi.Web.SSR do
   require Logger
 
   # Headers the renderer needs to make the same decisions a browser
-  # would see: language (which dictionary), the crawler/markdown
-  # negotiation already happened before we got here.
-  @forward ~w(accept accept-language user-agent)
+  # would see: language (which dictionary), who is reading (cookie);
+  # the crawler/markdown negotiation already happened before we got here.
+  @forward ~w(accept accept-language user-agent cookie)
 
   # 描き手に、どの玄関から来た請求かを伝える。同じ Node が
   # natadeco.com と travel.natadeco.com の両方を描くので、host が

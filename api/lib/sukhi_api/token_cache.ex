@@ -15,6 +15,11 @@ defmodule SukhiApi.TokenCache do
   Negative results (`{:error, _}`) are never cached: if the gateway
   returned :revoked once we still want the next call to ask again,
   so a re-issued token doesn't sit in a cached-bad state.
+
+  `session/1` is the same window for the `session_token` cookie
+  (`SukhiFedi.Accounts.get_account_by_session_token/1`), kept in the
+  same table under a tagged key so the two kinds of token can never
+  answer for each other.
   """
 
   use GenServer
@@ -64,6 +69,40 @@ defmodule SukhiApi.TokenCache do
       # caching would let one test's response leak into the next. The
       # real prod path with a nil impl uses the cache.
       passthrough(token)
+    end
+  end
+
+  @doc """
+  Resolve a `session_token` cookie value to its account.
+
+      {:ok, {:ok, account}}   — a live session
+      {:ok, {:error, :no_session}} — expired, revoked, or never was
+      {:error, :not_connected} / {:error, {:badrpc, _}} — gateway unreachable
+
+  Only live sessions are cached (a revoked one must be seen as such
+  on the next request, same as bearers).
+  """
+  @spec session(String.t(), pos_integer()) :: {:ok, term()} | {:error, term()}
+  def session(token, ttl_ms \\ @default_ttl_ms) when is_binary(token) do
+    key = {:session, key_for(token)}
+    now = System.monotonic_time(:millisecond)
+
+    case cache_enabled?() and lookup(key, now - ttl_ms) do
+      {:ok, account} ->
+        {:ok, {:ok, account}}
+
+      _ ->
+        case GatewayRpc.call(SukhiFedi.Accounts, :get_account_by_session_token, [token]) do
+          {:ok, nil} ->
+            {:ok, {:error, :no_session}}
+
+          {:ok, account} ->
+            if cache_enabled?(), do: safe_insert(key, now, account)
+            {:ok, {:ok, account}}
+
+          {:error, _} = err ->
+            err
+        end
     end
   end
 

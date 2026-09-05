@@ -1,8 +1,13 @@
 // natadeco の API 一枚。読むのは誰でも、書くのはログインしている人。
 //
-// トークンは sukhi-fedi の web が置いた `sf.token` をそのまま読む ──
-// 同じ origin に並べて置くので、入口（ログイン）は一つでいい。natadeco
-// のためにもう一本、認証の道を作らない。
+// 誰が読んでいるかは、ログインが立てる httpOnly の `session_token`
+// cookie が伝える(ブラウザが勝手に付ける。JS からは見えない)。cookie は
+// `Domain=.natadeco.com` なので、travel.natadeco.com でも同じ人のまま。
+// `sf_signed_in` は、その横に立つ httpOnly でない印 ── 中身は `1` だけで、
+// 「入っているか」を往復なしで知るためのもの。
+//
+// `localStorage` の `sf.token`(OAuth の bearer)は、前からある人のために
+// 読むだけ残す。新しく書くことは、もうない。
 
 import { browser } from '$app/environment';
 import { getLang } from '$lib/i18n.svelte';
@@ -315,7 +320,7 @@ export type CurrentAccount = {
   isAdmin: boolean;
 };
 
-const TOKEN_KEY = 'sf.token';
+export const TOKEN_KEY = 'sf.token';
 
 export function token(): string | null {
   if (typeof localStorage === 'undefined') return null;
@@ -328,8 +333,27 @@ export function token(): string | null {
   }
 }
 
+// サーバで描くとき、いま描いている請求の Cookie ヘッダ。hooks.server.ts
+// が請求ごとに(AsyncLocalStorage で)供給する ── module の変数に置くと、
+// load の await のあいだに別の人の請求が割り込んで、cookie が入れ替わる。
+let serverCookie: (() => string | null) | null = null;
+
+export function setServerCookieSource(source: () => string | null): void {
+  serverCookie = source;
+}
+
+function cookieHeader(): string {
+  if (browser) return document.cookie;
+  return serverCookie?.() ?? '';
+}
+
+/** `sf_signed_in` の印が立っているか(httpOnly の本体は見えないので、その横の印を見る)。 */
+export function cookieSignedIn(): boolean {
+  return /(?:^|;\s*)sf_signed_in=1(?:;|$)/.test(cookieHeader());
+}
+
 export function signedIn(): boolean {
-  return token() !== null;
+  return cookieSignedIn() || token() !== null;
 }
 
 export class ApiError extends Error {
@@ -343,14 +367,20 @@ export class ApiError extends Error {
 
 // サーバで描くとき、相対の `/api/...` はどこにも届かない ── Node の横の
 // BEAM を直に指す(INTERNAL_API_URL、haloy では http://natadeco:4000)。
-// トークンは localStorage にあってサーバには無いので、サーバから出る
-// 請求はいつも匿名。ブラウザでは今までどおり同じ origin へ。
+// 請求の cookie を付けて渡すので、サーバでも読んでいる人の目で描ける。
+// ブラウザでは今までどおり同じ origin へ(cookie はブラウザが付ける)。
 const serverBase = browser ? '' : (process.env.INTERNAL_API_URL ?? 'http://localhost:4000');
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = {};
+  // cookie で書くときに API が求める、同じ家からの印。他所のフォームや
+  // img タグには付けられないヘッダなので、これが CSRF の錠になる。
+  const headers: Record<string, string> = { 'x-requested-with': 'natadeco' };
   const t = token();
   if (t) headers.authorization = `Bearer ${t}`;
+  if (!browser) {
+    const cookie = serverCookie?.();
+    if (cookie) headers.cookie = cookie;
+  }
   if (body !== undefined) headers['content-type'] = 'application/json';
 
   const res = await fetch(serverBase + path, {

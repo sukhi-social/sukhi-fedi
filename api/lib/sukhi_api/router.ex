@@ -24,6 +24,25 @@ defmodule SukhiApi.Router do
   with 401 (no/invalid token), 403 (insufficient scope), or 503
   (gateway unreachable). On success, the bound account, app, and
   granted scopes are placed on `req[:assigns]` for the handler.
+
+  ### The first-party cookie
+
+  With no bearer, the `session_token` cookie (the login cookie the
+  gateway mints — `SukhiFedi.Web.Auth.SessionCookie`) names the viewer
+  instead, with the site's own scopes (`read write push`) and no app.
+  It is what lets the SPA at `natadeco.com` and `travel.natadeco.com`
+  share one login without a token in `localStorage`.
+
+  A browser sends that cookie on its own, so it is a *softer*
+  credential than a bearer: one that no longer resolves is simply not
+  a viewer (anonymous on a public route, 401 on a scoped one) rather
+  than a 401 everywhere. And a write (anything but GET/HEAD/OPTIONS)
+  counts only with `x-requested-with: natadeco` on the request — the
+  one thing a cross-site form or image tag cannot add. Without it, a
+  write on a public route runs anonymous and a scoped one is a 403,
+  so the cookie can never be ridden from another site. CORS stays
+  `*` without `allow-credentials`, so no third-party origin can send
+  it either.
   """
 
   require Logger
@@ -83,27 +102,136 @@ defmodule SukhiApi.Router do
 
   # ── auth ──────────────────────────────────────────────────────────────────
 
+  # What the site's own web is granted when it comes in on the cookie.
+  @cookie_scopes ~w(read write push)
+  @same_site_header {"x-requested-with", "natadeco"}
+
   defp authenticate(req, opts) do
-    case {Keyword.get(opts, :scope), bearer_token(req)} do
-      {nil, {:error, :missing_token}} ->
+    required_scope = Keyword.get(opts, :scope)
+
+    case credential(req) do
+      :none when is_nil(required_scope) ->
         # Public route, no token: anonymous.
         {:ok, req}
 
-      {nil, {:ok, token}} ->
+      :none ->
+        {:error, 401, %{error: "invalid_token", error_description: "missing bearer token"}}
+
+      {:bearer, token} ->
         # Public route, but auth is *optional*, not ignored: a caller
         # presenting a token gets their viewer context (own DMs via
         # /statuses/:id, favourite flags on public timelines, …). A
         # token that is sent but does not verify is still a 401 —
         # silently downgrading a logged-in caller to anonymous would
         # 404 their own posts.
-        verify_and_attach(req, token, nil)
-
-      {required_scope, {:ok, token}} when is_binary(required_scope) ->
         verify_and_attach(req, token, required_scope)
 
-      {required_scope, {:error, :missing_token}} when is_binary(required_scope) ->
-        {:error, 401, %{error: "invalid_token", error_description: "missing bearer token"}}
+      {:cookie, token} ->
+        cookie_attach(req, token, required_scope)
+
+      :cookie_without_header when is_nil(required_scope) ->
+        {:ok, req}
+
+      :cookie_without_header ->
+        {:error, 403,
+         %{
+           error: "same_site_required",
+           error_description:
+             "a write on the session cookie needs the x-requested-with: natadeco header"
+         }}
     end
+  end
+
+  # The one credential this request is judged by. A bearer always wins
+  # (a Mastodon client on a browser that also holds the site's cookie
+  # is still that client). The cookie counts on a read, or on a write
+  # that carries the same-site header — see the moduledoc.
+  defp credential(req) do
+    case bearer_token(req) do
+      {:ok, token} ->
+        {:bearer, token}
+
+      {:error, :missing_token} ->
+        case cookie_token(req) do
+          nil -> :none
+          token ->
+            if safe_method?(req) or same_site?(req),
+              do: {:cookie, token},
+              else: :cookie_without_header
+        end
+    end
+  end
+
+  defp cookie_attach(req, token, required_scope) do
+    with :ok <- charge_rate_limit(token),
+         {:ok, {:ok, account}} <- TokenCache.session(token),
+         :ok <- check_scope(required_scope, @cookie_scopes) do
+      assigns =
+        req
+        |> Map.get(:assigns, %{})
+        |> Map.merge(%{
+          current_account: account,
+          current_app: nil,
+          scopes: @cookie_scopes,
+          auth: :cookie
+        })
+
+      {:ok, Map.put(req, :assigns, assigns)}
+    else
+      {:ok, {:error, :no_session}} when is_nil(required_scope) ->
+        {:ok, req}
+
+      {:ok, {:error, :no_session}} ->
+        {:error, 401, %{error: "invalid_token", error_description: "session expired"}}
+
+      {:error, :insufficient_scope} ->
+        {:error, 403,
+         %{
+           error: "insufficient_scope",
+           error_description: "this endpoint requires scope #{required_scope}",
+           scope: required_scope
+         }}
+
+      {:error, :not_connected} ->
+        {:error, 503, %{error: "gateway_not_connected"}}
+
+      {:error, {:badrpc, reason}} ->
+        {:error, 503, %{error: "gateway_rpc_failed", detail: inspect(reason)}}
+
+      {:error, :rate_limited, retry_after} ->
+        {:error, 429, %{error: "rate_limited", retry_after: retry_after}}
+    end
+  end
+
+  defp safe_method?(req), do: normalize_method(req[:method] || "GET") in ~w(GET HEAD OPTIONS)
+
+  defp same_site?(req) do
+    {name, value} = @same_site_header
+    header(req, name) == value
+  end
+
+  defp cookie_token(req) do
+    case header(req, "cookie") do
+      nil ->
+        nil
+
+      cookie ->
+        cookie
+        |> String.split(";", trim: true)
+        |> Enum.map(&String.trim/1)
+        |> Enum.find_value(fn pair ->
+          case String.split(pair, "=", parts: 2) do
+            ["session_token", value] when value != "" -> value
+            _ -> nil
+          end
+        end)
+    end
+  end
+
+  defp header(req, name) do
+    Enum.find_value(req[:headers] || [], fn {k, v} ->
+      if String.downcase(to_string(k)) == name, do: to_string(v)
+    end)
   end
 
   # Verify the bearer token and put `current_account` / `current_app` /

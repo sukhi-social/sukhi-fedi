@@ -3,7 +3,8 @@
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import '../app.css';
-  import { isLoggedIn, signOutServer } from '$lib/auth';
+  import { signOutServer } from '$lib/auth';
+  import { signedIn as isSignedIn } from '$lib/api';
   import { currentTheme, toggleTheme } from '$lib/theme';
   import { t, getLang, setLang, toggleLang, langNames } from '$lib/i18n.svelte';
   import BoardNav from '$lib/BoardNav.svelte';
@@ -26,7 +27,7 @@
   // 再チェックする(表示用の一枚だけの、いちばん軽いやりかた)。
   let signedIn = $derived.by(() => {
     page.url;
-    return isLoggedIn();
+    return isSignedIn();
   });
 
   // 端末の設定のままかもしれないので、実際の色は client 側で読む。

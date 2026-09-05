@@ -18,15 +18,23 @@ defmodule SukhiFedi.Web.Auth.SessionCookie do
   accounts this browser has also signed into via `mint_additional/2`.
   Nothing reads it unless it's asking (`all_sessions/1`), so a browser
   that never adds a second account never sees a behavior change at all.
+
+  A third cookie, `sf_signed_in`, is the one *not* HttpOnly: it holds
+  no secret (just `1`), it only lets the SPA know there is a session
+  without a round trip. It lives and dies with the primary.
+
+  All three carry `Domain=` (`SukhiFedi.Config.cookie_domain/0`) so the
+  same login walks across the site's subdomains (`travel.natadeco.com`).
   """
 
   import Plug.Conn
 
-  alias SukhiFedi.{Accounts, LocalAccounts}
+  alias SukhiFedi.{Accounts, Config, LocalAccounts}
   alias SukhiFedi.Web.RateLimitPlug
 
   @cookie "session_token"
   @extra_cookie "session_tokens"
+  @mark_cookie "sf_signed_in"
   @max_age 60 * 60 * 24 * 30
   # Primary + this many others — a sane ceiling on the side cookie's size,
   # not a claim anyone needs this many accounts in one browser.
@@ -57,13 +65,36 @@ defmodule SukhiFedi.Web.Auth.SessionCookie do
     end
   end
 
-  @doc "Sign this browser out of every account it holds — both cookies, gone."
+  @doc "Sign this browser out of every account it holds — every cookie, gone."
   @spec drop(Plug.Conn.t()) :: Plug.Conn.t()
-  def drop(conn),
-    do:
-      conn
-      |> delete_resp_cookie(@cookie, path: "/")
-      |> delete_resp_cookie(@extra_cookie, path: "/")
+  def drop(conn) do
+    conn
+    |> delete_resp_cookie(@cookie, path: "/", domain: Config.cookie_domain())
+    |> delete_resp_cookie(@extra_cookie, path: "/", domain: Config.cookie_domain())
+    |> delete_resp_cookie(@mark_cookie, path: "/", domain: Config.cookie_domain())
+    |> drop_host_only_twins()
+  end
+
+  # Cookies minted before `Domain=` was added (2026-09-05) are host-only,
+  # and a browser keeps a host-only cookie apart from the domain one of
+  # the same name — clearing with `Domain=` leaves it sitting there,
+  # still signed in. So clear that shape too. Plug keeps one resp cookie
+  # per name, hence the raw headers. Safe to remove once every session
+  # from before that day has aged out (30 days).
+  defp drop_host_only_twins(conn) do
+    case Config.cookie_domain() do
+      nil ->
+        conn
+
+      _ ->
+        cleared =
+          for name <- [@cookie, @extra_cookie] do
+            {"set-cookie", "#{name}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax; Secure"}
+          end
+
+        prepend_resp_headers(conn, cleared)
+    end
+  end
 
   @type session :: %{
           account: SukhiFedi.Schema.Account.t(),
@@ -205,25 +236,26 @@ defmodule SukhiFedi.Web.Auth.SessionCookie do
   end
 
   defp put_primary_cookie(conn, token) do
-    put_resp_cookie(conn, @cookie, token,
-      http_only: true,
-      same_site: "Lax",
-      secure: secure?(),
-      max_age: @max_age,
-      path: "/"
-    )
+    conn
+    |> put_resp_cookie(@cookie, token, [http_only: true] ++ cookie_opts())
+    |> put_resp_cookie(@mark_cookie, "1", [http_only: false] ++ cookie_opts())
   end
 
-  defp put_extra_cookie(conn, []), do: delete_resp_cookie(conn, @extra_cookie, path: "/")
+  defp put_extra_cookie(conn, []),
+    do: delete_resp_cookie(conn, @extra_cookie, path: "/", domain: Config.cookie_domain())
 
   defp put_extra_cookie(conn, tokens) do
-    put_resp_cookie(conn, @extra_cookie, encode_extra(tokens),
-      http_only: true,
+    put_resp_cookie(conn, @extra_cookie, encode_extra(tokens), [http_only: true] ++ cookie_opts())
+  end
+
+  defp cookie_opts do
+    [
       same_site: "Lax",
       secure: secure?(),
       max_age: @max_age,
-      path: "/"
-    )
+      path: "/",
+      domain: Config.cookie_domain()
+    ]
   end
 
   @doc "The `session_tokens` cookie's raw value for a given token list — `api`'s side of the pair with `decode_extra/1`."

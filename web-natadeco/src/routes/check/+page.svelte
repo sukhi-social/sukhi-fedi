@@ -3,10 +3,11 @@
   // ここに来た時点で関所は通っている ── メールの 6 桁コードの送信も
   // 入力も、アカウントを作るのも、全部この上で起こる。
   //
-  //   /check?intent=login        → OAuth のコードフローを始める
+  //   /check?intent=login        → (古い道。いまは cookie で入っているので、
+  //                                行きたかった場所へ)
   //   /check?intent=signup       → コード送信 → 入力 → 証明 → 作成 →
   //                                パスキー → あたたかいこと → デコの一覧
-  //   /check?intent=login-email  → コード送信 → 入力 → cookie → OAuth
+  //   /check?intent=login-email  → コード送信 → 入力 → cookie → 行きたかった場所
   //
   // 店先(/login /signup)は素通しで、そこで打ったものは sessionStorage
   // に置いて渡ってくる。この順を逆にしない ── 先に API を叩いて後で
@@ -14,7 +15,6 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import {
-    startLogin,
     signup,
     startSignupSession,
     registerPasskey,
@@ -100,9 +100,7 @@
 
     try {
       if (intent === 'login') {
-        // window.location.assign で /oauth/authorize へ出るので、
-        // ここから下は実質、走らない。
-        await startLogin();
+        goNext();
       } else if (intent === 'signup') {
         await prepareSignup();
       } else {
@@ -182,7 +180,7 @@
         await createAccount(proof);
       } else {
         await loginWithEmailCode(email, code);
-        await finishLogin();
+        finishLogin();
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
@@ -277,11 +275,18 @@
     phase = 'code';
   }
 
-  async function finishLogin() {
+  // /login が置いていった「入ったら戻る場所」へ。
+  function goNext() {
+    const next = sessionStorage.getItem('nd.next');
+    sessionStorage.removeItem('nd.next');
+    void goto(next && next.startsWith('/') ? next : '/');
+  }
+
+  function finishLogin() {
     phase = 'working';
     clearLoginEmail();
     sessionStorage.removeItem(SENT_KEY);
-    await startLogin();
+    goNext();
   }
 </script>
 

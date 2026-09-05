@@ -2,10 +2,11 @@
   // 店先。合言葉とパスキーは、ここで一段目を通って cookie を立てる ──
   // どちらも「もう自分のものを持っている人」の道なので、関所は挟まない。
   // メールの道だけは、送るところから関所(/check)の向こうへ渡す。
-  // そのあとの OAuth も、みんな /check を通って始まる。
+  // cookie が立ったら、それでログインは終わり。
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { isLoggedIn, loginWithPassword, loginWithPasskey, saveLoginEmail, goToCheck } from '$lib/auth';
+  import { loginWithPassword, loginWithPasskey, saveLoginEmail, goToCheck } from '$lib/auth';
+  import { signedIn } from '$lib/api';
   import { passkeySupported } from '$lib/webauthn';
   import { t } from '$lib/i18n.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
@@ -28,17 +29,18 @@
   });
 
   // 「〇〇に書くには入って」から来た人を、入ったあと元の場所へ戻す。
-  // OAuth の往復(→ /check → /oauth/authorize → /app/callback)を挟むので、
-  // ここでは sessionStorage に置いておく(callback 側が読む)。
-  const next = page.url.searchParams.get('next');
-  if (next && next.startsWith('/')) sessionStorage.setItem('nd.next', next);
+  // メールの道は関所(/check)をまたぐので、sessionStorage にも置いておく
+  // (向こうが読む)。
+  const rawNext = page.url.searchParams.get('next');
+  const next = rawNext && rawNext.startsWith('/') ? rawNext : '/';
+  if (rawNext) sessionStorage.setItem('nd.next', next);
 
-  if (isLoggedIn()) void goto(next && next.startsWith('/') ? next : '/');
+  if (signedIn()) void goto(next);
 
-  // 一段目が通ったあと。SPA のナビでは関所の前を通らないので、
-  // フルリロードで /check へ渡す。
+  // 一段目が通ったあと。cookie が立っているので、行きたかった場所へ。
   function finishLogin() {
-    goToCheck('login');
+    sessionStorage.removeItem('nd.next');
+    void goto(next);
   }
 
   async function submitPasskey() {

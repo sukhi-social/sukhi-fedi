@@ -428,22 +428,31 @@ defmodule SukhiApi.Capabilities.OAuth do
   # (RPC, not a shared compile-time dependency); see that module's
   # `put_primary_cookie/2` and `put_extra_cookie/2`.
   defp session_set_cookie_headers(primary_token, extra_tokens) do
-    flags = "HttpOnly; SameSite=Lax; Secure; Max-Age=#{60 * 60 * 24 * 30}; Path=/"
-    primary = {"set-cookie", "session_token=#{primary_token}; #{flags}"}
+    domain =
+      case SukhiApi.Config.cookie_domain() do
+        nil -> ""
+        d -> "; Domain=#{d}"
+      end
+
+    flags = "SameSite=Lax; Secure; Max-Age=#{60 * 60 * 24 * 30}; Path=/#{domain}"
+    cleared = "session_tokens=; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Path=/#{domain}"
+    primary = {"set-cookie", "session_token=#{primary_token}; HttpOnly; #{flags}"}
+    # The SPA's (non-HttpOnly) sign of a session — see `SessionCookie`.
+    mark = {"set-cookie", "sf_signed_in=1; #{flags}"}
 
     extra =
       case extra_tokens do
         [] ->
-          {"set-cookie", "session_tokens=; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Path=/"}
+          {"set-cookie", cleared}
 
         tokens ->
           case GatewayRpc.call(@session_cookie, :encode_extra, [tokens]) do
-            {:ok, value} -> {"set-cookie", "session_tokens=#{value}; #{flags}"}
-            _ -> {"set-cookie", "session_tokens=; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Path=/"}
+            {:ok, value} -> {"set-cookie", "session_tokens=#{value}; HttpOnly; #{flags}"}
+            _ -> {"set-cookie", cleared}
           end
       end
 
-    [primary, extra]
+    [primary, mark, extra]
   end
 
   defp resolve_session(nil), do: {:error, :no_session}

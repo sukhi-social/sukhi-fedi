@@ -30,6 +30,17 @@ defmodule SukhiApi.RouterAuthTest do
       end
     end
 
+    # The session cookie's lookup, keyed the same way under `:fake_sessions`
+    # (token => account or nil).
+    def call(SukhiFedi.Accounts, :get_account_by_session_token, [token], _timeout) do
+      table = Application.get_env(:sukhi_api, :fake_sessions, %{})
+
+      case Map.fetch(table, token) do
+        {:ok, account} -> {:ok, account}
+        :error -> {:error, :not_connected}
+      end
+    end
+
     def call(_, _, _, _), do: {:error, :not_connected}
   end
 
@@ -37,15 +48,18 @@ defmodule SukhiApi.RouterAuthTest do
     prev_rpc = Application.get_env(:sukhi_api, :gateway_rpc_impl)
     prev_addons = Application.get_env(:sukhi_api, :enabled_addons)
     prev_table = Application.get_env(:sukhi_api, :fake_rpc)
+    prev_sessions = Application.get_env(:sukhi_api, :fake_sessions)
 
     Application.put_env(:sukhi_api, :gateway_rpc_impl, FakeRpc)
     Application.put_env(:sukhi_api, :enabled_addons, :all)
     Application.put_env(:sukhi_api, :fake_rpc, %{})
+    Application.put_env(:sukhi_api, :fake_sessions, %{})
 
     on_exit(fn ->
       restore(:gateway_rpc_impl, prev_rpc)
       restore(:enabled_addons, prev_addons)
       restore(:fake_rpc, prev_table)
+      restore(:fake_sessions, prev_sessions)
     end)
 
     :ok
@@ -205,4 +219,98 @@ defmodule SukhiApi.RouterAuthTest do
 
   defp restore(key, nil), do: Application.delete_env(:sukhi_api, key)
   defp restore(key, value), do: Application.put_env(:sukhi_api, key, value)
+
+  # ── the first-party cookie ────────────────────────────────────────────
+
+  @alice %{
+    id: 42,
+    username: "alice",
+    display_name: "Alice",
+    summary: "hi",
+    is_bot: false,
+    avatar_url: nil,
+    banner_url: nil,
+    created_at: ~U[2026-01-01 00:00:00Z]
+  }
+
+  defp with_session(token, account),
+    do: Application.put_env(:sukhi_api, :fake_sessions, %{token => account})
+
+  test "session cookie alone is the viewer on a GET" do
+    with_session("sess", @alice)
+
+    {:ok, resp} =
+      Router.handle(%{
+        method: "GET",
+        path: "/api/v1/accounts/verify_credentials",
+        headers: [{"cookie", "theme=dark; session_token=sess"}]
+      })
+
+    assert resp.status == 200
+    assert JSON.decode!(resp.body)["username"] == "alice"
+  end
+
+  test "a write on the cookie needs the same-site header: 403 without, through with" do
+    with_session("sess", @alice)
+
+    {:ok, without} =
+      Router.handle(%{
+        method: "POST",
+        path: "/api/v1/markers",
+        headers: [{"cookie", "session_token=sess"}],
+        body: %{}
+      })
+
+    assert without.status == 403
+    assert JSON.decode!(without.body)["error"] == "same_site_required"
+
+    {:ok, with_header} =
+      Router.handle(%{
+        method: "POST",
+        path: "/api/v1/markers",
+        headers: [{"cookie", "session_token=sess"}, {"X-Requested-With", "natadeco"}],
+        body: %{}
+      })
+
+    # Past the gate — the handler itself then hits the fake gateway (503),
+    # which is not the auth layer's answer.
+    refute with_header.status in [401, 403]
+  end
+
+  test "a cookie that no longer resolves is anonymous on a public route, 401 on a scoped one" do
+    with_session("stale", nil)
+
+    {:ok, public} =
+      Router.handle(%{
+        method: "GET",
+        path: "/api/v1/instance",
+        headers: [{"cookie", "session_token=stale"}]
+      })
+
+    assert public.status == 200
+
+    {:ok, scoped} =
+      Router.handle(%{
+        method: "GET",
+        path: "/api/v1/accounts/verify_credentials",
+        headers: [{"cookie", "session_token=stale"}]
+      })
+
+    assert scoped.status == 401
+  end
+
+  test "a bearer wins over the cookie" do
+    with_session("sess", @alice)
+    Application.put_env(:sukhi_api, :fake_rpc, %{"bad" => {:error, :invalid_token}})
+
+    {:ok, resp} =
+      Router.handle(%{
+        method: "GET",
+        path: "/api/v1/accounts/verify_credentials",
+        headers: [{"authorization", "Bearer bad"}, {"cookie", "session_token=sess"}]
+      })
+
+    assert resp.status == 401
+  end
+
 end

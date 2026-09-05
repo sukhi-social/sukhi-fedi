@@ -3,7 +3,8 @@
   // 関所(/check)へ渡すだけ。コードの送信も、アカウントを作るのも、
   // 向こう側で。Anubis を通れた人の手でだけ、それが起こるように。
   import { goto } from '$app/navigation';
-  import { isLoggedIn, saveSignupDraft, loadSignupDraft, goToCheck } from '$lib/auth';
+  import { saveSignupDraft, loadSignupDraft, goToCheck } from '$lib/auth';
+  import { signedIn } from '$lib/api';
   import { t, getLang } from '$lib/i18n.svelte';
   import Hinata from '$lib/Hinata.svelte';
   import PageHeader from '$lib/PageHeader.svelte';
@@ -22,7 +23,7 @@
   const termsAnchor = $derived(`<a href="${termsHref}">${t().footer.terms}</a>`);
   const privacyAnchor = $derived(`<a href="${privacyHref}">${t().footer.privacy}</a>`);
 
-  if (isLoggedIn()) void goto('/');
+  if (signedIn()) void goto('/');
 
   // 関所で転んで戻ってきた人に、打ち直させない。合言葉だけは戻らない
   // ── API を呼ぶ直前に落としているので(auth.ts の clearSignupPassword)。
