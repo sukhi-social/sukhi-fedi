@@ -307,6 +307,36 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
     end
   end
 
+  describe "外から来た sukhi 流の住所を、natadeco の頁へ案内する" do
+    # 連合に出ている `url` は `/@alice` と `/@alice/123`(sukhi の SPA の
+    # 道)。natadeco のフロントにその頁は無いので、Mastodon の「元の
+    # 投稿を見る」がここへ落ちて 404 になっていた(2026-09-07)。
+    defp get_html(path) do
+      conn(:get, path)
+      |> put_req_header("accept", "text/html")
+      |> Router.call(@opts)
+    end
+
+    test "/@alice は /people/<id> へ" do
+      n = System.unique_integer([:positive])
+      {:ok, person} = LocalAccounts.create_admin("addr_#{n}", "long-enough-pass")
+
+      conn = get_html("/@#{person.username}")
+      assert conn.status == 302
+      assert get_resp_header(conn, "location") == ["/people/#{person.id}"]
+    end
+
+    test "/@alice/123 は /posts/123 へ" do
+      conn = get_html("/@whoever/123")
+      assert conn.status == 302
+      assert get_resp_header(conn, "location") == ["/posts/123"]
+    end
+
+    test "居ない人の /@ は 404" do
+      assert get_html("/@no-such-person-here").status == 404
+    end
+  end
+
   test "板の slug 自体(suffix 無し)は、板の actor としては解決しない", %{deco: deco} do
     # `hinata@domain` は個人アカウントの名前空間 ── デコの actor はいつも
     # `hinata-deco@domain` の方。無いアカウントとして 404 になる。

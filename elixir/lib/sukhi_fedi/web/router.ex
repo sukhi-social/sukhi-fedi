@@ -740,20 +740,55 @@ defmodule SukhiFedi.Web.Router do
   # natadeco では全部の頁がそう)。頁と同じで、横の Node が答える ──
   # 届かないと、SvelteKit は遷移のたびに丸ごと読み直しに倒れる。
   # SSR が無いところ(sukhi)では今までどおり下の 404 へ。
+  # `/@…` の振り分けもここ ── `*path` は `@` で始まる segment も拾うので、
+  # 下の `match _` に置いたままだと GET は一度も届かない。
   get "/*path" do
-    if List.last(path) == "__data.json" and SukhiFedi.Web.SSR.enabled?() do
-      SukhiFedi.Web.SSR.render(conn)
-    else
-      send_resp(conn, 404, "not found")
+    at? = String.starts_with?(conn.request_path, "/@")
+
+    cond do
+      List.last(path) == "__data.json" and SukhiFedi.Web.SSR.enabled?() ->
+        SukhiFedi.Web.SSR.render(conn)
+
+      at? and SukhiFedi.Addon.Registry.enabled?(:deco) ->
+        redirect_deco_page(conn)
+
+      at? ->
+        serve_at_path(conn)
+
+      true ->
+        send_resp(conn, 404, "not found")
     end
   end
 
   match _ do
-    if String.starts_with?(conn.request_path, "/@") do
-      serve_at_path(conn)
-    else
-      send_resp(conn, 404, "not found")
+    send_resp(conn, 404, "not found")
+  end
+
+  # natadeco のフロントは `/@alice` `/@alice/123` を持たない(人は
+  # `/people/<id>`、投稿は `/posts/<id>`)。連合に出ている `url` は
+  # sukhi 流のままなので、外から「元の投稿を見る」で来た人をここで
+  # 案内する。板は `GroupJson.profile_uri/1` が最初から `/d/<slug>` を
+  # 名乗っているので、ここには来ない。
+  defp redirect_deco_page(conn) do
+    case path_segments(conn) do
+      ["@" <> username] ->
+        case SukhiFedi.Accounts.by_local_username(username) do
+          %{id: id} -> redirect_to(conn, "/people/#{id}")
+          nil -> send_resp(conn, 404, "not found")
+        end
+
+      ["@" <> _username, note_id] ->
+        redirect_to(conn, "/posts/#{note_id}")
+
+      _ ->
+        send_resp(conn, 404, "not found")
     end
+  end
+
+  defp redirect_to(conn, path) do
+    conn
+    |> put_resp_header("location", path)
+    |> send_resp(302, "")
   end
 
   # `/@alice` (profile) and `/@alice/123` (a note) are SPA routes. For an
