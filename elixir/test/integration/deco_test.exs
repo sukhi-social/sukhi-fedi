@@ -218,6 +218,7 @@ defmodule SukhiFedi.Integration.DecoTest do
 
       assert {:ok, again} = Deco.get_post(post.id)
       assert again.title_i18n == %{"ko" => "처음 뵙겠습니다"}
+      assert again.deco_slug == deco.slug
     end
 
     test "上乗せ無しなら、i18n は空地図のまま", %{author: author, deco: deco} do

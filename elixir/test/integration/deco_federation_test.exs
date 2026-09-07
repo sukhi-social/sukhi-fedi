@@ -326,10 +326,26 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
       assert get_resp_header(conn, "location") == ["/people/#{person.id}"]
     end
 
-    test "/@alice/123 は /posts/123 へ" do
-      conn = get_html("/@whoever/123")
+    test "/@alice/<id> は /d/<slug>/p/<id> へ", %{deco: deco} do
+      n = System.unique_integer([:positive])
+      {:ok, author} = LocalAccounts.create_admin("addr_#{n}", "long-enough-pass")
+
+      author =
+        author
+        |> Ecto.Changeset.change(
+          created_at: DateTime.add(DateTime.utc_now(), -48, :hour) |> DateTime.truncate(:second)
+        )
+        |> SukhiFedi.Repo.update!()
+
+      {:ok, post} = Deco.post(author, deco.slug, %{"title" => "住所", "status" => "ここ"})
+
+      conn = get_html("/@#{author.username}/#{post.id}")
       assert conn.status == 302
-      assert get_resp_header(conn, "location") == ["/posts/123"]
+      assert get_resp_header(conn, "location") == ["/d/#{deco.slug}/p/#{post.id}"]
+    end
+
+    test "板に無い id の /@alice/<id> は 404" do
+      assert get_html("/@whoever/123").status == 404
     end
 
     test "居ない人の /@ は 404" do

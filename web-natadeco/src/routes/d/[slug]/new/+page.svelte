@@ -137,7 +137,7 @@
           : { title: titleKo.trim(), status: textKo, visibility, as_article: asArticle, place: placed }
       );
       clearDraft(slug);
-      await goto(`/posts/${made.id}`);
+      await goto(`/d/${slug}/p/${made.id}`);
     } catch {
       error = t().newPost.error;
       posting = false;

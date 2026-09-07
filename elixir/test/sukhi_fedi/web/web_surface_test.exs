@@ -136,6 +136,7 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     "get /hinata-signup.png",
     "get /service-worker.js",
     "get /posts/:id",
+    "get /d/:slug/p/:id",
     "get /d/:slug/new",
     "get /d/:slug",
     "get /hello",

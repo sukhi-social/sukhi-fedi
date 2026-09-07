@@ -61,7 +61,7 @@
       const name = p.place!.name || t().travel.somewhere;
       m.bindPopup(
         `<strong>${esc(name)}</strong><br>${esc(excerpt(localized(p.content_html, p.content_html_i18n)))}` +
-          `<br><a href="/posts/${p.id}">${esc(t().travel.open)}</a>` +
+          `<br><a href="/d/travel/p/${p.id}">${esc(t().travel.open)}</a>` +
           `<span class="by"> — ${esc(p.author.display_name || p.author.acct)}</span>`
       );
       if (String(p.id) === focus) focused = m;

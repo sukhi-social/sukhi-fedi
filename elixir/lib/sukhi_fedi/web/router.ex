@@ -564,17 +564,17 @@ defmodule SukhiFedi.Web.Router do
   # ブラウザ以外(LLM のクローラ等、JS を実行しない/しないクライアント)
   # が直接見に来たときは、空の SPA shell を返しても中身が見えない ──
   # その場合は投稿をそのまま Markdown で返す。
+  #
+  # 投稿の住所は `/d/<slug>/p/<id>`(板の名前が読める)。`/posts/<id>` は
+  # id しか知らない人(通知・友デコ・古いリンク)のための入り口で、
+  # SPA がそこから本当の住所へ回す。線の向こう(AP JSON / Markdown)には
+  # どちらも同じものを返す。
   get "/posts/:id" do
-    cond do
-      wants_activity_json?(conn) ->
-        redirect_to_ap_object(conn, conn.path_params["id"])
+    serve_post_page(conn, conn.path_params["id"])
+  end
 
-      wants_markdown?(conn) ->
-        serve_post_markdown(conn, conn.path_params["id"])
-
-      true ->
-        serve_spa(conn)
-    end
+  get "/d/:slug/p/:id" do
+    serve_post_page(conn, conn.path_params["id"])
   end
 
   # 板は `/d/` の下に一本化 ── これで板の slug が他のどの一段路
@@ -765,7 +765,7 @@ defmodule SukhiFedi.Web.Router do
   end
 
   # natadeco のフロントは `/@alice` `/@alice/123` を持たない(人は
-  # `/people/<id>`、投稿は `/posts/<id>`)。連合に出ている `url` は
+  # `/people/<id>`、投稿は `/d/<slug>/p/<id>`)。連合に出ている `url` は
   # sukhi 流のままなので、外から「元の投稿を見る」で来た人をここで
   # 案内する。板は `GroupJson.profile_uri/1` が最初から `/d/<slug>` を
   # 名乗っているので、ここには来ない。
@@ -778,7 +778,10 @@ defmodule SukhiFedi.Web.Router do
         end
 
       ["@" <> _username, note_id] ->
-        redirect_to(conn, "/posts/#{note_id}")
+        case SukhiFedi.Addons.Deco.slug_for_post(note_id) do
+          {:ok, slug} -> redirect_to(conn, "/d/#{slug}/p/#{note_id}")
+          _ -> send_resp(conn, 404, "not found")
+        end
 
       _ ->
         send_resp(conn, 404, "not found")
@@ -837,6 +840,14 @@ defmodule SukhiFedi.Web.Router do
       _ ->
         false
     end)
+  end
+
+  defp serve_post_page(conn, id) do
+    cond do
+      wants_activity_json?(conn) -> redirect_to_ap_object(conn, id)
+      wants_markdown?(conn) -> serve_post_markdown(conn, id)
+      true -> serve_spa(conn)
+    end
   end
 
   defp redirect_to_ap_object(conn, id_raw) do

@@ -104,7 +104,7 @@
         <li class="card record">
           <Author author={row.author} at={when(row.created_at)} />
           {#if row.title}
-            <h2 class="record-title"><a href="/posts/{row.id}">{localized(row.title, row.title_i18n)}</a></h2>
+            <h2 class="record-title"><a href="/d/travel/p/{row.id}">{localized(row.title, row.title_i18n)}</a></h2>
           {/if}
           <div class="body">
             {@html renderEmojis(localized(row.content_html, row.content_html_i18n), row.emojis)}
@@ -113,7 +113,7 @@
             {#if row.place}
               <a class="place" href="/map#{row.id}">{row.place.name || t().travel.somewhere}</a>
             {/if}
-            <a class="muted small" href="/posts/{row.id}"
+            <a class="muted small" href="/d/travel/p/{row.id}"
               >{row.reply_count > 0 ? t().travel.replies(row.reply_count) : t().travel.open}</a
             >
           </div>

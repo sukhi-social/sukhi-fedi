@@ -4,7 +4,7 @@ import { isTravelHost } from '$lib/site';
 
 // travel.natadeco.com は「別の部屋」── 同じ家(同じ Node、同じ API)の
 // 中で、玄関だけが違う。host を見て、その部屋の頁に道をつなぎ替える。
-// `/posts/[id]` や `/login` は両方の玄関から同じ頁を使う。
+// `/d/[slug]/p/[id]` や `/login` は両方の玄関から同じ頁を使う。
 const TRAVEL: Record<string, string> = {
   '/': '/travel',
   '/new': '/d/travel/new',

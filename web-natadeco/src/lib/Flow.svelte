@@ -17,6 +17,9 @@
   // (`/d/:slug?tag=…`)ので、押されたらそちらへ向ける。
   let { rows = $bindable(), slug }: { rows: Post[]; slug?: string } = $props();
 
+  // 板の上なら本当の住所、板を知らない流れ(友デコ・人の頁)なら id の入り口。
+  const href = (id: number) => (slug ? `/d/${slug}/p/${id}` : `/posts/${id}`);
+
   function onBodyClick(e: MouseEvent) {
     if (!slug) return;
     const a = (e.target as Element | null)?.closest?.('a.hashtag');
@@ -51,7 +54,7 @@
     {@const cont = joined(row, rows[i - 1])}
     <li class="row" class:cont>
       {#if row.parent}
-        <a class="parent" href="/posts/{row.parent.id}">
+        <a class="parent" href={href(row.parent.id)}>
           <span class="parent-who">{row.parent.author.display_name}</span>
           <span class="parent-text">{row.parent.excerpt}</span>
         </a>
@@ -65,7 +68,7 @@
       {/if}
 
       {#if row.title}
-        <h2 class="title"><a href="/posts/{row.id}">{localized(row.title, row.title_i18n)}</a></h2>
+        <h2 class="title"><a href={href(row.id)}>{localized(row.title, row.title_i18n)}</a></h2>
       {/if}
 
       {#if !shown(row)}
@@ -83,7 +86,7 @@
 
         <div class="foot">
           <Reactions id={row.id} bind:reactions={rows[i].reactions} />
-          <a class="muted small" href="/posts/{row.id}">{t().flow.open}</a>
+          <a class="muted small" href={href(row.id)}>{t().flow.open}</a>
         </div>
       {/if}
     </li>

@@ -81,6 +81,7 @@ defmodule SukhiFedi.Addons.Deco do
   defdelegate list_posts(slug, opts \\ []), to: Posts
   defdelegate list_flow(slug, opts \\ []), to: Posts
   defdelegate ap_id_for_post(note_id), to: Posts
+  defdelegate slug_for_post(note_id), to: Posts
   defdelegate get_post(note_id, viewer_id \\ nil), to: Posts
 
   # ── 外の網と ─────────────────────────────────────────────────────

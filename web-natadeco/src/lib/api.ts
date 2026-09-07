@@ -76,6 +76,8 @@ export type Place = { name: string; url: string; lat: number; lng: number };
 export type Post = {
   id: number;
   deco_id: number;
+  // 板の slug。住所(`/d/<slug>/p/<id>`)を組むため ── 一枚を取ったときだけ付く。
+  deco_slug?: string;
   title: string | null;
   title_i18n: Record<string, string>;
   // 生の Markdown ── 直すときの下書き欄に、いま書いてあるものをそのまま出すため。

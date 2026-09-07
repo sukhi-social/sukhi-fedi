@@ -257,7 +257,7 @@
             <tr>
               <td class="num muted">{deco.post_count - i}</td>
               <td class="title-cell">
-                <a href="/posts/{post.id}">{localized(post.title, post.title_i18n) || t().board.untitled}</a>
+                <a href="/d/{slug}/p/{post.id}">{localized(post.title, post.title_i18n) || t().board.untitled}</a>
                 {#if post.reply_count > 0}<span class="muted count">{post.reply_count}</span>{/if}
                 {#each post.tags as tg (tg)}
                   <a class="tag muted" href="/d/{slug}?tag={encodeURIComponent(tg)}">#{tg}</a>

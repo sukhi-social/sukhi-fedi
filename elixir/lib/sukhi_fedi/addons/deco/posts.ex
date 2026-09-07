@@ -626,14 +626,16 @@ defmodule SukhiFedi.Addons.Deco.Posts do
              on: n.id == dn.note_id,
              join: a in Account,
              on: a.id == n.account_id,
+             join: d in Deco,
+             on: d.id == dn.deco_id,
              where: dn.note_id == ^id,
-             select: {n, dn, a}
+             select: {n, dn, a, d.slug}
            )
          ) do
       nil ->
         {:error, :not_found}
 
-      {note, dn, author} ->
+      {note, dn, author, slug} ->
         # 本体と返信をひとつの列にしてから乗せる ── リアクションの
         # 問い合わせが、この頁ぜんぶで一回で済む。
         [post | replies] =
@@ -642,7 +644,27 @@ defmodule SukhiFedi.Addons.Deco.Posts do
           |> with_tags()
           |> with_folded()
 
-        {:ok, Map.put(post, :replies, replies)}
+        # 住所は `/d/<slug>/p/<id>`。id だけで来た人(`/posts/<id>`)が
+        # 本当の住所へ行けるように、板の名前を添える。
+        {:ok, Map.merge(post, %{deco_slug: slug, replies: replies})}
+    end
+  end
+
+  @doc "投稿の板の slug。id だけの住所(`/posts/:id`、`/@alice/:id`)を `/d/<slug>/p/:id` へ回すため。"
+  @spec slug_for_post(integer() | String.t()) :: {:ok, String.t()} | {:error, :not_found}
+  def slug_for_post(note_id) do
+    id = to_int(note_id)
+
+    case Repo.one(
+           from(dn in DecoNote,
+             join: d in Deco,
+             on: d.id == dn.deco_id,
+             where: dn.note_id == ^id,
+             select: d.slug
+           )
+         ) do
+      nil -> {:error, :not_found}
+      slug -> {:ok, slug}
     end
   end
 
