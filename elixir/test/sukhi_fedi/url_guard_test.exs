@@ -30,4 +30,12 @@ defmodule SukhiFedi.Federation.UrlGuardTest do
   test "allows a public https target" do
     assert UrlGuard.safe?("https://1.1.1.1/inbox")
   end
+
+  test "rejects the 192.0 special /24s but not the rest of 192.0.0.0/16" do
+    refute UrlGuard.safe?("https://192.0.0.5/inbox")
+    refute UrlGuard.safe?("https://192.0.2.5/inbox")
+    # 192.0.64.0/18 は Automattic(Gravatar) ── 弾くとリモートの avatar が
+    # proxy で 502 になる(2026-09-22)。
+    assert UrlGuard.safe?("https://192.0.80.239/inbox")
+  end
 end

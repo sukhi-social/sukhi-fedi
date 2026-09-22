@@ -48,7 +48,7 @@ defmodule SukhiFedi.Federation.UrlGuard do
   end
 
   # ── IPv4 ───────────────────────────────────────────────────────────────
-  defp public_ip?({a, b, _c, _d}) do
+  defp public_ip?({a, b, c, _d}) do
     cond do
       a == 0 -> false
       a == 10 -> false
@@ -56,7 +56,11 @@ defmodule SukhiFedi.Federation.UrlGuard do
       a == 169 and b == 254 -> false
       a == 172 and b in 16..31 -> false
       a == 192 and b == 168 -> false
-      a == 192 and b == 0 -> false
+      # 192.0.0.0/24 (IETF protocol assignments) と 192.0.2.0/24 (TEST-NET-1)。
+      # `b == 0` で 192.0.0.0/16 を丸ごと弾いていたが、192.0.64.0/18 は
+      # Automattic(Gravatar) の普通の公開空間で、リモートの avatar がそこに
+      # 居ると `/proxy/avatar` が 502 になっていた(2026-09-22)。
+      a == 192 and b == 0 and c in [0, 2] -> false
       a == 100 and b in 64..127 -> false
       a >= 224 -> false
       true -> true
