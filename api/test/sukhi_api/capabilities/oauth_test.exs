@@ -315,6 +315,55 @@ defmodule SukhiApi.Capabilities.OAuthTest do
       refute csp =~ "form-action"
       assert csp =~ "frame-ancestors 'self'"
     end
+
+    test "a dead duplicate session_token before the live one does not bounce to /login" do
+      # ブラウザは同名 session_token を二つ持ちうる(古い host-only +
+      # 新しい Domain)。先頭が死んでいても、生きた方を採る。
+      Application.put_env(:sukhi_api, :fake_sessions, %{
+        "live_session" => %{id: 7, username: "kuro43_"}
+      })
+
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        find_app_by_client_id:
+          {:ok, %{id: 1, name: "App", client_id: "c", redirect_uri: "https://example.com/cb"}}
+      })
+
+      {:ok, resp} =
+        Router.handle(%{
+          method: "GET",
+          path: "/oauth/authorize",
+          query: "client_id=c&redirect_uri=https://example.com/cb&scope=read&response_type=code",
+          headers: [{"cookie", "session_token=stale_dead; session_token=live_session"}]
+        })
+
+      assert resp.status == 200
+      refute resp.body =~ "/login?next="
+      assert resp.body =~ "App"
+    end
+
+    test "two live duplicate session_token cookies and nothing else → picker" do
+      Application.put_env(:sukhi_api, :fake_sessions, %{
+        "tok_alice" => %{id: 1, username: "alice"},
+        "tok_bob" => %{id: 2, username: "bob"}
+      })
+
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        find_app_by_client_id:
+          {:ok, %{id: 1, name: "App", client_id: "c", redirect_uri: "https://example.com/cb"}}
+      })
+
+      {:ok, resp} =
+        Router.handle(%{
+          method: "GET",
+          path: "/oauth/authorize",
+          query: "client_id=c&redirect_uri=https://example.com/cb&scope=read&response_type=code",
+          headers: [{"cookie", "session_token=tok_alice; session_token=tok_bob"}]
+        })
+
+      assert resp.status == 200
+      assert resp.body =~ "@alice"
+      assert resp.body =~ "@bob"
+    end
   end
 
   describe "GET /oauth/authorize with multiple accounts" do
@@ -426,6 +475,38 @@ defmodule SukhiApi.Capabilities.OAuthTest do
         end)
 
       assert location =~ "https://example.com/cb"
+      assert location =~ "code=auth_code_123"
+      assert location =~ "state=xyz"
+    end
+
+    test "a dead duplicate session_token before the live one still authorizes" do
+      Application.put_env(:sukhi_api, :fake_sessions, %{
+        "live_session" => %{id: 11, username: "alice"}
+      })
+
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        find_app_by_client_id: {:ok, %{id: 1, name: "x", client_id: "c", redirect_uri: "https://example.com/cb"}},
+        create_authorization_code: {:ok, %{code: "auth_code_123", state: "xyz"}}
+      })
+
+      {:ok, resp} =
+        Router.handle(%{
+          method: "POST",
+          path: "/oauth/authorize",
+          headers: [
+            {"content-type", "application/x-www-form-urlencoded"},
+            {"cookie", "session_token=stale_dead; session_token=live_session"}
+          ],
+          body: "client_id=c&redirect_uri=https%3A%2F%2Fexample.com%2Fcb&scope=read&state=xyz"
+        })
+
+      assert resp.status == 302
+
+      location =
+        Enum.find_value(resp.headers, fn {k, v} ->
+          if String.downcase(k) == "location", do: v
+        end)
+
       assert location =~ "code=auth_code_123"
       assert location =~ "state=xyz"
     end

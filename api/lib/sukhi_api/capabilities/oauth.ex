@@ -46,8 +46,11 @@ defmodule SukhiApi.Capabilities.OAuth do
     response_type = params["response_type"] || "code"
     choose = params["choose"]
     headers = req[:headers] || []
-    primary_token = session_token_from_cookies(headers)
-    extra_tokens = extra_tokens_from_cookies(headers)
+    # 同名 session_token が複数あっても全部を候補にする(古い方に
+    # 引きずられない)。extra(session_tokens)はその後ろに並べる。
+    token_candidates = session_tokens_from_cookies(headers)
+    primary_token = List.first(token_candidates)
+    extra_tokens = extra_tokens_from_cookies(headers) ++ Enum.drop(token_candidates, 1)
 
     cond do
       response_type != "code" ->
@@ -198,19 +201,19 @@ defmodule SukhiApi.Capabilities.OAuth do
     redirect_uri = body["redirect_uri"] || ""
     scope = body["scope"] || "read"
     state = body["state"]
-    session_token = session_token_from_cookies(req[:headers] || [])
+    token_candidates = session_tokens_from_cookies(req[:headers] || [])
 
     cond do
       is_nil(client_id) or client_id == "" ->
         html_error(400, "invalid_request", "missing client_id")
 
       true ->
-        do_authorize_submit(client_id, redirect_uri, scope, state, session_token)
+        do_authorize_submit(client_id, redirect_uri, scope, state, token_candidates)
     end
   end
 
-  defp do_authorize_submit(client_id, redirect_uri, scope, state, session_token) do
-    with {:ok, account} <- resolve_session(session_token),
+  defp do_authorize_submit(client_id, redirect_uri, scope, state, token_candidates) do
+    with {:ok, account} <- resolve_session_any(token_candidates),
          {:ok, {:ok, app}} <- GatewayRpc.call(@gateway, :find_app_by_client_id, [client_id]),
          {:ok, {:ok, %{code: code, state: returned_state}}} <-
            GatewayRpc.call(@gateway, :create_authorization_code, [
@@ -383,7 +386,13 @@ defmodule SukhiApi.Capabilities.OAuth do
   defp parse_query(""), do: %{}
   defp parse_query(q) when is_binary(q), do: URI.decode_query(q)
 
-  defp session_token_from_cookies(headers), do: cookie_value(headers, "session_token")
+  # ブラウザは同名 cookie を二つ持ちうる ── 2026-09-05 以前の
+  # `session_token` は host-only、以降は `Domain=.sukhi.f3liz.casa`。
+  # 同名・同 path でも domain が違えばブラウザは別物として両方送るので、
+  # 先頭だけ見ると古い方を拾って「セッション無し」になり、ログイン直後
+  # なのに `/login` へ弾かれる(2026-09-22 実測)。ここでは全部の候補を
+  # 返し、`resolve_all/2` に「生きているものを採用させる」。
+  defp session_tokens_from_cookies(headers), do: cookie_values(headers, "session_token")
 
   # The `session_tokens` cookie's raw value, decoded via the gateway's own
   # `SessionCookie.decode_extra/1` — the format (base64url'd JSON) is that
@@ -395,20 +404,23 @@ defmodule SukhiApi.Capabilities.OAuth do
     end
   end
 
-  defp cookie_value(headers, name) do
-    Enum.find_value(headers, fn {k, v} ->
-      if String.downcase(to_string(k)) == "cookie" do
-        v
-        |> to_string()
-        |> String.split(";", trim: true)
-        |> Enum.map(&String.trim/1)
-        |> Enum.find_value(fn pair ->
-          case String.split(pair, "=", parts: 2) do
-            [^name, value] -> value
-            _ -> nil
-          end
-        end)
-      end
+  defp cookie_value(headers, name), do: headers |> cookie_values(name) |> List.first()
+
+  # 同名 cookie の値を、Cookie ヘッダの並び順で全部返す。名前が同じで
+  # path/domain の違うものが複数あるとき、呼び元が候補を選べるように。
+  defp cookie_values(headers, name) do
+    headers
+    |> Enum.filter(fn {k, _v} -> String.downcase(to_string(k)) == "cookie" end)
+    |> Enum.flat_map(fn {_k, v} ->
+      v
+      |> to_string()
+      |> String.split(";", trim: true)
+      |> Enum.flat_map(fn pair ->
+        case String.split(String.trim(pair), "=", parts: 2) do
+          [^name, value] -> [value]
+          _ -> []
+        end
+      end)
     end)
   end
 
@@ -462,6 +474,16 @@ defmodule SukhiApi.Capabilities.OAuth do
       {:ok, %{} = account} -> {:ok, account}
       {:ok, nil} -> {:error, :no_session}
       _ -> {:error, :no_session}
+    end
+  end
+
+  # 同名 cookie の候補を順に見て、最初に生きていたセッションを採る。
+  defp resolve_session_any([]), do: {:error, :no_session}
+
+  defp resolve_session_any([token | rest]) do
+    case resolve_session(token) do
+      {:ok, account} -> {:ok, account}
+      {:error, _} -> resolve_session_any(rest)
     end
   end
 
