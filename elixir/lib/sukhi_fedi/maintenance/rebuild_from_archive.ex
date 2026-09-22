@@ -71,6 +71,93 @@ defmodule SukhiFedi.Maintenance.RebuildFromArchive do
   end
 
   @doc """
+  Recreate one actor's missing notes from its own archived `Create`s.
+
+  Targeted sibling of `run/1`. The outbox a peer serves is not the whole
+  story: Iceshrimp (and Misskey-family servers generally) omit
+  followers-only posts from it, so an outbox backfill can never see them.
+  Those posts *were* delivered to our inbox (we follow the author) and are
+  in the inbound archive, so replaying this actor's slice is how the
+  backfill recovers them.
+
+  `:limit` bounds the S3 reads (newest first). A `Delete` from the same
+  actor overrides — a post the author removed is not resurrected. `:dry_run`
+  only counts.
+
+      SukhiFedi.Maintenance.RebuildFromArchive.recreate_for_actor(uri, :execute)
+  """
+  @spec recreate_for_actor(String.t(), :dry_run | :execute, keyword()) :: map()
+  def recreate_for_actor(actor_uri, mode \\ :execute, opts \\ []) when is_binary(actor_uri) do
+    limit = Keyword.get(opts, :limit, 300)
+    deleted = deleted_ap_ids_for(actor_uri)
+
+    from(e in InboundEvent,
+      where: e.activity_type == "Create" and e.actor_uri == ^actor_uri,
+      order_by: [desc: e.received_at],
+      limit: ^limit
+    )
+    |> Repo.all()
+    |> Enum.map(&recreate_one(&1, deleted, mode))
+    |> tally()
+  end
+
+  defp recreate_one(ev, deleted, mode) do
+    case fetch_activity(ev) do
+      {:ok, %{"object" => obj} = activity} ->
+        ap_id = object_ap_id(obj)
+
+        cond do
+          not is_binary(ap_id) ->
+            :no_object_id
+
+          MapSet.member?(deleted, ap_id) ->
+            :deleted
+
+          note_present?(ap_id) ->
+            :present
+
+          mode == :dry_run ->
+            :would_recreate
+
+          true ->
+            Instructions.reingest_for_rebuild(activity)
+            :recreated
+        end
+
+      {:ok, _} ->
+        :no_object_id
+
+      {:error, reason} ->
+        Logger.warning("  skip recreate #{ev.object_key}: #{inspect(reason)}")
+        :error
+    end
+  end
+
+  # Per-note indexed lookup — the targeted path walks one actor's slice, so
+  # loading every remote ap_id into a MapSet (what `run/1` does for its
+  # 40k-event sweep) would cost more than it saves.
+  defp note_present?(ap_id) do
+    Repo.exists?(from(n in Note, where: n.ap_id == ^ap_id))
+  end
+
+  # `Delete`s *by this actor*. A deletion is signed by the author, so
+  # scoping to the same actor is both correct and far cheaper than
+  # downloading every Delete in the archive.
+  defp deleted_ap_ids_for(actor_uri) do
+    from(e in InboundEvent,
+      where: e.activity_type == "Delete" and e.actor_uri == ^actor_uri
+    )
+    |> Repo.all()
+    |> Enum.flat_map(fn ev ->
+      case fetch_activity(ev) do
+        {:ok, %{"object" => obj}} -> List.wrap(object_ap_id(obj))
+        _ -> []
+      end
+    end)
+    |> MapSet.new()
+  end
+
+  @doc """
   Poll-only variant of `run/1`: sync every remote poll to its newest
   archived `Question`, touching nothing else (no note recreation, media or
   boost passes). A poll gains an `Update` on every vote, so we take each
@@ -144,8 +231,12 @@ defmodule SukhiFedi.Maintenance.RebuildFromArchive do
           case object_ap_id(obj) do
             ap_id when is_binary(ap_id) ->
               cond do
-                MapSet.member?(present, ap_id) -> :present
-                MapSet.member?(deleted, ap_id) -> :deleted
+                MapSet.member?(present, ap_id) ->
+                  :present
+
+                MapSet.member?(deleted, ap_id) ->
+                  :deleted
+
                 mode == :dry_run ->
                   :would_recreate
 
@@ -341,9 +432,14 @@ defmodule SukhiFedi.Maintenance.RebuildFromArchive do
     case Repo.get_by(Note, ap_id: ap_id) do
       %Note{} = existing ->
         cond do
-          not poll_object?(note) -> :no_poll
-          Polls.has_poll?(existing.id) -> :already
-          mode == :dry_run -> :would_attach
+          not poll_object?(note) ->
+            :no_poll
+
+          Polls.has_poll?(existing.id) ->
+            :already
+
+          mode == :dry_run ->
+            :would_attach
 
           true ->
             Polls.ingest_remote_poll(existing.id, note)

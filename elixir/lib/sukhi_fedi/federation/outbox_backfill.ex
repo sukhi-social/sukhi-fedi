@@ -27,6 +27,15 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
   `direct`（本当の DM）と `Announce`（相手のブースト＝他所の note）は
   ここでは辿らない。
 
+  ## followers-only は outbox に無い
+
+  Misskey 系（`ff.lapy.link` の Iceshrimp 等）は outbox に followers-only
+  を載せない ── 何頁辿っても出てこない。だから outbox だけでは
+  followers-only は戻せない。代わりに、inbox に**配達されて保管**されて
+  いる分を `Maintenance.RebuildFromArchive.recreate_for_actor/2` で
+  再生する（こちらが follow しているのだから、その人の新規投稿は
+  必ず届いている）。outbox の後に一度だけ走らせる。
+
   `ap_id` の unique index と `on_conflict: :nothing` で冪等 ── 何度
   走らせても増えない。
 
@@ -46,6 +55,7 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
 
   alias SukhiFedi.AP.Instructions.{Extract, Mirror}
   alias SukhiFedi.Federation.{ActorFetcher, CollectionFetcher}
+  alias SukhiFedi.Maintenance.RebuildFromArchive
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.{Account, Follow}
 
@@ -193,8 +203,17 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
           end
         end)
 
-      Logger.info("OutboxBackfill: #{actor_uri} mirrored #{mirrored}/#{seen}")
-      {:ok, mirrored}
+      # The outbox omits followers-only, so recover those (and anything else
+      # we dropped) from the inbound archive — the posts were delivered to us
+      # because we follow the author. Bounded, indexed, idempotent.
+      archived = RebuildFromArchive.recreate_for_actor(actor_uri)
+      recreated = Map.get(archived, :recreated, 0) + Map.get(archived, :would_recreate, 0)
+
+      Logger.info(
+        "OutboxBackfill: #{actor_uri} mirrored #{mirrored}/#{seen}, archive recreated #{recreated}"
+      )
+
+      {:ok, mirrored + recreated}
     end
   end
 
