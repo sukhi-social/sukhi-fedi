@@ -68,7 +68,7 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
 
     %{"actor_uri" => actor_uri}
     |> new(unique: [period: @unique_period_seconds, keys: [:actor_uri]])
-    |> Oban.insert(SukhiFedi.Oban)
+    |> then(&Oban.insert(SukhiFedi.Oban, &1))
   end
 
   @doc """
@@ -87,14 +87,13 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
   end
 
   @doc """
-  再起動時に、未着手と失敗の followee を拾い直す。boot から
-  fire-and-forget で呼ぶ（`SukhiFedi.Application`）。
+  未着手と失敗の followee を拾い直して enqueue する。
 
   古い follow は `maybe_handle_follow_accept/1` を通っていないので、
   これを一度走らせないと永久に静かなままになる。冪等 ── 何度呼んでも
   取り込みは増えない。
   """
-  @spec pending_existing() :: :ok
+  @spec pending_existing() :: :ok | {:error, term()}
   def pending_existing do
     from(a in Account,
       join: f in Follow,
@@ -110,10 +109,34 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
 
     :ok
   rescue
-    # boot 直後の一撃。DB がまだ整っていなくても起動は止めない。
-    error ->
-      Logger.warning("OutboxBackfill: pending_existing failed: #{inspect(error)}")
-      :ok
+    error -> {:error, error}
+  end
+
+  @doc """
+  起動時の一撃。boot 直後は `SukhiFedi.Oban` の registry がまだ
+  登録されていないことがあるので、少し間を置いて数回粘る。全部駄目なら
+  ログに残して次回の起動に任せる（`SukhiFedi.Application` が
+  fire-and-forget で呼ぶ）。
+  """
+  @spec pending_existing_on_boot() :: :ok | {:error, term()}
+  def pending_existing_on_boot do
+    Enum.reduce_while(1..5, :ok, fn attempt, _acc ->
+      Process.sleep(attempt * 500)
+
+      case pending_existing() do
+        :ok -> {:halt, :ok}
+        {:error, _} = err when attempt == 5 -> {:halt, err}
+        {:error, _} -> {:cont, :ok}
+      end
+    end)
+    |> case do
+      {:error, error} ->
+        Logger.warning("OutboxBackfill: pending_existing_on_boot failed: #{inspect(error)}")
+        {:error, error}
+
+      other ->
+        other
+    end
   end
 
   # ── worker ───────────────────────────────────────────────────────────────

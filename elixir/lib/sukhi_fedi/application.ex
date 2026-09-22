@@ -56,7 +56,7 @@ defmodule SukhiFedi.Application do
     # 通っていないので、これが無いと永久に静かなまま。冪等（取り込みは
     # `ap_id` unique、enqueue は Oban の unique 窓）。テストでは off。
     if Application.get_env(:sukhi_fedi, :backfill_on_boot, true) do
-      Task.start(fn -> SukhiFedi.Federation.OutboxBackfill.pending_existing() end)
+      Task.start(fn -> SukhiFedi.Federation.OutboxBackfill.pending_existing_on_boot() end)
     end
 
     result
