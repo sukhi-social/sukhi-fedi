@@ -17,10 +17,15 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
 
   ## 取り込むもの、取り込まないもの
 
-  `public` / `unlisted` の `Create(Note|Article|Question)` だけ。
-  followers-only は follow が通っていても、こちらが持つ影の row を
-  別のローカル利用者に見せてよい理由にはならない。`Announce`（相手の
-  ブースト）は他所の note を指すので、ここでは辿らない。
+  DM 以外の `Create(Note|Article|Question)` ── `public` / `unlisted` /
+  followers-only。followers-only を含めるのは、こちらから follow して
+  いる相手の「フォロワー向け」を、フォローしている人が見られない理由が
+  無いから。見せる範囲は `notes.visibility` にそのまま残り、既存の
+  viewer 判定（`Notes.scope_profile_statuses` / home / public TL）が
+  引き受けるので、フォロワー以外には漏れない。
+
+  `direct`（本当の DM）と `Announce`（相手のブースト＝他所の note）は
+  ここでは辿らない。
 
   `ap_id` の unique index と `on_conflict: :nothing` で冪等 ── 何度
   走らせても増えない。
@@ -210,12 +215,15 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
 
   @doc false
   # outbox の 1 件が、取り込むべき `Create(Note|Article|Question)` か。
-  # public / unlisted だけ ── followers-only は follow が通っていても、
-  # こちらが持つ影の row を別のローカル利用者に見せてよい理由にならない。
+  # DM 以外（public / unlisted / followers-only）。followers-only を含める
+  # のは、こちらから follow している相手の「フォロワー向け」を、フォロー
+  # している人が見られない理由が無いから ── 見せる範囲は `notes` の
+  # `visibility` に残り、`scope_profile_statuses` / home / public TL の
+  # 既存の viewer 判定が引き受ける。direct（本当の DM）だけ除く。
   @spec mirrorable?(term()) :: boolean()
   def mirrorable?(%{"type" => "Create", "object" => %{"type" => type} = note})
       when type in ["Note", "Article", "Question"] do
-    Extract.visibility_from(note) in SukhiFedi.Visibility.public_only()
+    Extract.visibility_from(note) in SukhiFedi.Visibility.not_direct()
   end
 
   def mirrorable?(_), do: false

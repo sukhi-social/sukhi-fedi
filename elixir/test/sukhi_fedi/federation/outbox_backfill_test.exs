@@ -39,13 +39,15 @@ defmodule SukhiFedi.Federation.OutboxBackfillTest do
     }
   end
 
-  test "公開の Create(Note) だけを取り込む" do
+  test "公開・unlisted・followers-only の Create(Note) を取り込む" do
     assert OutboxBackfill.mirrorable?(create(:public))
     assert OutboxBackfill.mirrorable?(create(:unlisted))
+    # こちらから follow している相手のフォロワー向けは、フォローして
+    # いる人が見られない理由が無い。見せる範囲は visibility が保つ。
+    assert OutboxBackfill.mirrorable?(create(:followers))
   end
 
-  test "followers-only と direct は取り込まない" do
-    refute OutboxBackfill.mirrorable?(create(:followers))
+  test "direct（本当の DM）は取り込まない" do
     refute OutboxBackfill.mirrorable?(create(:direct))
   end
 

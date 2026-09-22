@@ -36,7 +36,14 @@ defmodule SukhiFedi.AP.Instructions.Mirror do
         notify?
       )
       when type in ["Note", "Article", "Question"] do
-    if Extract.dm_addressing?(note) do
+    # Only a true DM (no Public, no `/followers` audience) is left to
+    # `Instructions.DMs`. A followers-only post is not a letter: it is a
+    # post the author meant their followers to see, so mirror it with
+    # `visibility: "followers"` and let the viewer scoping (profile, home,
+    # public TL) decide who may see it. `dm_addressing?` folded both into
+    # "non-public", which is why a followed remote's followers-only posts
+    # never showed up.
+    if Extract.visibility_from(note) == "direct" do
       :ok
     else
       ap_id = note["id"]

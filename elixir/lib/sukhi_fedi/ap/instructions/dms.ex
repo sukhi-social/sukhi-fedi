@@ -21,9 +21,11 @@ defmodule SukhiFedi.AP.Instructions.DMs do
       when is_map(object) do
     to_list = Extract.normalize_collection(object["to"] || [])
 
-    is_direct =
-      Enum.all?(to_list, fn recipient -> not Extract.public?(recipient) end) and
-        length(to_list) > 0
+    # A DM has no Public and no `/followers` audience. Followers-only is
+    # NOT a DM — `Mirror` stores it with `visibility: "followers"` — so
+    # gate on the same `direct` verdict instead of "non-public", which
+    # also matched followers-only and sent it down this path for nothing.
+    is_direct = Extract.visibility_from(object) == "direct"
 
     if is_direct do
       # A reply joins its parent's conversation first, so a thread stays
