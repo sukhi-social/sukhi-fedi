@@ -64,11 +64,19 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
   """
   @spec enqueue(String.t()) :: {:ok, Oban.Job.t()} | {:error, term()}
   def enqueue(actor_uri) when is_binary(actor_uri) do
-    mark_pending(actor_uri)
+    # Insert first, mark after: if the insert raises, the row must stay
+    # untouched/failed so the boot sweep retries it. Marking first would
+    # strand it in `pending` with no job behind it.
+    case %{"actor_uri" => actor_uri}
+         |> new(unique: [period: @unique_period_seconds, keys: [:actor_uri]])
+         |> then(&Oban.insert(SukhiFedi.Oban, &1)) do
+      {:ok, _job} = ok ->
+        mark_pending(actor_uri)
+        ok
 
-    %{"actor_uri" => actor_uri}
-    |> new(unique: [period: @unique_period_seconds, keys: [:actor_uri]])
-    |> then(&Oban.insert(SukhiFedi.Oban, &1))
+      {:error, _} = err ->
+        err
+    end
   end
 
   @doc """
@@ -100,7 +108,7 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
       on: f.followee_id == a.id,
       where:
         f.state == "accepted" and not is_nil(a.domain) and not is_nil(a.actor_uri) and
-          (is_nil(a.backfill_state) or a.backfill_state == @failed),
+          (is_nil(a.backfill_state) or a.backfill_state in [@pending, @failed]),
       group_by: a.id,
       select: a.actor_uri
     )
