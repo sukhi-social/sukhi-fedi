@@ -27,6 +27,19 @@ defmodule SukhiFedi.Integration.SessionCookieTest do
 
   defp set_cookie(conn, name, value), do: put_req_header(conn, "cookie", "#{name}=#{value}")
 
+  defp restore_domain(nil), do: Application.delete_env(:sukhi_fedi, :domain)
+  defp restore_domain(v), do: Application.put_env(:sukhi_fedi, :domain, v)
+
+  # A dotted host, so `Config.cookie_domain/0` returns a `Domain=` and the
+  # host-only twin has something to be distinct from. The test config's
+  # default ("localhost:4000") has no dot — there is no twin to speak of.
+  defp with_domain(fun) do
+    prev = Application.get_env(:sukhi_fedi, :domain)
+    Application.put_env(:sukhi_fedi, :domain, "example.test")
+    on_exit(fn -> restore_domain(prev) end)
+    fun.()
+  end
+
   # `resp_cookies` directly, not the rendered `set-cookie` header — Plug
   # only serializes that at send_resp time, which these tests never call
   # (they inspect the conn `SessionCookie` handed back, not a live
@@ -70,6 +83,41 @@ defmodule SukhiFedi.Integration.SessionCookieTest do
     extras_value = cookie_pair(conn, "session_tokens")
     assert is_binary(extras_value)
     assert SessionCookie.decode_extra(extras_value) |> length() == 1
+  end
+
+  test "mint/2 clears the host-only twin so it can't shadow the fresh cookie" do
+    with_domain(fn ->
+      account = new_account!()
+      conn = conn(:get, "/") |> SessionCookie.mint(account)
+
+      assert cookie_pair(conn, "session_token")
+
+      clears = get_resp_header(conn, "set-cookie")
+      assert Enum.any?(clears, &String.starts_with?(&1, "session_token=;"))
+      assert Enum.any?(clears, &String.starts_with?(&1, "session_tokens=;"))
+      # The clear must name no Domain; that is what reaches the host-only
+      # twin that a Domain-clear would leave behind.
+      refute Enum.any?(clears, &(&1 =~ "domain="))
+    end)
+  end
+
+  test "mint_additional/2 clears the host-only twin on the side-list path too" do
+    with_domain(fn ->
+      a = new_account!()
+      b = new_account!()
+      {:ok, tok_a} = LocalAccounts.create_session(a)
+
+      conn =
+        conn(:get, "/")
+        |> set_cookie("session_token", tok_a)
+        |> SessionCookie.mint_additional(b)
+
+      assert cookie_pair(conn, "session_tokens")
+
+      clears = get_resp_header(conn, "set-cookie")
+      assert Enum.any?(clears, &String.starts_with?(&1, "session_token=;"))
+      refute Enum.any?(clears, &(&1 =~ "domain="))
+    end)
   end
 
   test "all_sessions/1 resolves primary + extras, primary first, and drops a dead token" do

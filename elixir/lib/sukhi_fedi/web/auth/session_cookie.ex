@@ -43,7 +43,10 @@ defmodule SukhiFedi.Web.Auth.SessionCookie do
   @spec mint(Plug.Conn.t(), SukhiFedi.Schema.Account.t()) :: Plug.Conn.t()
   def mint(conn, account) do
     {:ok, token} = LocalAccounts.create_session(account, device_context(conn))
-    put_primary_cookie(conn, token)
+    # 新しい1つを張る前に、同名の host-only の双子(2026-09-05 以前の
+    # 形)を消す。張り直すたびに古い形が残ると、Cookie ヘッダに同名が
+    # 並び、順序を当てにできない(RFC 6265 §3.1)ぶんだけ迷子になる。
+    conn |> clear_host_only_twins() |> put_primary_cookie(token)
   end
 
   @doc """
@@ -61,7 +64,10 @@ defmodule SukhiFedi.Web.Auth.SessionCookie do
     else
       {:ok, token} = LocalAccounts.create_session(account, device_context(conn))
       existing = decode_extra(conn.cookies[@extra_cookie])
-      put_extra_cookie(conn, Enum.take([token | existing], @max_extra))
+
+      conn
+      |> clear_host_only_twins()
+      |> put_extra_cookie(Enum.take([token | existing], @max_extra))
     end
   end
 
@@ -72,27 +78,29 @@ defmodule SukhiFedi.Web.Auth.SessionCookie do
     |> delete_resp_cookie(@cookie, path: "/", domain: Config.cookie_domain())
     |> delete_resp_cookie(@extra_cookie, path: "/", domain: Config.cookie_domain())
     |> delete_resp_cookie(@mark_cookie, path: "/", domain: Config.cookie_domain())
-    |> drop_host_only_twins()
+    |> clear_host_only_twins()
   end
 
   # Cookies minted before `Domain=` was added (2026-09-05) are host-only,
   # and a browser keeps a host-only cookie apart from the domain one of
   # the same name — clearing with `Domain=` leaves it sitting there,
-  # still signed in. So clear that shape too. Plug keeps one resp cookie
-  # per name, hence the raw headers. Safe to remove once every session
-  # from before that day has aged out (30 days).
-  defp drop_host_only_twins(conn) do
+  # still signed in. So clear that shape with a raw header that names no
+  # Domain. Called by `drop/1` (sign out) and by every mint (`mint/2`,
+  # `mint_additional/2`): a stale twin left behind at login is what shadows
+  # the fresh one in the Cookie header, and a server must not pick a
+  # duplicate by order (RFC 6265 §3.1). Plug keeps one resp cookie per
+  # name, hence the raw headers. Safe to remove once every session from
+  # before that day has aged out (30 days).
+  defp clear_host_only_twins(conn) do
     case Config.cookie_domain() do
-      nil ->
-        conn
+      nil -> conn
+      _ -> prepend_resp_headers(conn, host_only_clear_headers())
+    end
+  end
 
-      _ ->
-        cleared =
-          for name <- [@cookie, @extra_cookie] do
-            {"set-cookie", "#{name}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax; Secure"}
-          end
-
-        prepend_resp_headers(conn, cleared)
+  defp host_only_clear_headers do
+    for name <- [@cookie, @extra_cookie] do
+      {"set-cookie", "#{name}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax; Secure"}
     end
   end
 
