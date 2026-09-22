@@ -30,12 +30,9 @@ defmodule SukhiFedi.Integration.PublicPreviewTest do
     prev = Application.get_env(:sukhi_fedi, :public_preview, :off)
     on_exit(fn -> Application.put_env(:sukhi_fedi, :public_preview, prev) end)
 
-    # `/@alice` `/@alice/123` は sukhi の SPA の道。deco addon が居る
-    # (= natadeco)と、その前に `/people/<id>` `/posts/<id>` へ案内されて
-    # しまうので、ここでは sukhi として振る舞わせる。
-    prev_disabled = Application.get_env(:sukhi_fedi, :disabled_addons, [])
-    Application.put_env(:sukhi_fedi, :disabled_addons, [:deco | prev_disabled])
-    on_exit(fn -> Application.put_env(:sukhi_fedi, :disabled_addons, prev_disabled) end)
+    # `/@alice` `/@alice/123` は sukhi の SPA の道。natadeco の画面
+    # (`/people/<id>`)へ案内するのは SSR の有るときだけなので、SSR_URL の
+    # 無いここでは素通りする。
 
     n = System.unique_integer([:positive])
     account = create_account!("alice_#{n}")

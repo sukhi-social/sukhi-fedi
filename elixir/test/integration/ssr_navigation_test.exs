@@ -12,6 +12,9 @@ defmodule SukhiFedi.Integration.SSRNavigationTest do
 
   @moduletag :integration
 
+  alias SukhiFedi.Repo
+  alias SukhiFedi.Schema.Account
+
   setup do
     prev = System.get_env("SSR_URL")
     bypass = Bypass.open()
@@ -51,5 +54,34 @@ defmodule SukhiFedi.Integration.SSRNavigationTest do
     System.delete_env("SSR_URL")
     conn = SukhiFedi.Web.Router.call(conn(:get, "/d/chai/__data.json"), [])
     assert conn.status == 404
+  end
+
+  # `/@alice` → `/people/<id>` is for natadeco's front, which has no `/@`
+  # route. sukhi's own web does, so the guidance must not fire there — the
+  # two instances are told apart by SSR, not by the deco addon (sukhi runs
+  # `ENABLED_ADDONS=all` too, so the addon is on both — 2026-09-22).
+  test "with SSR (natadeco), /@alice is sent to the page its front does have" do
+    account = create_account!()
+
+    conn = SukhiFedi.Web.Router.call(conn(:get, "/@#{account.username}"), [])
+
+    assert conn.status == 302
+    assert Plug.Conn.get_resp_header(conn, "location") == ["/people/#{account.id}"]
+  end
+
+  test "without SSR (sukhi), /@alice stays on sukhi's own road" do
+    System.delete_env("SSR_URL")
+    account = create_account!()
+
+    conn = SukhiFedi.Web.Router.call(conn(:get, "/@#{account.username}"), [])
+
+    refute conn.status == 302
+  end
+
+  defp create_account! do
+    n = System.unique_integer([:positive])
+
+    %Account{username: "alice_#{n}", display_name: "Alice #{n}", summary: "<p>a bio</p>"}
+    |> Repo.insert!()
   end
 end

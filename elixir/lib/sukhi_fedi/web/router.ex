@@ -742,6 +742,12 @@ defmodule SukhiFedi.Web.Router do
   # SSR が無いところ(sukhi)では今までどおり下の 404 へ。
   # `/@…` の振り分けもここ ── `*path` は `@` で始まる segment も拾うので、
   # 下の `match _` に置いたままだと GET は一度も届かない。
+  # `/@…` を `/people/<id>` へ案内するのは **natadeco の画面のときだけ**
+  # ── その front は `/@alice` を持たない。見分けは SSR の有無で付ける
+  # (この函数の `__data.json` と同じ印)。sukhi は `ENABLED_ADDONS=all` で
+  # deco addon も積むが、画面は `/@alice` を持つ自分の web なので、addon の
+  # 有無で分けてはいけなかった(2026-09-22、`/@kuro_admin` が
+  # `/people/33` へ飛んで 404 になった)。
   get "/*path" do
     at? = String.starts_with?(conn.request_path, "/@")
 
@@ -749,7 +755,7 @@ defmodule SukhiFedi.Web.Router do
       List.last(path) == "__data.json" and SukhiFedi.Web.SSR.enabled?() ->
         SukhiFedi.Web.SSR.render(conn)
 
-      at? and SukhiFedi.Addon.Registry.enabled?(:deco) ->
+      at? and SukhiFedi.Web.SSR.enabled?() ->
         redirect_deco_page(conn)
 
       at? ->
