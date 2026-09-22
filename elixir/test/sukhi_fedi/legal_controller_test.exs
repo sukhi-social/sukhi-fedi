@@ -59,6 +59,28 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     refute conn.resp_body =~ "<script"
   end
 
+  test "the default flavor is the server's own, not natadeco's board wording" do
+    body = get("/terms") |> LegalController.terms() |> Map.get(:resp_body)
+
+    assert body =~ "f3liz-dev@proton.me"
+    refute body =~ "natadeco.com"
+    refute body =~ "掲示板"
+  end
+
+  test "LEGAL_FLAVOR=natadeco serves the board wording and contact" do
+    previous = Application.get_env(:sukhi_fedi, :legal_flavor)
+    Application.put_env(:sukhi_fedi, :legal_flavor, :natadeco)
+    on_exit(fn -> Application.put_env(:sukhi_fedi, :legal_flavor, previous) end)
+
+    terms = get("/terms") |> LegalController.terms() |> Map.get(:resp_body)
+    assert terms =~ "掲示板"
+    assert terms =~ "admin@natadeco.com"
+    refute terms =~ "f3liz-dev@proton.me"
+
+    privacy = get("/privacy") |> LegalController.privacy() |> Map.get(:resp_body)
+    assert privacy =~ "admin@natadeco.com"
+  end
+
   test "/terms?lang=ko serves the Korean version" do
     conn = get("/terms?lang=ko") |> LegalController.terms()
 

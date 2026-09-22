@@ -11,28 +11,50 @@ defmodule SukhiFedi.Web.LegalController do
   down. A malformed source fails the build instead of reaching production.
   Fully self-contained (inline CSS, no external fonts/CDN).
 
+  Two instances share this controller, so the documents come in *flavors*:
+  the server's own (`priv/legal/*.md`, the default) and natadeco.com's
+  board wording (`priv/legal/natadeco/*.md`). `LEGAL_FLAVOR=natadeco` picks
+  the latter, anything else the former. Both are baked into the release —
+  the env var only chooses between them at request time.
+
   Languages: the Japanese privacy policy follows Japan's APPI; the Korean
   follows PIPA. `?lang=ko` switches to Korean; default is Japanese (the
-  instance's default UI language). Update by editing `priv/legal/*.md` and
+  instance's default UI language). Update by editing the Markdown and
   rebuilding.
   """
   import Plug.Conn
 
-  @ja_privacy Path.expand("../../../priv/legal/privacy.ja.md", __DIR__)
-  @ko_privacy Path.expand("../../../priv/legal/privacy.ko.md", __DIR__)
-  @ja_terms Path.expand("../../../priv/legal/terms.ja.md", __DIR__)
-  @ko_terms Path.expand("../../../priv/legal/terms.ko.md", __DIR__)
-
-  @external_resource @ja_privacy
-  @external_resource @ko_privacy
-  @external_resource @ja_terms
-  @external_resource @ko_terms
-
   @opts %Earmark.Options{gfm: true, breaks: false}
-  @privacy_ja Earmark.as_html!(File.read!(@ja_privacy), @opts)
-  @privacy_ko Earmark.as_html!(File.read!(@ko_privacy), @opts)
-  @terms_ja Earmark.as_html!(File.read!(@ja_terms), @opts)
-  @terms_ko Earmark.as_html!(File.read!(@ko_terms), @opts)
+
+  # Flavor → the directory its four documents live in. Recompile when any
+  # of them changes, whichever flavor set it belongs to.
+  @dir Path.expand("../../../priv/legal", __DIR__)
+  @flavor_dirs %{sukhi: @dir, natadeco: Path.join(@dir, "natadeco")}
+  @doc_files ~w(terms.ja.md terms.ko.md privacy.ja.md privacy.ko.md)
+
+  for {_flavor, dir} <- @flavor_dirs, file <- @doc_files do
+    @external_resource Path.join(dir, file)
+  end
+
+  bake = fn dir, file ->
+    dir |> Path.join(file) |> File.read!() |> Earmark.as_html!(@opts)
+  end
+
+  docs =
+    for {flavor, dir} <- @flavor_dirs, into: %{} do
+      {flavor,
+       %{
+         terms_ja: bake.(dir, "terms.ja.md"),
+         terms_ko: bake.(dir, "terms.ko.md"),
+         privacy_ja: bake.(dir, "privacy.ja.md"),
+         privacy_ko: bake.(dir, "privacy.ko.md")
+       }}
+    end
+
+  @docs docs
+
+  defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor, :sukhi)
+  defp docs, do: Map.fetch!(@docs, flavor())
 
   # Fonts are subset to the glyphs these docs use and embedded as base64 at
   # compile time — no external request (Google Fonts would leak the reader's
@@ -108,23 +130,59 @@ defmodule SukhiFedi.Web.LegalController do
 
   @spec privacy(Plug.Conn.t()) :: Plug.Conn.t()
   def privacy(conn) do
+    body = docs()
+
     case lang(conn) do
       "ko" ->
-        render(conn, "ko", "개인정보 처리방침", @privacy_ko, "/privacy", {"이용약관", "/terms"}, signup?(conn))
+        render(
+          conn,
+          "ko",
+          "개인정보 처리방침",
+          body.privacy_ko,
+          "/privacy",
+          {"이용약관", "/terms"},
+          signup?(conn)
+        )
 
       _ ->
-        render(conn, "ja", "個人情報の取り扱いについて", @privacy_ja, "/privacy", {"利用規約", "/terms"}, signup?(conn))
+        render(
+          conn,
+          "ja",
+          "個人情報の取り扱いについて",
+          body.privacy_ja,
+          "/privacy",
+          {"利用規約", "/terms"},
+          signup?(conn)
+        )
     end
   end
 
   @spec terms(Plug.Conn.t()) :: Plug.Conn.t()
   def terms(conn) do
+    body = docs()
+
     case lang(conn) do
       "ko" ->
-        render(conn, "ko", "이용약관", @terms_ko, "/terms", {"개인정보 처리방침", "/privacy"}, signup?(conn))
+        render(
+          conn,
+          "ko",
+          "이용약관",
+          body.terms_ko,
+          "/terms",
+          {"개인정보 처리방침", "/privacy"},
+          signup?(conn)
+        )
 
       _ ->
-        render(conn, "ja", "利用規約", @terms_ja, "/terms", {"プライバシーポリシー", "/privacy"}, signup?(conn))
+        render(
+          conn,
+          "ja",
+          "利用規約",
+          body.terms_ja,
+          "/terms",
+          {"プライバシーポリシー", "/privacy"},
+          signup?(conn)
+        )
     end
   end
 
