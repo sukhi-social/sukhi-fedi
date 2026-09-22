@@ -45,6 +45,10 @@
     {$t('landing.about')}
     <a href="/map">{$t('landing.mapLink')}</a>
   </p>
+  <p class="prose-small">
+    {$t('landing.peek')}
+    <a href="/timeline">{$t('landing.peekLink')}</a>
+  </p>
 </section>
 
 <section class="section" style="text-align: center;">

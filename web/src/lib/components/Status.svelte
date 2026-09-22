@@ -19,6 +19,8 @@
     // 返信ボタンを出すか。タイムラインでは true、プロフィール一覧では false
     // など、置き場ごとに切り替えたい。
     canReply = false,
+    // ログインしていない人に見せる読み取り専用の姿(操作の並びを出さない)。
+    readonly = false,
     // リーダーページ（記事ページ）では全文を出したいので、折りたたみを切る。
     full = false,
     onreply,
@@ -28,6 +30,7 @@
   }: {
     status: Status;
     canReply?: boolean;
+    readonly?: boolean;
     full?: boolean;
     onreply?: (s: Status) => void;
     // 引用ボタンが押されたとき。置き場ごとに Composer を引用付きで開く。
@@ -141,7 +144,7 @@
       <a class="boost-by" href={`/@${status.account.acct}`}>
         <Twemoji emoji="🔁" /> {@html renderEmojis(phrase(name), status.account.emojis)} {$t('status.boostedBy')}
       </a>
-      <Self status={status.reblog} {canReply} {onreply} {onquote} {onupdate} {ondelete} />
+      <Self status={status.reblog} {canReply} {readonly} {onreply} {onquote} {onupdate} {ondelete} />
     </div>
   {:else}
     <button class="boost-compact" onclick={() => (boostExpanded = true)} title={$t('status.expandBoost')}>
@@ -239,7 +242,7 @@
       <PreviewCard card={status.card} />
     {/if}
 
-    <StatusActions {status} {canReply} {onreply} {onquote} {onupdate} {ondelete} />
+    <StatusActions {status} {canReply} {readonly} {onreply} {onquote} {onupdate} {ondelete} />
   </div>
 </article>
 {/if}

@@ -8,6 +8,7 @@
   let {
     status,
     canReply = false,
+    readonly = false,
     onreply,
     onquote,
     onupdate,
@@ -15,6 +16,10 @@
   }: {
     status: Status;
     canReply?: boolean;
+    // ログインしていない人に見せる読み取り専用の姿。操作の並び(＋⭐🔁返信⋯栞)は
+    // 出さず、リアクションは数だけ静かに見せる(押しても何も起きないボタンを
+    // 置かない)。
+    readonly?: boolean;
     onreply?: (s: Status) => void;
     onquote?: (s: Status) => void;
     onupdate?: (s: Status) => void;
@@ -204,6 +209,7 @@
         class="reaction-chip"
         class:me={r.me}
         title={r.name}
+        disabled={readonly}
         onclick={() => toggleReaction(r.name)}
       >
         {#if r.url}
@@ -217,6 +223,7 @@
   </div>
 {/if}
 
+{#if !readonly}
 <footer class="status-actions">
   <button type="button" class="chip" onclick={() => (pickerOpen = !pickerOpen)} aria-haspopup="dialog">
     ＋
@@ -292,6 +299,7 @@
     <Twemoji emoji={bookmarked ? '🔖' : '🏷'} />
   </button>
 </footer>
+{/if}
 
 {#if pickerOpen}
   <div class="picker-anchor">
@@ -349,6 +357,14 @@
   }
   .reaction-chip:hover {
     background: var(--fill-hover);
+  }
+  /* 読み取り専用のときはボタンだが押せない ── 淡くならず、そのまま見せる。 */
+  .reaction-chip:disabled {
+    opacity: 1;
+    cursor: default;
+  }
+  .reaction-chip:disabled:hover {
+    background: var(--fill-soft);
   }
   .reaction-chip.me {
     background: var(--fill-active);

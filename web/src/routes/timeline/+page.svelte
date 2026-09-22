@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { browser } from '$app/environment';
   import { fetchTimeline, type Status, type TimelineKind } from '$lib/api';
   import { warmAvatars } from '$lib/avatarWarm';
   import { isLoggedIn, clearToken } from '$lib/auth';
@@ -81,11 +82,15 @@
   let hideBoosts = $state(false);
   let hideSensitive = $state(false);
 
+  // ログインしていない人には、ローカルの公開タイムライン(みんな)を読み取り
+  // 専用で見せる。ホームは自分のはなしなので出さない。`browser` で包むのは、
+  // 事前描画のとき localStorage を触らないため(この頁は ssr=false なので
+  // 実際にはブラウザでしか動かないが、作法として)。
+  let loggedIn = $state(browser ? isLoggedIn() : false);
+
   onMount(() => {
-    if (!isLoggedIn()) {
-      goto('/');
-      return;
-    }
+    loggedIn = isLoggedIn();
+    if (!loggedIn) kind = 'public';
     retry = autoRetry(() => load(true));
     void load(true);
     return () => retry?.stop();
@@ -247,7 +252,7 @@
   }
 </script>
 
-{#if composerOpen}
+{#if composerOpen && loggedIn}
   <Composer
     {replyTo}
     {quoteOf}
@@ -258,11 +263,13 @@
 {/if}
 
 <nav class="tabs timeline" aria-label={$t('timeline.tabsLabel')}>
-  <button
-    type="button"
-    aria-pressed={kind === 'home'}
-    onclick={() => selectKind('home')}
-  >{$t('timeline.tabHome')}</button>
+  {#if loggedIn}
+    <button
+      type="button"
+      aria-pressed={kind === 'home'}
+      onclick={() => selectKind('home')}
+    >{$t('timeline.tabHome')}</button>
+  {/if}
   <button
     type="button"
     aria-pressed={kind === 'public'}
@@ -333,7 +340,14 @@
   {/if}
 
   {#each items as s (s.id)}
-    <StatusCard status={s} canReply onreply={onReply} onquote={onQuote} ondelete={onDelete} />
+    <StatusCard
+      status={s}
+      canReply={loggedIn}
+      readonly={!loggedIn}
+      onreply={onReply}
+      onquote={onQuote}
+      ondelete={onDelete}
+    />
   {/each}
 
   {#if !initial && (loading || revealing)}
