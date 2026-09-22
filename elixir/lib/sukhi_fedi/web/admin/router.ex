@@ -13,11 +13,11 @@ defmodule SukhiFedi.Web.Admin.Router do
 
   use Plug.Router
 
-  alias SukhiFedi.Web.Admin.{AnnouncementsController, Auth, BubbleInstancesController,
-                              DashboardController, InstanceBlocksController,
-                              InviteCodesController, LoginController, MapPeersController,
-                              RelaysController, ReportsController, SystemController,
-                              UsersController}
+  alias SukhiFedi.Web.Admin.{AnnouncementsController, Auth, BackfillController,
+                              BubbleInstancesController, DashboardController,
+                              InstanceBlocksController, InviteCodesController,
+                              LoginController, MapPeersController, RelaysController,
+                              ReportsController, SystemController, UsersController}
 
   plug :put_secret_key_base
 
@@ -158,6 +158,10 @@ defmodule SukhiFedi.Web.Admin.Router do
 
   post "/relays/:id/remove" do
     Auth.with_admin(conn, &RelaysController.remove(&1, id))
+  end
+
+  get "/backfill" do
+    Auth.with_admin(conn, &BackfillController.index/1)
   end
 
   get "/map_peers" do

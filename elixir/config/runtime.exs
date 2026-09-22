@@ -242,7 +242,8 @@ if config_env() == :prod do
       outbound_archive:
         String.to_integer(System.get_env("OBAN_OUTBOUND_ARCHIVE_CONCURRENCY", "10")),
       publish: String.to_integer(System.get_env("OBAN_PUBLISH_CONCURRENCY", "5")),
-      preview: String.to_integer(System.get_env("OBAN_PREVIEW_CONCURRENCY", "3"))
+      preview: String.to_integer(System.get_env("OBAN_PREVIEW_CONCURRENCY", "3")),
+      backfill: String.to_integer(System.get_env("OBAN_BACKFILL_CONCURRENCY", "2"))
     ]
 end
 

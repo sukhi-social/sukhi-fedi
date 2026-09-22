@@ -36,10 +36,12 @@ files are complementary: TODO is "do this", OPEN_QUESTIONS is
       kamal `directories:` が rocky 所有で作るので container が
       書けず落ちる。今コメントで残してあるだけ。`scripts/setup.sh`
       か init container にして「初回も kamal が完結」させる。
-- [ ] **Follow Accept 後の backfill.** `maybe_handle_follow_accept`
-      は相手 outbox を fetch しない (Mastodon 標準ではある)。
-      UX として「フォローしたのに静か」が痒い。意図的後回し。
-      ([memory: sukhi-fedi-follow-backfill](../.claude/projects/-Users-nyanrus--shiro/memory/sukhi-fedi-follow-backfill.md))
+- [x] **Follow Accept 後の backfill.** `maybe_handle_follow_accept`
+      から `Federation.OutboxBackfill` を enqueue し、相手 outbox を
+      **signed fetch** で辿って `public`/`unlisted` の Create を
+      `notes` に取り込む。既存の follow は起動のたび
+      `pending_existing/0` が拾い直す。進行状態は `/admin/backfill`。
+      手で今すぐ流すなら `SukhiFedi.Release.backfill_followed_outboxes()`
 - [ ] **Inbound `manuallyApprovesFollowers` の保存.**
       `RemoteAccounts.upsert_from_actor_json/1` で
       `manuallyApprovesFollowers` を読んで `:locked` に流し込む。

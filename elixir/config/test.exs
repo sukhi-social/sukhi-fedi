@@ -32,6 +32,10 @@ config :sukhi_fedi, Oban, testing: :inline
 # `SukhiFedi.PreviewCardsTest` instead.
 config :sukhi_fedi, link_previews: false
 
+# boot 時の backfill pending は sandbox の外から DB を触るので、テストでは
+# 走らせない（`Federation.OutboxBackfillTest` が選別だけを見る）。
+config :sukhi_fedi, backfill_on_boot: false
+
 # Don't auto-sample host metrics in tests — the Sampler would write to the
 # Repo outside any test's sandbox checkout. `nil` makes it start as :ignore;
 # `SukhiFedi.Metrics.record/0` is still exercised directly in metrics_test.

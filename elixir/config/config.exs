@@ -9,6 +9,11 @@ config :sukhi_fedi, SukhiFedi.Repo,
 
 config :sukhi_fedi, ecto_repos: [SukhiFedi.Repo]
 
+# 起動時に、未着手/失敗の followee outbox backfill を pending にする
+# (`Federation.OutboxBackfill.pending_existing/0`)。テストでは off ──
+# sandbox の外から DB を触ると、テストの足を掬う。
+config :sukhi_fedi, backfill_on_boot: true
+
 # os_mon's disksup rescans every 30 min by default, so /admin/system
 # would show no disk data for half an hour after each boot. A 1-minute
 # rescan is plenty fresh for an admin page and costs almost nothing.
@@ -16,7 +21,14 @@ config :os_mon, disk_space_check_interval: 1
 
 config :sukhi_fedi, Oban,
   repo: SukhiFedi.Repo,
-  queues: [monitor: 5, inbound_archive: 10, outbound_archive: 10, publish: 5, preview: 3],
+  queues: [
+    monitor: 5,
+    inbound_archive: 10,
+    outbound_archive: 10,
+    publish: 5,
+    preview: 3,
+    backfill: 2
+  ],
   plugins: [
     # NodeInfo monitor poll every 10 minutes. PollCoordinator enumerates
     # due MonitoredInstances and enqueues one PollWorker per instance.

@@ -283,6 +283,11 @@ defmodule SukhiFedi.AP.Instructions.Follows do
       )
       |> Repo.update_all(set: [state: "accepted"])
 
+      # 相手の過去投稿を引いてくる（signed fetch の outbox backfill）。
+      # ここを抜けると、新しく follow した相手のプロフィールが「これから
+      # 届く Create」だけの頁になる ── Mastodon は follow 時に引く。
+      SukhiFedi.Federation.OutboxBackfill.enqueue(followee_uri)
+
       :ok
     else
       _ -> :ok

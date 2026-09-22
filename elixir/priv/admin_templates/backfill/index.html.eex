@@ -1,0 +1,63 @@
+<h1>Backfill</h1>
+
+<p class="muted" style="margin-top: 0;">
+  When a remote follow is accepted, we walk the followee's outbox with a
+  <strong>signed</strong> fetch and mirror their recent public posts, so a
+  new follow isn't silent until the next <code>Create</code> arrives.
+  Accounts that never went through that (follows made before the backfill
+  existed) are picked up as <code>pending</code> on every restart. Mirrored
+  posts are idempotent on their AP id — re-running never duplicates.
+</p>
+
+<div class="grid-cards" style="margin-bottom: 20px;">
+  <div class="card"><div class="n"><%= h(counts.done) %></div><div class="label">done</div></div>
+  <div class="card"><div class="n"><%= h(counts.pending) %></div><div class="label">pending</div></div>
+  <div class="card"><div class="n"><%= h(counts.running) %></div><div class="label">running</div></div>
+  <div class="card"><div class="n"><%= h(counts.failed) %></div><div class="label">failed</div></div>
+  <div class="card"><div class="n"><%= h(counts.untouched) %></div><div class="label">untouched</div></div>
+</div>
+
+<div class="panel" style="padding: 0;">
+<table>
+  <thead>
+    <tr>
+      <th>Account</th>
+      <th>State</th>
+      <th>Mirrored</th>
+      <th>Attempted</th>
+      <th>Error</th>
+    </tr>
+  </thead>
+  <tbody>
+<%= if rows == [] do %>
+    <tr><td colspan="5" class="muted" style="text-align: center; padding: 24px;">Not following anyone remote yet.</td></tr>
+<% else %>
+<%= for a <- rows do %>
+    <tr>
+      <td>
+        <strong>@<%= h(a.username) %>@<%= h(a.domain) %></strong>
+        <div class="muted" style="font-size: 12px;"><%= h(a.actor_uri) %></div>
+      </td>
+      <td>
+<%= case a.backfill_state do %>
+<% "done" -> %>
+        <span class="pill ok">done</span>
+<% "running" -> %>
+        <span class="pill">running</span>
+<% "pending" -> %>
+        <span class="pill silenced">pending</span>
+<% "failed" -> %>
+        <span class="pill suspended">failed</span>
+<% _ -> %>
+        <span class="pill">untouched</span>
+<% end %>
+      </td>
+      <td class="muted"><%= h(a.backfill_mirrored || 0) %></td>
+      <td class="muted"><%= if a.backfill_attempted_at, do: h(DateTime.to_iso8601(a.backfill_attempted_at)), else: "—" %></td>
+      <td class="muted" style="font-size: 12px; max-width: 320px; word-break: break-word;"><%= h(a.backfill_error) %></td>
+    </tr>
+<% end %>
+<% end %>
+  </tbody>
+</table>
+</div>

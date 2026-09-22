@@ -65,6 +65,14 @@ defmodule SukhiFedi.Schema.Account do
     field :public_key_id, :string
     field :last_fetched_at, :utc_datetime
 
+    # こちらから follow した remote の過去投稿 backfill の進行状態。
+    # 詳しくは `Federation.OutboxBackfill` と
+    # `priv/repo/migrations/core/20260922000001_add_backfill_state_to_accounts.exs`。
+    field :backfill_state, :string
+    field :backfill_attempted_at, :utc_datetime
+    field :backfill_mirrored, :integer, default: 0
+    field :backfill_error, :string
+
     # Local-account credentials. All `domain IS NULL` only. `email` is
     # required at signup since 2026-06; rows from before may still lack
     # it (the SPA nudges them). `email_verified_at` marks an address
