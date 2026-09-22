@@ -61,7 +61,7 @@ defmodule SukhiFedi.Fedi.HttpSignature do
     uri = URI.parse(url)
     headers = %{"host" => uri.host, "date" => http_date()}
     names = ["(request-target)", "host", "date"]
-    attach_cavage_signature(headers, names, "get", uri.path || "/", private_key, key_id)
+    attach_cavage_signature(headers, names, "get", request_target(uri), private_key, key_id)
   end
 
   @doc "Extracts the signing `keyId` from the request headers, either spec."
@@ -119,7 +119,7 @@ defmodule SukhiFedi.Fedi.HttpSignature do
     }
 
     names = ["(request-target)", "host", "date", "digest", "content-type"]
-    attach_cavage_signature(headers, names, "post", uri.path || "/", private_key, key_id)
+    attach_cavage_signature(headers, names, "post", request_target(uri), private_key, key_id)
   end
 
   defp attach_cavage_signature(headers, names, method, path, private_key, key_id) do
@@ -131,6 +131,16 @@ defmodule SukhiFedi.Fedi.HttpSignature do
       "signature",
       ~s(keyId="#{key_id}",algorithm="rsa-sha256",headers="#{Enum.join(names, " ")}",signature="#{signature}")
     )
+  end
+
+  # The `(request-target)` of a request: path *and* query. A signed GET to
+  # a paged collection (`/users/x/outbox?page=true`) covers the query. The
+  # signing string that omitted it no longer matched what the peer built,
+  # so it answered 403 — which is how a paged outbox fetch silently came
+  # back empty.
+  defp request_target(%URI{path: path, query: query}) do
+    base = path || "/"
+    if query, do: base <> "?" <> query, else: base
   end
 
   # The signing string is the same on both sides: one `name: value` line
@@ -149,7 +159,7 @@ defmodule SukhiFedi.Fedi.HttpSignature do
   # ── Cavage: verification ─────────────────────────────────────────────────
 
   defp verify_cavage(method, url, headers, body, public_key, opts) do
-    path = URI.parse(url).path || "/"
+    path = request_target(URI.parse(url))
 
     with {:ok, params} <- parse_cavage_header(headers["signature"]),
          :ok <- require_cavage_fields(params),
@@ -265,7 +275,10 @@ defmodule SukhiFedi.Fedi.HttpSignature do
       ~s(alg="rsa-v1_5-sha256";keyid="#{sf_escape(key_id)}";created=#{created})
 
     inner_list = ~s[(#{Enum.map_join(components, " ", &~s("#{&1}"))});#{params}]
-    base = rfc9421_base_lines("POST", url, headers, components) <> ~s("@signature-params": #{inner_list})
+
+    base =
+      rfc9421_base_lines("POST", url, headers, components) <>
+        ~s("@signature-params": #{inner_list})
 
     signature = :public_key.sign(base, :sha256, private_key) |> Base.encode64()
 
@@ -433,9 +446,7 @@ defmodule SukhiFedi.Fedi.HttpSignature do
   defp component_value("@query", _method, url, _headers), do: URI.parse(url).query || ""
 
   defp component_value("@request-target", method, url, _headers) do
-    uri = URI.parse(url)
-    query = if uri.query, do: "?#{uri.query}", else: ""
-    "#{String.downcase(method)} #{uri.path || "/"}#{query}"
+    "#{String.downcase(method)} #{request_target(URI.parse(url))}"
   end
 
   defp component_value("@" <> _ = name, _method, _url, _headers),

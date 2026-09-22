@@ -95,7 +95,14 @@ defmodule SukhiFedi.Fedi.HttpSignatureTest do
 
     test "cavage round-trips", %{private_key: private_key} do
       body = ~s({"a":1})
-      headers = HttpSignature.sign_post("https://remote.test/inbox", body, private_key, FediGolden.key_id())
+
+      headers =
+        HttpSignature.sign_post(
+          "https://remote.test/inbox",
+          body,
+          private_key,
+          FediGolden.key_id()
+        )
 
       assert headers["host"] == "remote.test"
       assert headers["content-type"] == "application/activity+json"
@@ -103,42 +110,71 @@ defmodule SukhiFedi.Fedi.HttpSignatureTest do
       assert headers["signature"] =~ ~s(keyId="#{FediGolden.key_id()}")
 
       assert :ok =
-               HttpSignature.verify("POST", "https://remote.test/inbox", headers, body, FediGolden.public_key())
+               HttpSignature.verify(
+                 "POST",
+                 "https://remote.test/inbox",
+                 headers,
+                 body,
+                 FediGolden.public_key()
+               )
     end
 
     test "rfc9421 round-trips", %{private_key: private_key} do
       body = ~s({"a":1})
 
       headers =
-        HttpSignature.sign_post("https://remote.test/inbox", body, private_key, FediGolden.key_id(),
-          spec: :rfc9421
-        )
+        HttpSignature.sign_post(
+          "https://remote.test/inbox",
+          body,
+          private_key,
+          FediGolden.key_id(), spec: :rfc9421)
 
       assert headers["content-digest"] =~ ~r/^sha-256=:.+:$/
       assert headers["signature-input"] =~ ~s(keyid="#{FediGolden.key_id()}")
-      assert headers["signature-input"] =~ ~s["@method" "@target-uri" "@authority" "host" "date" "content-digest"]
+
+      assert headers["signature-input"] =~
+               ~s["@method" "@target-uri" "@authority" "host" "date" "content-digest"]
+
       assert headers["signature"] =~ ~r/^sig1=:.+:$/
 
       assert :ok =
-               HttpSignature.verify("POST", "https://remote.test/inbox", headers, body, FediGolden.public_key())
+               HttpSignature.verify(
+                 "POST",
+                 "https://remote.test/inbox",
+                 headers,
+                 body,
+                 FediGolden.public_key()
+               )
     end
 
     test "rfc9421 signed by us verifies through fedify's own verifyRequest shape",
          %{private_key: private_key} do
       # Sanity on the wire format fedify parses: sf inner list + params.
       headers =
-        HttpSignature.sign_post("https://remote.test/inbox", "x", private_key, FediGolden.key_id(),
+        HttpSignature.sign_post(
+          "https://remote.test/inbox",
+          "x",
+          private_key,
+          FediGolden.key_id(),
           spec: :rfc9421,
           now: 1_780_000_000
         )
 
-      assert headers["signature-input"] =~ ~r/;alg="rsa-v1_5-sha256";keyid=".+";created=1780000000$/
+      assert headers["signature-input"] =~
+               ~r/;alg="rsa-v1_5-sha256";keyid=".+";created=1780000000$/
     end
 
     test "a cavage signature that does not cover digest is rejected even when the digest matches",
          %{private_key: private_key} do
       body = ~s({"a":1})
-      headers = HttpSignature.sign_post("https://remote.test/inbox", body, private_key, FediGolden.key_id())
+
+      headers =
+        HttpSignature.sign_post(
+          "https://remote.test/inbox",
+          body,
+          private_key,
+          FediGolden.key_id()
+        )
 
       # Re-sign covering only (request-target) + host + date: the body
       # is then unbound and verify must refuse — this is the hole the
@@ -161,7 +197,13 @@ defmodule SukhiFedi.Fedi.HttpSignatureTest do
         )
 
       assert {:error, :digest_not_signed} =
-               HttpSignature.verify("POST", "https://remote.test/inbox", weak_headers, body, FediGolden.public_key())
+               HttpSignature.verify(
+                 "POST",
+                 "https://remote.test/inbox",
+                 weak_headers,
+                 body,
+                 FediGolden.public_key()
+               )
     end
 
     test "an rfc9421 signature that does not cover content-digest is rejected",
@@ -169,9 +211,11 @@ defmodule SukhiFedi.Fedi.HttpSignatureTest do
       body = ~s({"a":1})
 
       headers =
-        HttpSignature.sign_post("https://remote.test/inbox", body, private_key, FediGolden.key_id(),
-          spec: :rfc9421
-        )
+        HttpSignature.sign_post(
+          "https://remote.test/inbox",
+          body,
+          private_key,
+          FediGolden.key_id(), spec: :rfc9421)
 
       # Strip content-digest from the covered components but keep the
       # rest of the envelope: coverage policy must refuse before any
@@ -182,7 +226,13 @@ defmodule SukhiFedi.Fedi.HttpSignatureTest do
         end)
 
       assert {:error, :digest_not_signed} =
-               HttpSignature.verify("POST", "https://remote.test/inbox", weakened, body, FediGolden.public_key())
+               HttpSignature.verify(
+                 "POST",
+                 "https://remote.test/inbox",
+                 weakened,
+                 body,
+                 FediGolden.public_key()
+               )
     end
 
     test "a body-bearing cavage request without a digest header is rejected",
@@ -190,20 +240,59 @@ defmodule SukhiFedi.Fedi.HttpSignatureTest do
       body = ~s({"a":1})
 
       headers =
-        HttpSignature.sign_post("https://remote.test/inbox", body, private_key, FediGolden.key_id())
+        HttpSignature.sign_post(
+          "https://remote.test/inbox",
+          body,
+          private_key,
+          FediGolden.key_id()
+        )
         |> Map.delete("digest")
 
       assert {:error, :no_digest} =
-               HttpSignature.verify("POST", "https://remote.test/inbox", headers, body, FediGolden.public_key())
+               HttpSignature.verify(
+                 "POST",
+                 "https://remote.test/inbox",
+                 headers,
+                 body,
+                 FediGolden.public_key()
+               )
     end
 
     test "sign_get covers (request-target) host date", %{private_key: private_key} do
-      headers = HttpSignature.sign_get("https://remote.test/users/x", private_key, FediGolden.key_id())
+      headers =
+        HttpSignature.sign_get("https://remote.test/users/x", private_key, FediGolden.key_id())
 
       assert headers["signature"] =~ ~s(headers="\(request-target\) host date")
 
       assert :ok =
-               HttpSignature.verify("GET", "https://remote.test/users/x", headers, "", FediGolden.public_key())
+               HttpSignature.verify(
+                 "GET",
+                 "https://remote.test/users/x",
+                 headers,
+                 "",
+                 FediGolden.public_key()
+               )
+    end
+
+    test "sign_get covers the query string in (request-target)", %{private_key: private_key} do
+      url = "https://remote.test/users/x/outbox?page=true&until_id=abc"
+      headers = HttpSignature.sign_get(url, private_key, FediGolden.key_id())
+
+      # A peer rebuilds the signing string from path *and* query. Dropping
+      # the query (the old behaviour) made every paged collection fetch
+      # fail verification with a 403.
+      assert :ok = HttpSignature.verify("GET", url, headers, "", FediGolden.public_key())
+
+      # The query is genuinely part of what we signed: the same signature
+      # must not verify against the query-less URL.
+      assert {:error, :bad_signature} =
+               HttpSignature.verify(
+                 "GET",
+                 "https://remote.test/users/x/outbox",
+                 headers,
+                 "",
+                 FediGolden.public_key()
+               )
     end
 
     # The delivery worker double-knocks (cavage ↔ rfc9421), so both specs
@@ -212,21 +301,42 @@ defmodule SukhiFedi.Fedi.HttpSignatureTest do
     test "verify routes by Signature-Input presence, no cross-over", %{private_key: private_key} do
       body = ~s({"a":1})
 
-      cavage = HttpSignature.sign_post("https://remote.test/inbox", body, private_key, FediGolden.key_id())
+      cavage =
+        HttpSignature.sign_post(
+          "https://remote.test/inbox",
+          body,
+          private_key,
+          FediGolden.key_id()
+        )
+
       refute Map.has_key?(cavage, "signature-input")
 
       assert :ok =
-               HttpSignature.verify("POST", "https://remote.test/inbox", cavage, body, FediGolden.public_key())
+               HttpSignature.verify(
+                 "POST",
+                 "https://remote.test/inbox",
+                 cavage,
+                 body,
+                 FediGolden.public_key()
+               )
 
       rfc =
-        HttpSignature.sign_post("https://remote.test/inbox", body, private_key, FediGolden.key_id(),
-          spec: :rfc9421
-        )
+        HttpSignature.sign_post(
+          "https://remote.test/inbox",
+          body,
+          private_key,
+          FediGolden.key_id(), spec: :rfc9421)
 
       assert Map.has_key?(rfc, "signature-input")
 
       assert :ok =
-               HttpSignature.verify("POST", "https://remote.test/inbox", rfc, body, FediGolden.public_key())
+               HttpSignature.verify(
+                 "POST",
+                 "https://remote.test/inbox",
+                 rfc,
+                 body,
+                 FediGolden.public_key()
+               )
     end
 
     # An attacker who can rewrite the Signature-Input must not be able to
@@ -237,9 +347,11 @@ defmodule SukhiFedi.Fedi.HttpSignatureTest do
       body = ~s({"a":1})
 
       headers =
-        HttpSignature.sign_post("https://remote.test/inbox", body, private_key, FediGolden.key_id(),
-          spec: :rfc9421
-        )
+        HttpSignature.sign_post(
+          "https://remote.test/inbox",
+          body,
+          private_key,
+          FediGolden.key_id(), spec: :rfc9421)
 
       downgraded =
         Map.update!(headers, "signature-input", fn input ->
@@ -247,7 +359,13 @@ defmodule SukhiFedi.Fedi.HttpSignatureTest do
         end)
 
       assert {:error, :unsupported_algorithm} =
-               HttpSignature.verify("POST", "https://remote.test/inbox", downgraded, body, FediGolden.public_key())
+               HttpSignature.verify(
+                 "POST",
+                 "https://remote.test/inbox",
+                 downgraded,
+                 body,
+                 FediGolden.public_key()
+               )
     end
   end
 

@@ -181,7 +181,8 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
   @spec run(String.t()) :: {:ok, non_neg_integer()} | {:error, term()}
   def run(actor_uri) when is_binary(actor_uri) do
     with {:ok, outbox} <- outbox_of(actor_uri),
-         {:ok, items, _meta} <- fetch_outbox(outbox) do
+         {:ok, items, meta} <- fetch_outbox(outbox),
+         :ok <- reached_outbox(meta) do
       {mirrored, seen} =
         Enum.reduce(items, {0, 0}, fn item, {mirrored, seen} ->
           if mirrorable?(item) do
@@ -196,6 +197,13 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
       {:ok, mirrored}
     end
   end
+
+  # `CollectionFetcher` returns whatever it managed to read, and an empty
+  # list when the *first* page couldn't be fetched at all (`pages: 0`).
+  # That is not "an empty outbox": treat it as a failure so the account is
+  # retried, not stamped `done` with zero mirrored.
+  defp reached_outbox(%{pages: 0}), do: {:error, :outbox_unreachable}
+  defp reached_outbox(_meta), do: :ok
 
   defp outbox_of(actor_uri) do
     case ActorFetcher.fetch(actor_uri) do
