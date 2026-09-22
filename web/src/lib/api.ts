@@ -48,6 +48,12 @@ export type Account = {
   role?: { id: string; name: string; permissions: string } | null;
 };
 
+// 管理ページに入れるのは role が "admin" のアカウントだけ。判定は
+// ここ一箇所に置き、画面ごとに書き写さない。
+export function isAdmin(roleName: string | null | undefined): boolean {
+  return roleName === 'admin';
+}
+
 export type MediaAttachment = {
   id: string;
   type: string;

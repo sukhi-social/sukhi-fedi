@@ -22,12 +22,15 @@
     isLoggedIn,
     signOutServer,
     loadOtherAccounts,
+    loadToken,
     switchAccount,
     removeAccount,
     startAddAccount,
     type StoredAccount
   } from '$lib/auth';
   import Avatar from './Avatar.svelte';
+  import AccountPicker from './AccountPicker.svelte';
+  import { hasAdmin, loadAdminChoices, type AdminChoice } from '$lib/adminPicker';
   import { currentAccount, type Account } from '$lib/api';
   import {
     directUnseen,
@@ -64,6 +67,13 @@
   let me = $state<Account | null>(null);
   // 他に一度ログインしたことのあるアカウント(いま見ている me は含まない)。
   let otherAccounts = $state<StoredAccount[]>([]);
+  // 管理画面の入口。サインイン中の誰かが admin のときだけ、アカウントの
+  // メニューに「管理」を出す。候補(adminChoices)は、顔ぶれが変わった
+  // ときだけ組み直す。
+  let adminChoices = $state<AdminChoice[]>([]);
+  let adminKey = '';
+  let adminPickerOpen = $state(false);
+  let accountMenuOpen = $state(false);
 
   // 会話の面は「入った先」。ここは行き先を選ぶ場所ではなく、もう誰かと
   // 話している場所なので、流れの帯は畳んで、左上を戻る口にする ──
@@ -71,19 +81,45 @@
   // (畳んだぶんの高さは、そのまま会話に返る。)
   let inThread = $derived(/^\/messages\/[^/]+\/?$/.test(page.url.pathname));
   let showBottomNav = $derived(loggedIn && !inThread);
+  let showAdminEntry = $derived(loggedIn && hasAdmin(adminChoices));
 
   function sync() {
     loggedIn = isLoggedIn();
     if (loggedIn) {
       void refreshUnseen();
-      void currentAccount().then((a) => (me = a));
+      void currentAccount().then((a) => {
+        me = a;
+        void refreshAdmin(a);
+      });
       otherAccounts = loadOtherAccounts();
       startStream();
     } else {
       me = null;
       otherAccounts = [];
+      adminChoices = [];
+      adminKey = '';
       stopStream();
     }
+  }
+
+  // 他のアカウントの role は token から引き直す必要があるので、顔ぶれが
+  // 変わったときだけ解決する ── 毎回の遷移では呼ばない。
+  async function refreshAdmin(account: Account | null) {
+    const token = loadToken()?.access_token;
+    if (!account || !token) {
+      adminChoices = [];
+      adminKey = '';
+      return;
+    }
+    const key = `${account.acct}|${otherAccounts.map((a) => a.acct).sort().join(',')}`;
+    if (key === adminKey) return;
+    adminKey = key;
+    adminChoices = await loadAdminChoices(account, token);
+  }
+
+  function openAdminPicker() {
+    accountMenuOpen = false;
+    adminPickerOpen = true;
   }
 
   // 下の帯のぶんの余白は、帯が出ているときだけ。畳んだ面で余白だけ残ると、
@@ -203,7 +239,11 @@
           {/snippet}
         </NavMenu>
 
-        <NavMenu ariaLabel={$t('nav.account')} triggerClass="nav-avatar-trigger">
+        <NavMenu
+          bind:open={accountMenuOpen}
+          ariaLabel={$t('nav.account')}
+          triggerClass="nav-avatar-trigger"
+        >
           {#snippet trigger()}
             {#if me}
               <Avatar class="nav-avatar" src={me.avatar} name={me.display_name || me.username} />
@@ -232,6 +272,12 @@
               <span>{$t('nav.addAccount')}</span>
             </button>
             <div class="nav-menu-sep" role="separator"></div>
+            {#if showAdminEntry}
+              <button type="button" class="nav-menu-item" role="menuitem" onclick={openAdminPicker}>
+                <NavIcon name="gear" />
+                <span>{$t('nav.admin')}</span>
+              </button>
+            {/if}
             {@render menuLink('/settings', 'nav.settings', 'gear')}
             <button type="button" class="nav-menu-item" role="menuitem" onclick={signOut}>
               <NavIcon name="logout" />
@@ -248,4 +294,16 @@
       {#each flowBottom as item (item.key)}{@render flowLink(item)}{/each}
     </nav>
   {/if}
+{/if}
+
+{#if adminPickerOpen}
+  <AccountPicker
+    title={$t('adminPicker.title')}
+    hint={$t('adminPicker.hint')}
+    badge={$t('adminPicker.badge')}
+    cancelLabel={$t('adminPicker.cancel')}
+    action="/admin/login"
+    accounts={adminChoices}
+    onclose={() => (adminPickerOpen = false)}
+  />
 {/if}

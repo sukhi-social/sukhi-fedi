@@ -163,21 +163,47 @@ function saveOtherAccounts(list: StoredAccount[]): void {
   else localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list));
 }
 
-// どのアカウントも「いま見ている」自覚を持たない(sf.token がそう
-// なので)── 切り替え・追加のたびに verify_credentials で問い直す。
-// 呼び出し頻度は低い(切り替え操作そのものの中でしか呼ばない)ので、
-// キャッシュしてまで避ける値ではない。
-async function resolveAcct(token: TokenSet): Promise<string | null> {
+// sf.accounts に置いたアカウントは token しか覚えていない。アカウント
+// 選択の窓が「どれが admin か」を出すには、token からひとつずつ
+// verify_credentials で引き直す。窓を開くときだけの低い頻度なので、
+// キャッシュは持たない。
+export type ResolvedAccount = {
+  acct: string;
+  display_name: string;
+  avatar: string | null;
+  role: string | null;
+};
+
+export async function resolveAccount(token: TokenSet): Promise<ResolvedAccount | null> {
   try {
     const res = await fetch('/api/v1/accounts/verify_credentials', {
       headers: { authorization: `Bearer ${token.access_token}` }
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { acct?: string };
-    return typeof body.acct === 'string' ? body.acct : null;
+    const body = (await res.json()) as {
+      acct?: string;
+      display_name?: string;
+      avatar?: string | null;
+      role?: { name?: string } | null;
+    };
+    if (typeof body.acct !== 'string') return null;
+    return {
+      acct: body.acct,
+      display_name: typeof body.display_name === 'string' ? body.display_name : '',
+      avatar: body.avatar ?? null,
+      role: typeof body.role?.name === 'string' ? body.role.name : null
+    };
   } catch {
     return null;
   }
+}
+
+// どのアカウントも「いま見ている」自覚を持たない(sf.token がそう
+// なので)── 切り替え・追加のたびに verify_credentials で問い直す。
+// 呼び出し頻度は低い(切り替え操作そのものの中でしか呼ばない)ので、
+// キャッシュしてまで避ける値ではない。
+async function resolveAcct(token: TokenSet): Promise<string | null> {
+  return (await resolveAccount(token))?.acct ?? null;
 }
 
 // 「いま見ている」アカウントを、sf.accounts の中の一つと入れ替える。

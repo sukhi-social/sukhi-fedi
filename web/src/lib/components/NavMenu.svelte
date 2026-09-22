@@ -11,18 +11,19 @@
   import { afterNavigate } from '$app/navigation';
 
   let {
+    open = $bindable(false),
     ariaLabel,
     triggerClass = '',
     trigger,
     children
   }: {
+    open?: boolean;
     ariaLabel: string;
     triggerClass?: string;
     trigger: Snippet;
     children: Snippet;
   } = $props();
 
-  let open = $state(false);
   let root = $state<HTMLElement | null>(null);
 
   function onWindowClick(e: MouseEvent) {

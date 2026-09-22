@@ -36,6 +36,7 @@ export const ja = {
   'nav.compose': '書く',
   'nav.logout': 'ログアウト',
   'nav.addAccount': 'アカウントを追加',
+  'nav.admin': '管理',
 
   // ── 表のページ ───────────────────────────────────────
   'landing.heroTitle': 'ここは、sukhiという、小さなお星さまです。',
@@ -228,6 +229,11 @@ export const ja = {
   'settings.admin': '管理',
   'settings.adminDesc': 'このインスタンスの管理ページに入れます。',
   'settings.adminEnter': '管理ページへ',
+  // アカウント選択の窓(管理画面の入口)。
+  'adminPicker.title': 'どのアカウントで入りますか',
+  'adminPicker.hint': '管理ページに入れるのは、印のついたアカウントだけです。',
+  'adminPicker.badge': '管理',
+  'adminPicker.cancel': 'やめる',
   'settings.language': 'ことば',
   'settings.changePassword': '合言葉を変える',
   'settings.security': 'ログインと安全',

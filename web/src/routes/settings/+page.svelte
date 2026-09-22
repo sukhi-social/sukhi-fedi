@@ -12,7 +12,9 @@
     type Account
   } from '$lib/api';
   import { clearToken, isLoggedIn, loadToken } from '$lib/auth';
+  import { hasAdmin, loadAdminChoices, type AdminChoice } from '$lib/adminPicker';
   import AccountActionRow from '$lib/components/AccountActionRow.svelte';
+  import AccountPicker from '$lib/components/AccountPicker.svelte';
   import Avatar from '$lib/components/Avatar.svelte';
   import ImageCrop from '$lib/components/ImageCrop.svelte';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
@@ -24,6 +26,11 @@
   // SPA がすでに持っている OAuth トークンをそのまま渡すので、トークンを
   // 貼り直す手間が要らない。
   let adminToken = $state('');
+  // アカウント選択の窓に並べる候補(いま見ている人 + 他に一度ログイン
+  // したことのある人)。admin だけが強調される。トークンは窓の行から
+  // /admin/login へそのまま POST する。
+  let adminChoices = $state<AdminChoice[]>([]);
+  let adminPickerOpen = $state(false);
   let displayName = $state('');
   let note = $state('');
   let locked = $state(false);
@@ -88,6 +95,7 @@
     try {
       me = await verifyCredentials();
       adminToken = loadToken()?.access_token ?? '';
+      adminChoices = await loadAdminChoices(me, adminToken);
       displayName = me.display_name ?? '';
       // note は HTML で返ってくる。編集はテキストとして扱いたいので、
       // 雑だけど <br> を改行、その他のタグを落とす最小処理。
@@ -398,20 +406,31 @@
     {/if}
   </details>
 
-  {#if me.role?.name === 'admin' && adminToken}
-    <!-- /admin は別ドア(bearer 貼り付けログイン)。SPA が持っている
-         トークンをそのまま POST して、貼り直しなしで入れるようにする。
-         通常のリンクではなく form なのは、/admin/login が token を
-         body で受けて session cookie を立てて 302 する作りだから。 -->
+  {#if adminToken && hasAdmin(adminChoices)}
+    <!-- /admin は別ドア(bearer 貼り付けログイン)。どのアカウントで
+         入るかを窓で選び、選んだ行の form がそのトークンを POST する
+         ── 貼り直しなしのまま、複数サインインでも admin を選べる。
+         入り口は、admin の人がひとりでもいる間だけ出す。 -->
     <section class="admin-entry timeline" style="margin-top: var(--space-5);">
       <h2 style="font-size: var(--text-base);">{$t('settings.admin')}</h2>
       <p class="muted">{$t('settings.adminDesc')}</p>
-      <form method="post" action="/admin/login">
-        <input type="hidden" name="token" value={adminToken} />
-        <button type="submit" class="chip">{$t('settings.adminEnter')}</button>
-      </form>
+      <button type="button" class="chip" onclick={() => (adminPickerOpen = true)}>
+        {$t('settings.adminEnter')}
+      </button>
     </section>
   {/if}
+{/if}
+
+{#if adminPickerOpen}
+  <AccountPicker
+    title={$t('adminPicker.title')}
+    hint={$t('adminPicker.hint')}
+    badge={$t('adminPicker.badge')}
+    cancelLabel={$t('adminPicker.cancel')}
+    action="/admin/login"
+    accounts={adminChoices}
+    onclose={() => (adminPickerOpen = false)}
+  />
 {/if}
 
 {#if cropTarget && cropSource}

@@ -39,6 +39,7 @@ export const ko: Dict = {
   'nav.compose': '쓰기',
   'nav.logout': '로그아웃',
   'nav.addAccount': '계정 추가하기',
+  'nav.admin': '관리',
 
   // ── 첫 페이지 ────────────────────────────────────────
   'landing.heroTitle': '여기는 sukhi라는, 작은 별이에요.',
@@ -229,6 +230,11 @@ export const ko: Dict = {
   'settings.admin': '관리',
   'settings.adminDesc': '이 인스턴스의 관리 페이지에 들어갈 수 있어요.',
   'settings.adminEnter': '관리 페이지로',
+  // 계정 선택 창(관리 화면 입구).
+  'adminPicker.title': '어느 계정으로 들어갈까요',
+  'adminPicker.hint': '관리 페이지에 들어갈 수 있는 계정에만 표시가 붙어요.',
+  'adminPicker.badge': '관리',
+  'adminPicker.cancel': '취소',
   'settings.language': '언어',
   'settings.changePassword': '비밀번호 변경',
   'settings.security': '로그인과 안전',
