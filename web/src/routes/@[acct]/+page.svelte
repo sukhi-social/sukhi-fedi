@@ -29,6 +29,7 @@
   import MediaGrid from '$lib/components/MediaGrid.svelte';
   import { phrase } from '$lib/phrase';
   import { renderEmojis } from '$lib/emoji';
+  import LegalFooter from '$lib/components/LegalFooter.svelte';
   import { t } from '$lib/i18n';
 
   let account = $state<Account | null>(null);
@@ -470,6 +471,9 @@
         {/if}
       </section>
     {/if}
+
+    <!-- 誰の頁でも、下に約束への入り口を。 -->
+    <LegalFooter />
   {/if}
 {/if}
 

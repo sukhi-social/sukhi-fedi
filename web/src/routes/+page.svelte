@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import LaneDoor from '$lib/components/LaneDoor.svelte';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
+  import LegalFooter from '$lib/components/LegalFooter.svelte';
   import { t } from '$lib/i18n';
 
   onMount(() => {
@@ -49,6 +50,9 @@
 <section class="section" style="text-align: center;">
   <LangSwitch />
 </section>
+
+<!-- 入る前に、約束を読めるように。 -->
+<LegalFooter />
 
 <style>
   /* 折り返しは許しつつ(スマホで横にはみ出さない)、短い最終行=はぐれ行を
