@@ -31,6 +31,7 @@
   "dependencies": {
     "@twemoji/api": "^17.0.3",
     "@twemoji/svg": "^15.0.0",
+    "js.foresight": "^4.2.1",
     "uqr": "^0.1.3"
   }
 }

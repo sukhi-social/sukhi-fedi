@@ -40,6 +40,16 @@ export function createPager<T>(fetchPage: (maxId: string | null) => Promise<Page
     }
   }
 
+  // すでに取れている一枚を、そのまま種にする。`load` が先読みした最初の
+  // ページを頁へ渡すとき(先読みが効いた遷移では、ここに来る時点で取得は
+  // 済んでいる)と、reset の後始末とで同じ道を通る。
+  function hydrate(page: Page<T>): void {
+    items = page.items;
+    // 0 件が返ったら、Link が次を匂わせていても終わり扱いにする。
+    nextMaxId = page.items.length === 0 ? null : page.nextMaxId;
+    if (nextMaxId) void prefetchNext(nextMaxId);
+  }
+
   return {
     get items(): T[] {
       return items;
@@ -54,16 +64,14 @@ export function createPager<T>(fetchPage: (maxId: string | null) => Promise<Page
       return revealing;
     },
 
+    hydrate,
+
     // 頭から読み直す。失敗は呼び手に投げる。
     async reset(): Promise<void> {
       items = [];
       nextMaxId = null;
       prefetched = null;
-      const page = await fetchPage(null);
-      items = page.items;
-      // 0 件が返ったら、Link が次を匂わせていても終わり扱いにする。
-      nextMaxId = page.items.length === 0 ? null : page.nextMaxId;
-      if (nextMaxId) void prefetchNext(nextMaxId);
+      hydrate(await fetchPage(null));
     },
 
     // 「もっと読む」。先読みが手元にあれば、行き先を先へ進めて、その次の

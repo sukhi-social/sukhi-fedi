@@ -1,53 +1,50 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getStatus, getContext, type Status } from '$lib/api';
+  import type { Status } from '$lib/api';
   import { clearToken } from '$lib/auth';
   import StatusCard from '$lib/components/Status.svelte';
   import Composer from '$lib/components/Composer.svelte';
   import { t } from '$lib/i18n';
+  import type { PageProps } from './$types';
 
-  let status = $state<Status | null>(null);
-  let ancestors = $state<Status[]>([]);
-  let descendants = $state<Status[]>([]);
-  let loading = $state(true);
-  let error = $state<string | null>(null);
+  let { data }: PageProps = $props();
+
+  // 別のスレッドへ移れば load が引き直す。最初の一枚は mount 時点の値から。
+  const seed = untrack(() => data);
+
+  function threadError(d: PageProps['data']): string | null {
+    if (!d.error || d.error === 'unauthorized') return null;
+    return d.error === 'not_found' ? $t('thread.noteNotFound') : $t('common.deliverFailed');
+  }
+
+  let status = $state<Status | null>(seed.status);
+  let ancestors = $state<Status[]>(seed.ancestors);
+  let descendants = $state<Status[]>(seed.descendants);
+  let loading = $state(false);
+  let error = $state<string | null>(threadError(seed));
 
   let replyTo = $state<Status | null>(null);
   let quoteOf = $state<Status | null>(null);
   let composerOpen = $state(false);
 
-  let id = $derived($page.params.id ?? '');
-
-  onMount(() => {
-    void load();
+  // 別のスレッドへ移ったら load が引き直される。その新しい種を取り込む。
+  let shownId = $state(seed.id);
+  $effect(() => {
+    if (data.id === shownId) return;
+    shownId = data.id;
+    status = data.status;
+    ancestors = data.ancestors;
+    descendants = data.descendants;
+    error = threadError(data);
   });
 
-  async function load() {
-    loading = true;
-    error = null;
-    try {
-      // スレッドの前後を一緒に出したいので、本体と文脈を並べて取る。
-      status = await getStatus(id);
-      const ctx = await getContext(id);
-      ancestors = ctx.ancestors;
-      descendants = ctx.descendants;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '';
-      if (msg === 'unauthorized') {
-        clearToken();
-        void goto('/');
-        return;
-      }
-      error =
-        msg === 'not_found'
-          ? $t('thread.noteNotFound')
-          : $t('common.deliverFailed');
-    } finally {
-      loading = false;
+  onMount(() => {
+    if (data.error === 'unauthorized') {
+      clearToken();
+      void goto('/');
     }
-  }
+  });
 
   // どのノートにも返信できる。返信先の公開範囲は Composer が引き継ぐので、
   // DM への返信はそのまま direct のまま、同じスレッドに繋がる。

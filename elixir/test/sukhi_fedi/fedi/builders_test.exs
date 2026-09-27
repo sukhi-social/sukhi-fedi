@@ -31,6 +31,7 @@ defmodule SukhiFedi.Fedi.BuildersTest do
           %{
             "actor" => FediGolden.actor(),
             "content" => "<p>本文</p>",
+            "misskeyContent" => "本文",
             "recipientInboxes" => ["https://remote.test/inbox"],
             "noteId" => "https://sukhi.test/notes/1",
             "activityId" => "https://sukhi.test/notes/1/activity",
@@ -133,6 +134,7 @@ defmodule SukhiFedi.Fedi.BuildersTest do
       build!("note", %{
         "actor" => FediGolden.actor(),
         "content" => "<p>hello</p>",
+        "misskeyContent" => "hello",
         "recipientInboxes" => ["https://remote.test/inbox"],
         "noteId" => "https://sukhi.test/notes/1",
         "activityId" => "https://sukhi.test/notes/1/activity",
@@ -154,7 +156,8 @@ defmodule SukhiFedi.Fedi.BuildersTest do
     object = activity["object"]
     assert object["type"] == "Note"
     assert object["inReplyTo"] == "https://remote.test/notes/8"
-    assert object["_misskey_content"] == "<p>hello</p>"
+    assert object["content"] == "<p>hello</p>"
+    assert object["_misskey_content"] == "hello"
     assert object["quoteUrl"] == "https://remote.test/notes/9"
     assert object["_misskey_quote"] == "https://remote.test/notes/9"
     # FEP-044f canonical quote (signed) rides alongside the aliases, and
@@ -374,6 +377,7 @@ defmodule SukhiFedi.Fedi.BuildersTest do
       build!("dm", %{
         "actor" => FediGolden.actor(),
         "content" => "<p>psst</p>",
+        "misskeyContent" => "psst",
         "recipientActors" => ["https://remote.test/users/friend"],
         "noteId" => "https://sukhi.test/notes/2",
         "activityId" => "https://sukhi.test/notes/2/activity",
@@ -400,6 +404,7 @@ defmodule SukhiFedi.Fedi.BuildersTest do
           Map.merge(ed25519_creds(), %{
             "actor" => FediGolden.actor(),
             "content" => "<p>hello</p>",
+            "misskeyContent" => "hello",
             "recipientInboxes" => [],
             "noteId" => "https://sukhi.test/notes/1",
             "activityId" => "https://sukhi.test/notes/1/activity",
@@ -415,7 +420,7 @@ defmodule SukhiFedi.Fedi.BuildersTest do
       # The proof must verify over the document as delivered — extras
       # included; a receiver strips only `proof` and `signature`.
       assert :ok = Oip.verify(note, FediGolden.oip_public_key())
-      assert note["object"]["_misskey_content"] == "<p>hello</p>"
+      assert note["object"]["_misskey_content"] == "hello"
     end
 
     test "follow: proof rides alongside the LD signature" do

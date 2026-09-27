@@ -24,9 +24,9 @@ defmodule SukhiFedi.Integration.NotesTest do
       a = create_account!("alice_cs")
 
       assert {:ok, note} =
-               Notes.create_status(a, %{"status" => "hello", "visibility" => "public"})
+               Notes.create_status(a, %{"status" => "**hello**", "visibility" => "public"})
 
-      assert note.content == "hello"
+      assert note.content == "**hello**"
       assert note.visibility == "public"
       assert note.account_id == a.id
 
@@ -39,6 +39,8 @@ defmodule SukhiFedi.Integration.NotesTest do
         )
 
       assert ev.payload["note_id"] == note.id
+      assert ev.payload["content"] == "<p><strong>hello</strong></p>"
+      assert ev.payload["misskey_content"] == "**hello**"
     end
 
     test "spoiler_text → cw, in_reply_to_id resolves to ap_id" do

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import { fetchTimeline, type Status, type TimelineKind } from '$lib/api';
@@ -12,6 +12,9 @@
   import LegalFooter from '$lib/components/LegalFooter.svelte';
   import { t } from '$lib/i18n';
   import { startTimelineStream } from '$lib/webtransport';
+  import type { PageProps } from './$types';
+
+  let { data }: PageProps = $props();
 
   let replyTo = $state<Status | null>(null);
   let quoteOf = $state<Status | null>(null);
@@ -52,23 +55,28 @@
     items = items.filter((it) => it.id !== s.id);
   }
 
-  let kind = $state<TimelineKind>('home');
+  // data はパラメータが変われば差し替わる。タイムラインはその場で取り直す
+  // ので、種は mount 時点の一枚だけ(tab 切替・再試行は頁が自分で引く)。
+  const seed = untrack(() => data);
+
+  let kind = $state<TimelineKind>(seed.kind);
   let tag = $state('');
   let pendingTag = $state('');
 
-  let items = $state<Status[]>([]);
+  let items = $state<Status[]>(seed.page.items);
   // WebTransport の live 新着はここに溜め、「新着 N 件」で明示的に見せる（calm-UX。
   // 勝手に頭へ差し込まない）。home のときだけ ── karutte が押す feed は local+user＝
   // まさにホームの構成なので、それを live で受ける。
   let incoming = $state<Status[]>([]);
-  let nextMaxId = $state<string | null>(null);
+  let nextMaxId = $state<string | null>(seed.page.nextMaxId);
   let loading = $state(false);
-  let error = $state<string | null>(null);
+  let error = $state<string | null>(seed.failed ? $t('common.deliverFailedRetry') : null);
   // 「繋がらなくて失敗した」状態。エラー文ではなく静かな待ち表示を出し、
   // つながりが戻ったら自動で読み直す(retry が裏で叩いている)。
-  let offline = $state(false);
+  let offline = $state(seed.offline);
   let retry: ReturnType<typeof autoRetry> | null = null;
-  let initial = $state(true);
+  // load が一枚を持っているので、初回の「読み込み中」は無い。
+  let initial = $state(false);
 
   // 次のページを裏で先に取っておく置き場。クリックを待たずに用意して
   // おくので「もっと読む」が一瞬で返る。先読みが空なら本当に終わりと
@@ -90,9 +98,16 @@
 
   onMount(() => {
     loggedIn = isLoggedIn();
-    if (!loggedIn) kind = 'public';
     retry = autoRetry(() => load(true));
-    void load(true);
+    if (data.unauthorized) {
+      clearToken();
+      void goto('/');
+      return () => retry?.stop();
+    }
+    // 初回の一枚は load が先に取っている。ここでは取り直さず、次ページの
+    // 先読みだけ起こす。繋がらなかったときは、静かな再試行の輪に入る。
+    if (data.offline) retry.fail();
+    if (nextMaxId) void prefetchNext(nextMaxId);
     return () => retry?.stop();
   });
 

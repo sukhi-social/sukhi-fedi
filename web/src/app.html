@@ -20,7 +20,10 @@
     <title>sukhi-fedi</title>
     %sveltekit.head%
   </head>
-  <body data-sveltekit-preload-data="hover">
+  <!-- 先読みは data-sveltekit-preload-data="hover" ではなく ForesightJS が
+       引き受ける($lib/foresight.ts)。ポインタが乗る前に、軌道と Tab と
+       タッチから着地点を予測して温める ── 一箇所で。 -->
+  <body>
     <div style="display: contents">%sveltekit.body%</div>
   </body>
 </html>

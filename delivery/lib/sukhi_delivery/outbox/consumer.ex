@@ -150,6 +150,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
             activityId: activity_id,
             inReplyToId: p["in_reply_to_ap_id"]
           }
+          |> maybe_put_misskey_content(p["misskey_content"])
           |> maybe_put_quote(p["quote_of_ap_id"])
           |> maybe_put_attachments(p["media"])
           |> maybe_put_cw(p["cw"])
@@ -194,6 +195,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
             published: p["published"],
             inReplyToId: p["in_reply_to_ap_id"]
           }
+          |> maybe_put_misskey_content(p["misskey_content"])
           |> maybe_put_quote(p["quote_of_ap_id"])
           |> maybe_put_quote_authorization(p["quote_authorization_ap_id"])
           |> maybe_put_attachments(p["media"])
@@ -298,6 +300,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
             inReplyToId: p["in_reply_to_ap_id"],
             conversationId: p["conversation_ap_id"]
           }
+          |> maybe_put_misskey_content(p["misskey_content"])
           |> maybe_put_attachments(p["media"])
 
         translate_and_fanout("dm", payload, actor_uri, activity_id, inboxes)
@@ -966,6 +969,11 @@ defmodule SukhiDelivery.Outbox.Consumer do
         payload
     end
   end
+
+  defp maybe_put_misskey_content(payload, content) when is_binary(content),
+    do: Map.put(payload, :misskeyContent, content)
+
+  defp maybe_put_misskey_content(payload, _), do: payload
 
   defp maybe_put_quote(payload, quote_uri) when is_binary(quote_uri) and quote_uri != "" do
     Map.put(payload, :quoteUrl, quote_uri)

@@ -1,12 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import {
-    lookupAccount,
     getAccountStatuses,
-    getRelationships,
-    verifyCredentials,
     blockAccount,
     unblockAccount,
     muteAccount,
@@ -16,7 +12,7 @@
     type Relationship,
     type Status
   } from '$lib/api';
-  import { isLoggedIn, clearToken } from '$lib/auth';
+  import { clearToken } from '$lib/auth';
   import { createPager } from '$lib/pager.svelte';
   import { proxyVariants } from '$lib/proxyImage';
   import StatusCard from '$lib/components/Status.svelte';
@@ -31,17 +27,32 @@
   import { renderEmojis } from '$lib/emoji';
   import LegalFooter from '$lib/components/LegalFooter.svelte';
   import { t } from '$lib/i18n';
+  import type { PageProps } from './$types';
 
-  let account = $state<Account | null>(null);
-  let me = $state<Account | null>(null);
-  let rel = $state<Relationship | null>(null);
-  let pinnedItems = $state<Status[]>([]);
+  let { data }: PageProps = $props();
+
+  // 別のプロフィールへ移れば load が引き直す。最初の一枚は mount 時点の
+  // 値から種を取る(acct が変わったぶんは下の $effect が拾う)。
+  const seed = untrack(() => data);
+
+  // 期待どおり失敗した load の結果を、頁の一言に訳す。unauthorized は
+  // onMount が login へ戻すので、ここでは何も出さない。
+  function profileError(d: PageProps['data']): string | null {
+    if (!d.error || d.error === 'unauthorized') return null;
+    if (d.error === 'not_found') return $t('common.acctNotFound', { acct: d.acct });
+    return $t('common.deliverFailed');
+  }
+
+  let account = $state<Account | null>(seed.account);
+  let me = $state<Account | null>(seed.me);
+  let rel = $state<Relationship | null>(seed.rel);
+  let pinnedItems = $state<Status[]>(seed.pins.items.map((s) => ({ ...s, pinned: true })));
   let loading = $state(false);
-  let error = $state<string | null>(null);
-  let initial = $state(true);
+  let error = $state<string | null>(profileError(seed));
+  // load が最初の一枚を持っているので、初回の「読み込み中」は無い。
+  let initial = $state(false);
 
   // 記事（Article）を持つ人にだけ、プロフィールに「記事」タブを出す。
-  // 読み込み時に一度だけ記事を引いて、あればタブを立てる。
   let tab = $state<'posts' | 'articles'>('posts');
 
   // 投稿タブの表示フィルター。「画像・メディアのみ」を入れると only_media で
@@ -58,10 +69,28 @@
   const articlesPager = createPager<Status>((maxId) =>
     getAccountStatuses(account!.id, { maxId, articles: true })
   );
+  // load が取った最初の一枚を種にする。
+  postsPager.hydrate(seed.posts);
+  articlesPager.hydrate(seed.articles);
   let hasArticles = $derived(articlesPager.items.length > 0);
 
-  let acct = $derived($page.params.acct ?? '');
   let isSelf = $derived(!!account && !!me && me.id === account.id);
+
+  // 別のプロフィールへ移ったら(/@a → /@b)、SvelteKit は load を引き直す。
+  // その新しい種をここで取り込む。最初の描画は data で済んでいるので、
+  // これは二回目以降のためだけ。
+  let shownAcct = $state(seed.acct);
+  $effect(() => {
+    if (data.acct === shownAcct) return;
+    shownAcct = data.acct;
+    account = data.account;
+    me = data.me;
+    rel = data.rel;
+    pinnedItems = data.pins.items.map((s) => ({ ...s, pinned: true }));
+    error = profileError(data);
+    postsPager.hydrate(data.posts);
+    articlesPager.hydrate(data.articles);
+  });
 
   // プロフィール上の投稿にも、その場で返信できるように。返信先の公開範囲は
   // Composer が引き継ぐ。送れたら自分のプロフィールを見ているとき(=自分への
@@ -156,54 +185,13 @@
   }
 
   onMount(() => {
-    void load();
-  });
-
-  async function load() {
-    loading = true;
-    error = null;
-    try {
-      account = await lookupAccount(acct);
-      // 自分かどうかを判定するため、ログイン時だけ自分を引く。
-      if (isLoggedIn()) {
-        try {
-          me = await verifyCredentials();
-        } catch {
-          me = null;
-        }
-        if (me && me.id !== account.id) {
-          const rs = await getRelationships([account.id]);
-          rel = rs[0] ?? null;
-        }
-      }
-      const empty = { items: [] as Status[], nextMaxId: null };
-      // 投稿・記事・ピン留めを一度に。記事とピンは取れなくてもプロフィール
-      // 本体は出す(投稿の失敗だけは下の catch でエラーにする)。
-      const [, , pins] = await Promise.all([
-        postsPager.reset(),
-        articlesPager.reset().catch(() => {}),
-        getAccountStatuses(account.id, { pinned: true }).catch(() => empty)
-      ]);
-      // featured 由来＝定義上ピン留め済み。サーバの viewer flag を待たず
-      // フラグを立て、メニューが「外す」を出せるようにする。
-      pinnedItems = pins.items.map((s) => ({ ...s, pinned: true }));
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '';
-      if (msg === 'unauthorized') {
-        clearToken();
-        void goto('/');
-        return;
-      }
-      if (msg === 'not_found') {
-        error = $t('common.acctNotFound', { acct });
-      } else {
-        error = $t('common.deliverFailed');
-      }
-    } finally {
-      loading = false;
-      initial = false;
+    // 死んだ token での遷移は、ここで一度だけ login へ戻す。予測(load)では
+    // 起こさない ── ホバーしただけでログアウトさせないため。
+    if (data.error === 'unauthorized') {
+      clearToken();
+      void goto('/');
     }
-  }
+  });
 
   async function loadMore() {
     if (!account || loading) return;

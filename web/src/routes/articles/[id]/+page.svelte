@@ -1,49 +1,50 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getStatus, getContext, type Status } from '$lib/api';
+  import type { Status } from '$lib/api';
   import { clearToken } from '$lib/auth';
   import StatusCard from '$lib/components/Status.svelte';
   import Composer from '$lib/components/Composer.svelte';
   import { t } from '$lib/i18n';
+  import type { PageProps } from './$types';
 
   // 記事のリーダーページ。スレッド表示と違い、本体を折りたたまず全文を出し、
   // 返信はその下にそっと並べる。読むことが主役。
-  let status = $state<Status | null>(null);
-  let descendants = $state<Status[]>([]);
-  let loading = $state(true);
-  let error = $state<string | null>(null);
+  let { data }: PageProps = $props();
+
+  // 別の記事へ移れば load が引き直す。最初の一枚は mount 時点の値から。
+  const seed = untrack(() => data);
+
+  function readError(d: PageProps['data']): string | null {
+    if (!d.error || d.error === 'unauthorized') return null;
+    return d.error === 'not_found' ? $t('thread.noteNotFound') : $t('common.deliverFailed');
+  }
+
+  let status = $state<Status | null>(seed.status);
+  let descendants = $state<Status[]>(seed.descendants);
+  let loading = $state(false);
+  let error = $state<string | null>(readError(seed));
 
   let replyTo = $state<Status | null>(null);
   let quoteOf = $state<Status | null>(null);
   let composerOpen = $state(false);
 
-  let id = $derived($page.params.id ?? '');
-
-  onMount(() => {
-    void load();
+  // 別の記事へ移ったら load が引き直される。その新しい種を取り込む。
+  let shownId = $state(seed.id);
+  $effect(() => {
+    if (data.id === shownId) return;
+    shownId = data.id;
+    status = data.status;
+    descendants = data.descendants;
+    error = readError(data);
   });
 
-  async function load() {
-    loading = true;
-    error = null;
-    try {
-      status = await getStatus(id);
-      const ctx = await getContext(id);
-      descendants = ctx.descendants;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '';
-      if (msg === 'unauthorized') {
-        clearToken();
-        void goto('/');
-        return;
-      }
-      error = msg === 'not_found' ? $t('thread.noteNotFound') : $t('common.deliverFailed');
-    } finally {
-      loading = false;
+  onMount(() => {
+    if (data.error === 'unauthorized') {
+      clearToken();
+      void goto('/');
     }
-  }
+  });
 
   function onReply(s: Status) {
     replyTo = s;

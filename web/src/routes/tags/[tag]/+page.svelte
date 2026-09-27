@@ -1,60 +1,58 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { fetchTimeline, type Status } from '$lib/api';
   import { isLoggedIn, clearToken } from '$lib/auth';
   import { createPager } from '$lib/pager.svelte';
   import StatusCard from '$lib/components/Status.svelte';
   import { t } from '$lib/i18n';
+  import type { PageProps } from './$types';
+
+  let { data }: PageProps = $props();
+
+  // タグが変われば load が引き直す。最初の一枚は mount 時点の値から。
+  const seed = untrack(() => data);
 
   // ルートパラメータ。本文中のハッシュタグ（rel="tag"）はここに飛んでくる。
-  let tag = $derived(decodeURIComponent($page.params.tag ?? ''));
+  let tag = $state(seed.tag);
 
-  // fetchPage は今の tag を見る。タグが変わると下の $effect が reset する。
+  // fetchPage は今の tag を見る。タグが変わると load が引き直され、下の
+  // $effect が新しい一枚に取り替える。
   const pager = createPager<Status>((maxId) => fetchTimeline('tag', { tag, maxId }));
+  // load が取った最初の一枚を種にする。
+  pager.hydrate(seed.page);
+
   let loading = $state(false);
-  let error = $state<string | null>(null);
-  let initial = $state(true);
+  let error = $state<string | null>(seed.error ? $t('common.deliverFailedRetry') : null);
+  let initial = $state(false);
 
   onMount(() => {
-    if (!isLoggedIn()) {
+    if (!isLoggedIn() || data.error === 'unauthorized') {
+      clearToken();
       goto('/');
-      return;
     }
   });
 
-  // タグが変わったら（/tags/A → /tags/B の遷移）頭から読み直す。
-  //
-  // **引き金だけを依存にする。** load は先頭で loading を読むので、それが
-  // 依存に乗ると `loading = true` / `finally { loading = false }` が自分を
-  // 呼び戻して止まらなくなる ── タグのページを開いているあいだ、ずっと
-  // 取り直しつづける。untrack で切る（/messages と /messages/[id] が同じ形）。
+  // 別のタグへ移ったら(/tags/A → /tags/B)、load が引き直した一枚を種に
+  // 取り替える。
+  let shownTag = $state(seed.tag);
   $effect(() => {
-    void tag;
-    untrack(() => {
-      if (isLoggedIn()) void load(true);
-    });
+    if (data.tag === shownTag) return;
+    shownTag = data.tag;
+    tag = data.tag;
+    pager.hydrate(data.page);
+    error = data.error ? $t('common.deliverFailedRetry') : null;
   });
 
-  async function load(reset: boolean) {
-    if (loading || !tag) return;
+  async function more() {
+    if (loading) return;
     loading = true;
-    error = null;
-    if (reset) initial = true;
     try {
-      await (reset ? pager.reset() : pager.more());
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'unknown';
-      if (msg === 'unauthorized') {
-        clearToken();
-        goto('/');
-        return;
-      }
-      error = $t('common.deliverFailedRetry');
+      await pager.more();
+    } catch {
+      // 続きが取れなかったら静かに止める。
     } finally {
       loading = false;
-      initial = false;
     }
   }
 </script>
@@ -84,6 +82,6 @@
   {/if}
 
   {#if pager.hasMore && !loading && !pager.revealing}
-    <button class="load-more" onclick={() => load(false)}>{$t('common.loadMore')}</button>
+    <button class="load-more" onclick={more}>{$t('common.loadMore')}</button>
   {/if}
 </section>

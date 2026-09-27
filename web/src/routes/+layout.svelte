@@ -6,6 +6,7 @@
   import AnnouncementsBanner from '$lib/components/AnnouncementsBanner.svelte';
   import { devAutoLogin } from '$lib/auth';
   import { registerServiceWorker } from '$lib/pwa';
+  import { installForesight } from '$lib/foresight';
   import type { Snippet } from 'svelte';
 
   // dev で VITE_DEV_TOKEN があれば、AppNav が mount する前にテストユーザー
@@ -14,6 +15,10 @@
 
   // ホーム画面に入れられるようにする。dev では何もしない。
   registerServiceWorker();
+
+  // リンクへ向かう「意図」でルートを先読みする。app.html の hover 先読みは
+  // 外してあるので、リンクの温めはここが一手に引き受ける。
+  installForesight();
 
   let { children }: { children?: Snippet } = $props();
 </script>

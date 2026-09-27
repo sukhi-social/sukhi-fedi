@@ -192,7 +192,7 @@ defmodule SukhiFedi.Fedi.Builders do
     with {:ok, signed} <- sign(p, activity),
          injected =
            signed
-           |> inject_misskey_content(titled_content(p))
+           |> inject_misskey_content(p["misskeyContent"])
            |> inject_quote(p["quoteUrl"])
            |> inject_attachments(p["attachments"])
            |> inject_author_mention(p),
@@ -250,7 +250,7 @@ defmodule SukhiFedi.Fedi.Builders do
     with {:ok, signed} <- sign(p, activity),
          injected =
            signed
-           |> inject_misskey_content(p["content"])
+           |> inject_misskey_content(p["misskeyContent"])
            |> inject_attachments(p["attachments"]),
          {:ok, proved} <- attach_proof(injected, p) do
       {:ok, %{"note" => proved, "recipientInboxes" => p["recipientInboxes"]}}
@@ -477,8 +477,10 @@ defmodule SukhiFedi.Fedi.Builders do
 
   # ── Post-signature compatibility injections (parity with utils.ts) ──────
 
-  defp inject_misskey_content(activity, content),
+  defp inject_misskey_content(activity, content) when is_binary(content),
     do: update_object(activity, &Map.put(&1, "_misskey_content", content))
+
+  defp inject_misskey_content(activity, _), do: activity
 
   # The Misskey-style aliases + the FEP-e232 tag Link, injected post-sign
   # (parity with the historical Bun path). The FEP-044f canonical `quote`

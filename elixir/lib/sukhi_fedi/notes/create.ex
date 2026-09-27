@@ -41,6 +41,7 @@ defmodule SukhiFedi.Notes.Create do
           account_id: note.account_id,
           visibility: note.visibility,
           content: Note.html(note),
+          misskey_content: SukhiFedi.HTML.unescape(note.content),
           emojis: note.emojis || []
         }
       end
@@ -158,6 +159,8 @@ defmodule SukhiFedi.Notes.Create do
             visibility: n.visibility,
             # AP `content` is HTML, so the rendered form is what federates.
             content: Note.html(n),
+            # Misskey's private content field is MFM/plain source, not HTML.
+            misskey_content: SukhiFedi.HTML.unescape(n.content),
             # The content warning and sensitive flag are set by the author but
             # were never federated — remotes showed our CW'd / NSFW posts
             # unwarned. Carry them through to the outbound builder.
@@ -216,6 +219,7 @@ defmodule SukhiFedi.Notes.Create do
           note_id: note.id,
           account_id: note.account_id,
           content: Note.html(note),
+          misskey_content: SukhiFedi.HTML.unescape(note.content),
           cw: note.cw,
           sensitive: note.sensitive,
           published: DateTime.to_iso8601(note.created_at),
@@ -388,6 +392,7 @@ defmodule SukhiFedi.Notes.Create do
           note_id: n.id,
           account_id: n.account_id,
           content: Note.html(n),
+          misskey_content: SukhiFedi.HTML.unescape(n.content),
           media: media,
           recipient_actor_uris: remote_uris,
           in_reply_to_ap_id: n.in_reply_to_ap_id,
