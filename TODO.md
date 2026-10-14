@@ -140,10 +140,12 @@ endpoint surface is mapped out in [`docs/MISSKEY_API.md`](docs/MISSKEY_API.md).
       NULL` の部分一意インデックスを足す。`scripts/prepare_volpeon.mjs` の
       `ON CONFLICT (shortcode, domain)` も同じ理由で再実行のたびに重複する
       (新しい `scripts/emoji_import.jl` + `POST /api/admin/emojis` が置き換え)。
-- [ ] **絵文字インポートの `host` (tsbvm).** `scripts/emoji_import.jl` は
-      `host(name, ...)` を前提にしている (env / fs / json / http.post_json /
-      exit)。tsbvm 側の実装待ち。それまでは `scripts/emoji_import_test/` の
-      モックでだけ動く。動いたら `scripts/prepare_volpeon.mjs` を消す。
+- [ ] **絵文字インポートを本物のサーバーで一度通す.** `host` は tsbvm に
+      実装した (nyanrus/tsubaki の `host-capabilities` ブランチ。まだ push して
+      いない)。`scripts/emoji_import.jl` は、本物のファイルと HTTP、契約どおりに
+      答える偽サーバーまでは通した。本物の `POST /api/admin/emojis` に対しては
+      未実行 (`EMOJI_DRY_RUN=1` から)。通ったら `scripts/prepare_volpeon.mjs`
+      を消す。
 
 ## Federation / signing — hackers.pub 401 から派生
 

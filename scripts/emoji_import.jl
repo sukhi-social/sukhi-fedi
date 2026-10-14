@@ -24,18 +24,19 @@
 #
 # Exit code 1 if the server refused anything or any emoji came back failed.
 #
-# STATUS: folded with tsubakic and run on the Rust VM (tsbvm) against an
-# in-memory mock of `host` (scripts/emoji_import_test/), checks pass:
+# STATUS: run for real on the Rust VM (tsbvm) with its standard host
+# (needs the branch `host-capabilities` of nyanrus/tsubaki and
+# `cargo build --release --features http`): real files, real HTTP against a
+# fake server that answers the way POST /api/admin/emojis is documented to.
+# NOT yet run against the real server. Checks against an in-memory mock:
 #
 #   tsubakic out.tsb scripts/emoji_import_test/host_mock.jl \
 #                    scripts/emoji_import.jl scripts/emoji_import_test/check.jl
 #   tsbvm out.tsb
 #
-# NOT run against a real filesystem or server: `host` is a proposal that
-# tsbvm does not have yet.
-#
 # What this script asks of its host: `host(name, args...)`, JSON in / JSON
-# out, and nothing else leaves the VM. The embedder chooses which names exist.
+# out, and nothing else leaves the VM. The embedder chooses which names exist
+# (tsbvm's StdHost has all of these).
 #
 #   env.get(name, default)           -> string
 #   fs.dirs(path)                    -> [string]    sub-directories, sorted
