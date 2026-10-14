@@ -214,6 +214,8 @@ export const ko: Dict = {
   'settings.fieldAdd': '항목 더하기',
   'settings.fieldRemove': '지우기',
   'settings.locked': '팔로우를 승인한 뒤에 받기 (잠금)',
+  'settings.bot': '봇 계정임을 명시하기',
+  'settings.botManagement': '봇 계정 관리',
   'settings.discoverable': '쉽게 발견되도록 하기 (추천·목록에 표시)',
   'settings.indexable': '글이 전문 검색에 잡히도록 하기',
   'settings.searchConsentHint':
@@ -417,6 +419,18 @@ export const ko: Dict = {
   'security.accountMismatch':
     '지금 이 설정은 「@{acct}」님의 것이에요. 지금 보고 있는 계정의 설정을 바꾸고 싶으면, 다시 한번 로그인해 주세요.',
   'security.reloginLink': '로그인으로',
+  'bot.title': '봇 계정 관리',
+  'bot.help': '비밀번호도 화면 로그인도 없이, 키(token) 하나로만 쓰는 계정이에요. 관리자만 쓸 수 있어요.',
+  'bot.createTitle': '만들기',
+  'bot.username': '사용자 이름',
+  'bot.displayName': '표시 이름',
+  'bot.create': '만들기',
+  'bot.rotateTitle': '키 바꾸기',
+  'bot.id': '계정 ID',
+  'bot.rotate': '바꾸기',
+  'bot.tokenOnce': '이 키는 지금 여기에만 보여요. 닫기 전에 꼭 적어 두세요. 바꾸면 예전 키는 바로 쓸 수 없게 돼요.',
+  'bot.adminRequired': '관리자만 쓸 수 있어요.',
+  'bot.failed': '잘 되지 않았어요. 다시 한번.',
   'security.backToSettings': '설정으로 돌아가기',
 
   // ── 오래된 글 정리(settings/cleanup)──────────

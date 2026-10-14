@@ -213,6 +213,8 @@ export const ja = {
   'settings.fieldAdd': '項目を足す',
   'settings.fieldRemove': '消す',
   'settings.locked': 'フォローを、承認してから受ける（鍵）',
+  'settings.bot': 'BOTアカウントであることを明記する',
+  'settings.botManagement': 'BOTアカウントの管理',
   'settings.discoverable': '見つけてもらいやすくする（おすすめや一覧に出る）',
   'settings.indexable': '投稿を全文検索で見つけられるようにする',
   'settings.searchConsentHint':
@@ -417,6 +419,18 @@ export const ja = {
   'security.accountMismatch':
     'いまここの設定は「@{acct}」のものです。いま見ているアカウントの設定を変えたいときは、もう一度ログインしなおしてください。',
   'security.reloginLink': 'ログインへ',
+  'bot.title': 'BOTアカウントの管理',
+  'bot.help': 'パスワードも画面ログインも無い、鍵（token）だけで書くアカウントです。管理者だけが使えます。',
+  'bot.createTitle': 'つくる',
+  'bot.username': 'ユーザー名',
+  'bot.displayName': '表示名',
+  'bot.create': 'つくる',
+  'bot.rotateTitle': '鍵を取り替える',
+  'bot.id': 'アカウントID',
+  'bot.rotate': '取り替える',
+  'bot.tokenOnce': 'この鍵は、いまここにしか出ません。閉じる前に控えてください。取り替えると、古い鍵はすぐに使えなくなります。',
+  'bot.adminRequired': '管理者だけが使えます。',
+  'bot.failed': 'うまくいきませんでした。もう一度。',
   'security.backToSettings': '設定にもどる',
 
   // ── 古い投稿のお片づけ（settings/cleanup）──────────
