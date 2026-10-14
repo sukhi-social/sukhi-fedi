@@ -54,15 +54,15 @@ defmodule SukhiApi.Capabilities.MastodonPush do
           ok(422, %{error: "missing_subscription_keys"})
 
         true ->
-          case GatewayRpc.call(SukhiFedi.Addons.WebPush, :subscribe, [
+          case GatewayRpc.run(SukhiFedi.Addons.WebPush, :subscribe, [
                  v.id,
                  endpoint,
                  p256dh,
                  auth,
                  alerts
                ]) do
-            {:ok, {:ok, row}} -> ok(200, render(row))
-            {:ok, {:error, _}} -> ok(422, %{error: "validation_failed"})
+            {:ok, row} -> ok(200, render(row))
+            {:error, _} -> ok(422, %{error: "validation_failed"})
             e -> rpc_error(e)
           end
       end
@@ -71,7 +71,7 @@ defmodule SukhiApi.Capabilities.MastodonPush do
 
   def show(req) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.Addons.WebPush, :get_subscription_for, [v.id]) do
+      case GatewayRpc.run(SukhiFedi.Addons.WebPush, :get_subscription_for, [v.id]) do
         {:ok, nil} -> ok(404, %{error: "not_found"})
         {:ok, row} -> ok(200, render(row))
         e -> rpc_error(e)
@@ -87,19 +87,19 @@ defmodule SukhiApi.Capabilities.MastodonPush do
       body = decode_body(req)
       alerts = (body["data"] || %{})["alerts"] || %{}
 
-      case GatewayRpc.call(SukhiFedi.Addons.WebPush, :get_subscription_for, [v.id]) do
+      case GatewayRpc.run(SukhiFedi.Addons.WebPush, :get_subscription_for, [v.id]) do
         {:ok, nil} ->
           ok(404, %{error: "not_found"})
 
         {:ok, row} ->
-          case GatewayRpc.call(SukhiFedi.Addons.WebPush, :subscribe, [
+          case GatewayRpc.run(SukhiFedi.Addons.WebPush, :subscribe, [
                  v.id,
                  row.endpoint,
                  row.p256dh_key,
                  row.auth_key,
                  alerts
                ]) do
-            {:ok, {:ok, updated}} -> ok(200, render(updated))
+            {:ok, updated} -> ok(200, render(updated))
             _ -> ok(422, %{error: "validation_failed"})
           end
 
@@ -111,12 +111,12 @@ defmodule SukhiApi.Capabilities.MastodonPush do
 
   def delete(req) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.Addons.WebPush, :get_subscription_for, [v.id]) do
+      case GatewayRpc.run(SukhiFedi.Addons.WebPush, :get_subscription_for, [v.id]) do
         {:ok, nil} ->
           ok(200, %{})
 
         {:ok, row} ->
-          GatewayRpc.call(SukhiFedi.Addons.WebPush, :unsubscribe, [row.endpoint])
+          GatewayRpc.run(SukhiFedi.Addons.WebPush, :unsubscribe, [row.endpoint])
           ok(200, %{})
 
         e ->
@@ -127,7 +127,7 @@ defmodule SukhiApi.Capabilities.MastodonPush do
 
   defp render(row) do
     server_key =
-      case GatewayRpc.call(SukhiFedi.Addons.WebPush, :server_key, []) do
+      case GatewayRpc.run(SukhiFedi.Addons.WebPush, :server_key, []) do
         {:ok, k} when is_binary(k) -> k
         _ -> nil
       end
@@ -137,7 +137,7 @@ defmodule SukhiApi.Capabilities.MastodonPush do
     # that list from here rather than keeping its own copy — two literals
     # would drift, and a drift here is a phone buzzing for a favourite.
     direct_types =
-      case GatewayRpc.call(SukhiFedi.Addons.WebPush, :direct_types, []) do
+      case GatewayRpc.run(SukhiFedi.Addons.WebPush, :direct_types, []) do
         {:ok, list} when is_list(list) -> list
         _ -> []
       end
@@ -173,10 +173,7 @@ defmodule SukhiApi.Capabilities.MastodonPush do
     end
   end
 
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, r}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 

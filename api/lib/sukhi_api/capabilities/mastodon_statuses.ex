@@ -53,55 +53,43 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
   end
 
   defp create_now(v, attrs) do
-    case GatewayRpc.call(SukhiFedi.Notes, :create_status, [v, attrs]) do
-      {:ok, {:ok, note}} ->
+    case GatewayRpc.run(SukhiFedi.Notes, :create_status, [v, attrs]) do
+      {:ok, note} ->
         SukhiApi.Capabilities.MastodonConversations.maybe_stream_dm(note)
         rendered = StatusHydration.one(note, v)
         maybe_stream_new_post(note, rendered, v)
         ok(200, rendered)
 
-      {:ok, {:error, {:validation, errors}}} ->
+      {:error, {:validation, errors}} ->
         ok(422, %{error: "validation_failed", details: errors})
 
-      {:ok, {:error, :media_not_owned}} ->
+      {:error, :media_not_owned} ->
         ok(422, %{error: "media_not_owned"})
 
-      {:ok, {:error, reason}} ->
+      {:error, reason} ->
         ok(422, %{error: inspect(reason)})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, r}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
-
-      _ ->
-        ok(500, %{error: "internal_error"})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
     end
   end
 
   defp create_scheduled(v, attrs, at) do
-    case GatewayRpc.call(SukhiFedi.ScheduledStatuses, :create, [v, attrs, at]) do
-      {:ok, {:ok, scheduled}} ->
+    case GatewayRpc.run(SukhiFedi.ScheduledStatuses, :create, [v, attrs, at]) do
+      {:ok, scheduled} ->
         ok(200, MastodonScheduledStatus.render(scheduled))
 
-      {:ok, {:error, :too_soon}} ->
+      {:error, :too_soon} ->
         ok(422, %{error: "scheduled_at must be at least 5 minutes in the future"})
 
-      {:ok, {:error, :invalid_time}} ->
+      {:error, :invalid_time} ->
         ok(422, %{error: "scheduled_at is not a valid datetime"})
 
-      {:ok, {:error, reason}} ->
+      {:error, reason} ->
         ok(422, %{error: inspect(reason)})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, r}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
-
-      _ ->
-        ok(500, %{error: "internal_error"})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
     end
   end
 
@@ -114,7 +102,7 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
   defp maybe_stream_new_post(%{visibility: "public"}, rendered, %{username: username})
        when is_map(rendered) and is_binary(username) do
     actor_id = "https://#{SukhiApi.Config.domain!()}/users/#{username}"
-    Task.start(fn -> GatewayRpc.call(SukhiFedi.Streaming, :publish_new_post, [rendered, actor_id]) end)
+    Task.start(fn -> GatewayRpc.run(SukhiFedi.Streaming, :publish_new_post, [rendered, actor_id]) end)
     :ok
   end
 
@@ -165,11 +153,10 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
     viewer = req[:assigns][:current_account]
     viewer_id = viewer && Map.get(viewer, :id)
 
-    case GatewayRpc.call(SukhiFedi.Notes, :get_note, [id, viewer_id]) do
-      {:ok, {:ok, note}} -> ok(200, StatusHydration.one(note, viewer))
-      {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
-      {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
-      {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+    case GatewayRpc.run(SukhiFedi.Notes, :get_note, [id, viewer_id]) do
+      {:ok, note} -> ok(200, StatusHydration.one(note, viewer))
+      {:error, :not_found} -> ok(404, %{error: "not_found"})
+      {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
       _ -> ok(500, %{error: "internal_error"})
     end
   end
@@ -185,22 +172,19 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.call(SukhiFedi.Notes, :delete_note, [v, id]) do
-          {:ok, {:ok, note}} ->
+        case GatewayRpc.run(SukhiFedi.Notes, :delete_note, [v, id]) do
+          {:ok, note} ->
             # Mastodon quirk: returns the deleted status's last form
             ok(200, MastodonStatus.render(note))
 
-          {:ok, {:error, :not_found}} ->
+          {:error, :not_found} ->
             ok(404, %{error: "not_found"})
 
-          {:ok, {:error, :forbidden}} ->
+          {:error, :forbidden} ->
             ok(403, %{error: "forbidden"})
 
-          {:error, :not_connected} ->
-            ok(503, %{error: "gateway_not_connected"})
-
-          {:error, {:badrpc, r}} ->
-            ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+          {:unavailable, why} ->
+            ok(503, GatewayRpc.unavailable_body(why))
 
           _ ->
             ok(500, %{error: "internal_error"})
@@ -215,21 +199,18 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
     viewer = req[:assigns][:current_account]
     viewer_id = viewer && Map.get(viewer, :id)
 
-    case GatewayRpc.call(SukhiFedi.Notes, :context, [id, viewer_id]) do
-      {:ok, {:ok, %{ancestors: a, descendants: d}}} ->
+    case GatewayRpc.run(SukhiFedi.Notes, :context, [id, viewer_id]) do
+      {:ok, %{ancestors: a, descendants: d}} ->
         ok(200, %{
           ancestors: StatusHydration.many(a, viewer),
           descendants: StatusHydration.many(d, viewer)
         })
 
-      {:ok, {:error, :not_found}} ->
+      {:error, :not_found} ->
         ok(404, %{error: "not_found"})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, r}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
 
       _ ->
         ok(500, %{error: "internal_error"})
