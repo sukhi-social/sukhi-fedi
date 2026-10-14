@@ -1,0 +1,1366 @@
+From 351472e66fc89b9b935f4aa86dbad37c1d8db01b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 14 Oct 2026 11:24:35 +0000
+Subject: [PATCH 1/2] tsbvm: host(name, args...) -- a way out for programs,
+ chosen by the embedder
+
+The VM had no files, network or environment. Add a Host trait the embedder
+attaches (Vm::set_host); a program asks with host("fs.read", path). Arguments
+go in as one JSON array and the answer comes out as one JSON value (json.rs),
+the same carriage tsb_call uses. No host attached -> every host() is an error.
+
+The command-line tsbvm attaches StdHost (not built for wasm32, so a drop
+cannot carry it): env.get, fs.dirs/exists/read/write/mkdirp/copy/rmrf,
+json.parse/stringify, exit, and with the `http` feature http.post_json
+(ureq; off by default so the library stays free of a TLS stack).
+
+exit is not an error the program can catch: a `try` around host("exit", n)
+does not make it carry on (Vm::exit_code, checked before the handlers).
+A 4xx/5xx from http.post_json is an answer ({status, body}), not a failure.
+
+Tests (tests/host.rs) run the real binary on programs folded by tsubakic
+(tests/fixtures/*.jl -> *.tsb). Checked with the catch-guard removed: the exit
+test fails, so it is not vacuous.
+---
+ tsbvm/Cargo.lock                     | 588 +++++++++++++++++++++++++++
+ tsbvm/Cargo.toml                     |   8 +
+ tsbvm/src/host.rs                    | 174 ++++++++
+ tsbvm/src/json.rs                    |   8 +
+ tsbvm/src/lib.rs                     |   4 +
+ tsbvm/src/main.rs                    |   5 +
+ tsbvm/src/vm.rs                      |  57 ++-
+ tsbvm/tests/fixtures/host_errors.jl  |  17 +
+ tsbvm/tests/fixtures/host_errors.tsb | Bin 0 -> 820 bytes
+ tsbvm/tests/fixtures/host_exit.jl    |   7 +
+ tsbvm/tests/fixtures/host_exit.tsb   | Bin 0 -> 294 bytes
+ tsbvm/tests/fixtures/host_fs.jl      |  25 ++
+ tsbvm/tests/fixtures/host_fs.tsb     | Bin 0 -> 1793 bytes
+ tsbvm/tests/fixtures/host_http.jl    |  15 +
+ tsbvm/tests/fixtures/host_http.tsb   | Bin 0 -> 1088 bytes
+ tsbvm/tests/host.rs                  | 182 +++++++++
+ 16 files changed, 1089 insertions(+), 1 deletion(-)
+ create mode 100644 tsbvm/src/host.rs
+ create mode 100644 tsbvm/tests/fixtures/host_errors.jl
+ create mode 100644 tsbvm/tests/fixtures/host_errors.tsb
+ create mode 100644 tsbvm/tests/fixtures/host_exit.jl
+ create mode 100644 tsbvm/tests/fixtures/host_exit.tsb
+ create mode 100644 tsbvm/tests/fixtures/host_fs.jl
+ create mode 100644 tsbvm/tests/fixtures/host_fs.tsb
+ create mode 100644 tsbvm/tests/fixtures/host_http.jl
+ create mode 100644 tsbvm/tests/fixtures/host_http.tsb
+ create mode 100644 tsbvm/tests/host.rs
+
+diff --git a/tsbvm/Cargo.lock b/tsbvm/Cargo.lock
+index 4857c89..6af665a 100644
+--- a/tsbvm/Cargo.lock
++++ b/tsbvm/Cargo.lock
+@@ -2,6 +2,594 @@
+ # It is not intended for manual editing.
+ version = 4
+ 
++[[package]]
++name = "base64"
++version = "0.22.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
++
++[[package]]
++name = "cc"
++version = "1.8.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6651c9ed80effdc7db0ff72512157f901af5e3549e341e24b1dd4887d836d838"
++dependencies = [
++ "find-msvc-tools",
++ "shlex",
++]
++
++[[package]]
++name = "cfg-if"
++version = "1.0.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
++
++[[package]]
++name = "displaydoc"
++version = "0.2.7"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c6232dd377dcc64799954cbd3a9bb882e9cdc1308ccd87b1c098f1fb2eaf82a8"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn",
++]
++
++[[package]]
++name = "find-msvc-tools"
++version = "0.1.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
++
++[[package]]
++name = "form_urlencoded"
++version = "1.2.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
++dependencies = [
++ "percent-encoding",
++]
++
++[[package]]
++name = "getrandom"
++version = "0.2.17"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
++dependencies = [
++ "cfg-if",
++ "libc",
++ "wasi",
++]
++
++[[package]]
++name = "icu_collections"
++version = "2.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "fa68d21081c4a05d5a901a1c62add574c77048b6a1c67be3b50ce0b60d4ca513"
++dependencies = [
++ "displaydoc",
++ "potential_utf",
++ "utf8_iter",
++ "yoke",
++ "zerofrom",
++ "zerovec",
++]
++
++[[package]]
++name = "icu_locale_core"
++version = "2.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d56e28588da92eee5c3201a6eff33fabdd49b62269c8938d4ff050ce4d900deb"
++dependencies = [
++ "displaydoc",
++ "litemap",
++ "tinystr",
++ "writeable",
++ "zerovec",
++]
++
++[[package]]
++name = "icu_normalizer"
++version = "2.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12f9cf5f235641ed274641dd81c3f28d870e276763d0797aeeab72317b1c646f"
++dependencies = [
++ "icu_collections",
++ "icu_normalizer_data",
++ "icu_properties",
++ "icu_provider",
++ "smallvec",
++ "zerovec",
++]
++
++[[package]]
++name = "icu_normalizer_data"
++version = "2.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1563da1ed3e0b3bf3d74c9b85917ac9c56464d2f57242270c09c9e752f8021a0"
++
++[[package]]
++name = "icu_properties"
++version = "2.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7e7ca276ad3145661a65914e6daf131ca5120cd3dcee8f8f3214b8875184a148"
++dependencies = [
++ "displaydoc",
++ "icu_collections",
++ "icu_locale_core",
++ "icu_properties_data",
++ "icu_provider",
++ "zerotrie",
++ "zerovec",
++]
++
++[[package]]
++name = "icu_properties_data"
++version = "2.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e590f038c1464a96894fd6d10127e90a8be4509f56ff7ecef851b15cee0b7caa"
++
++[[package]]
++name = "icu_provider"
++version = "2.3.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d27bbb9d3abbefac45d55f647c9de1d44aafcd1186eb91879afef17c396c3e73"
++dependencies = [
++ "displaydoc",
++ "icu_locale_core",
++ "writeable",
++ "yoke",
++ "zerofrom",
++ "zerotrie",
++ "zerovec",
++]
++
++[[package]]
++name = "idna"
++version = "1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3b0875f23caa03898994f6ddc501886a45c7d3d62d04d2d90788d47be1b1e4de"
++dependencies = [
++ "idna_adapter",
++ "smallvec",
++ "utf8_iter",
++]
++
++[[package]]
++name = "idna_adapter"
++version = "1.2.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714"
++dependencies = [
++ "icu_normalizer",
++ "icu_properties",
++]
++
++[[package]]
++name = "libc"
++version = "0.2.190"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
++
++[[package]]
++name = "litemap"
++version = "0.8.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
++
++[[package]]
++name = "log"
++version = "0.4.34"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
++
++[[package]]
++name = "once_cell"
++version = "1.21.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
++
++[[package]]
++name = "percent-encoding"
++version = "2.3.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
++
++[[package]]
++name = "potential_utf"
++version = "0.1.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d83eb9bc6d8e5cf568e7a1101d60ee05e81ed50ea106026f3d18deeb046d7661"
++dependencies = [
++ "zerovec",
++]
++
++[[package]]
++name = "proc-macro2"
++version = "1.0.107"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
++dependencies = [
++ "unicode-ident",
++]
++
++[[package]]
++name = "quote"
++version = "1.0.47"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
++dependencies = [
++ "proc-macro2",
++]
++
++[[package]]
++name = "ring"
++version = "0.17.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7"
++dependencies = [
++ "cc",
++ "cfg-if",
++ "getrandom",
++ "libc",
++ "untrusted",
++ "windows-sys",
++]
++
++[[package]]
++name = "rustls"
++version = "0.23.46"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
++dependencies = [
++ "log",
++ "once_cell",
++ "ring",
++ "rustls-pki-types",
++ "rustls-webpki",
++ "subtle",
++ "zeroize",
++]
++
++[[package]]
++name = "rustls-pki-types"
++version = "1.15.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96"
++dependencies = [
++ "zeroize",
++]
++
++[[package]]
++name = "rustls-webpki"
++version = "0.103.15"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
++dependencies = [
++ "ring",
++ "rustls-pki-types",
++ "untrusted",
++]
++
++[[package]]
++name = "serde"
++version = "1.0.229"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
++dependencies = [
++ "serde_core",
++]
++
++[[package]]
++name = "serde_core"
++version = "1.0.229"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48"
++dependencies = [
++ "serde_derive",
++]
++
++[[package]]
++name = "serde_derive"
++version = "1.0.229"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn",
++]
++
++[[package]]
++name = "shlex"
++version = "2.0.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
++
++[[package]]
++name = "smallvec"
++version = "1.16.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5b3dc8af474f516a851ff4bd12db780f948b9250ad37211e4eec0bccea54e01b"
++
++[[package]]
++name = "stable_deref_trait"
++version = "1.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
++
++[[package]]
++name = "subtle"
++version = "2.6.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
++
++[[package]]
++name = "syn"
++version = "3.0.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d78c8dee4c7bf0e14673097256fed6142ce9d3b85a408189d07482442145823b"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "unicode-ident",
++]
++
++[[package]]
++name = "synstructure"
++version = "0.14.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "901704edd0dfe137f1987838ee4f259e4e063c31371bdb423f7ae38ec6f77f02"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn",
++]
++
++[[package]]
++name = "tinystr"
++version = "0.8.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b1e27c91459209c2986af3dcf603a5a74a4368754ce37414f59acc971167f643"
++dependencies = [
++ "displaydoc",
++ "zerovec",
++]
++
+ [[package]]
+ name = "tsbvm"
+ version = "0.1.0"
++dependencies = [
++ "ureq",
++]
++
++[[package]]
++name = "unicode-ident"
++version = "1.0.27"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
++
++[[package]]
++name = "untrusted"
++version = "0.9.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
++
++[[package]]
++name = "ureq"
++version = "2.12.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
++dependencies = [
++ "base64",
++ "log",
++ "once_cell",
++ "rustls",
++ "rustls-pki-types",
++ "url",
++ "webpki-roots 0.26.11",
++]
++
++[[package]]
++name = "url"
++version = "2.5.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed"
++dependencies = [
++ "form_urlencoded",
++ "idna",
++ "percent-encoding",
++ "serde",
++]
++
++[[package]]
++name = "utf8_iter"
++version = "1.0.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
++
++[[package]]
++name = "wasi"
++version = "0.11.1+wasi-snapshot-preview1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
++
++[[package]]
++name = "webpki-roots"
++version = "0.26.11"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
++dependencies = [
++ "webpki-roots 1.0.9",
++]
++
++[[package]]
++name = "webpki-roots"
++version = "1.0.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7dcd9d09a39985f5344844e66b0c530a33843579125f23e21e9f0f220850f22a"
++dependencies = [
++ "rustls-pki-types",
++]
++
++[[package]]
++name = "windows-sys"
++version = "0.52.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
++dependencies = [
++ "windows-targets",
++]
++
++[[package]]
++name = "windows-targets"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973"
++dependencies = [
++ "windows_aarch64_gnullvm",
++ "windows_aarch64_msvc",
++ "windows_i686_gnu",
++ "windows_i686_gnullvm",
++ "windows_i686_msvc",
++ "windows_x86_64_gnu",
++ "windows_x86_64_gnullvm",
++ "windows_x86_64_msvc",
++]
++
++[[package]]
++name = "windows_aarch64_gnullvm"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
++
++[[package]]
++name = "windows_aarch64_msvc"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
++
++[[package]]
++name = "windows_i686_gnu"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
++
++[[package]]
++name = "windows_i686_gnullvm"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
++
++[[package]]
++name = "windows_i686_msvc"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
++
++[[package]]
++name = "windows_x86_64_gnu"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
++
++[[package]]
++name = "windows_x86_64_gnullvm"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
++
++[[package]]
++name = "windows_x86_64_msvc"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
++
++[[package]]
++name = "writeable"
++version = "0.6.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
++
++[[package]]
++name = "yoke"
++version = "0.8.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "709fe23a0424b6a435d82152b1bd3fdfb0833487d5fa90d05d42762a9891fef5"
++dependencies = [
++ "stable_deref_trait",
++ "yoke-derive",
++ "zerofrom",
++]
++
++[[package]]
++name = "yoke-derive"
++version = "0.8.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ec8ebde2db3681e8c9980cc27822030e68752690ddfa9473e739aeb4dbde6d71"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn",
++ "synstructure",
++]
++
++[[package]]
++name = "zerofrom"
++version = "0.1.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0ec05a11813ea801ff6d75110ad09cd0824ddba17dfe17128ea0d5f68e6c5272"
++dependencies = [
++ "zerofrom-derive",
++]
++
++[[package]]
++name = "zerofrom-derive"
++version = "0.1.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f75b4683f6c7f45248d4d64056a24298c6281e0993356d7d1b4a1a962ef10d4a"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn",
++ "synstructure",
++]
++
++[[package]]
++name = "zeroize"
++version = "1.9.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
++
++[[package]]
++name = "zerotrie"
++version = "0.2.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4ea269c3bd32f0a32c321907a2ae912ba6f4649bb0fc764a15627e99a7095a3f"
++dependencies = [
++ "displaydoc",
++ "yoke",
++ "zerofrom",
++]
++
++[[package]]
++name = "zerovec"
++version = "0.11.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "bb0464e17806c1d976d5cba29399c7f08e516e279e2ba493f63123b5fca67dd8"
++dependencies = [
++ "yoke",
++ "zerofrom",
++ "zerovec-derive",
++]
++
++[[package]]
++name = "zerovec-derive"
++version = "0.11.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "34df6fc39dbd26ddc9c10e6a2984476e13acce22e64e4487636ef494369225da"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn",
++]
+diff --git a/tsbvm/Cargo.toml b/tsbvm/Cargo.toml
+index 4157a2f..c555a12 100644
+--- a/tsbvm/Cargo.toml
++++ b/tsbvm/Cargo.toml
+@@ -3,6 +3,14 @@ name = "tsbvm"
+ version = "0.1.0"
+ edition = "2021"
+ 
++[features]
++# `host("http.post_json", ...)` for the command-line tool. Off by default so
++# the library and the wasm drop stay free of a TLS stack.
++http = ["dep:ureq"]
++
++[dependencies]
++ureq = { version = "2", optional = true, default-features = false, features = ["tls"] }
++
+ [lib]
+ crate-type = ["cdylib", "rlib"]
+ 
+diff --git a/tsbvm/src/host.rs b/tsbvm/src/host.rs
+new file mode 100644
+index 0000000..d75277c
+--- /dev/null
++++ b/tsbvm/src/host.rs
+@@ -0,0 +1,174 @@
++//! What the command-line `tsbvm` lets a program reach: its files, its
++//! environment, a way to stop, and (with the `http` feature) one HTTP call.
++//!
++//! A program asks with `host(name, args...)`; the VM carries the arguments in
++//! as one JSON array and the answer out as one JSON value (json.rs). The
++//! names below are the whole list -- anything else is an error the program can
++//! `catch`. An embedder that wants less (a server running somebody's hook)
++//! gives the VM a smaller `Host`; this one is for a person's own scripts and
++//! hands out everything, so only run programs you would run anyway.
++//!
++//!   env.get(name, default)            string | default
++//!   fs.dirs(path)                     [string]   sub-directories, sorted
++//!   fs.exists(path)                   bool
++//!   fs.read(path)                     string
++//!   fs.write(path, text)              nothing
++//!   fs.mkdirp(path)                   nothing
++//!   fs.copy(from, to)                 nothing
++//!   fs.rmrf(path)                     nothing    (absent is fine)
++//!   json.parse(text)                  value      (object -> Dict, array -> Vector)
++//!   json.stringify(value)             string
++//!   http.post_json(url, token, body)  Dict("status" => Int, "body" => value)
++//!                                     needs the `http` feature
++//!   exit(code)                        never returns; not catchable
++
++use crate::json;
++use crate::vm::{Host, HostError, Value};
++use std::path::Path;
++
++pub struct StdHost;
++
++type R = Result<String, HostError>;
++
++fn fail<T>(msg: impl Into<String>) -> Result<T, HostError> {
++    Err(HostError::Fail(msg.into()))
++}
++
++fn text(args: &[Value], i: usize, what: &str) -> Result<String, HostError> {
++    match args.get(i) {
++        Some(Value::Str(s)) => Ok(s.to_string()),
++        Some(_) => fail(format!("argument {} ({what}) must be a String", i + 1)),
++        None => fail(format!("missing argument {} ({what})", i + 1)),
++    }
++}
++
++fn io<T>(r: std::io::Result<T>, what: &str, path: &str) -> Result<T, HostError> {
++    r.or_else(|e| fail(format!("{what} {path}: {e}")))
++}
++
++impl Host for StdHost {
++    fn call(&mut self, name: &str, args_json: &str) -> R {
++        let args = match json::from_json(args_json) {
++            Ok(Value::Arr(a)) => a.borrow().clone(),
++            Ok(_) | Err(_) => return fail("the arguments did not arrive as a JSON array"),
++        };
++        match name {
++            "env.get" => {
++                let var = text(&args, 0, "name")?;
++                match (std::env::var(&var), args.get(1)) {
++                    (Ok(v), _) => Ok(json::quote(&v)),
++                    (Err(_), Some(Value::Str(d))) => Ok(json::quote(d)),
++                    (Err(_), _) => Ok("null".to_string()),
++                }
++            }
++            "fs.dirs" => {
++                let path = text(&args, 0, "path")?;
++                let mut names = Vec::new();
++                for entry in io(std::fs::read_dir(&path), "read_dir", &path)? {
++                    let entry = io(entry, "read_dir", &path)?;
++                    if entry.path().is_dir() {
++                        names.push(entry.file_name().to_string_lossy().into_owned());
++                    }
++                }
++                names.sort();
++                let quoted: Vec<String> = names.iter().map(|n| json::quote(n)).collect();
++                Ok(format!("[{}]", quoted.join(",")))
++            }
++            "fs.exists" => {
++                let path = text(&args, 0, "path")?;
++                Ok(Path::new(&path).exists().to_string())
++            }
++            "fs.read" => {
++                let path = text(&args, 0, "path")?;
++                Ok(json::quote(&io(std::fs::read_to_string(&path), "read", &path)?))
++            }
++            "fs.write" => {
++                let path = text(&args, 0, "path")?;
++                let body = text(&args, 1, "text")?;
++                io(std::fs::write(&path, body), "write", &path)?;
++                Ok("null".to_string())
++            }
++            "fs.mkdirp" => {
++                let path = text(&args, 0, "path")?;
++                io(std::fs::create_dir_all(&path), "mkdir", &path)?;
++                Ok("null".to_string())
++            }
++            "fs.copy" => {
++                let from = text(&args, 0, "from")?;
++                let to = text(&args, 1, "to")?;
++                io(std::fs::copy(&from, &to), "copy", &from)?;
++                Ok("null".to_string())
++            }
++            "fs.rmrf" => {
++                let path = text(&args, 0, "path")?;
++                let p = Path::new(&path);
++                let done = if p.is_dir() {
++                    std::fs::remove_dir_all(p)
++                } else if p.exists() {
++                    std::fs::remove_file(p)
++                } else {
++                    Ok(())
++                };
++                io(done, "remove", &path)?;
++                Ok("null".to_string())
++            }
++            "json.parse" => {
++                let src = text(&args, 0, "text")?;
++                match json::from_json(&src) {
++                    // the VM parses the answer again; handing the text back
++                    // is the whole job
++                    Ok(_) => Ok(src),
++                    Err(e) => fail(format!("not JSON: {e}")),
++                }
++            }
++            // the answer is the TEXT of the JSON, so it is itself a JSON
++            // string: handing back the JSON would just be parsed again
++            "json.stringify" => match args.first() {
++                Some(v) => json::to_json(v).map(|t| json::quote(&t)).or_else(fail),
++                None => fail("missing argument 1 (value)"),
++            },
++            "http.post_json" => {
++                let url = text(&args, 0, "url")?;
++                let token = text(&args, 1, "token")?;
++                let body = match args.get(2) {
++                    Some(v) => json::to_json(v).or_else(fail)?,
++                    None => return fail("missing argument 3 (body)"),
++                };
++                post_json(&url, &token, &body)
++            }
++            "exit" => match args.first() {
++                Some(Value::Int(n)) => Err(HostError::Exit(*n as i32)),
++                _ => fail("exit(code): the code must be an Int"),
++            },
++            other => fail(format!("no such capability: {other}")),
++        }
++    }
++}
++
++#[cfg(feature = "http")]
++fn post_json(url: &str, token: &str, body: &str) -> R {
++    let mut req = ureq::post(url)
++        .set("content-type", "application/json")
++        .set("accept", "application/json");
++    if !token.is_empty() {
++        req = req.set("authorization", &format!("Bearer {token}"));
++    }
++    // A 4xx/5xx is an answer, not a failure of the call: the program decides
++    // what a refusal means. Only "could not talk to it at all" is an error.
++    let (status, reply) = match req.send_string(body) {
++        Ok(r) => (r.status(), r.into_string().unwrap_or_default()),
++        Err(ureq::Error::Status(code, r)) => (code, r.into_string().unwrap_or_default()),
++        Err(e) => return fail(e.to_string()),
++    };
++    let parsed = if json::from_json(&reply).is_ok() {
++        reply.trim().to_string()
++    } else {
++        json::quote(&reply)
++    };
++    Ok(format!("{{\"status\":{status},\"body\":{parsed}}}"))
++}
++
++#[cfg(not(feature = "http"))]
++fn post_json(_url: &str, _token: &str, _body: &str) -> R {
++    fail("this tsbvm was built without the `http` feature")
++}
+diff --git a/tsbvm/src/json.rs b/tsbvm/src/json.rs
+index 92fe064..254527e 100644
+--- a/tsbvm/src/json.rs
++++ b/tsbvm/src/json.rs
+@@ -33,6 +33,14 @@ pub fn to_json(v: &Value) -> Result<String, String> {
+     Ok(s)
+ }
+ 
++/// `x` as a JSON string literal, quotes included. For hosts that build a
++/// reply by hand.
++pub fn quote(x: &str) -> String {
++    let mut s = String::new();
++    write_str(x, &mut s);
++    s
++}
++
+ fn write_str(x: &str, out: &mut String) {
+     out.push('"');
+     for c in x.chars() {
+diff --git a/tsbvm/src/lib.rs b/tsbvm/src/lib.rs
+index a116e8c..b8b59b5 100644
+--- a/tsbvm/src/lib.rs
++++ b/tsbvm/src/lib.rs
+@@ -10,6 +10,10 @@
+ //! (`Unsupported`) rather than guessing -- the same shape as Tocode's
+ //! `Not_yet` on the folding side.
+ 
++// the command-line host reaches files and the environment; a wasm drop has
++// neither, so it does not carry the code that would
++#[cfg(not(target_arch = "wasm32"))]
++pub mod host;
+ pub mod json;
+ pub mod tsb;
+ pub mod vm;
+diff --git a/tsbvm/src/main.rs b/tsbvm/src/main.rs
+index 4f84b0b..d18768d 100644
+--- a/tsbvm/src/main.rs
++++ b/tsbvm/src/main.rs
+@@ -64,8 +64,13 @@ fn main() {
+         return;
+     }
+     let mut vm = tsbvm::vm::Vm::new(p);
++    vm.set_host(Box::new(tsbvm::host::StdHost));
+     let r = vm.run();
+     print!("{}", vm.output());
++    // `host("exit", n)`: not a failure of the program, just its chosen end
++    if let Some(code) = vm.exit_code() {
++        std::process::exit(code);
++    }
+     if let Err(e) = r {
+         eprintln!("tsbvm: {e}");
+         std::process::exit(1);
+diff --git a/tsbvm/src/vm.rs b/tsbvm/src/vm.rs
+index 9c87b9d..e33052c 100644
+--- a/tsbvm/src/vm.rs
++++ b/tsbvm/src/vm.rs
+@@ -5,6 +5,7 @@
+ //! positional arguments, `if`/`while`, `return`. Everything else says so,
+ //! rather than guessing.
+ 
++use crate::json;
+ use crate::tsb::*;
+ use std::cell::OnceCell;
+ use std::cell::RefCell;
+@@ -549,6 +550,25 @@ struct Method {
+     constructing: Option<Rc<str>>,
+ }
+ 
++/// What a program may ask of the world outside the VM: `host("fs.read",
++/// path)`. The VM has no files, no network and no environment of its own --
++/// whoever embeds it decides which names exist by giving it a `Host`, so a
++/// drop's logic can be given nothing and a command-line tool everything.
++///
++/// Arguments arrive as one JSON array and the answer leaves as one JSON
++/// value, the same carriage `tsb_call` uses (see json.rs for what crosses).
++pub trait Host {
++    fn call(&mut self, name: &str, args_json: &str) -> Result<String, HostError>;
++}
++
++pub enum HostError {
++    /// An ordinary failure: the program sees an error it can `catch`.
++    Fail(String),
++    /// Stop the whole program with this exit code. Not catchable: a `try`
++    /// around `host("exit", 1)` does not make the program carry on.
++    Exit(i32),
++}
++
+ pub struct Vm {
+     /// Behind an `Rc` so a running irep can be borrowed while the VM itself
+     /// is borrowed mutably. Without it `exec` had to CLONE the instruction
+@@ -601,6 +621,10 @@ pub struct Vm {
+     /// `function` は、その呼び出しごとの closure としても束ねる -- そこを
+     /// 見分けるためだけの数
+     depth: u32,
++    /// where `host(...)` goes; none attached means every `host` call fails
++    host: Option<Box<dyn Host>>,
++    /// set when the program asked to stop; checked before any `catch`
++    exit: Option<i32>,
+ }
+ 
+ /// `Int` is Julia's own name for `Int64` (`const Int = Int64`), so a program
+@@ -694,6 +718,35 @@ impl Vm {
+             file: Rc::from(""),
+             frames: Vec::new(),
+             depth: 0,
++            host: None,
++            exit: None,
++        }
++    }
++
++    /// Give the program a way out. Without one, `host(...)` is an error.
++    pub fn set_host(&mut self, host: Box<dyn Host>) {
++        self.host = Some(host);
++    }
++
++    /// `Some(code)` when the program stopped itself with `host("exit", code)`.
++    pub fn exit_code(&self) -> Option<i32> {
++        self.exit
++    }
++
++    fn host_call(&mut self, name: &str, rest: &[Value]) -> E<Value> {
++        let args = json::to_json(&self.arr_lit(rest.to_vec()))?;
++        let host = self
++            .host
++            .as_mut()
++            .ok_or_else(|| format!("host(\"{name}\"): this VM has no host attached"))?;
++        match host.call(name, &args) {
++            Ok(reply) => json::from_json(&reply)
++                .map_err(|e| format!("host(\"{name}\"): the answer is not JSON: {e}")),
++            Err(HostError::Fail(msg)) => Err(format!("host(\"{name}\"): {msg}")),
++            Err(HostError::Exit(code)) => {
++                self.exit = Some(code);
++                Err(format!("exit {code}"))
++            }
+         }
+     }
+ 
+@@ -1430,6 +1483,7 @@ impl Vm {
+     fn builtin(&mut self, name: &str, args: &[Value]) -> Option<E<Value>> {
+         use Value::*;
+         Some(match (name, args) {
++            ("host", [Str(name), rest @ ..]) => self.host_call(&name.clone(), rest),
+             ("Dict", []) => Ok(Dict(Rc::new(RefCell::new(Vec::new())))),
+             ("length", [Arr(a)]) => Ok(Int(a.borrow().len() as i64)),
+             ("length", [Tuple(t)]) => Ok(Int(t.len() as i64)),
+@@ -2151,6 +2205,7 @@ impl Vm {
+                 from,
+             ) {
+                 Ok(v) => return Ok(v),
++                Err(e) if self.exit.is_some() => return Err(e),
+                 Err(e) => match handlers.pop() {
+                     None => return Err(e),
+                     Some(h) => {
+@@ -3161,7 +3216,7 @@ const BUILTIN_NAMES: &[&str] = &[
+     "push!", "pushfirst!", "rem", "repeat", "replace", "reverse", "reverse!", "round",
+     "rstrip", "sign", "sin", "sort", "sort!", "split", "sqrt", "startswith", "string",
+     "strip", "sum", "tan", "throw", "trunc", "unique", "uppercase", "values", "vcat",
+-    "zeros", "zip", "|", "~"
++    "zeros", "zip", "|", "~", "host"
+ ];
+ 
+ /// この program が名前を口にしている builtin。**どれを呼ぶか**ではなく
+diff --git a/tsbvm/tests/fixtures/host_errors.jl b/tsbvm/tests/fixtures/host_errors.jl
+new file mode 100644
+index 0000000..d0f6b13
+--- /dev/null
++++ b/tsbvm/tests/fixtures/host_errors.jl
+@@ -0,0 +1,17 @@
++# every refusal is an ordinary error the program can catch
++function attempt(f)
++    try
++        f()
++        println("no error")
++    catch e
++        println("caught: ", e)
++    end
++end
++
++attempt(() -> host("no.such.capability"))
++attempt(() -> host("fs.read", "/definitely/not/here/x.txt"))
++attempt(() -> host("fs.read", 42))
++attempt(() -> host("fs.write", "/tmp/x"))
++attempt(() -> host("json.parse", "{not json"))
++attempt(() -> host("exit", "three"))
++println("still running")
+diff --git a/tsbvm/tests/fixtures/host_errors.tsb b/tsbvm/tests/fixtures/host_errors.tsb
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b45fdac5497605a65bc78d293e4863491380ef
+GIT binary patch
+literal 820
+zcmZ`$O;5ux3~kqquB_!72@r@$oZ!$PapQvEFTfp@k<p?qoe~c^@#pdLmeC85>O8;q
+z?AY7O^V3}r1X+*6&@^LhZDS>w6pN3N?#D<DOq09Cq|7J9ym+hXik6_`smrY{-ht25
+zyPj62B3&<)X-JjYYSre{6034<q%YTeTeczDQZ$>Z7I6F1H71`I)`^n*aE~!Kh<)8w
+z1Tdh|YB6Mvs=6NAg)x=+KrjBT$i02d6lq6JO{<m`Ry$QTj$UOkmw(o5iyqCAuW*W>
+zIm88#p3O07A8zo#>l-g4$M@gC^Elpv8k}f#NiV>`I`{q|=SR03qMSoI0_;Qd4Z=RC
+zRawF)OjXR+;pmWK1Py5r!jH#7n0o2XIt_YghH^|c1dX*;bIC){P%I^X+Q8RA+uPL1
+z+;LYs+GyA%NV?j|M%#uq>T2iEE+4>Si(cl@=o$!C{|6-U8>HaFE}sdXftNMCe_!|=
+i@KM))Ec`BbS>5|jh2H}&YkU4e_<g2>G~p0p<oFk2(N1Ro
+
+literal 0
+HcmV?d00001
+
+diff --git a/tsbvm/tests/fixtures/host_exit.jl b/tsbvm/tests/fixtures/host_exit.jl
+new file mode 100644
+index 0000000..ba201aa
+--- /dev/null
++++ b/tsbvm/tests/fixtures/host_exit.jl
+@@ -0,0 +1,7 @@
++println("before")
++try
++    host("exit", 3)
++catch e
++    println("CAUGHT: the exit was catchable")
++end
++println("AFTER: the program carried on")
+diff --git a/tsbvm/tests/fixtures/host_exit.tsb b/tsbvm/tests/fixtures/host_exit.tsb
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca03eaf00e4aa51f5662d5020930e40fb709ea23
+GIT binary patch
+literal 294
+zcmZ8c%MOAt5G)il2BHV!#Y9to08G4jF=%|870;$%5e$fFtMd8o7Ed<W+1c6YG>uQ|
+z1tG+>0Xm7uYAKL9qA4_Vb0{j)O?2KL;w96$V7O%;u2{--n)9SImnP9J-X2@WQ`R@h
+zD=<h|h%2ifkU^nlS|#r))Iw<$W<{f4Qm8PmmA+tVa4*5+;0)ao0RP7VVZ1_h4uumT
+tJ!B5fb^tK&km7Ug-tPPu{)GBr7uv`h0@`SFp$Ih@z6rrSag5MM`UL=~EDQhu
+
+literal 0
+HcmV?d00001
+
+diff --git a/tsbvm/tests/fixtures/host_fs.jl b/tsbvm/tests/fixtures/host_fs.jl
+new file mode 100644
+index 0000000..7c2431d
+--- /dev/null
++++ b/tsbvm/tests/fixtures/host_fs.jl
+@@ -0,0 +1,25 @@
++# fs / env / json capabilities. HOST_TEST_DIR is set by the test.
++root = host("env.get", "HOST_TEST_DIR", "")
++println("default: ", host("env.get", "HOST_NO_SUCH_VAR", "fallback"))
++println("absent without default: ", host("env.get", "HOST_NO_SUCH_VAR") === nothing)
++
++host("fs.mkdirp", root * "/out/deep")
++host("fs.write", root * "/out/a.txt", "hello \"quoted\"\nline two")
++println("exists: ", host("fs.exists", root * "/out/a.txt"), " ", host("fs.exists", root * "/out/nope"))
++println("read: ", host("fs.read", root * "/out/a.txt"))
++
++host("fs.copy", root * "/out/a.txt", root * "/out/deep/b.txt")
++println("copied: ", host("fs.read", root * "/out/deep/b.txt") == host("fs.read", root * "/out/a.txt"))
++
++host("fs.mkdirp", root * "/out/zeta")
++host("fs.mkdirp", root * "/out/alpha")
++println("dirs: ", host("fs.dirs", root * "/out"))
++
++parsed = host("json.parse", "{\"a\": [1, 2, {\"b\": \"x\"}], \"n\": null}")
++println("parsed: ", parsed["a"][3]["b"], " ", length(parsed["a"]), " ", parsed["n"] === nothing)
++println("stringified: ", host("json.stringify", Dict("k" => [1, "two"])))
++
++host("fs.rmrf", root * "/out")
++println("after rmrf: ", host("fs.exists", root * "/out"))
++host("fs.rmrf", root * "/out")      # absent is fine
++println("done")
+diff --git a/tsbvm/tests/fixtures/host_fs.tsb b/tsbvm/tests/fixtures/host_fs.tsb
+new file mode 100644
+index 0000000000000000000000000000000000000000..35fd966c6965c990dcec140ee3572f0afd790730
+GIT binary patch
+literal 1793
+zcmZ8gYg5xu5KT(y11L|0@@$A8;4oBRd<@Dcq9cA0N5C0%w3E_X8VE^EZlTKXv;2SV
+z+4SB7?@TxQIA_n^O?rIvX4^1~wG5fO@UJ$`goIx@I6OM89ls;<_QPjn447g=G@Xto
+zcPvDs4ElIjJ384vsD0UET%qZBUfnsp0HW;FBjHQy+Lf)KBdt61Vl&#fylA*#n_E{2
+zP;CgoQGsgLp(_PS16*=8WS3`~Y6;H^Ec;g{kfLD^c&;xjc^v>+5M4KtQ9K_6;us~9
+zXD)ItKWKC3TqvAI49*i65uor-gZ6LuBYLiCT}@D+qAPmDxZ@uo9l(3DdhHg6Il5kN
+z8Z<=&R2EGcejWw>M%xJ^o@eRCcI+MN`{uf}wQk+mbqegRefwkGvVHRXj_2KiS71tS
+z0@I-kpFY&gI$IyM6v@!_&)lXScbFAbny+YH#B8F1)7RT2Z{#v;A~)nTr3kH%!gyWT
+zM&Ju7<mp$DQT^(&Dg|x6+H||J6N;$X3L;sfJD+<5$s)ot3<5mOM`SX)yJU0mRp5ET
+zKa(x;{y!!q{=P!?G5s)5e2_OXIWqA25WxVD$pWfV<kQK*^r!KCMasljE}|Bntb(Ci
+z!JH;*CSb<pS%?ZuE%cKI!BUzz%yVE(Mp40;JfPrXs0}I(8jLfifcy|lNfDuMXkuA$
+zP{w@5FpNeIAR19JGimfJI%QdgdyWD+res)D%UEgRVzPokaK;s91d--ERB3KJp=MZ7
+zt#Hd#mS?SdAZz&vM4D4o9JItcO@K_(nwx3h79{anwv&N*JNlhXqSbvh*|RkHIZwtn
+z((p3ilM4PK4S&gSzUdTDWp()(MAM4%I?dTj#u^8Tp|fekK6V7|Jh$hi%suJl7U^ls
+zKSi_vccH?MN(I5NLfMF76gsQ!?~&G^2Z$_gm3-tm*5v)N6nA3e65z{oWHMzWOw|>a
+z{*>H`*Q-B+Why3{I8Jj;Sc(_70+jxIInvwvn&x~<bojk!owYkUKhvBV>+s)X6?Bt7
+Fhks~EuJ!-`
+
+literal 0
+HcmV?d00001
+
+diff --git a/tsbvm/tests/fixtures/host_http.jl b/tsbvm/tests/fixtures/host_http.jl
+new file mode 100644
+index 0000000..ce9f452
+--- /dev/null
++++ b/tsbvm/tests/fixtures/host_http.jl
+@@ -0,0 +1,15 @@
++url = host("env.get", "HOST_TEST_URL", "")
++ok = host("http.post_json", url * "/ok", "secret-token", Dict("emojis" => [Dict("shortcode" => "a")], "dry_run" => true))
++println("ok: ", ok["status"], " ", ok["body"]["imported"], " ", ok["body"]["results"][1]["status"])
++
++refused = host("http.post_json", url * "/refuse", "", Dict("x" => 1))
++println("refused: ", refused["status"], " ", refused["body"]["error"])
++
++text = host("http.post_json", url * "/text", "", Dict())
++println("text: ", text["status"], " ", text["body"])
++
++try
++    host("http.post_json", "http://127.0.0.1:1/unreachable", "", Dict())
++catch e
++    println("unreachable is an error: yes")
++end
+diff --git a/tsbvm/tests/fixtures/host_http.tsb b/tsbvm/tests/fixtures/host_http.tsb
+new file mode 100644
+index 0000000000000000000000000000000000000000..7e9ea40ce29d9609efbb40c66ab806346cf40cbf
+GIT binary patch
+literal 1088
+zcmZ8eU5^q$5Zr}@g<}uy13m7%92nnBWDkv+@M2;#@xjEz!)L<BoO}<NnZ1C&-mV%T
+z=x(N`t9qupx~KQ>`CSkMH#sq}T0OOYD+mAd+mDA{zxP$lub<z+1TfW!bL;k6Ti2gi
+zy#kd_^&ER*)yOFK#_73Yps1F5HnoVA?L-?l(qjb_4q)T4+4fDg%7XzB>3O#Wr)b^4
+zWxN=Yh=zK+MWi%ct|gHgGl5YyTR1B`KPHJ&qaHKs>uhkW?1{0@T~Nko1HO<twPCMC
+zI6i!b{<>+}dHb<_FMp@oNwbwvgVAI#TrlhH5pGRwYp`lDXScOg&{CH5(%IqDQVLjS
+z)5qz?Wui5mU~C-VY$1mtVA=DT0SsS@$?3V+cqduh=*x73LlHE}9x5^af1wb6K7qZL
+z1>`?^xuO7g7&HyK&qX*2FUS*%Qvix!`6fW5kRXU*N{v@y!&{gJ2s9g<kUi9iz#{{k
+zBI~ep<^7I3kv&L0>`-vJ=PTf=<nQ3tny`m(0(2BUYx2~&-;yS@_;OTzXsd>M7yGuD
+zg?(RwKldH&X9USLsKxO!YG?O#XavVg)XpLl2d^&6iz`soGs=mWp@i5$&K1ye+(DfS
+zAdZf81Y90#spAYr-(V(=`wCjXy^!VS$j6};cz7PKCB_9WqS6-ER`BW^0iT3#_)qog
+Y<LWm_ihSD&x-Q{rRaS6~tYJd`F9?fp_y7O^
+
+literal 0
+HcmV?d00001
+
+diff --git a/tsbvm/tests/host.rs b/tsbvm/tests/host.rs
+new file mode 100644
+index 0000000..5fac128
+--- /dev/null
++++ b/tsbvm/tests/host.rs
+@@ -0,0 +1,182 @@
++//! `host(...)` through the real `tsbvm` binary, on programs folded by
++//! `tsubakic` (tests/fixtures/*.jl -> *.tsb). Regenerate a fixture with:
++//!
++//!   node _build/default/bin/tsubakic.bc.wasm.js \
++//!        tsbvm/tests/fixtures/NAME.tsb tsbvm/tests/fixtures/NAME.jl
++//!
++//! What is asserted is what the program printed and how the process ended --
++//! the contract a script relies on.
++
++use std::path::PathBuf;
++use std::process::{Command, Output};
++
++fn fixture(name: &str) -> PathBuf {
++    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(format!("{name}.tsb"))
++}
++
++fn run(name: &str, env: &[(&str, &str)]) -> Output {
++    Command::new(env!("CARGO_BIN_EXE_tsbvm"))
++        .arg(fixture(name))
++        .envs(env.iter().copied())
++        .output()
++        .expect("run tsbvm")
++}
++
++fn stdout(o: &Output) -> String {
++    String::from_utf8_lossy(&o.stdout).into_owned()
++}
++
++fn temp_dir(tag: &str) -> PathBuf {
++    let d = std::env::temp_dir().join(format!("tsbvm-host-{tag}-{}", std::process::id()));
++    let _ = std::fs::remove_dir_all(&d);
++    std::fs::create_dir_all(&d).unwrap();
++    d
++}
++
++#[test]
++fn fs_env_and_json_capabilities() {
++    let dir = temp_dir("fs");
++    let o = run("host_fs", &[("HOST_TEST_DIR", dir.to_str().unwrap())]);
++    assert!(o.status.success(), "stderr: {}", String::from_utf8_lossy(&o.stderr));
++    assert_eq!(
++        stdout(&o),
++        "default: fallback\n\
++         absent without default: true\n\
++         exists: true false\n\
++         read: hello \"quoted\"\nline two\n\
++         copied: true\n\
++         dirs: [\"alpha\", \"deep\", \"zeta\"]\n\
++         parsed: x 3 true\n\
++         stringified: {\"k\":[1,\"two\"]}\n\
++         after rmrf: false\n\
++         done\n"
++    );
++    assert!(!dir.join("out").exists(), "rmrf removed the tree");
++    let _ = std::fs::remove_dir_all(&dir);
++}
++
++#[test]
++fn exit_ends_the_program_with_that_code_and_cannot_be_caught() {
++    let o = run("host_exit", &[]);
++    assert_eq!(o.status.code(), Some(3));
++    // what was printed before the exit still comes out; nothing after it does
++    assert_eq!(stdout(&o), "before\n");
++}
++
++#[test]
++fn refusals_are_errors_the_program_can_catch() {
++    let o = run("host_errors", &[]);
++    assert!(o.status.success(), "stderr: {}", String::from_utf8_lossy(&o.stderr));
++    let out = stdout(&o);
++    for expected in [
++        "caught: host(\"no.such.capability\"): no such capability: no.such.capability",
++        "caught: host(\"fs.read\"): read /definitely/not/here/x.txt: No such file or directory",
++        "caught: host(\"fs.read\"): argument 1 (path) must be a String",
++        "caught: host(\"fs.write\"): missing argument 2 (text)",
++        "caught: host(\"json.parse\"): not JSON:",
++        "caught: host(\"exit\"): exit(code): the code must be an Int",
++        "still running",
++    ] {
++        assert!(out.contains(expected), "missing {expected:?} in:\n{out}");
++    }
++    assert!(!out.contains("no error"), "every attempt should have failed:\n{out}");
++}
++
++#[test]
++fn a_program_with_no_host_attached_cannot_reach_out() {
++    // the library, not the CLI: no `set_host`, so `host(...)` is an error
++    let bytes = std::fs::read(fixture("host_errors")).unwrap();
++    let mut vm = tsbvm::vm::Vm::new(tsbvm::tsb::read(&bytes).unwrap());
++    let _ = vm.run();
++    assert!(
++        vm.output().contains("this VM has no host attached"),
++        "output was:\n{}",
++        vm.output()
++    );
++}
++
++#[cfg(feature = "http")]
++mod http {
++    use super::*;
++    use std::io::{Read, Write};
++    use std::net::TcpListener;
++    use std::sync::mpsc;
++
++    /// A one-shot-per-connection HTTP/1.1 server. `/ok` answers 200 JSON,
++    /// `/refuse` 403 JSON, `/text` 500 plain text. Every request is sent back
++    /// down the channel as (path, authorization header, body).
++    fn serve() -> (String, mpsc::Receiver<(String, String, String)>) {
++        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
++        let url = format!("http://{}", listener.local_addr().unwrap());
++        let (tx, rx) = mpsc::channel();
++        std::thread::spawn(move || {
++            for stream in listener.incoming() {
++                let mut stream = stream.unwrap();
++                let mut buf = Vec::new();
++                let mut chunk = [0u8; 4096];
++                let (head, mut body) = loop {
++                    let n = stream.read(&mut chunk).unwrap();
++                    buf.extend_from_slice(&chunk[..n]);
++                    if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
++                        break (String::from_utf8_lossy(&buf[..i]).into_owned(), buf[i + 4..].to_vec());
++                    }
++                };
++                let want = head
++                    .lines()
++                    .find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap()))
++                    .unwrap_or(0);
++                while body.len() < want {
++                    let n = stream.read(&mut chunk).unwrap();
++                    body.extend_from_slice(&chunk[..n]);
++                }
++                let path = head.split_whitespace().nth(1).unwrap().to_string();
++                let auth = head
++                    .lines()
++                    .find_map(|l| l.to_ascii_lowercase().strip_prefix("authorization:").map(|v| v.trim().to_string()))
++                    .unwrap_or_default();
++                let (status, ctype, reply) = match path.as_str() {
++                    "/ok" => ("200 OK", "application/json", r#"{"imported":1,"results":[{"status":"ok"}]}"#),
++                    "/refuse" => ("403 Forbidden", "application/json", r#"{"error":"admin_required"}"#),
++                    _ => ("500 Internal Server Error", "text/plain", "boom"),
++                };
++                let _ = write!(
++                    stream,
++                    "HTTP/1.1 {status}\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}",
++                    reply.len()
++                );
++                let _ = tx.send((path, auth, String::from_utf8_lossy(&body).into_owned()));
++            }
++        });
++        (url, rx)
++    }
++
++    #[test]
++    fn post_json_sends_token_and_body_and_returns_status_with_parsed_body() {
++        let (url, rx) = serve();
++        let o = run("host_http", &[("HOST_TEST_URL", &url)]);
++        assert!(o.status.success(), "stderr: {}", String::from_utf8_lossy(&o.stderr));
++        assert_eq!(
++            stdout(&o),
++            "ok: 200 1 ok\n\
++             refused: 403 admin_required\n\
++             text: 500 boom\n\
++             unreachable is an error: yes\n"
++        );
++
++        let (path, auth, body) = rx.recv().unwrap();
++        assert_eq!(path, "/ok");
++        assert_eq!(auth, "bearer secret-token");
++        assert_eq!(body, r#"{"emojis":[{"shortcode":"a"}],"dry_run":true}"#);
++        // an empty token sends no Authorization header at all
++        let (path, auth, _) = rx.recv().unwrap();
++        assert_eq!((path.as_str(), auth.as_str()), ("/refuse", ""));
++    }
++}
++
++#[cfg(not(feature = "http"))]
++#[test]
++fn post_json_without_the_feature_says_so() {
++    let o = run("host_http", &[("HOST_TEST_URL", "http://127.0.0.1:1")]);
++    assert!(!o.status.success());
++    assert!(String::from_utf8_lossy(&o.stderr).contains("built without the `http` feature"));
++}
+-- 
+2.43.0
+
