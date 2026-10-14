@@ -13,11 +13,15 @@
 #         <out>/import.sql             one transaction of upserts
 #         <out>/excluded.json          what the filter dropped, and why
 #
-# STATUS: a draft that has NOT been folded or run. tsubakic (OCaml) could not
-# be built where it was written, so nothing here is tested -- including the
-# parts that lean on `*` as string concatenation, `===`, tuples returned from
-# a function and indexed with result[1], and `get(dict, key, default)`.
-# Expect the first run to turn up what the language does not do yet.
+# STATUS: folded with tsubakic and run on the Rust VM (tsbvm) against an
+# in-memory mock of `host` (scripts/emoji_import_test/), and its checks pass:
+#
+#   tsubakic out.tsb scripts/emoji_import_test/host_mock.jl \
+#                    scripts/emoji_import.jl scripts/emoji_import_test/check.jl
+#   tsbvm out.tsb
+#
+# NOT run against a real filesystem: `host` is a proposal that tsbvm does
+# not have yet, so the real thing waits for the host implementation.
 #
 # What this script asks of its host. `host` is a proposal, not a tsbvm
 # builtin yet: `host(name, args...)`, JSON in / JSON out, and nothing else
