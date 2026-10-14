@@ -380,6 +380,7 @@
 
   <nav class="settings-nav" aria-label="Settings navigation" style="margin-top: var(--space-5);">
     <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-2);">
+      <li><a class="chip" href="/settings/password">{$t('settings.changePassword')}</a></li>
       <li><a class="chip" href="/settings/security">{$t('settings.security')}</a></li>
       <li><a class="chip" href="/settings/migration">{$t('settings.migration')}</a></li>
       <li><a class="chip" href="/requests">{$t('requests.title')}</a></li>
