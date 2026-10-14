@@ -154,10 +154,15 @@ endpoint surface is mapped out in [`docs/MISSKEY_API.md`](docs/MISSKEY_API.md).
       足したら `ENV_AUDIT_STRICT=1` を CI に入れて、増えないようにする。
 - [ ] **絵文字インポートを本物のサーバーで一度通す.** `host` は tsbvm に
       実装した (nyanrus/tsubaki の `host-capabilities` ブランチ。まだ push して
-      いない)。`scripts/emoji_import.jl` は、本物のファイルと HTTP、契約どおりに
-      答える偽サーバーまでは通した。本物の `POST /api/admin/emojis` に対しては
-      未実行 (`EMOJI_DRY_RUN=1` から)。通ったら `scripts/prepare_volpeon.mjs`
-      を消す。
+      いない)。`scripts/emoji_import.jl` は、パック / Misskey サーバー / JSON
+      ファイルの 3 つの入口を持ち、本物のファイルと HTTP、契約どおりに答える
+      偽サーバーまでは通した。本物の `POST /api/admin/emojis` と本物の Misskey
+      に対しては未実行 (`EMOJI_DRY_RUN=1` から)。通ったら
+      `scripts/prepare_volpeon.mjs` と、`Makefile` のコメントの古い手順を消す。
+      (`mix sukhi.emoji.import` と `CustomEmojis.import_from_*` は、もう無い。
+      zip は `unzip` してパックとして読む。以前の zip 取り込みは、画像を
+      `data:` URL にして `image_url` (varchar(255)) に入れていたので、
+      そもそも入らなかった。)
 
 ## Federation / signing — hackers.pub 401 から派生
 

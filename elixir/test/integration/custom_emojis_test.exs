@@ -171,57 +171,6 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
     end
   end
 
-  describe "import_from_json/2 and import_from_zip/2" do
-    test "imports Misskey JSON export" do
-      json = JSON.encode!(%{
-        "emojis" => [
-          %{
-            "name" => "imported_json_1",
-            "url" => "https://example.com/ij1.png",
-            "category" => "Imported"
-          },
-          %{
-            "name" => "imported_json_2",
-            "url" => "https://example.com/ij2.png",
-            "category" => "Imported"
-          }
-        ]
-      })
-
-      assert {:ok, %{imported: 2, total: 2}} = CustomEmojis.import_from_json(json)
-      assert %CustomEmoji{} = CustomEmojis.get_local("imported_json_1")
-      assert %CustomEmoji{} = CustomEmojis.get_local("imported_json_2")
-    end
-
-    test "imports Misskey zip package with bundled images" do
-      meta = JSON.encode!(%{
-        "metaVersion" => 1,
-        "emojis" => [
-          %{
-            "fileName" => "cat.png",
-            "emoji" => %{
-              "name" => "zip_cat",
-              "category" => "ZipPack"
-            }
-          }
-        ]
-      })
-
-      files = [
-        {~c"meta.json", meta},
-        {~c"cat.png", <<0x89, "PNG\r\n\x1a\n", 0, 0, 0, 0>>}
-      ]
-
-      {:ok, {_, zip_binary}} = :zip.create(~c"pack.zip", files, [:memory])
-      assert {:ok, %{imported: 1, total: 1}} = CustomEmojis.import_from_zip(zip_binary)
-
-      emoji = CustomEmojis.get_local("zip_cat")
-      assert emoji != nil
-      assert emoji.category == "ZipPack"
-      assert String.starts_with?(emoji.image_url, "data:image/png;base64,")
-    end
-  end
-
   # Same helper social_test.exs and conversations_test.exs each carry.
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}

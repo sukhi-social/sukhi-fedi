@@ -1,0 +1,14 @@
+POST https://sukhi.f3liz.casa/api/admin/emojis token=tok dry_run=true
+  cat_it's | animals | ["neko", "o'neko"] | https://sukhi.f3liz.casa/static/emojis/a/cat.png
+  plain | a | Any[] | https://sukhi.f3liz.casa/static/emojis/a/plain.png
+POST https://sukhi.f3liz.casa/api/admin/emojis token=tok dry_run=true
+  fish | animals | Any[] | https://sukhi.f3liz.casa/static/emojis/a/fish.png
+failed: fish -> invalid_emoji_attributes
+left out: a/knife.png (knife)
+left out: a/x.png (dagger)
+left out: a/gone.png (missing image)
+Sent 3 emoji in 2 request(s) (dry run).
+Imported 0, failed 1, left out 3.
+[host exit 1]
+tsbvm: host exit
+exit=1
