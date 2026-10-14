@@ -213,8 +213,8 @@ export const ja = {
   'settings.fieldAdd': '項目を足す',
   'settings.fieldRemove': '消す',
   'settings.locked': 'フォローを、承認してから受ける（鍵）',
-  'settings.bot': 'BOTアカウントであることを明記する',
-  'settings.botManagement': 'BOTアカウントの管理',
+  'settings.bot': 'このアカウントをBOTアカウントに指定する',
+  'settings.botManagement': 'トークン発行',
   'settings.discoverable': '見つけてもらいやすくする（おすすめや一覧に出る）',
   'settings.indexable': '投稿を全文検索で見つけられるようにする',
   'settings.searchConsentHint':
@@ -419,7 +419,7 @@ export const ja = {
   'security.accountMismatch':
     'いまここの設定は「@{acct}」のものです。いま見ているアカウントの設定を変えたいときは、もう一度ログインしなおしてください。',
   'security.reloginLink': 'ログインへ',
-  'bot.title': 'BOTアカウントの管理',
+  'bot.title': 'トークン発行',
   'bot.help': 'パスワードも画面ログインも無い、鍵（token）だけで書くアカウントです。管理者だけが使えます。',
   'bot.createTitle': 'つくる',
   'bot.username': 'ユーザー名',
