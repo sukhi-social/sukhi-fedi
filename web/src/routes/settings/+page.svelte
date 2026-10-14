@@ -341,27 +341,27 @@
       <input type="file" accept="image/*" onchange={onHeader} />
     </label>
 
-    <div class="checkbox-group" style="margin-top: var(--space-4); margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3);">
-      <label class="stack-tight" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+    <div class="settings-checks">
+      <label class="stack-tight">
         <input type="checkbox" bind:checked={locked} />
         <span>{$t('settings.locked')}</span>
       </label>
 
-      <label class="stack-tight" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+      <label class="stack-tight">
         <input type="checkbox" bind:checked={bot} />
         <span>{$t('settings.bot')}</span>
       </label>
 
-      <label class="stack-tight" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+      <label class="stack-tight">
         <input type="checkbox" bind:checked={discoverable} />
         <span>{$t('settings.discoverable')}</span>
       </label>
 
-      <label class="stack-tight" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+      <label class="stack-tight">
         <input type="checkbox" bind:checked={indexable} />
         <span>{$t('settings.indexable')}</span>
       </label>
-      <p class="muted" style="margin-top: 0;">{$t('settings.searchConsentHint')}</p>
+      <p class="muted">{$t('settings.searchConsentHint')}</p>
     </div>
 
     <div style="display: flex; gap: var(--space-3); align-items: center;">
@@ -378,9 +378,8 @@
     {/if}
   </form>
 
-  <nav class="settings-nav" aria-label="Settings navigation" style="margin-top: var(--space-5);">
-    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-2);">
-      <li><a class="chip" href="/settings/password">{$t('settings.changePassword')}</a></li>
+  <nav class="settings-nav" aria-label={$t('settings.navLabel')}>
+    <ul>
       <li><a class="chip" href="/settings/security">{$t('settings.security')}</a></li>
       <li><a class="chip" href="/settings/migration">{$t('settings.migration')}</a></li>
       <li><a class="chip" href="/requests">{$t('requests.title')}</a></li>

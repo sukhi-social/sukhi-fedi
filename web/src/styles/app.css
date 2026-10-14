@@ -1423,6 +1423,41 @@ button:disabled {
   color: var(--color-text-muted);
 }
 
+/* チェックボックスの束。ラベルは .settings-form の span 規則(block)に
+   負けないよう、束の中でだけ inline に戻して、箱と文を横に並べる。 */
+.settings-form .settings-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.settings-form .settings-checks label.stack-tight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-form .settings-checks label.stack-tight > * {
+  margin: 0;
+}
+
+.settings-form .settings-checks label.stack-tight > span {
+  display: inline;
+}
+
+.settings-form .settings-checks > p {
+  margin: 0;
+}
+
+.settings-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-5) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .settings-form input[type='text'],
 .settings-form textarea {
   width: 100%;

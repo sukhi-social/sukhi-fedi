@@ -213,6 +213,7 @@ export const ja = {
   'settings.fieldAdd': '項目を足す',
   'settings.fieldRemove': '消す',
   'settings.locked': 'フォローを、承認してから受ける（鍵）',
+  'settings.navLabel': '設定のメニュー',
   'settings.bot': 'このアカウントをBOTアカウントに指定する',
   'settings.botManagement': 'トークン発行',
   'settings.discoverable': '見つけてもらいやすくする（おすすめや一覧に出る）',
