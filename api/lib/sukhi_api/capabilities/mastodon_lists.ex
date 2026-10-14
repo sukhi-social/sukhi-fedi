@@ -44,7 +44,7 @@ defmodule SukhiApi.Capabilities.MastodonLists do
 
   def index(req) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.Lists, :list_for, [v.id]) do
+      case GatewayRpc.run(SukhiFedi.Lists, :list_for, [v.id]) do
         # ご近所 rides at the front, ahead of the reader's own lists.
         {:ok, lists} when is_list(lists) ->
           ok(200, [bubble_list_json(SukhiApi.Locale.from_req(req)) | MastodonList.render_list(lists)])
@@ -62,9 +62,9 @@ defmodule SukhiApi.Capabilities.MastodonLists do
       if id == @bubble_list_id do
         ok(200, bubble_list_json(SukhiApi.Locale.from_req(req)))
       else
-        case GatewayRpc.call(SukhiFedi.Lists, :get, [v.id, id]) do
-          {:ok, {:ok, list}} -> ok(200, MastodonList.render(list))
-          {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+        case GatewayRpc.run(SukhiFedi.Lists, :get, [v.id, id]) do
+          {:ok, list} -> ok(200, MastodonList.render(list))
+          {:error, :not_found} -> ok(404, %{error: "not_found"})
           e -> rpc_error(e)
         end
       end
@@ -83,9 +83,9 @@ defmodule SukhiApi.Capabilities.MastodonLists do
         |> Map.merge(if replies_policy, do: %{replies_policy: replies_policy}, else: %{})
         |> Map.merge(if is_boolean(exclusive), do: %{exclusive: exclusive}, else: %{})
 
-      case GatewayRpc.call(SukhiFedi.Lists, :create, [v.id, attrs]) do
-        {:ok, {:ok, list}} -> ok(200, MastodonList.render(list))
-        {:ok, {:error, %{} = cs}} -> ok(422, %{error: "validation_failed", detail: cs_errors(cs)})
+      case GatewayRpc.run(SukhiFedi.Lists, :create, [v.id, attrs]) do
+        {:ok, list} -> ok(200, MastodonList.render(list))
+        {:error, %{} = cs} -> ok(422, %{error: "validation_failed", detail: cs_errors(cs)})
         e -> rpc_error(e)
       end
     end)
@@ -100,10 +100,10 @@ defmodule SukhiApi.Capabilities.MastodonLists do
       else
         body = decode_body(req)
 
-        case GatewayRpc.call(SukhiFedi.Lists, :update, [v.id, id, body]) do
-          {:ok, {:ok, list}} -> ok(200, MastodonList.render(list))
-          {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
-          {:ok, {:error, %{} = cs}} -> ok(422, %{error: "validation_failed", detail: cs_errors(cs)})
+        case GatewayRpc.run(SukhiFedi.Lists, :update, [v.id, id, body]) do
+          {:ok, list} -> ok(200, MastodonList.render(list))
+          {:error, :not_found} -> ok(404, %{error: "not_found"})
+          {:error, %{} = cs} -> ok(422, %{error: "validation_failed", detail: cs_errors(cs)})
           e -> rpc_error(e)
         end
       end
@@ -117,9 +117,9 @@ defmodule SukhiApi.Capabilities.MastodonLists do
       if id == @bubble_list_id do
         official_readonly()
       else
-        case GatewayRpc.call(SukhiFedi.Lists, :delete, [v.id, id]) do
-          {:ok, {:ok, _}} -> ok(200, %{})
-          {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+        case GatewayRpc.run(SukhiFedi.Lists, :delete, [v.id, id]) do
+          {:ok, _} -> ok(200, %{})
+          {:error, :not_found} -> ok(404, %{error: "not_found"})
           e -> rpc_error(e)
         end
       end
@@ -135,11 +135,11 @@ defmodule SukhiApi.Capabilities.MastodonLists do
       if id == @bubble_list_id do
         ok(200, [])
       else
-        case GatewayRpc.call(SukhiFedi.Lists, :list_accounts, [v.id, id]) do
-          {:ok, {:ok, accounts}} ->
+        case GatewayRpc.run(SukhiFedi.Lists, :list_accounts, [v.id, id]) do
+          {:ok, accounts} ->
             ok(200, Enum.map(accounts, &MastodonAccount.render(&1, %{})))
 
-          {:ok, {:error, :not_found}} ->
+          {:error, :not_found} ->
             ok(404, %{error: "not_found"})
 
           e ->
@@ -163,9 +163,9 @@ defmodule SukhiApi.Capabilities.MastodonLists do
         ids = body["account_ids"] || body["account_ids[]"] || []
         ids = List.wrap(ids)
 
-        case GatewayRpc.call(SukhiFedi.Lists, fun, [v.id, id, ids]) do
+        case GatewayRpc.run(SukhiFedi.Lists, fun, [v.id, id, ids]) do
           {:ok, :ok} -> ok(200, %{})
-          {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+          {:error, :not_found} -> ok(404, %{error: "not_found"})
           e -> rpc_error(e)
         end
       end
@@ -197,7 +197,7 @@ defmodule SukhiApi.Capabilities.MastodonLists do
   defp bubble_timeline(v, opts) do
     opts = Map.put(opts, :viewer_id, v.id)
 
-    case GatewayRpc.call(SukhiFedi.Timelines, :bubble, [Map.to_list(opts)]) do
+    case GatewayRpc.run(SukhiFedi.Timelines, :bubble, [Map.to_list(opts)]) do
       {:ok, notes} when is_list(notes) ->
         render_notes(notes, v, "/api/v1/timelines/list/#{@bubble_list_id}", opts)
 
@@ -207,11 +207,11 @@ defmodule SukhiApi.Capabilities.MastodonLists do
   end
 
   defp list_timeline(v, id, opts) do
-    case GatewayRpc.call(SukhiFedi.Lists, :timeline, [v.id, id, Map.to_list(opts)]) do
-      {:ok, {:ok, notes}} when is_list(notes) ->
+    case GatewayRpc.run(SukhiFedi.Lists, :timeline, [v.id, id, Map.to_list(opts)]) do
+      {:ok, notes} when is_list(notes) ->
         render_notes(notes, v, "/api/v1/timelines/list/#{id}", opts)
 
-      {:ok, {:error, :not_found}} ->
+      {:error, :not_found} ->
         ok(404, %{error: "not_found"})
 
       e ->
@@ -289,10 +289,7 @@ defmodule SukhiApi.Capabilities.MastodonLists do
 
   defp cs_errors(_), do: %{}
 
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, r}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 

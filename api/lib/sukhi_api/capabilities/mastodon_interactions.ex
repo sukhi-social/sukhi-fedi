@@ -58,21 +58,18 @@ defmodule SukhiApi.Capabilities.MastodonInteractions do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.call(SukhiFedi.Notes, fun, [v, id]) do
-          {:ok, {:ok, note}} ->
+        case GatewayRpc.run(SukhiFedi.Notes, fun, [v, id]) do
+          {:ok, note} ->
             ok(200, render_status_with_context(v, note))
 
-          {:ok, {:error, :not_found}} ->
+          {:error, :not_found} ->
             ok(404, %{error: "not_found"})
 
-          {:ok, {:error, :forbidden}} ->
+          {:error, :forbidden} ->
             ok(403, %{error: "forbidden"})
 
-          {:error, :not_connected} ->
-            ok(503, %{error: "gateway_not_connected"})
-
-          {:error, {:badrpc, r}} ->
-            ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+          {:unavailable, why} ->
+            ok(503, GatewayRpc.unavailable_body(why))
 
           _ ->
             ok(500, %{error: "internal_error"})
@@ -97,24 +94,24 @@ defmodule SukhiApi.Capabilities.MastodonInteractions do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.call(SukhiFedi.Notes, fun, [v, Map.to_list(opts)]) do
+        case GatewayRpc.run(SukhiFedi.Notes, fun, [v, Map.to_list(opts)]) do
           {:ok, notes} when is_list(notes) ->
             note_ids = Enum.map(notes, & &1.id)
 
             counts =
-              case GatewayRpc.call(SukhiFedi.Notes, :counts_for_notes, [note_ids]) do
+              case GatewayRpc.run(SukhiFedi.Notes, :counts_for_notes, [note_ids]) do
                 {:ok, m} when is_map(m) -> m
                 _ -> %{}
               end
 
             viewer_flags =
-              case GatewayRpc.call(SukhiFedi.Notes, :viewer_flags_many, [v.id, note_ids]) do
+              case GatewayRpc.run(SukhiFedi.Notes, :viewer_flags_many, [v.id, note_ids]) do
                 {:ok, m} when is_map(m) -> m
                 _ -> %{}
               end
 
             reactions =
-              case GatewayRpc.call(SukhiFedi.Notes, :reactions_for_notes, [note_ids, v.id]) do
+              case GatewayRpc.run(SukhiFedi.Notes, :reactions_for_notes, [note_ids, v.id]) do
                 {:ok, m} when is_map(m) -> m
                 _ -> %{}
               end
@@ -130,11 +127,8 @@ defmodule SukhiApi.Capabilities.MastodonInteractions do
 
             {:ok, %{status: 200, body: JSON.encode!(body), headers: headers}}
 
-          {:error, :not_connected} ->
-            ok(503, %{error: "gateway_not_connected"})
-
-          {:error, {:badrpc, r}} ->
-            ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+          {:unavailable, why} ->
+            ok(503, GatewayRpc.unavailable_body(why))
 
           _ ->
             ok(500, %{error: "internal_error"})
@@ -144,19 +138,19 @@ defmodule SukhiApi.Capabilities.MastodonInteractions do
 
   defp render_status_with_context(viewer, note) do
     counts =
-      case GatewayRpc.call(SukhiFedi.Notes, :counts_for_note, [note.id]) do
+      case GatewayRpc.run(SukhiFedi.Notes, :counts_for_note, [note.id]) do
         {:ok, %{} = m} -> m
         _ -> %{}
       end
 
     flags =
-      case GatewayRpc.call(SukhiFedi.Notes, :viewer_flags, [viewer.id, note.id]) do
+      case GatewayRpc.run(SukhiFedi.Notes, :viewer_flags, [viewer.id, note.id]) do
         {:ok, %{} = m} -> m
         _ -> %{}
       end
 
     reactions =
-      case GatewayRpc.call(SukhiFedi.Notes, :reactions_for_notes, [[note.id], viewer.id]) do
+      case GatewayRpc.run(SukhiFedi.Notes, :reactions_for_notes, [[note.id], viewer.id]) do
         {:ok, m} when is_map(m) -> Map.get(m, note.id, [])
         _ -> []
       end
