@@ -59,50 +59,47 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
         ok(403, %{error: "client_credentials_required"})
 
       %{id: app_id} ->
-        case GatewayRpc.call(SukhiFedi.LocalAccounts, :create, [attrs]) do
-          {:ok, {:ok, %{id: account_id}}} ->
+        case GatewayRpc.run(SukhiFedi.LocalAccounts, :create, [attrs]) do
+          {:ok, %{id: account_id}} ->
             # Mastodon 同様、明示が無ければ署名に使った app token の
             # granted scopes を継ぐ。固定 "read" に落とすと write 系が
             # 全部 403 になる(新規ユーザーが follow できなかった原因)。
             scopes = attrs["scopes"] || Enum.join(req[:assigns][:scopes] || ["read"], " ")
 
-            case GatewayRpc.call(SukhiFedi.OAuth, :issue_initial_token, [app_id, account_id, scopes]) do
-              {:ok, {:ok, token}} ->
+            case GatewayRpc.run(SukhiFedi.OAuth, :issue_initial_token, [app_id, account_id, scopes]) do
+              {:ok, token} ->
                 ok(200, token)
 
               _ ->
                 ok(500, %{error: "token_mint_failed"})
             end
 
-          {:ok, {:error, :invite_missing}} ->
+          {:error, :invite_missing} ->
             ok(422, %{error: "invite_code_required"})
 
-          {:ok, {:error, :invite_invalid}} ->
+          {:error, :invite_invalid} ->
             ok(422, %{error: "invite_invalid"})
 
-          {:ok, {:error, :invite_used}} ->
+          {:error, :invite_used} ->
             ok(422, %{error: "invite_used"})
 
-          {:ok, {:error, :invite_expired}} ->
+          {:error, :invite_expired} ->
             ok(422, %{error: "invite_expired"})
 
-          {:ok, {:error, :password_too_short}} ->
+          {:error, :password_too_short} ->
             ok(422, %{error: "password_too_short"})
 
           # The signed mailbox proof (from /signup/email/confirm) was
           # missing, garbled, or older than its 20 minutes — the SPA
           # sends the user back to the code step.
-          {:ok, {:error, :email_proof_invalid}} ->
+          {:error, :email_proof_invalid} ->
             ok(422, %{error: "email_proof_invalid"})
 
-          {:ok, {:error, {:validation, details}}} ->
+          {:error, {:validation, details}} ->
             ok(422, %{error: "validation_failed", details: details})
 
-          {:error, :not_connected} ->
-            ok(503, %{error: "gateway_not_connected"})
-
-          {:error, {:badrpc, reason}} ->
-            ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+          {:unavailable, why} ->
+            ok(503, GatewayRpc.unavailable_body(why))
 
           _ ->
             ok(500, %{error: "internal_error"})
@@ -166,22 +163,19 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
   end
 
   defp do_update_credentials(req, id, attrs) do
-    case GatewayRpc.call(SukhiFedi.Accounts, :update_credentials, [id, attrs]) do
-      {:ok, {:ok, updated}} ->
+    case GatewayRpc.run(SukhiFedi.Accounts, :update_credentials, [id, attrs]) do
+      {:ok, updated} ->
         counts = counts_for(updated.id)
         ok(200, MastodonAccount.render_credential(updated, counts, req[:assigns][:scopes]))
 
-      {:ok, {:error, :not_found}} ->
+      {:error, :not_found} ->
         ok(404, %{error: "account_not_found"})
 
-      {:ok, {:error, {:validation, errors}}} ->
+      {:error, {:validation, errors}} ->
         ok(422, %{error: "validation_failed", details: errors})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
 
       _ ->
         ok(500, %{error: "internal_error"})
@@ -243,34 +237,28 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
   defp maybe_upload(%{filename: filename, content_type: ct, bytes: bytes}, account_id) do
     attrs = %{"filename" => filename, "content_type" => ct}
 
-    case GatewayRpc.call(SukhiFedi.Addons.Media, :create_from_upload, [
+    case GatewayRpc.run(SukhiFedi.Addons.Media, :create_from_upload, [
            account_id,
            bytes,
            attrs
          ]) do
-      {:ok, {:ok, media}} ->
+      {:ok, media} ->
         {:ok, media.url}
 
-      {:ok, {:error, :empty_upload}} ->
+      {:error, :empty_upload} ->
         {:error, 422, %{error: "empty_upload"}}
 
-      {:ok, {:error, :file_too_large}} ->
+      {:error, :file_too_large} ->
         {:error, 413, %{error: "file_too_large"}}
 
-      {:ok, {:error, {:validation, errors}}} ->
+      {:error, {:validation, errors}} ->
         {:error, 422, %{error: "validation_failed", details: errors}}
 
-      {:ok, {:error, reason}} ->
+      {:error, reason} ->
         {:error, 422, %{error: inspect(reason)}}
 
-      {:error, :not_connected} ->
-        {:error, 503, %{error: "gateway_not_connected"}}
-
-      {:error, {:badrpc, reason}} ->
-        {:error, 503, %{error: "gateway_rpc_failed", detail: inspect(reason)}}
-
-      _ ->
-        {:error, 500, %{error: "internal_error"}}
+      {:unavailable, why} ->
+        {:error, 503, GatewayRpc.unavailable_body(why)}
     end
   end
 
@@ -300,18 +288,15 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
     acct = q["acct"] || ""
     resolve? = q["resolve"] in ["true", "1"]
 
-    case GatewayRpc.call(SukhiFedi.Accounts, :lookup_by_acct, [acct, [resolve: resolve?]]) do
-      {:ok, {:ok, account}} ->
+    case GatewayRpc.run(SukhiFedi.Accounts, :lookup_by_acct, [acct, [resolve: resolve?]]) do
+      {:ok, account} ->
         ok(200, MastodonAccount.render(account, counts_for(account.id)))
 
-      {:ok, {:error, :not_found}} ->
+      {:error, :not_found} ->
         ok(404, %{error: "account_not_found"})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
     end
   end
 
@@ -320,18 +305,15 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
   def show(req) do
     id = req[:path_params]["id"]
 
-    case GatewayRpc.call(SukhiFedi.Accounts, :get_account, [id]) do
-      {:ok, {:ok, account}} ->
+    case GatewayRpc.run(SukhiFedi.Accounts, :get_account, [id]) do
+      {:ok, account} ->
         ok(200, MastodonAccount.render(account, counts_for(account.id)))
 
-      {:ok, {:error, :not_found}} ->
+      {:error, :not_found} ->
         ok(404, %{error: "account_not_found"})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
     end
   end
 
@@ -344,7 +326,7 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
     with {:ok, int_id} <- parse_int(id),
          opts = parse_status_opts(req[:query]) |> Map.put(:viewer_id, viewer && viewer.id),
          {:ok, notes} when is_list(notes) <-
-           GatewayRpc.call(SukhiFedi.Accounts, :list_statuses, [int_id, Map.to_list(opts)]) do
+           GatewayRpc.run(SukhiFedi.Accounts, :list_statuses, [int_id, Map.to_list(opts)]) do
       body = StatusHydration.many(notes, viewer)
       headers = [{"content-type", "application/json"}]
 
@@ -364,11 +346,8 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
       {:error, :bad_int} ->
         ok(400, %{error: "invalid_id"})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
 
       _ ->
         ok(500, %{error: "internal_error"})
@@ -396,12 +375,11 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
 
     with {:ok, int_id} <- parse_int(id),
          {:ok, items} when is_list(items) <-
-           GatewayRpc.call(SukhiFedi.Social, :list_followers, [int_id]) do
+           GatewayRpc.run(SukhiFedi.Social, :list_followers, [int_id]) do
       ok(200, Enum.map(items, &render_follower/1))
     else
       {:error, :bad_int} -> ok(400, %{error: "invalid_id"})
-      {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
-      {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+      {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
       _ -> ok(500, %{error: "internal_error"})
     end
   end
@@ -414,24 +392,17 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
            account_by_id(int_id),
          actor_uri = local_actor_uri(account.username),
          {:ok, items} when is_list(items) <-
-           GatewayRpc.call(SukhiFedi.Social, :list_following, [actor_uri]) do
+           GatewayRpc.run(SukhiFedi.Social, :list_following, [actor_uri]) do
       ok(200, Enum.map(items, fn item -> MastodonAccount.render(item, %{}) end))
     else
       {:error, :bad_int} -> ok(400, %{error: "invalid_id"})
       {:error, :not_found} -> ok(404, %{error: "account_not_found"})
-      {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
-      {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+      {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
       _ -> ok(500, %{error: "internal_error"})
     end
   end
 
-  defp account_by_id(int_id) do
-    case GatewayRpc.call(SukhiFedi.Accounts, :get_account, [int_id]) do
-      {:ok, {:ok, a}} -> {:ok, a}
-      {:ok, {:error, :not_found}} -> {:error, :not_found}
-      {:error, e} -> {:error, e}
-    end
-  end
+  defp account_by_id(int_id), do: GatewayRpc.run(SukhiFedi.Accounts, :get_account, [int_id])
 
   # The gateway resolves each follower URI to a real account row where it
   # can; those arrive as projection maps carrying `:id`. A URI it couldn't
@@ -481,15 +452,12 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.call(SukhiFedi.Social, :list_relationships, [v, ids]) do
+        case GatewayRpc.run(SukhiFedi.Social, :list_relationships, [v, ids]) do
           {:ok, rels} when is_list(rels) ->
             ok(200, Enum.map(rels, &MastodonRelationship.render/1))
 
-          {:error, :not_connected} ->
-            ok(503, %{error: "gateway_not_connected"})
-
-          {:error, {:badrpc, r}} ->
-            ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+          {:unavailable, why} ->
+            ok(503, GatewayRpc.unavailable_body(why))
 
           _ ->
             ok(500, %{error: "internal_error"})
@@ -506,12 +474,11 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{id: vid} ->
-        case GatewayRpc.call(SukhiFedi.AP.Instructions.Follows, :list_requests, [vid]) do
+        case GatewayRpc.run(SukhiFedi.AP.Instructions.Follows, :list_requests, [vid]) do
           {:ok, rows} when is_list(rows) ->
             ok(200, rows |> Enum.map(&request_account/1) |> Enum.reject(&is_nil/1))
 
-          {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
-          {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+          {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
           _ -> ok(500, %{error: "internal_error"})
         end
     end
@@ -529,15 +496,14 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
 
     with %{id: vid} <- viewer,
          {:ok, int_id} <- parse_int(id),
-         {:ok, {:ok, _uri}} <-
-           GatewayRpc.call(SukhiFedi.AP.Instructions.Follows, action, [vid, int_id]) do
+         {:ok, _uri} <-
+           GatewayRpc.run(SukhiFedi.AP.Instructions.Follows, action, [vid, int_id]) do
       ok(200, relationship_after(viewer, int_id))
     else
       nil -> ok(403, %{error: "this endpoint requires a user-bound token"})
       {:error, :bad_int} -> ok(400, %{error: "invalid_id"})
-      {:ok, {:error, :not_found}} -> ok(404, %{error: "follow_request_not_found"})
-      {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
-      {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+      {:error, :not_found} -> ok(404, %{error: "follow_request_not_found"})
+      {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
       _ -> ok(500, %{error: "internal_error"})
     end
   end
@@ -549,7 +515,7 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
   defp request_account(_), do: nil
 
   defp relationship_after(viewer, account_id) do
-    case GatewayRpc.call(SukhiFedi.Social, :list_relationships, [viewer, [account_id]]) do
+    case GatewayRpc.run(SukhiFedi.Social, :list_relationships, [viewer, [account_id]]) do
       {:ok, [rel | _]} -> MastodonRelationship.render(rel)
       _ -> %{}
     end
@@ -561,7 +527,7 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
 
   def list_follow_invites(req) do
     with_owner(req, fn vid ->
-      case GatewayRpc.call(SukhiFedi.FollowInvites, :list, [vid]) do
+      case GatewayRpc.run(SukhiFedi.FollowInvites, :list, [vid]) do
         {:ok, invites} when is_list(invites) ->
           ok(200, Enum.map(invites, fn i -> %{code: i.code} end))
 
@@ -573,8 +539,8 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
 
   def create_follow_invite(req) do
     with_owner(req, fn vid ->
-      case GatewayRpc.call(SukhiFedi.FollowInvites, :mint, [vid]) do
-        {:ok, {:ok, invite}} -> ok(200, %{code: invite.code})
+      case GatewayRpc.run(SukhiFedi.FollowInvites, :mint, [vid]) do
+        {:ok, invite} -> ok(200, %{code: invite.code})
         other -> gateway_error(other)
       end
     end)
@@ -584,9 +550,9 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
     code = req[:path_params]["code"]
 
     with_owner(req, fn vid ->
-      case GatewayRpc.call(SukhiFedi.FollowInvites, :revoke, [vid, code]) do
-        {:ok, {:ok, _}} -> ok(200, %{})
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "invite_not_found"})
+      case GatewayRpc.run(SukhiFedi.FollowInvites, :revoke, [vid, code]) do
+        {:ok, _} -> ok(200, %{})
+        {:error, :not_found} -> ok(404, %{error: "invite_not_found"})
         other -> gateway_error(other)
       end
     end)
@@ -599,10 +565,7 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
     end
   end
 
-  defp gateway_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp gateway_error({:error, {:badrpc, r}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+  defp gateway_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp gateway_error(_), do: ok(500, %{error: "internal_error"})
 
@@ -652,10 +615,10 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
       %{} = v ->
         with {:ok, int_id} <- parse_int(id),
              comment = decode_note_comment(req),
-             {:ok, {:ok, _saved}} <-
-               GatewayRpc.call(SukhiFedi.Social, :set_account_note, [v, int_id, comment]) do
+             {:ok, _saved} <-
+               GatewayRpc.run(SukhiFedi.Social, :set_account_note, [v, int_id, comment]) do
           rel =
-            case GatewayRpc.call(SukhiFedi.Social, :list_relationships, [v, [int_id]]) do
+            case GatewayRpc.run(SukhiFedi.Social, :list_relationships, [v, [int_id]]) do
               {:ok, [r]} -> r
               _ -> %{id: int_id}
             end
@@ -663,9 +626,8 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
           ok(200, MastodonRelationship.render(rel))
         else
           {:error, :bad_int} -> ok(400, %{error: "invalid_id"})
-          {:ok, {:error, :not_found}} -> ok(404, %{error: "account_not_found"})
-          {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
-          {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+          {:error, :not_found} -> ok(404, %{error: "account_not_found"})
+          {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
           _ -> ok(500, %{error: "internal_error"})
         end
     end
@@ -696,7 +658,7 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
   # ── helpers ──────────────────────────────────────────────────────────────
 
   defp counts_for(account_id) when is_integer(account_id) do
-    case GatewayRpc.call(SukhiFedi.Accounts, :counts_for, [account_id]) do
+    case GatewayRpc.run(SukhiFedi.Accounts, :counts_for, [account_id]) do
       {:ok, %{} = m} -> m
       _ -> %{followers: 0, following: 0, statuses: 0}
     end
