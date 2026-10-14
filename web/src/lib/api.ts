@@ -408,18 +408,8 @@ export async function deleteStatus(statusId: string): Promise<void> {
   await req('DELETE', `/api/v1/statuses/${encodeURIComponent(statusId)}`, 'delete');
 }
 
-// ── bot accounts (Sukhi extension, admin only) ───────────────────────
-// パスワードも画面ログインも無く、token 一本だけで書く手の垢。token は
-// 作った返事と、取り替えた返事にしか載らない。
-
-export type BotTokenResponse = { account: Account; token: string };
-
-export async function createBot(username: string, displayName: string): Promise<BotTokenResponse> {
-  const res = await req('POST', '/api/v1/sukhi/bots', 'create_bot', {
-    json: { username, display_name: displayName }
-  });
-  return json<BotTokenResponse>(res);
-}
+// ── personal tokens (Sukhi extension) ────────────────────────────────
+// token は発行した返事にしか載らない。
 
 export type PersonalToken = { name: string; token: string; expires_in_days: number };
 
@@ -429,16 +419,6 @@ export async function issuePersonalToken(name: string, expiresInDays: number): P
     json: { name, expires_in_days: expiresInDays }
   });
   return json<PersonalToken>(res);
-}
-
-export async function rotateBotToken(id: string): Promise<BotTokenResponse> {
-  const res = await req(
-    'POST',
-    `/api/v1/sukhi/bots/${encodeURIComponent(id)}/token`,
-    'rotate_bot_token',
-    { json: {} }
-  );
-  return json<BotTokenResponse>(res);
 }
 
 // ── compose draft (server, cross-device) ─────────────────────────────
