@@ -62,6 +62,7 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
 
     # ── Self-cleanup (archive own old posts; cookie-gated, reauth on execute)
     "get /settings/cleanup",
+    "get /settings/bot",
     "post /settings/cleanup/preview",
     "post /settings/cleanup/execute",
 

@@ -233,6 +233,12 @@ defmodule SukhiFedi.Web.Router do
     SelfCleanupController.execute(conn)
   end
 
+  # ── Bot token page (SPA; the JSON calls go to /api/v1/sukhi/bots) ──────
+
+  get "/settings/bot" do
+    serve_spa(conn)
+  end
+
   # ── Static assets for the SPA + login page ─────────────────────────────
   # The SvelteKit build at `web/build` is copied (or symlinked) into
   # `priv/static`. Cloudflare Pages style deploys can ignore this and
