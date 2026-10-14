@@ -26,12 +26,6 @@ files are complementary: TODO is "do this", OPEN_QUESTIONS is
       `cache-control: public, max-age=31536000, immutable` を返せる
       はず。もう一歩進めて rustfs から直接 302 (presigned) にできれば
       federated peer の毎回 BEAM 叩きが消える。
-- [ ] **`SukhiFedi.Addons.Media` の compile-time `@bucket` / `@endpoint`.**
-      `lib/sukhi_fedi/addons/media.ex:36-41` で `System.get_env` を
-      モジュール属性で読んでいる。release build 時に焼き込まれて
-      runtime で効かない。今は presigned upload 経路でしか使って
-      いないので無害だが、信じて触ると踏む地雷。`Application.get_env`
-      に揃える。
 - [ ] **rustfs first-boot の chown 10001 を script 化.**
       kamal `directories:` が rocky 所有で作るので container が
       書けず落ちる。今コメントで残してあるだけ。`scripts/setup.sh`
@@ -131,6 +125,30 @@ endpoint surface is mapped out in [`docs/MISSKEY_API.md`](docs/MISSKEY_API.md).
       capability that returns `{upload_url, fields}`. Design in
       [OPEN_QUESTIONS Q5](OPEN_QUESTIONS.md#q5-メディア-8-mib--presigned-url-の-capability-形).
 
+- [ ] **`custom_emojis` のローカル絵文字に一意制約が効いていない.**
+      `unique_index(:custom_emojis, [:shortcode, :domain])` は、`domain` が
+      NULL (= ローカル) の行どうしを「別物」として扱うので、同じ shortcode が
+      何度でも入る。`CustomEmojis` は upsert をコードで補った (ローカルは
+      shortcode で探して更新) が、DB は何も言わないまま。既存の重複行を
+      どう寄せるか (どの行を残すか) を決めてから、`shortcode WHERE domain IS
+      NULL` の部分一意インデックスを足す。`scripts/prepare_volpeon.mjs` の
+      `ON CONFLICT (shortcode, domain)` も同じ理由で再実行のたびに重複する
+      (新しい `scripts/emoji_import.jl` + `POST /api/admin/emojis` が置き換え)。
+- [ ] **`scripts/env_audit.jl` を CI で回す.** 文書に無い変数は 0 件にした
+      (docs/ENV.md)。`ENV_AUDIT_STRICT=1` で増えたら落とせるが、CI の
+      イメージに tsbvm / tsubakic が無い。入れるか、`make` の手元用ターゲットに
+      するか決める。
+- [ ] **絵文字インポートを本物のサーバーで一度通す.** `host` は tsbvm に
+      入った (nyanrus/tsubaki #7、merge 済み)。`scripts/emoji_import.jl` は、パック / Misskey サーバー / JSON
+      ファイルの 3 つの入口を持ち、本物のファイルと HTTP、契約どおりに答える
+      偽サーバーまでは通した。本物の `POST /api/admin/emojis` と本物の Misskey
+      に対しては未実行 (`EMOJI_DRY_RUN=1` から)。通ったら
+      `scripts/prepare_volpeon.mjs` と、`Makefile` のコメントの古い手順を消す。
+      (`mix sukhi.emoji.import` と `CustomEmojis.import_from_*` は、もう無い。
+      zip は `unzip` してパックとして読む。以前の zip 取り込みは、画像を
+      `data:` URL にして `image_url` (varchar(255)) に入れていたので、
+      そもそも入らなかった。)
+
 ## Federation / signing — hackers.pub 401 から派生
 
 `bun/handlers/sign_delivery.ts` で署名した POST が hackers.pub
@@ -174,6 +192,20 @@ PEM modulus も bit-identical。手前のヘッダ最小化 (v0.1.72) も効か�
       生成する必要がある (RSA とは別系統)。
       ─ 影響範囲が大きいので、Update Person と RFC 9421 が
       ダメだった時の最後の手段。
+
+- [ ] **ojak の LD署名 (RsaSignature2017) を、Mastodon 以外にも親切な形にする.**
+      `OJAK_LD_BACKEND=ojak` で出す署名ブロックは Mastodon の形 (options に
+      `expires` も署名対象で入り、埋め込み `@context` が無い)。ojak は完全な
+      Mastodon 互換を要するサーバーで使われている実装なので、これは意図どおり。
+      一方 sukhi の native は fedify の形 (creator + created + `@context`) で、
+      native の `LdSignature.verify` は ojak の形を検証できない
+      (`test/sukhi_fedi/fedi/ojak_test.exs` に記録)。Misskey / fedify 系が
+      ojak の形を受け入れるかは実サーバーで未確認。
+      やること: (1) 実サーバーで受信を確認する。(2) 受け入れられない相手が
+      あるなら、ojak に「fedify 形で出す」オプションを提案する (upstream は
+      `sukhi-social/ojak-ex`)。(3) native の verify も `expires` と埋め込み
+      `@context` を読めるようにして、どちらの形でも検証できるようにする。
+      それまでは `:native` を既定のままにする。
 
 - [ ] **fedify v2 への上げ.** いまは `@fedify/fedify@1.10.8`。
       Fedify 2.x は signing/verify の defaults と internal API を
@@ -302,3 +334,26 @@ session-cookie persists the bearer. Resume from "what's done" below.
 git status
 # Then ask: "TODO.md の Admin frontend のステップ 1 から実装再開"
 ```
+
+## Native seams — follow-ups (docs/native-seams.md)
+- [ ] 不正な UTF-8 を `HTML.sanitize/1` / `Linkify` に渡すと raise する(分離前から)。NIF を入れる前に、facade の境界で 1 回だけ scrub するか決める。
+- [ ] OpenGraph の regex が呼び出しごとに実行時コンパイルされる(性能のみ)。NIF にする前に module attribute へ。
+- [ ] sanitizer は 1 回で収束しない入力がある(20,000 件中 49)。保存前に 1 回で十分かを確かめる。
+
+## 構造の見直し候補 (2026-10 の調査から。計測はしていない)
+小さい順。詳しい根拠はセッションの調査メモ(コードの読み取りのみ)。
+- [ ] **gateway が自分自身に NATS で往復している** (`fedify.*.v1`)。`Fedi.Service`
+      は gateway 内にあるので、`Fedi.Verifier/Inbox/Fetcher` を直接呼べば足りる。
+      `FedifyClient` が elixir/ と delivery/ に約 60 行ずつ重複。
+- [ ] **api↔gateway の `:rpc` 157 呼び出しが型なし.** `{:ok, {:ok, _}}` の二重ラップが
+      実バグになった実績あり。`gateway_not_connected` の分岐が 66 か所。型付き
+      クライアントに集約する。
+- [ ] **秘密鍵 JWK を JSON にして NATS に流し、配送ごとに DB + 署名往復**
+      (`delivery/worker.ex`)。署名を delivery に同居させる案。
+- [ ] **秘密フィールド入りの Ecto `Account` が RPC 戻り値と ETS (`TokenCache`) に載る.**
+      公開投影に絞る。
+- [ ] **delivery に UrlGuard / ActorJson / schema の複製** (CODE_STYLE §3 に反する)。
+- [ ] **`Release` の一度きり関数 7 つ (pre-v0.1.22 向け) は削除候補。**
+      `Maintenance` の `rebuild_remote_note_ids` / `wipe_remote` は SQL で足りる。
+- [ ] **管理画面の EEx 約 1800 行 → SPA の `/admin` へ** (`/api/admin/*` の JSON API は既にある)。
+      下の Admin frontend (htmx) 計画の見直しと同じ話。

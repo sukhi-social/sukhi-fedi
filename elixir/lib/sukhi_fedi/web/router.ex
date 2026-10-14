@@ -713,6 +713,16 @@ defmodule SukhiFedi.Web.Router do
     SukhiFedi.Web.MapController.show(conn, [])
   end
 
+  # The API's own reference. It lists the routes the plugin node serves, so
+  # it is built there; the gateway only forwards the two paths.
+  get "/api/docs" do
+    SukhiFedi.Web.PluginPlug.call(conn, SukhiFedi.Web.PluginPlug.init([]))
+  end
+
+  get "/api/docs.json" do
+    SukhiFedi.Web.PluginPlug.call(conn, SukhiFedi.Web.PluginPlug.init([]))
+  end
+
   match "/api/v1/*_" do
     SukhiFedi.Web.PluginPlug.call(conn, SukhiFedi.Web.PluginPlug.init([]))
   end

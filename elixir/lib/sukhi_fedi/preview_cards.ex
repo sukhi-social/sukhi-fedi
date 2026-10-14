@@ -182,69 +182,17 @@ defmodule SukhiFedi.PreviewCards do
   defp public_ip?({h, _, _, _, _, _, _, _}) when h >= 0xFE80 and h <= 0xFEBF, do: false
   defp public_ip?({_, _, _, _, _, _, _, _}), do: true
 
-  # ── OpenGraph parse (regex, no HTML-parser dep) ──────────────────────────
+  # ── OpenGraph parse ──────────────────────────────────────────────────────
 
-  @doc "Extract a card map from a page's HTML and its URL. Public for testing."
+  @doc """
+  Extract a card map from a page's HTML and its URL. The reading itself is
+  `SukhiFedi.PreviewCards.Meta` (an implementation chosen by
+  `SukhiFedi.Backend`); this keeps the entry point and the answer for a body
+  that is not text.
+  """
   @spec parse_og(binary(), String.t()) :: map()
-  def parse_og(html, url) when is_binary(html) do
-    %{
-      "url" => og(html, "og:url") || url,
-      "title" => trunc_at(og(html, "og:title") || title_tag(html) || "", 500),
-      "description" => trunc_at(og(html, "og:description") || meta_name(html, "description") || "", 1000),
-      "image" => og(html, "og:image"),
-      "type" => og(html, "og:type") || "link",
-      "provider_name" => og(html, "og:site_name") || URI.parse(url).host || ""
-    }
-  end
+  def parse_og(html, url) when is_binary(html),
+    do: SukhiFedi.Backend.call(:preview_meta, :parse, [html, url])
 
   def parse_og(_html, url), do: %{"url" => url, "title" => "", "type" => "link"}
-
-  # `<meta property="og:x" content="...">` — try both attribute orders.
-  defp og(html, prop) do
-    meta_attr(html, "property", prop) || meta_attr(html, "name", prop)
-  end
-
-  defp meta_name(html, name), do: meta_attr(html, "name", name)
-
-  defp meta_attr(html, key, val) do
-    forward =
-      Regex.run(
-        ~r/<meta[^>]+#{key}=["']#{Regex.escape(val)}["'][^>]+content=["']([^"']*)["']/i,
-        html
-      )
-
-    backward =
-      Regex.run(
-        ~r/<meta[^>]+content=["']([^"']*)["'][^>]+#{key}=["']#{Regex.escape(val)}["']/i,
-        html
-      )
-
-    case forward || backward do
-      [_, content] -> content |> unescape() |> String.trim() |> presence()
-      _ -> nil
-    end
-  end
-
-  defp title_tag(html) do
-    case Regex.run(~r/<title[^>]*>([^<]*)<\/title>/i, html) do
-      [_, t] -> t |> unescape() |> String.trim() |> presence()
-      _ -> nil
-    end
-  end
-
-  defp presence(""), do: nil
-  defp presence(s), do: s
-
-  defp trunc_at(s, n) when byte_size(s) <= n, do: s
-  defp trunc_at(s, n), do: String.slice(s, 0, n)
-
-  defp unescape(s) do
-    s
-    |> String.replace("&amp;", "&")
-    |> String.replace("&lt;", "<")
-    |> String.replace("&gt;", ">")
-    |> String.replace("&quot;", "\"")
-    |> String.replace("&#39;", "'")
-    |> String.replace("&#x27;", "'")
-  end
 end

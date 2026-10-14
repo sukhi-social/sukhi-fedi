@@ -24,7 +24,7 @@ defmodule SukhiFedi.Addons.Media do
     * `S3_REGION` (default `"auto"`)
     * `S3_ENDPOINT` — e.g. `https://<account>.r2.cloudflarestorage.com`
       (in prod: the rustfs accessory)
-    * `S3_ACCESS_KEY`, `S3_SECRET_KEY`
+    * `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`
     * `S3_PUBLIC_URL` — CDN URL
 
   Stored bytes are never addressed by their S3 URL from outside. The
@@ -248,15 +248,16 @@ defmodule SukhiFedi.Addons.Media do
     |> Repo.all()
   end
 
-  # S3 credentials are read at runtime (not as module attributes) so a
-  # release built without S3_* env still picks them up once the env is
-  # set in prod — module attributes would freeze the compile-time nil
-  # into the release.
+  # Read at runtime, from the same config runtime.exs builds out of the
+  # S3_* env (credentials: S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY) — one
+  # place names them, so this path cannot drift from the upload path.
+  # Not module attributes: those would freeze a compile-time nil into the
+  # release.
   defp s3_endpoint, do: System.get_env("S3_ENDPOINT")
-  defp s3_access_key, do: System.get_env("S3_ACCESS_KEY")
-  defp s3_secret_key, do: System.get_env("S3_SECRET_KEY")
-  defp s3_region, do: System.get_env("S3_REGION") || "auto"
-  defp s3_bucket_name, do: System.get_env("S3_BUCKET") || "sukhi-media"
+  defp s3_access_key, do: Application.get_env(:ex_aws, :access_key_id)
+  defp s3_secret_key, do: Application.get_env(:ex_aws, :secret_access_key)
+  defp s3_region, do: :ex_aws |> Application.get_env(:s3, []) |> Keyword.get(:region, "us-east-1")
+  defp s3_bucket_name, do: :sukhi_fedi |> Application.get_env(:s3, []) |> Keyword.get(:bucket, "media")
   defp s3_public_url, do: System.get_env("S3_PUBLIC_URL")
 
   defp presigned_put_url(key) do

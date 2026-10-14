@@ -19,7 +19,7 @@ defmodule SukhiFedi.Fedi.Verifier do
   remote side doesn't strand its followers (same behavior as fedify).
   """
 
-  alias SukhiFedi.Fedi.{Fetcher, HttpSignature, JWK}
+  alias SukhiFedi.Fedi.{Fetcher, HttpSignature, JWK, Ojak, OjakShadow}
 
   @type fetch_fun :: (String.t(), [:fresh] -> {:ok, map()} | {:error, term()})
 
@@ -57,7 +57,15 @@ defmodule SukhiFedi.Fedi.Verifier do
     with {:ok, document} <- fetch_fun.(key_id, if(retried?, do: [:fresh], else: [])),
          {:ok, pem, owner} <- find_public_key(document, key_id),
          {:ok, public_key} <- JWK.public_key_from_pem(pem) do
-      case HttpSignature.verify(method, url, headers, raw, public_key) do
+      result = HttpSignature.verify(method, url, headers, raw, public_key)
+
+      # `result` is the answer; with OJAK_SHADOW=1 ojak is asked too, and a
+      # disagreement is logged.
+      OjakShadow.compare(:http_signature, result, fn ->
+        Ojak.verify_http_signature(method, url, headers, raw, pem)
+      end)
+
+      case result do
         :ok ->
           {:ok, %{"ok" => true, "keyId" => key_id, "owner" => owner}}
 

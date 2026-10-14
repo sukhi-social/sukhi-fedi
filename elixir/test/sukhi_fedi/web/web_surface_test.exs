@@ -161,6 +161,11 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     "get /api/v1/streaming/user/notification",
     "get /api/wt",
     "get /api/map",
+
+    # ── The API's own reference (built on the plugin node from the routes it
+    #    serves; lists endpoints and the scope each needs, no data)
+    "get /api/docs",
+    "get /api/docs.json",
     "match /api/v1/*_",
     "match /api/admin/*_",
     "match /api/v2/*_",

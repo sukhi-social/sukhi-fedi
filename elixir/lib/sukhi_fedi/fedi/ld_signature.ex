@@ -24,7 +24,7 @@ defmodule SukhiFedi.Fedi.LdSignature do
   Until then RsaSignature2017 keeps Mastodon-level reach.
   """
 
-  alias SukhiFedi.Fedi.{Canon, JWK}
+  alias SukhiFedi.Fedi.{Canon, JWK, Ojak}
 
   @options_context "https://w3id.org/identity/v1"
 
@@ -35,6 +35,13 @@ defmodule SukhiFedi.Fedi.LdSignature do
   @spec sign(map(), JWK.rsa_private_key(), String.t(), keyword()) ::
           {:ok, map()} | {:error, term()}
   def sign(document, private_key, key_id, opts \\ []) do
+    case Ojak.ld_backend() do
+      :ojak -> Ojak.ld_sign(document, private_key, key_id, opts)
+      :native -> sign_native(document, private_key, key_id, opts)
+    end
+  end
+
+  defp sign_native(document, private_key, key_id, opts) do
     created = Keyword.get_lazy(opts, :created, &default_created/0)
 
     options = %{
@@ -59,7 +66,14 @@ defmodule SukhiFedi.Fedi.LdSignature do
   the inbound pipeline relies on HTTP signatures, not on this.
   """
   @spec verify(map(), JWK.rsa_public_key()) :: :ok | {:error, term()}
-  def verify(%{"signature" => signature} = document, public_key) do
+  def verify(document, public_key) do
+    case Ojak.ld_backend() do
+      :ojak -> Ojak.ld_verify(document, public_key)
+      :native -> verify_native(document, public_key)
+    end
+  end
+
+  defp verify_native(%{"signature" => signature} = document, public_key) do
     options = %{
       "@context" => @options_context,
       "creator" => signature["creator"],
@@ -76,7 +90,7 @@ defmodule SukhiFedi.Fedi.LdSignature do
     end
   end
 
-  def verify(_document, _public_key), do: {:error, :no_signature}
+  defp verify_native(_document, _public_key), do: {:error, :no_signature}
 
   defp signed_message(options, document) do
     with {:ok, options_hash} <- Canon.hash(options),

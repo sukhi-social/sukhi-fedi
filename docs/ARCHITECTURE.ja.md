@@ -823,7 +823,7 @@ presigned-URL フローは `TODO.md`。
 | `RELEASE_COOKIE`                     | Elixir+api  | `sukhi_fedi_dev_cookie`   | 分散Erlang共有シークレット          |
 | `DOMAIN` / `INSTANCE_TITLE`          | api         | `localhost:4000` / `sukhi-fedi` | NodeInfo / WebFinger の出力 |
 | `ENABLED_ADDONS` / `DISABLE_ADDONS`  | 全部        | `all` / `""`              | カンマ区切りのアドオンid            |
-| `S3_BUCKET` / `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_REGION` / `S3_PUBLIC_URL` | Elixir | _(未設定)_ | メディアの置き場（本番では rustfs）。未設定だとアップロードは通らない |
+| `S3_BUCKET` / `S3_ENDPOINT` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_REGION` / `S3_PUBLIC_URL` | Elixir | _(未設定)_ | メディアの置き場（本番では rustfs）。未設定だとアップロードは通らない |
 
 ## 11. ローカルで動かす
 

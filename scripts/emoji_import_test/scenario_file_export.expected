@@ -1,0 +1,6 @@
+POST https://sukhi.f3liz.casa/api/admin/emojis token=tok dry_run=false
+  blobcat | Cats | ["cat"] | https://misskey.example/e/blobcat.png
+left out: bare.png (no url)
+Sent 1 emoji in 1 request(s).
+Imported 1, failed 0, left out 1.
+exit=0

@@ -1,0 +1,6 @@
+code reads 3 variables; 1 docs name 3.
+undocumented (1): read in code, named in no doc
+  BETA_KEY   elixir/config/runtime.exs
+unread (1): named in a doc, read by no Elixir file (shell / compose / bun may)
+  SHELL_ONLY
+exit=0

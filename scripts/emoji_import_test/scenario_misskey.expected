@@ -1,0 +1,11 @@
+FETCH https://misskey.example/api/emojis
+POST https://sukhi.f3liz.casa/api/admin/emojis token=tok dry_run=false
+  mk_blobcat | Imported | ["cat", "neko"] | https://misskey.example/e/blobcat.png
+  mk_party | Imported | Any[] | https://misskey.example/e/party.gif
+left out: gun_cat (gun)
+left out: nourl (no url)
+left out: item (no name)
+left out: item (not an object)
+Sent 2 emoji in 1 request(s).
+Imported 2, failed 0, left out 4.
+exit=0

@@ -29,14 +29,14 @@ defmodule SukhiFedi.Linkify do
   知らない handle は、平文のまま置く。ここは投稿を書くたびに通る道なので、
   知らない名前ひとつで、相手の選んだホストへ WebFinger しに行くわけには
   いかない。**リンクにならないのは、壊れているのではなく、知らないだけ。**
-  """
 
-  # `@user` / `@user@host`。直前が語なら掴まない(メールの尻尾を避ける)。
-  @mention ~r/(?<![\w\/])@([\w]+)(?:@([\w.\-]+))?/u
-  # `#tag`。**数字だけのタグは作らない** ── `#1` `#42` は番号のことが多く
-  # (issue、部屋、順位)、それをタグにすると、書いた人の意図しない場所へ
-  # 連れていく。だから、どこかに文字が要る。
-  @hashtag ~r/(?<![\w\/&])#(?=[\p{L}\p{N}_-]*[\p{L}_])([\p{L}\p{N}_][\p{L}\p{N}_\-]*)/u
+  ## 走査と、描画
+
+  HTML を「そのまま残す所」「`@` の候補」「`#` の候補」に切るところは
+  `SukhiFedi.Linkify.Scanner`(純粋な走査。実装は `SukhiFedi.Backend` で
+  差し替えられる)。ここは、その切れ端を受けて、知っている人ならリンクに、
+  知らなければ平文のまま書く側 ── DB を引くのも、HTML を組むのも。
+  """
 
   @doc """
   HTML の中の言及とタグを、リンクにする。
@@ -46,12 +46,12 @@ defmodule SukhiFedi.Linkify do
   """
   @spec run(term(), (String.t() -> %{acct: String.t(), url: String.t()} | nil)) :: term()
   def run(html, lookup) when is_binary(html) and is_function(lookup, 1) do
-    html
-    |> split_by_tags()
+    :linkify_scanner
+    |> SukhiFedi.Backend.call(:scan, [html])
     |> Enum.map_join(fn
-      {:tag, raw} -> raw
-      {:skip, raw} -> raw
-      {:text, raw} -> linkify_text(raw, lookup)
+      {:raw, text} -> text
+      {:mention, raw, user, host} -> mention_html(raw, user, host, lookup)
+      {:hashtag, _raw, tag} -> hashtag_html(tag)
     end)
   end
 
@@ -85,106 +85,8 @@ defmodule SukhiFedi.Linkify do
     %{acct: acct, url: url}
   end
 
-  # HTML を「タグ」「触らない範囲」「地の文」に切り分ける。
-  #
-  # 素朴だけれど、ここに来るのは Earmark が組んだ HTML だけで、人の書いた
-  # ものではない ── そのあと必ず scrubber も通る。完全な parser を持つ
-  # 理由がない。
-  defp split_by_tags(html), do: scan(html, [])
-
-  defp scan("", acc), do: Enum.reverse(acc)
-
-  defp scan(rest, acc) do
-    case :binary.match(rest, "<") do
-      :nomatch ->
-        Enum.reverse([{:text, rest} | acc])
-
-      {0, _} ->
-        {tag, after_tag} = take_tag(rest)
-        name = tag_name(tag)
-
-        if name in ~w(a code pre) and not String.starts_with?(tag, "</") do
-          # この要素は、閉じるまで丸ごと触らない。
-          {inner, tail} = take_until_close(after_tag, name)
-          scan(tail, [{:skip, tag <> inner} | acc])
-        else
-          scan(after_tag, [{:tag, tag} | acc])
-        end
-
-      {i, _} ->
-        <<text::binary-size(^i), tail::binary>> = rest
-        scan(tail, [{:text, text} | acc])
-    end
-  end
-
-  defp take_tag(rest) do
-    case :binary.match(rest, ">") do
-      :nomatch -> {rest, ""}
-      {i, _} -> {binary_part(rest, 0, i + 1), binary_part(rest, i + 1, byte_size(rest) - i - 1)}
-    end
-  end
-
-  defp take_until_close(rest, name) do
-    close = "</" <> name
-
-    case :binary.match(rest, close) do
-      :nomatch ->
-        {rest, ""}
-
-      {i, _} ->
-        {tag, tail} = take_tag(binary_part(rest, i, byte_size(rest) - i))
-        {binary_part(rest, 0, i) <> tag, tail}
-    end
-  end
-
-  defp tag_name(tag) do
-    tag
-    |> String.trim_leading("<")
-    |> String.trim_leading("/")
-    |> String.split(~r/[\s>\/]/, parts: 2)
-    |> hd()
-    |> String.downcase()
-  end
-
-  # ── 地の文を、左から一度だけなめる ──────────────────────────────
-  #
-  # `@` と `#` のどちらが先に来るかを毎回見て、近いほうを先に確定させる。
-  # 二回に分けて走らせると、一度目が作ったリンクの中を二度目が読む。
-  defp linkify_text(text, lookup) do
-    mention = Regex.run(@mention, text, return: :index)
-    hashtag = Regex.run(@hashtag, text, return: :index)
-
-    case first_of(mention, hashtag) do
-      nil ->
-        text
-
-      {:mention, [{at, len} | _] = caps} ->
-        replace_at(text, at, len, mention_html(text, caps, lookup), lookup)
-
-      {:hashtag, [{at, len} | _] = caps} ->
-        replace_at(text, at, len, hashtag_html(text, caps), lookup)
-    end
-  end
-
-  defp first_of(nil, nil), do: nil
-  defp first_of(m, nil), do: {:mention, m}
-  defp first_of(nil, h), do: {:hashtag, h}
-
-  defp first_of([{mi, _} | _] = m, [{hi, _} | _] = h),
-    do: if(mi <= hi, do: {:mention, m}, else: {:hashtag, h})
-
-  defp replace_at(text, at, len, replacement, lookup) do
-    before = binary_part(text, 0, at)
-    rest = binary_part(text, at + len, byte_size(text) - at - len)
-    # 置いたぶんは、もう見ない。続きだけを、また左からなめる。
-    before <> replacement <> linkify_text(rest, lookup)
-  end
-
-  defp mention_html(text, caps, lookup) do
-    raw = slice(text, Enum.at(caps, 0))
-    user = slice(text, Enum.at(caps, 1))
-    host = slice(text, Enum.at(caps, 2))
-    handle = if host in [nil, ""], do: user, else: "#{user}@#{host}"
+  defp mention_html(raw, user, host, lookup) do
+    handle = if host == nil, do: user, else: "#{user}@#{host}"
 
     case lookup.(handle) do
       %{url: url} when is_binary(url) ->
@@ -197,14 +99,9 @@ defmodule SukhiFedi.Linkify do
     end
   end
 
-  defp hashtag_html(text, caps) do
-    tag = slice(text, Enum.at(caps, 1))
+  defp hashtag_html(tag) do
     ~s|<a href="/tags/#{URI.encode(String.downcase(tag))}" class="mention hashtag" rel="tag">#<span>#{esc(tag)}</span></a>|
   end
-
-  defp slice(_text, nil), do: nil
-  defp slice(_text, {-1, _}), do: nil
-  defp slice(text, {at, len}), do: binary_part(text, at, len)
 
   defp esc(s), do: Plug.HTML.html_escape(s)
 end

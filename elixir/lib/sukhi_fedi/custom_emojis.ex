@@ -5,19 +5,24 @@ defmodule SukhiFedi.CustomEmojis do
 
   Supports:
   - Local emoji registration and lookup (`register/1`, `get_local/1`, `list_local/1`).
+  - Admin batch import in one transaction, audited (`import_many/3`). It
+    takes already-normalised attribute maps; reading Misskey instances,
+    export JSON and emoji packs is the job of `scripts/emoji_import.jl`,
+    which posts to `POST /api/admin/emojis`.
   - Remote emoji caching from inbound AP activities (`upsert_from_tag/3`).
-  - Misskey custom emoji importing:
-    - From remote Misskey instance endpoint (`import_from_misskey/2`).
-    - From Misskey export / package JSON (`import_from_json/2`).
-    - From Misskey emoji package zip file (`import_from_zip/2`).
   - Extracting custom emojis used in text content (`extract_from_text/1`).
   - Reaction namespacing and resolution (`namespaced/2`, `split/1`, `lookup_many/1`).
   """
 
   import Ecto.Query
 
-  alias SukhiFedi.Repo
-  alias SukhiFedi.Schema.CustomEmoji
+  alias Ecto.Multi
+  alias SukhiFedi.{Outbox, Repo}
+  alias SukhiFedi.Schema.{AdminAudit, CustomEmoji}
+
+  # One request, one transaction: bound it so a runaway client cannot hold a
+  # long write open. A pack of ~1000 emoji fits with room to spare.
+  @max_import 2_000
 
   @doc """
   Build the namespaced storage key for a reaction emoji.
@@ -60,25 +65,32 @@ defmodule SukhiFedi.CustomEmojis do
   """
   @spec register(map()) :: {:ok, %CustomEmoji{}} | {:error, term()}
   def register(attrs) when is_map(attrs) do
+    with {:ok, changes} <- prepare(attrs), do: upsert(changes)
+  end
+
+  # The one place an emoji's attributes are read and normalised. Pure: no
+  # DB, so a batch can be checked in full before anything is written.
+  @spec prepare(map()) :: {:ok, map()} | {:error, :invalid_emoji_attributes}
+  defp prepare(attrs) do
     shortcode =
       Map.get(attrs, :shortcode) ||
-      Map.get(attrs, "shortcode") ||
-      Map.get(attrs, :name) ||
-      Map.get(attrs, "name")
+        Map.get(attrs, "shortcode") ||
+        Map.get(attrs, :name) ||
+        Map.get(attrs, "name")
 
     image_url =
       Map.get(attrs, :image_url) ||
-      Map.get(attrs, "image_url") ||
-      Map.get(attrs, :url) ||
-      Map.get(attrs, "url")
+        Map.get(attrs, "image_url") ||
+        Map.get(attrs, :url) ||
+        Map.get(attrs, "url")
 
     static_url =
       Map.get(attrs, :static_url) ||
-      Map.get(attrs, "static_url")
+        Map.get(attrs, "static_url")
 
     category =
       Map.get(attrs, :category) ||
-      Map.get(attrs, "category")
+        Map.get(attrs, "category")
 
     aliases =
       case Map.get(attrs, :aliases) || Map.get(attrs, "aliases") do
@@ -109,28 +121,170 @@ defmodule SukhiFedi.CustomEmojis do
          url when is_binary(url) and url != "" <- image_url do
       now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-      changes = %{
-        shortcode: sc,
-        domain: domain,
-        image_url: url,
-        static_url: static_url,
-        category: category,
-        aliases: aliases,
-        visible_in_picker: visible_in_picker,
-        last_fetched_at: now
-      }
-
-      %CustomEmoji{}
-      |> CustomEmoji.changeset(changes)
-      |> Repo.insert(
-        on_conflict: {:replace, [:image_url, :static_url, :category, :aliases, :visible_in_picker, :last_fetched_at]},
-        conflict_target: [:shortcode, :domain],
-        returning: true
-      )
+      {:ok,
+       %{
+         shortcode: sc,
+         domain: domain,
+         image_url: url,
+         static_url: static_url,
+         category: category,
+         aliases: aliases,
+         visible_in_picker: visible_in_picker,
+         last_fetched_at: now
+       }}
     else
       _ -> {:error, :invalid_emoji_attributes}
     end
   end
+
+  @replaced [:image_url, :static_url, :category, :aliases, :visible_in_picker, :last_fetched_at]
+
+  # Insert-or-replace by (shortcode, domain).
+  #
+  # A remote emoji (domain set) conflicts on the unique index. A LOCAL one
+  # (domain NULL) never does: Postgres treats NULLs as distinct, so the
+  # (shortcode, domain) index lets the same local shortcode in any number of
+  # times. Local rows are therefore looked up and updated here, in code.
+  # (TODO: a partial unique index on shortcode WHERE domain IS NULL would
+  # make the database say it too; it needs the existing duplicates merged
+  # first, which is a data decision, not a code one.)
+  defp upsert(%{domain: nil, shortcode: shortcode} = changes) do
+    existing =
+      Repo.one(
+        from e in CustomEmoji,
+          where: e.shortcode == ^shortcode and is_nil(e.domain),
+          order_by: [asc: e.id],
+          limit: 1
+      )
+
+    case existing do
+      nil -> %CustomEmoji{} |> CustomEmoji.changeset(changes) |> Repo.insert()
+      row -> row |> CustomEmoji.changeset(Map.take(changes, @replaced)) |> Repo.update()
+    end
+  end
+
+  defp upsert(changes) do
+    %CustomEmoji{}
+    |> CustomEmoji.changeset(changes)
+    |> Repo.insert(
+      on_conflict: {:replace, @replaced},
+      conflict_target: [:shortcode, :domain],
+      returning: true
+    )
+  end
+
+  @doc """
+  Register many emoji for an admin, all or nothing, with an audit trail.
+
+  `items` is a list of attribute maps (what `register/1` takes). Every item
+  is checked first; the ones that pass are written together in one
+  transaction with an `admin_audits` row and an
+  `sns.outbox.admin.emoji_imported` event, so a failed write leaves nothing
+  behind. Items that do not pass are reported and skipped — they do not stop
+  the others.
+
+  Options: `dry_run: true` checks and reports without writing. Always local:
+  any `domain` in an item is ignored.
+
+  Returns `{:ok, %{imported, failed, dry_run, results}}`, `results` in input
+  order, each `%{index, shortcode, status: :ok | :error, error}`.
+  """
+  @spec import_many([term()], integer(), keyword()) ::
+          {:ok, map()} | {:error, :too_many | :empty | term()}
+  def import_many(items, admin_id, opts \\ [])
+
+  def import_many(items, _admin_id, _opts) when is_list(items) and length(items) > @max_import,
+    do: {:error, :too_many}
+
+  def import_many([], _admin_id, _opts), do: {:error, :empty}
+
+  def import_many(items, admin_id, opts) when is_list(items) and is_integer(admin_id) do
+    dry_run? = Keyword.get(opts, :dry_run, false)
+    checked = items |> Enum.with_index() |> Enum.map(&check_item/1)
+    valid = for {:ok, index, changes} <- checked, do: {index, changes}
+
+    if dry_run? or valid == [] do
+      {:ok, summary(checked, dry_run?)}
+    else
+      case write_many(valid, admin_id) do
+        {:ok, _} -> {:ok, summary(checked, false)}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  # An admin import writes LOCAL emoji only: a `domain` in the input is
+  # dropped, not honoured, so this door cannot plant a remote-looking row.
+  defp check_item({attrs, index}) when is_map(attrs) do
+    with {:ok, changes} <- prepare(Map.drop(attrs, [:domain, "domain"])),
+         %{valid?: true} <- CustomEmoji.changeset(%CustomEmoji{}, changes) do
+      {:ok, index, changes}
+    else
+      {:error, reason} -> {:error, index, attrs, reason}
+      %Ecto.Changeset{} -> {:error, index, attrs, :invalid_emoji_attributes}
+    end
+  end
+
+  defp check_item({other, index}), do: {:error, index, other, :not_an_object}
+
+  defp write_many(valid, admin_id) do
+    multi =
+      Enum.reduce(valid, Multi.new(), fn {index, changes}, multi ->
+        Multi.run(multi, {:emoji, index}, fn _repo, _so_far -> upsert(changes) end)
+      end)
+
+    multi
+    |> Multi.insert(
+      :audit,
+      AdminAudit.changeset(%{
+        action: "emoji_imported",
+        admin_account_id: admin_id,
+        metadata: %{count: length(valid)}
+      })
+    )
+    |> Outbox.enqueue_multi(
+      :outbox_event,
+      "sns.outbox.admin.emoji_imported",
+      "custom_emoji",
+      fn _ -> admin_id end,
+      fn _ -> %{count: length(valid), by_id: admin_id} end
+    )
+    |> Repo.transaction()
+    |> case do
+      {:ok, changes} -> {:ok, changes}
+      {:error, _step, reason, _so_far} -> {:error, reason}
+    end
+  end
+
+  defp summary(checked, dry_run?) do
+    results =
+      Enum.map(checked, fn
+        {:ok, index, changes} ->
+          %{index: index, shortcode: changes.shortcode, status: :ok, error: nil}
+
+        {:error, index, attrs, reason} ->
+          %{index: index, shortcode: shortcode_hint(attrs), status: :error, error: reason}
+      end)
+
+    ok = Enum.count(results, &(&1.status == :ok))
+
+    %{
+      imported: if(dry_run?, do: 0, else: ok),
+      failed: length(results) - ok,
+      dry_run: dry_run?,
+      results: results
+    }
+  end
+
+  defp shortcode_hint(%{} = attrs) do
+    case Map.get(attrs, "shortcode") || Map.get(attrs, :shortcode) || Map.get(attrs, "name") ||
+           Map.get(attrs, :name) do
+      sc when is_binary(sc) -> sc
+      _ -> nil
+    end
+  end
+
+  defp shortcode_hint(_), do: nil
 
   def create(attrs), do: register(attrs)
 
@@ -307,229 +461,6 @@ defmodule SukhiFedi.CustomEmojis do
     end
   end
 
-  @doc """
-  Import custom emojis from a remote Misskey instance.
-  `host_or_url` can be "misskey.io" or "https://misskey.io" or "https://misskey.io/api/emojis".
-  """
-  @spec import_from_misskey(String.t(), keyword()) ::
-          {:ok, %{imported: integer(), total: integer()}} | {:error, term()}
-  def import_from_misskey(host_or_url, opts \\ []) when is_binary(host_or_url) do
-    endpoint =
-      cond do
-        String.contains?(host_or_url, "/api/emojis") ->
-          host_or_url
-
-        String.starts_with?(host_or_url, "http://") or String.starts_with?(host_or_url, "https://") ->
-          String.trim_trailing(host_or_url, "/") <> "/api/emojis"
-
-        true ->
-          "https://#{host_or_url}/api/emojis"
-      end
-
-    headers = [{"content-type", "application/json"}, {"user-agent", "sukhi-fedi/1.0"}]
-
-    req_opts = [
-      headers: headers,
-      receive_timeout: 30_000,
-      json: %{}
-    ]
-
-    req_opts =
-      if Process.whereis(SukhiFedi.Finch) do
-        Keyword.put(req_opts, :finch, SukhiFedi.Finch)
-      else
-        req_opts
-      end
-
-    case Req.post(endpoint, req_opts) do
-      {:ok, %Req.Response{status: 200, body: body}} ->
-        import_from_json(body, opts)
-
-      {:ok, %Req.Response{status: status}} ->
-        {:error, {:http_error, status}}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  @doc """
-  Import custom emojis from JSON (Misskey `/api/emojis`, Misskey export `emojis.json`/`meta.json`, or array).
-  """
-  @spec import_from_json(String.t() | map() | list(), keyword()) ::
-          {:ok, %{imported: integer(), total: integer()}} | {:error, term()}
-  def import_from_json(json_or_data, opts \\ [])
-
-  def import_from_json(json, opts) when is_binary(json) do
-    case JSON.decode(json) do
-      {:ok, data} -> import_from_json(data, opts)
-      {:error, reason} -> {:error, {:invalid_json, reason}}
-    end
-  end
-
-  def import_from_json(%{"emojis" => list}, opts) when is_list(list) do
-    import_emoji_list(list, opts)
-  end
-
-  def import_from_json(list, opts) when is_list(list) do
-    import_emoji_list(list, opts)
-  end
-
-  def import_from_json(_other, _opts), do: {:error, :unrecognized_format}
-
-  @doc """
-  Import custom emojis from a Misskey emoji package zip file.
-  Accepts file path or raw binary.
-  """
-  @spec import_from_zip(String.t() | binary(), keyword()) ::
-          {:ok, %{imported: integer(), total: integer()}} | {:error, term()}
-  def import_from_zip(zip_path_or_binary, opts \\ [])
-
-  def import_from_zip(path, opts) when is_binary(path) and byte_size(path) < 4096 do
-    if File.exists?(path) do
-      case File.read(path) do
-        {:ok, binary} -> do_import_from_zip_binary(binary, opts)
-        {:error, reason} -> {:error, reason}
-      end
-    else
-      do_import_from_zip_binary(path, opts)
-    end
-  end
-
-  def import_from_zip(binary, opts) when is_binary(binary) do
-    do_import_from_zip_binary(binary, opts)
-  end
-
-  defp do_import_from_zip_binary(binary, opts) do
-    case :zip.unzip(binary, [:memory]) do
-      {:ok, file_list} ->
-        meta_entry =
-          Enum.find(file_list, fn {filename, _content} ->
-            base = filename |> to_string() |> Path.basename()
-            base in ["meta.json", "emojis.json", "manifest.json"]
-          end)
-
-        case meta_entry do
-          {_fname, meta_json_bytes} ->
-            case JSON.decode(meta_json_bytes) do
-              {:ok, data} ->
-                files_map =
-                  Map.new(file_list, fn {fname, content} ->
-                    {fname |> to_string() |> Path.basename(), content}
-                  end)
-
-                import_emoji_list_with_files(data, files_map, opts)
-
-              {:error, reason} ->
-                {:error, {:invalid_meta_json, reason}}
-            end
-
-          nil ->
-            {:error, :missing_manifest_in_zip}
-        end
-
-      {:error, reason} ->
-        {:error, {:unzip_failed, reason}}
-    end
-  end
-
-  defp import_emoji_list(list, opts) when is_list(list) do
-    override_category = Keyword.get(opts, :category)
-    prefix = Keyword.get(opts, :prefix, "")
-
-    results =
-      Enum.map(list, fn item ->
-        emoji_attrs = extract_emoji_attrs(item, override_category, prefix)
-        register(emoji_attrs)
-      end)
-
-    imported = Enum.count(results, fn {:ok, _} -> true; _ -> false end)
-    {:ok, %{imported: imported, total: length(list)}}
-  end
-
-  defp import_emoji_list_with_files(data, files_map, opts) do
-    list =
-      case data do
-        %{"emojis" => l} when is_list(l) -> l
-        l when is_list(l) -> l
-        _ -> []
-      end
-
-    override_category = Keyword.get(opts, :category)
-    prefix = Keyword.get(opts, :prefix, "")
-
-    results =
-      Enum.map(list, fn item ->
-        attrs = extract_emoji_attrs(item, override_category, prefix)
-        file_name = Map.get(item, "fileName") || Map.get(item, :fileName)
-
-        attrs =
-          case file_name && Map.get(files_map, file_name) do
-            bytes when is_binary(bytes) and byte_size(bytes) > 0 ->
-              mime = mime_for_filename(file_name)
-              b64 = Base.encode64(bytes)
-              data_url = "data:#{mime};base64,#{b64}"
-              Map.put_new(attrs, :image_url, data_url)
-
-            _ ->
-              attrs
-          end
-
-        register(attrs)
-      end)
-
-    imported = Enum.count(results, fn {:ok, _} -> true; _ -> false end)
-    {:ok, %{imported: imported, total: length(list)}}
-  end
-
-  defp extract_emoji_attrs(item, override_category, prefix) when is_map(item) do
-    nested = Map.get(item, "emoji") || Map.get(item, :emoji) || %{}
-
-    name =
-      Map.get(nested, "name") ||
-      Map.get(nested, :name) ||
-      Map.get(item, "name") ||
-      Map.get(item, :name) ||
-      Map.get(item, "shortcode") ||
-      Map.get(item, :shortcode)
-
-    name = if prefix != "" && name, do: "#{prefix}_#{name}", else: name
-
-    url =
-      Map.get(nested, "url") ||
-      Map.get(nested, :url) ||
-      Map.get(item, "url") ||
-      Map.get(item, :url) ||
-      Map.get(item, "downloadUrl") ||
-      Map.get(item, :downloadUrl) ||
-      Map.get(item, "originUrl") ||
-      Map.get(item, :originUrl)
-
-    category =
-      override_category ||
-      Map.get(nested, "category") ||
-      Map.get(nested, :category) ||
-      Map.get(item, "category") ||
-      Map.get(item, :category)
-
-    aliases =
-      Map.get(nested, "aliases") ||
-      Map.get(nested, :aliases) ||
-      Map.get(item, "aliases") ||
-      Map.get(item, :aliases) ||
-      []
-
-    %{
-      shortcode: name,
-      image_url: url,
-      category: category,
-      aliases: aliases,
-      visible_in_picker: true
-    }
-  end
-
-  defp extract_emoji_attrs(_item, _override_category, _prefix), do: %{}
-
   defp normalize_shortcode(nil), do: ""
 
   defp normalize_shortcode(name) when is_binary(name) do
@@ -540,19 +471,4 @@ defmodule SukhiFedi.CustomEmojis do
   end
 
   defp normalize_shortcode(_), do: ""
-
-  defp mime_for_filename(fname) when is_binary(fname) do
-    case fname |> Path.extname() |> String.downcase() do
-      ".png" -> "image/png"
-      ".jpg" -> "image/jpeg"
-      ".jpeg" -> "image/jpeg"
-      ".gif" -> "image/gif"
-      ".webp" -> "image/webp"
-      ".svg" -> "image/svg+xml"
-      ".apng" -> "image/apng"
-      _ -> "image/png"
-    end
-  end
-
-  defp mime_for_filename(_), do: "image/png"
 end

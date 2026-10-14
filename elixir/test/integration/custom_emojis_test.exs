@@ -66,6 +66,92 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
     end
   end
 
+  describe "import_many/3" do
+    import Ecto.Query
+
+    alias SukhiFedi.Schema.{AdminAudit, OutboxEvent}
+
+    defp admin!(u), do: Repo.insert!(%Account{username: u, display_name: u, summary: ""})
+
+    defp item(name, extra \\ %{}),
+      do: Map.merge(%{"shortcode" => name, "image_url" => "https://example.com/#{name}.png"}, extra)
+
+    test "writes every valid item, reports each in input order, audits once" do
+      admin = admin!("imp_admin")
+
+      items = [
+        item("imp_a", %{"category" => "Pack", "aliases" => ["imp_a2"]}),
+        %{"shortcode" => "imp_no_url"},
+        item("imp_b"),
+        "not an object"
+      ]
+
+      assert {:ok, %{imported: 2, failed: 2, dry_run: false, results: results}} =
+               CustomEmojis.import_many(items, admin.id)
+
+      assert [
+               %{index: 0, shortcode: "imp_a", status: :ok},
+               %{index: 1, shortcode: "imp_no_url", status: :error, error: :invalid_emoji_attributes},
+               %{index: 2, shortcode: "imp_b", status: :ok},
+               %{index: 3, shortcode: nil, status: :error, error: :not_an_object}
+             ] = results
+
+      assert %CustomEmoji{category: "Pack"} = CustomEmojis.get_local("imp_a")
+      assert %CustomEmoji{} = CustomEmojis.get_local("imp_a2")
+      assert CustomEmojis.get_local("imp_no_url") == nil
+
+      audit = Repo.one(from(a in AdminAudit, where: a.action == "emoji_imported"))
+      assert audit.admin_account_id == admin.id
+      assert audit.metadata["count"] == 2
+
+      assert Repo.aggregate(
+               from(e in OutboxEvent, where: e.subject == "sns.outbox.admin.emoji_imported"),
+               :count,
+               :id
+             ) == 1
+    end
+
+    test "is an upsert: a second import replaces fields and does not duplicate" do
+      admin = admin!("imp_admin2")
+      assert {:ok, %{imported: 1}} = CustomEmojis.import_many([item("imp_dup", %{"category" => "A"})], admin.id)
+      assert {:ok, %{imported: 1}} = CustomEmojis.import_many([item("imp_dup", %{"category" => "B"})], admin.id)
+
+      assert Repo.aggregate(from(e in CustomEmoji, where: e.shortcode == "imp_dup"), :count, :id) == 1
+      assert CustomEmojis.get_local("imp_dup").category == "B"
+    end
+
+    test "a domain in the input is ignored: the row is local" do
+      admin = admin!("imp_admin6")
+
+      assert {:ok, %{imported: 1}} =
+               CustomEmojis.import_many([item("imp_dom", %{"domain" => "evil.example"})], admin.id)
+
+      assert %CustomEmoji{domain: nil} = CustomEmojis.get_local("imp_dom")
+    end
+
+    test "dry_run checks and reports but writes nothing, not even an audit row" do
+      admin = admin!("imp_admin3")
+
+      assert {:ok, %{imported: 0, failed: 1, dry_run: true, results: [%{status: :ok}, %{status: :error}]}} =
+               CustomEmojis.import_many([item("imp_dry"), %{}], admin.id, dry_run: true)
+
+      assert CustomEmojis.get_local("imp_dry") == nil
+      refute Repo.exists?(from(a in AdminAudit, where: a.admin_account_id == ^admin.id))
+    end
+
+    test "all-invalid input writes nothing (no empty audit row)" do
+      admin = admin!("imp_admin4")
+      assert {:ok, %{imported: 0, failed: 2}} = CustomEmojis.import_many([%{}, 1], admin.id)
+      refute Repo.exists?(from(a in AdminAudit, where: a.admin_account_id == ^admin.id))
+    end
+
+    test "empty and oversized batches are refused" do
+      admin = admin!("imp_admin5")
+      assert {:error, :empty} = CustomEmojis.import_many([], admin.id)
+      assert {:error, :too_many} = CustomEmojis.import_many(List.duplicate(%{}, 2_001), admin.id)
+    end
+  end
+
   describe "extract_from_text/1 and note creation" do
     test "extracts custom emojis from text and populates note.emojis" do
       CustomEmojis.register(%{name: "blobby", url: "https://example.com/blobby.png"})
@@ -82,57 +168,6 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
       assert length(note.emojis) == 1
       assert hd(note.emojis)["shortcode"] == "blobby"
       assert hd(note.emojis)["url"] == "https://example.com/blobby.png"
-    end
-  end
-
-  describe "import_from_json/2 and import_from_zip/2" do
-    test "imports Misskey JSON export" do
-      json = JSON.encode!(%{
-        "emojis" => [
-          %{
-            "name" => "imported_json_1",
-            "url" => "https://example.com/ij1.png",
-            "category" => "Imported"
-          },
-          %{
-            "name" => "imported_json_2",
-            "url" => "https://example.com/ij2.png",
-            "category" => "Imported"
-          }
-        ]
-      })
-
-      assert {:ok, %{imported: 2, total: 2}} = CustomEmojis.import_from_json(json)
-      assert %CustomEmoji{} = CustomEmojis.get_local("imported_json_1")
-      assert %CustomEmoji{} = CustomEmojis.get_local("imported_json_2")
-    end
-
-    test "imports Misskey zip package with bundled images" do
-      meta = JSON.encode!(%{
-        "metaVersion" => 1,
-        "emojis" => [
-          %{
-            "fileName" => "cat.png",
-            "emoji" => %{
-              "name" => "zip_cat",
-              "category" => "ZipPack"
-            }
-          }
-        ]
-      })
-
-      files = [
-        {~c"meta.json", meta},
-        {~c"cat.png", <<0x89, "PNG\r\n\x1a\n", 0, 0, 0, 0>>}
-      ]
-
-      {:ok, {_, zip_binary}} = :zip.create(~c"pack.zip", files, [:memory])
-      assert {:ok, %{imported: 1, total: 1}} = CustomEmojis.import_from_zip(zip_binary)
-
-      emoji = CustomEmojis.get_local("zip_cat")
-      assert emoji != nil
-      assert emoji.category == "ZipPack"
-      assert String.starts_with?(emoji.image_url, "data:image/png;base64,")
     end
   end
 

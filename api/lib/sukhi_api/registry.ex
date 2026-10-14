@@ -26,8 +26,31 @@ defmodule SukhiApi.Registry do
     end
   end
 
+  # `routes/0` is asked for on every request (the router scans it for a
+  # match). Finding the capabilities and calling each `routes/0` is the same
+  # answer every time, so it is kept in :persistent_term, valid for the three
+  # settings that decide it; change one and it is rebuilt. The module set is
+  # the app's own (from the .app manifest), fixed for a release.
+  @cache {__MODULE__, :routes}
+
   @spec routes() :: [SukhiApi.Capability.route()]
-  def routes, do: Enum.flat_map(capabilities(), & &1.routes())
+  def routes do
+    key = {
+      Application.get_env(:sukhi_api, :enabled_capabilities, :all),
+      Application.get_env(:sukhi_api, :enabled_addons, :all),
+      Application.get_env(:sukhi_api, :disabled_addons, [])
+    }
+
+    case :persistent_term.get(@cache, nil) do
+      {^key, routes} ->
+        routes
+
+      _ ->
+        routes = Enum.flat_map(capabilities(), & &1.routes())
+        :persistent_term.put(@cache, {key, routes})
+        routes
+    end
+  end
 
   defp capability?(mod) do
     try do

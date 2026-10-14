@@ -137,6 +137,11 @@ Rules for the set:
 - HTTP Signatures are produced only by `fedify.sign.v1` and verified
   only by `fedify.verify.v1`. No hand-rolled signature-base strings
   outside Bun.
+- The ojak-ex NIF is reached only through `SukhiFedi.Fedi.Ojak`: key and
+  error shapes are converted there, and its two switches (`OJAK_SHADOW`,
+  `OJAK_LD_BACKEND`) are read there. `OjakShadow.compare/3` sits at the
+  verify points (`Verifier.check/7`, `Oip.proof_valid?/3`) and never changes
+  their answer.
 
 ## 7. Checklist for new code
 

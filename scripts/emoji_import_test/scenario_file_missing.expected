@@ -1,0 +1,4 @@
+no such file: /export/nope.json
+[host exit 1]
+tsbvm: host exit
+exit=1

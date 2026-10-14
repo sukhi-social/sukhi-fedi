@@ -1,0 +1,4 @@
+EMOJI_TOKEN is not set: an admin:write bearer token is required
+[host exit 1]
+tsbvm: host exit
+exit=1
