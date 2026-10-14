@@ -83,7 +83,21 @@ RUN mkdir -p elixir/priv/static elixir/priv/static/styles && \
     cp /spa-styles/tokens.css /spa-styles/base.css /spa-styles/app.css elixir/priv/static/styles/
 
 WORKDIR /repo/combined
-RUN MIX_ENV=prod mix release
+# Keep each app's own compile output (manifests + .beam) between builds so
+# a change in one app, or only in web/, doesn't recompile the other three.
+# Deps stay with the step above (their fingerprints live there); only these
+# four dirs are restored over it. Mix decides staleness itself, from its
+# manifests — this cache only carries them across builds.
+RUN --mount=type=cache,target=/app-cache,id=sukhi-fedi-combined-app,sharing=locked \
+    sh -c ' \
+      set -eu; \
+      apps="sukhi_fedi sukhi_delivery sukhi_api sukhi_combined"; \
+      for a in $apps; do \
+        if [ -d /app-cache/$a ]; then rm -rf _build/prod/lib/$a; cp -a /app-cache/$a _build/prod/lib/$a; fi; \
+      done; \
+      SUKHI_SKIP_TAR=1 MIX_ENV=prod mix release; \
+      for a in $apps; do rm -rf /app-cache/$a; cp -a _build/prod/lib/$a /app-cache/$a; done \
+    '
 
 # ── Runtime ───────────────────────────────────────────────────────────────
 FROM elixir:1.20-alpine

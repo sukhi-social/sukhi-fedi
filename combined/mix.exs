@@ -91,7 +91,12 @@ defmodule SukhiCombined.MixProject do
         # supplied them (it copies them in and sets RUNTIME_CONFIG_DIR),
         # so a release unpacked anywhere else died at boot looking for
         # elixir/config/runtime.exs.
-        steps: [:assemble, &__MODULE__.copy_runtime_configs/1, :tar],
+        #
+        # The Docker build sets SUKHI_SKIP_TAR=1: it copies out of
+        # _build/prod/rel and never opens the tarball, which cost ~9s.
+        steps:
+          [:assemble, &__MODULE__.copy_runtime_configs/1] ++
+            if(System.get_env("SUKHI_SKIP_TAR") == "1", do: [], else: [:tar]),
         applications: [
           sukhi_fedi: :permanent,
           sukhi_delivery: :permanent,
