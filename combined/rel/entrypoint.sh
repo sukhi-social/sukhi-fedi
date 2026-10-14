@@ -17,6 +17,18 @@ set -eu
 export RELEASE_DISTRIBUTION RELEASE_NODE
 echo "[entrypoint] node=$RELEASE_NODE"
 
+# Secrets handed over as files (the host mounts /run/sukhi-secrets here,
+# read-only): one file per variable, the file name is the variable name.
+# A variable that is already set wins, so nothing changes where no files
+# are mounted. Values are never echoed.
+if [ -d /run/secrets ]; then
+  for f in /run/secrets/*; do
+    [ -f "$f" ] || continue
+    n=$(basename "$f")
+    eval "[ -n \"\${$n:-}\" ]" || export "$n=$(cat "$f")"
+  done
+fi
+
 # Delivery never migrates — the schema stays gateway-owned even when the
 # apps share a VM. Under DeployEx this is a pre_command in current.json.
 /app/bin/combined eval 'SukhiFedi.Release.migrate_all()'
