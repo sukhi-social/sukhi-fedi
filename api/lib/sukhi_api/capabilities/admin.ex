@@ -59,8 +59,8 @@ defmodule SukhiApi.Capabilities.Admin do
       filter = account_filter(q)
       pagination = OffsetPagination.parse(req[:query])
 
-      case GatewayRpc.call(SukhiFedi.Accounts, :list_accounts, [filter, pagination]) do
-        {:ok, {:ok, {accounts, total}}} ->
+      case GatewayRpc.run(SukhiFedi.Accounts, :list_accounts, [filter, pagination]) do
+        {:ok, {accounts, total}} ->
           page(AdminAccount.render_list(accounts), pagination, total)
 
         other ->
@@ -81,9 +81,9 @@ defmodule SukhiApi.Capabilities.Admin do
   def show_account(req) do
     with {:ok, _admin} <- AdminAuth.require_admin(req),
          {:ok, id} <- parse_int(req[:path_params]["id"]) do
-      case GatewayRpc.call(SukhiFedi.Accounts, :get_account, [id]) do
-        {:ok, {:ok, account}} -> ok(200, AdminAccount.render(account))
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "account_not_found"})
+      case GatewayRpc.run(SukhiFedi.Accounts, :get_account, [id]) do
+        {:ok, account} -> ok(200, AdminAccount.render(account))
+        {:error, :not_found} -> ok(404, %{error: "account_not_found"})
         other -> rpc_error(other)
       end
     else
@@ -98,9 +98,9 @@ defmodule SukhiApi.Capabilities.Admin do
       body = decode_body(req)
       reason = Map.get(body, "reason")
 
-      case GatewayRpc.call(SukhiFedi.Addons.Moderation, :suspend_account, [id, admin.id, reason]) do
-        {:ok, {:ok, account}} -> ok(200, AdminAccount.render(account))
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "account_not_found"})
+      case GatewayRpc.run(SukhiFedi.Addons.Moderation, :suspend_account, [id, admin.id, reason]) do
+        {:ok, account} -> ok(200, AdminAccount.render(account))
+        {:error, :not_found} -> ok(404, %{error: "account_not_found"})
         other -> rpc_error(other)
       end
     else
@@ -112,9 +112,9 @@ defmodule SukhiApi.Capabilities.Admin do
   def unsuspend_account(req) do
     with {:ok, admin} <- AdminAuth.require_admin(req),
          {:ok, id} <- parse_int(req[:path_params]["id"]) do
-      case GatewayRpc.call(SukhiFedi.Addons.Moderation, :unsuspend_account, [id, admin.id]) do
-        {:ok, {:ok, account}} -> ok(200, AdminAccount.render(account))
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "account_not_found"})
+      case GatewayRpc.run(SukhiFedi.Addons.Moderation, :unsuspend_account, [id, admin.id]) do
+        {:ok, account} -> ok(200, AdminAccount.render(account))
+        {:error, :not_found} -> ok(404, %{error: "account_not_found"})
         other -> rpc_error(other)
       end
     else
@@ -129,9 +129,9 @@ defmodule SukhiApi.Capabilities.Admin do
   defp set_admin_flag(req, flag) do
     with {:ok, admin} <- AdminAuth.require_admin(req),
          {:ok, id} <- parse_int(req[:path_params]["id"]) do
-      case GatewayRpc.call(SukhiFedi.Accounts, :set_admin, [id, admin.id, flag]) do
-        {:ok, {:ok, account}} -> ok(200, AdminAccount.render(account))
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "account_not_found"})
+      case GatewayRpc.run(SukhiFedi.Accounts, :set_admin, [id, admin.id, flag]) do
+        {:ok, account} -> ok(200, AdminAccount.render(account))
+        {:error, :not_found} -> ok(404, %{error: "account_not_found"})
         other -> rpc_error(other)
       end
     else
@@ -148,8 +148,8 @@ defmodule SukhiApi.Capabilities.Admin do
       status = status_filter(q["status"])
       pagination = OffsetPagination.parse(req[:query])
 
-      case GatewayRpc.call(SukhiFedi.Addons.Moderation, :list_reports, [status, pagination]) do
-        {:ok, {:ok, {reports, total}}} ->
+      case GatewayRpc.run(SukhiFedi.Addons.Moderation, :list_reports, [status, pagination]) do
+        {:ok, {reports, total}} ->
           page(AdminReport.render_list(reports), pagination, total)
 
         other ->
@@ -163,9 +163,9 @@ defmodule SukhiApi.Capabilities.Admin do
   def show_report(req) do
     with {:ok, _admin} <- AdminAuth.require_admin(req),
          {:ok, id} <- parse_int(req[:path_params]["id"]) do
-      case GatewayRpc.call(SukhiFedi.Addons.Moderation, :get_report, [id]) do
-        {:ok, {:ok, report}} -> ok(200, AdminReport.render(report))
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "report_not_found"})
+      case GatewayRpc.run(SukhiFedi.Addons.Moderation, :get_report, [id]) do
+        {:ok, report} -> ok(200, AdminReport.render(report))
+        {:error, :not_found} -> ok(404, %{error: "report_not_found"})
         other -> rpc_error(other)
       end
     else
@@ -177,14 +177,14 @@ defmodule SukhiApi.Capabilities.Admin do
   def resolve_report(req) do
     with {:ok, admin} <- AdminAuth.require_admin(req),
          {:ok, id} <- parse_int(req[:path_params]["id"]) do
-      case GatewayRpc.call(SukhiFedi.Addons.Moderation, :resolve_report, [id, admin.id]) do
-        {:ok, {:ok, report}} ->
-          case GatewayRpc.call(SukhiFedi.Addons.Moderation, :get_report, [report.id]) do
-            {:ok, {:ok, hydrated}} -> ok(200, AdminReport.render(hydrated))
+      case GatewayRpc.run(SukhiFedi.Addons.Moderation, :resolve_report, [id, admin.id]) do
+        {:ok, report} ->
+          case GatewayRpc.run(SukhiFedi.Addons.Moderation, :get_report, [report.id]) do
+            {:ok, hydrated} -> ok(200, AdminReport.render(hydrated))
             _ -> ok(200, AdminReport.render(report))
           end
 
-        {:ok, {:error, :not_found}} ->
+        {:error, :not_found} ->
           ok(404, %{error: "report_not_found"})
 
         other ->
@@ -202,8 +202,8 @@ defmodule SukhiApi.Capabilities.Admin do
     with {:ok, _admin} <- AdminAuth.require_admin(req) do
       pagination = OffsetPagination.parse(req[:query])
 
-      case GatewayRpc.call(SukhiFedi.Addons.Moderation, :list_instance_blocks, [pagination]) do
-        {:ok, {:ok, {blocks, total}}} ->
+      case GatewayRpc.run(SukhiFedi.Addons.Moderation, :list_instance_blocks, [pagination]) do
+        {:ok, {blocks, total}} ->
           page(AdminDomainBlock.render_list(blocks), pagination, total)
 
         other ->
@@ -226,13 +226,13 @@ defmodule SukhiApi.Capabilities.Admin do
           ok(422, %{error: "validation_failed", details: %{domain: ["can't be blank"]}})
 
         true ->
-          case GatewayRpc.call(SukhiFedi.Addons.Moderation, :block_instance, [
+          case GatewayRpc.run(SukhiFedi.Addons.Moderation, :block_instance, [
                  domain,
                  severity,
                  reason,
                  admin.id
                ]) do
-            {:ok, {:ok, block}} -> ok(200, AdminDomainBlock.render(block))
+            {:ok, block} -> ok(200, AdminDomainBlock.render(block))
             other -> rpc_error(other)
           end
       end
@@ -251,9 +251,9 @@ defmodule SukhiApi.Capabilities.Admin do
           ok(422, %{error: "validation_failed", details: %{domain: ["can't be blank"]}})
 
         true ->
-          case GatewayRpc.call(SukhiFedi.Addons.Moderation, :unblock_instance, [domain, admin.id]) do
-            {:ok, {:ok, %{domain: d}}} -> ok(200, %{domain: d})
-            {:ok, {:error, :not_found}} -> ok(404, %{error: "domain_block_not_found"})
+          case GatewayRpc.run(SukhiFedi.Addons.Moderation, :unblock_instance, [domain, admin.id]) do
+            {:ok, %{domain: d}} -> ok(200, %{domain: d})
+            {:error, :not_found} -> ok(404, %{error: "domain_block_not_found"})
             other -> rpc_error(other)
           end
       end
@@ -266,7 +266,7 @@ defmodule SukhiApi.Capabilities.Admin do
 
   def list_announcements(req) do
     with {:ok, _admin} <- AdminAuth.require_admin(req) do
-      case GatewayRpc.call(SukhiFedi.Announcements, :list_all, []) do
+      case GatewayRpc.run(SukhiFedi.Announcements, :list_all, []) do
         {:ok, list} when is_list(list) -> ok(200, MastodonAnnouncement.render_list(list))
         other -> rpc_error(other)
       end
@@ -281,9 +281,9 @@ defmodule SukhiApi.Capabilities.Admin do
       # usually means it now. Pass `"published": false` to keep a draft.
       attrs = Map.put_new(announcement_attrs(decode_body(req)), "published", true)
 
-      case GatewayRpc.call(SukhiFedi.Announcements, :create, [attrs]) do
-        {:ok, {:ok, ann}} -> ok(200, MastodonAnnouncement.render(ann))
-        {:ok, {:error, %{} = cs}} -> ok(422, %{error: "validation_failed", details: cs_errors(cs)})
+      case GatewayRpc.run(SukhiFedi.Announcements, :create, [attrs]) do
+        {:ok, ann} -> ok(200, MastodonAnnouncement.render(ann))
+        {:error, %{} = cs} -> ok(422, %{error: "validation_failed", details: cs_errors(cs)})
         other -> rpc_error(other)
       end
     else
@@ -295,10 +295,10 @@ defmodule SukhiApi.Capabilities.Admin do
     with {:ok, _admin} <- AdminAuth.require_admin(req) do
       attrs = announcement_attrs(decode_body(req))
 
-      case GatewayRpc.call(SukhiFedi.Announcements, :update, [req[:path_params]["id"], attrs]) do
-        {:ok, {:ok, ann}} -> ok(200, MastodonAnnouncement.render(ann))
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "announcement_not_found"})
-        {:ok, {:error, %{} = cs}} -> ok(422, %{error: "validation_failed", details: cs_errors(cs)})
+      case GatewayRpc.run(SukhiFedi.Announcements, :update, [req[:path_params]["id"], attrs]) do
+        {:ok, ann} -> ok(200, MastodonAnnouncement.render(ann))
+        {:error, :not_found} -> ok(404, %{error: "announcement_not_found"})
+        {:error, %{} = cs} -> ok(422, %{error: "validation_failed", details: cs_errors(cs)})
         other -> rpc_error(other)
       end
     else
@@ -308,9 +308,9 @@ defmodule SukhiApi.Capabilities.Admin do
 
   def delete_announcement(req) do
     with {:ok, _admin} <- AdminAuth.require_admin(req) do
-      case GatewayRpc.call(SukhiFedi.Announcements, :delete, [req[:path_params]["id"]]) do
-        {:ok, {:ok, _}} -> ok(200, %{})
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "announcement_not_found"})
+      case GatewayRpc.run(SukhiFedi.Announcements, :delete, [req[:path_params]["id"]]) do
+        {:ok, _} -> ok(200, %{})
+        {:error, :not_found} -> ok(404, %{error: "announcement_not_found"})
         other -> rpc_error(other)
       end
     else
@@ -332,7 +332,7 @@ defmodule SukhiApi.Capabilities.Admin do
 
   def stats(req) do
     with {:ok, _admin} <- AdminAuth.require_admin(req) do
-      case GatewayRpc.call(SukhiFedi.Stats, :dashboard, []) do
+      case GatewayRpc.run(SukhiFedi.Stats, :dashboard, []) do
         {:ok, %{} = payload} -> ok(200, payload)
         other -> rpc_error(other)
       end
@@ -347,11 +347,8 @@ defmodule SukhiApi.Capabilities.Admin do
     ok(200, %{items: items, pagination: OffsetPagination.meta(pagination, total)})
   end
 
-  defp rpc_error({:ok, {:error, :not_found}}), do: ok(404, %{error: "not_found"})
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, reason}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+  defp rpc_error({:error, :not_found}), do: ok(404, %{error: "not_found"})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 
