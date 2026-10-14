@@ -941,6 +941,7 @@ Custom metrics to emit as we build each feature:
 | `RELEASE_COOKIE`                 | Elixir+api | `sukhi_fedi_dev_cookie` | distributed Erlang shared secret |
 | `DOMAIN` / `INSTANCE_TITLE`      | api     | `localhost:4000` / `sukhi-fedi` | NodeInfo / WebFinger output |
 | `ENABLED_ADDONS` / `DISABLE_ADDONS` | all  | `all` / `""`            | Comma-separated addon ids          |
+| `OJAK_SHADOW` / `OJAK_LD_BACKEND` | Elixir | unset / `native`    | ojak-ex NIF switches (shadow-compare verifiers / RsaSignature2017 via ojak); see `SukhiFedi.Fedi.Ojak` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `MAIL_FROM` | Elixir | _(unset → log transport)_ | Transactional mail (email verification / login codes). Point at OCI Email Delivery (`smtp.email.<region>.oci.oraclecloud.com:587`, approved sender as `MAIL_FROM`) or any SMTP relay |
 | `S3_BUCKET` / `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_REGION` / `S3_PUBLIC_URL` | Elixir | _(unset)_ | Where media lives (rustfs in prod). Uploads fail without it |
 

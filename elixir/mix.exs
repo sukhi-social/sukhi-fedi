@@ -50,6 +50,13 @@ defmodule SukhiFedi.MixProject do
       {:rdf, "~> 3.0"},
       {:json_ld, "~> 1.0"},
 
+      # Signatures + JSON-LD in Rust (NIF), reached only through
+      # SukhiFedi.Fedi.Ojak. Off by default (OJAK_SHADOW / OJAK_LD_BACKEND).
+      # On Linux `mix deps.compile` downloads the prebuilt library for the
+      # platform (musl included) and checks its SHA-256 — no Rust in the
+      # image. Pinned to a tag: ojak-ex is young and its API may change.
+      {:ojak, github: "sukhi-social/ojak-ex", tag: "v0.1.1"},
+
       # Database
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.18"},

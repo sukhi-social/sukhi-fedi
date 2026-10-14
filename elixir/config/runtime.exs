@@ -61,6 +61,18 @@ public_preview =
 
 config :sukhi_fedi, :public_preview, public_preview
 
+# ojak-ex (Rust signatures + JSON-LD NIF), reached only through
+# `SukhiFedi.Fedi.Ojak`. Both switches default off, so ojak is loaded but
+# never called unless asked:
+#   OJAK_SHADOW=1          verifiers also ask ojak and log disagreements
+#                          (their own answer is still the one used)
+#   OJAK_LD_BACKEND=ojak   RsaSignature2017 sign/verify through ojak
+config :sukhi_fedi, :ojak_shadow, System.get_env("OJAK_SHADOW") == "1"
+
+config :sukhi_fedi,
+       :ld_backend,
+       if(System.get_env("OJAK_LD_BACKEND") == "ojak", do: :ojak, else: :native)
+
 # Whether the preview pages invite indexing. Defaults to the quiet
 # `noindex, nofollow`; a public instance sets PUBLIC_PREVIEW_ROBOTS to
 # `index, follow` (or any meta-robots string) to be crawled.

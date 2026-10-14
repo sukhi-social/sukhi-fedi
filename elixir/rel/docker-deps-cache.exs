@@ -34,6 +34,14 @@ File.mkdir_p!(fingerprint_dir)
 
 {lock, _} = Code.eval_file("mix.lock")
 
+# What identifies a locked package's content: hex entries end in their
+# checksum; git entries (`{:git, url, sha, opts}`, e.g. ojak) end in an
+# options list, so the commit sha stands in for it.
+fingerprint = fn
+  {:git, _url, sha, _opts} -> sha
+  entry -> entry |> Tuple.to_list() |> List.last()
+end
+
 # Long before any real `mix deps.compile` could plausibly have run, so
 # it never looks newer than an actual compile-manifest timestamp.
 old_time = 946_684_800
@@ -41,7 +49,7 @@ old_time = 946_684_800
 {unchanged, changed} =
   Enum.split_with(lock, fn {pkg, entry} ->
     pkg = to_string(pkg)
-    hash = entry |> Tuple.to_list() |> List.last()
+    hash = fingerprint.(entry)
     fp_path = Path.join(fingerprint_dir, pkg)
     File.read(fp_path) == {:ok, hash}
   end)
@@ -60,7 +68,7 @@ end)
 
 Enum.each(changed, fn {pkg, entry} ->
   pkg = to_string(pkg)
-  hash = entry |> Tuple.to_list() |> List.last()
+  hash = fingerprint.(entry)
   build_dir = Path.join(["_build", "prod", "lib", pkg])
   File.rm_rf!(build_dir)
   File.write!(Path.join(fingerprint_dir, pkg), hash)

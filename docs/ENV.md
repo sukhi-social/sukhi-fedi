@@ -76,6 +76,9 @@ endpoints, web push, moderation, etc.). See [`docs/ADDONS.md`](ADDONS.md).
 | `ENABLED_ADDONS` | no | `all` | Comma list of addon ids, or literal `all`. |
 | `DISABLE_ADDONS` | no | empty | Deny-list overlay on top of `ENABLED_ADDONS`. Deny wins. |
 | `ADDON_PRESETS` | no | empty | Comma list of preset ids. Expanded and unioned with `ENABLED_ADDONS`. Example: `server_version_watcher` for a federation-watcher-only deploy. |
+| `OJAK_SHADOW` | no | unset | `1` → verifiers also ask ojak-ex and log disagreements (their own answer is still used). See README, "Native signature library". |
+| `OJAK_LD_BACKEND` | no | `native` | `ojak` → RsaSignature2017 sign/verify through ojak-ex. |
+| `OJAK_NIF_BUILD` | no | unset | Build time only: `1` builds ojak-ex's native library with Rust instead of downloading the prebuilt one. |
 | `ENABLED_CAPABILITIES` | no | all | API node only. Restrict which capability modules under `api/lib/sukhi_api/capabilities/` are mounted. Use to run specialised API nodes (e.g. admin-only). |
 
 ## Tuning — Oban concurrency (gateway, delivery)

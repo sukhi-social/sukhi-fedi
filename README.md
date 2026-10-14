@@ -192,6 +192,33 @@ Each taught us a wire quirk we now handle so activities survive the round trip:
   generalized into the middle ground between following and forgetting). No
   Bonfire code is referenced here — just the shape of the idea.
 
+## Native signature library (ojak-ex)
+
+The gateway links [ojak-ex](https://github.com/sukhi-social/ojak-ex) (Rust
+signatures and JSON-LD, as a NIF), reached only through
+`SukhiFedi.Fedi.Ojak`. Both switches are **off by default**: with neither set,
+ojak is loaded but never called.
+
+- `OJAK_SHADOW=1` — verifiers also ask ojak and log a warning when it
+  disagrees. Our own answer is still the one used.
+- `OJAK_LD_BACKEND=ojak` — RsaSignature2017 sign/verify go through ojak.
+
+Worth knowing before you turn either on:
+
+- **Licence.** ojak-ex is AGPL-3.0-only, this repo is AGPL-3.0-or-later. The
+  combined work is distributed under AGPL-3.0; the "or later" does not extend
+  to it.
+- **Prebuilt library.** On Linux the build downloads the native library from
+  the ojak-ex GitHub release and checks its SHA-256, which is published beside
+  it — that catches a broken download, not a tampered release. Set
+  `OJAK_NIF_BUILD=1` to build from source with Rust instead.
+- **A NIF fault takes the VM down.** A Rust panic is an Elixir exception, but a
+  fault is not, and ojak has not been fuzzed. What reaches it is bounded only by
+  `Plug.Parsers`' default body limit (8 MB), which the router does not set
+  explicitly.
+- **Young.** v0.1.1, pinned by tag; its README says the API may change.
+
 ## License
 
-AGPL-3.0-or-later. See `LICENSE`.
+AGPL-3.0-or-later. See `LICENSE` (ojak-ex, a dependency, is AGPL-3.0-only —
+see above).

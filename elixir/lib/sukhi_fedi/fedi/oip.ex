@@ -25,7 +25,7 @@ defmodule SukhiFedi.Fedi.Oip do
       `verify/2` here exclude `signature` from the hashed document.
   """
 
-  alias SukhiFedi.Fedi.{Canon, Fetcher, JWK}
+  alias SukhiFedi.Fedi.{Canon, Fetcher, JWK, Ojak, OjakShadow}
 
   @cryptosuite "eddsa-jcs-2022"
 
@@ -127,7 +127,19 @@ defmodule SukhiFedi.Fedi.Oip do
     end)
   end
 
+  # Our verdict, and — when OJAK_SHADOW=1 — a log line if ojak, given this
+  # one proof alone, would have said otherwise. The verdict is ours either way.
   defp proof_valid?(document, proof, public_key) do
+    valid? = native_proof_valid?(document, proof, public_key)
+
+    OjakShadow.compare(:oip, if(valid?, do: :ok, else: {:error, :bad_proof}), fn ->
+      Ojak.verify_proof(Map.put(document, "proof", proof), public_key)
+    end)
+
+    valid?
+  end
+
+  defp native_proof_valid?(document, proof, public_key) do
     config =
       %{
         "type" => "DataIntegrityProof",
