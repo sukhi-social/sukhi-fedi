@@ -1,0 +1,4 @@
+FAIL elixir: found no `queues:` list (compile time: 0, runtime: 3) -- the layout this reads has changed
+ok   delivery: 3 queues, 3 used by workers
+1 problem(s)
+exit=1

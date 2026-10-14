@@ -1,0 +1,7 @@
+FAIL elixir: queue publish is in config.exs but NOT in runtime.exs -- it would never drain in prod
+FAIL elixir: queue preview is in config.exs but NOT in runtime.exs -- it would never drain in prod
+FAIL elixir: a worker uses queue preview (/elixir/lib/w2.ex) but runtime.exs does not name it
+FAIL elixir: a worker uses queue publish (/elixir/lib/w1.ex) but runtime.exs does not name it
+ok   delivery: 3 queues, 3 used by workers
+4 problem(s)
+exit=1

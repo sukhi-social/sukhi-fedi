@@ -1,0 +1,4 @@
+ok   elixir: 3 queues, 3 used by workers
+ok   delivery: 3 queues, 3 used by workers
+oban queues: consistent
+exit=0

@@ -1,0 +1,4 @@
+FAIL elixir: queue publish defaults to 5 in config.exs but 9 in runtime.exs
+ok   delivery: 3 queues, 3 used by workers
+1 problem(s)
+exit=1
