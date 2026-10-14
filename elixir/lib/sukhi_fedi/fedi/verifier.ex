@@ -59,8 +59,8 @@ defmodule SukhiFedi.Fedi.Verifier do
          {:ok, public_key} <- JWK.public_key_from_pem(pem) do
       result = HttpSignature.verify(method, url, headers, raw, public_key)
 
-      # Asks ojak the same question and logs a disagreement; `result` stays
-      # the answer (OJAK_SHADOW=1, off by default).
+      # `result` is the answer; with OJAK_SHADOW=1 ojak is asked too, and a
+      # disagreement is logged.
       OjakShadow.compare(:http_signature, result, fn ->
         Ojak.verify_http_signature(method, url, headers, raw, pem)
       end)

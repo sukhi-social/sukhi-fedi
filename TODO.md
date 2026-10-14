@@ -175,6 +175,20 @@ PEM modulus も bit-identical。手前のヘッダ最小化 (v0.1.72) も効か�
       ─ 影響範囲が大きいので、Update Person と RFC 9421 が
       ダメだった時の最後の手段。
 
+- [ ] **ojak の LD署名 (RsaSignature2017) を、Mastodon 以外にも親切な形にする.**
+      `OJAK_LD_BACKEND=ojak` で出す署名ブロックは Mastodon の形 (options に
+      `expires` も署名対象で入り、埋め込み `@context` が無い)。ojak は完全な
+      Mastodon 互換を要するサーバーで使われている実装なので、これは意図どおり。
+      一方 sukhi の native は fedify の形 (creator + created + `@context`) で、
+      native の `LdSignature.verify` は ojak の形を検証できない
+      (`test/sukhi_fedi/fedi/ojak_test.exs` に記録)。Misskey / fedify 系が
+      ojak の形を受け入れるかは実サーバーで未確認。
+      やること: (1) 実サーバーで受信を確認する。(2) 受け入れられない相手が
+      あるなら、ojak に「fedify 形で出す」オプションを提案する (upstream は
+      `sukhi-social/ojak-ex`)。(3) native の verify も `expires` と埋め込み
+      `@context` を読めるようにして、どちらの形でも検証できるようにする。
+      それまでは `:native` を既定のままにする。
+
 - [ ] **fedify v2 への上げ.** いまは `@fedify/fedify@1.10.8`。
       Fedify 2.x は signing/verify の defaults と internal API を
       変えていて、hackers.pub などピアと同じバージョン世代になれば

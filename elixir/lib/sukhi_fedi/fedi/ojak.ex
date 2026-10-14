@@ -60,25 +60,13 @@ defmodule SukhiFedi.Fedi.Ojak do
         ) :: :ok | {:error, atom()}
   def verify_http_signature(method, url, headers, body, public_pem, opts \\ []) do
     uri = URI.parse(url)
-
-    request = {
-      String.upcase(method),
-      path_and_query(uri),
-      Map.to_list(headers),
-      body
-    }
-
-    options =
-      Keyword.merge(
-        [hosts: hosts(uri), fetch_key: fn _key_id -> {:ok, {:rsa_pem, public_pem}} end],
-        opts
-      )
+    request = {String.upcase(method), path_and_query(uri), Map.to_list(headers), body}
+    fetch_key = fn _key_id -> {:ok, {:rsa_pem, public_pem}} end
 
     guard(fn ->
-      case Ojak.HTTPSignature.verify(request, options) do
-        {:ok, _verified} -> :ok
-        {:error, reason} -> {:error, reason_atom(reason)}
-      end
+      request
+      |> Ojak.HTTPSignature.verify(Keyword.merge([hosts: hosts(uri), fetch_key: fetch_key], opts))
+      |> verdict()
     end)
   end
 
@@ -90,15 +78,9 @@ defmodule SukhiFedi.Fedi.Ojak do
   """
   @spec verify_proof(map(), JWK.ed25519_public_key(), keyword()) :: :ok | {:error, atom()}
   def verify_proof(document, <<_::binary-size(32)>> = public_key, opts \\ []) do
-    guard(fn ->
-      case Ojak.Proof.verify(
-             document,
-             [fetch_key: fn _ -> {:ok, {:ed25519, public_key}} end] ++ opts
-           ) do
-        {:ok, _info} -> :ok
-        {:error, reason} -> {:error, reason_atom(reason)}
-      end
-    end)
+    fetch_key = fn _verification_method -> {:ok, {:ed25519, public_key}} end
+
+    guard(fn -> document |> Ojak.Proof.verify([fetch_key: fetch_key] ++ opts) |> verdict() end)
   end
 
   # ── RsaSignature2017 ─────────────────────────────────────────────────────
@@ -127,15 +109,13 @@ defmodule SukhiFedi.Fedi.Ojak do
 
   def ld_verify(%{"signature" => _} = document, public_key, opts) do
     pem = public_pem(public_key)
+    fetch_key = fn _creator -> {:ok, {:rsa_pem, pem}} end
 
     guard(fn ->
-      case Ojak.LinkedDataSignature.verify(
-             document,
-             [fetch_key: fn _creator -> {:ok, {:rsa_pem, pem}} end] ++ opts
-           ) do
-        {:ok, _creator} -> :ok
-        {:error, reason} -> {:error, ld_reason(reason)}
-      end
+      document
+      |> Ojak.LinkedDataSignature.verify([fetch_key: fetch_key] ++ opts)
+      |> verdict()
+      |> invalid_as_bad_signature()
     end)
   end
 
@@ -177,8 +157,15 @@ defmodule SukhiFedi.Fedi.Ojak do
     if port in [nil, default], do: [host], else: [host, "#{host}:#{port}"]
   end
 
-  defp ld_reason(:invalid), do: :bad_signature
-  defp ld_reason(reason), do: reason_atom(reason)
+  # What every verify here hands back: `:ok` or `{:error, atom}`, whatever
+  # ojak's success value and error detail look like.
+  defp verdict({:ok, _info}), do: :ok
+  defp verdict({:error, reason}), do: {:error, reason_atom(reason)}
+
+  # ojak says `:invalid` for a signature that does not match; the native
+  # verifier (and its callers) call that `:bad_signature`.
+  defp invalid_as_bad_signature({:error, :invalid}), do: {:error, :bad_signature}
+  defp invalid_as_bad_signature(verdict), do: verdict
 
   defp reason_atom(reason) when is_atom(reason), do: reason
   defp reason_atom({reason, _detail}) when is_atom(reason), do: reason
