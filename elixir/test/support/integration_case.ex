@@ -41,7 +41,7 @@ defmodule SukhiFedi.IntegrationCase do
         :ok
 
       _pid ->
-        :ok = Ecto.Adapters.SQL.Sandbox.checkout(SukhiFedi.Repo)
+        :ok = checkout_with_retry()
         unless tags[:async], do: Ecto.Adapters.SQL.Sandbox.mode(SukhiFedi.Repo, {:shared, self()})
     end
 
@@ -50,6 +50,18 @@ defmodule SukhiFedi.IntegrationCase do
     {:ok,
      mock_remote: bypass,
      mock_remote_url: "http://localhost:#{bypass.port}"}
+  end
+
+  # On PGlite every pooled connection shares one backend session, so one
+  # client's open sandbox transaction shows up as "already a transaction
+  # running" to the next test's BEGIN. It clears within a few ms; retry
+  # briefly. Real Postgres (a session per connection) never hits it.
+  defp checkout_with_retry(attempts \\ 20) do
+    Ecto.Adapters.SQL.Sandbox.checkout(SukhiFedi.Repo)
+  catch
+    :exit, _ when attempts > 1 ->
+      Process.sleep(25)
+      checkout_with_retry(attempts - 1)
   end
 
   @doc """

@@ -19,6 +19,10 @@ config :sukhi_fedi, SukhiFedi.Repo,
   # use unnamed prepares. Harmless on real Postgres, just marginally
   # slower — fine for the test path.
   prepare: :unnamed,
+  # PGlite serves every connection from one session, so a checkout can sit
+  # behind another's work for a while; the 50ms/1s defaults drop it.
+  queue_target: 5_000,
+  queue_interval: 30_000,
   # The migration lock takes a second connection and holds it for the
   # whole run; on PGlite's multiplexer that deadlocks against the
   # migrating connection. A single test migrator never races, so the
