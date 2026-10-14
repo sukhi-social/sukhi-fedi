@@ -28,6 +28,8 @@ PORT="${PGLITE_PORT:-15433}"
 export DB_PORT="$PORT"
 export DB_POOL_SIZE="${DB_POOL_SIZE:-5}"
 export DISABLE_ADDONS="${DISABLE_ADDONS:-streaming}"
+# Tests that write to S3 skip themselves (see s3_skip/0 in integration_case.ex).
+export SKIP_S3_TESTS=1
 export MIX_ENV=test
 
 echo "→ starting PGlite on 127.0.0.1:$PORT (in-memory)"

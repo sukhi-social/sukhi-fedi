@@ -65,6 +65,18 @@ defmodule SukhiFedi.IntegrationCase do
   end
 
   @doc """
+  Value for `@tag skip:` / `@moduletag skip:` on tests that write to S3.
+  `scripts/test-pglite.sh` sets SKIP_S3_TESTS=1 (PGlite alone has no S3);
+  everywhere else this is `false` and the test runs.
+
+  (A tag + `--exclude` can't do this: `--only integration` includes these
+  tests, and in ExUnit an include beats an exclude.)
+  """
+  def s3_skip do
+    if System.get_env("SKIP_S3_TESTS") == "1", do: "needs S3 (not on PGlite)", else: false
+  end
+
+  @doc """
   Build the URL of a mock remote actor's inbox. Useful when writing
   delivery tests.
   """
