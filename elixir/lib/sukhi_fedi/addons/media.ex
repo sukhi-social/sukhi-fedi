@@ -70,7 +70,11 @@ defmodule SukhiFedi.Addons.Media do
 
   defp do_create_from_upload(account_id, file_bytes, attrs) do
     filename = Map.get(attrs, "filename") || Map.get(attrs, :filename) || "upload.bin"
-    content_type = Map.get(attrs, "content_type") || Map.get(attrs, :content_type) || "application/octet-stream"
+
+    content_type =
+      Map.get(attrs, "content_type") || Map.get(attrs, :content_type) ||
+        "application/octet-stream"
+
     description = Map.get(attrs, "description") || Map.get(attrs, :description)
 
     type = type_for(content_type)
@@ -102,8 +106,11 @@ defmodule SukhiFedi.Addons.Media do
         })
         |> Repo.insert()
         |> case do
-          {:ok, media} -> {:ok, media}
-          {:error, %Ecto.Changeset{} = cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+          {:ok, media} ->
+            {:ok, media}
+
+          {:error, %Ecto.Changeset{} = cs} ->
+            {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
         end
 
       {:error, reason} ->
@@ -196,8 +203,11 @@ defmodule SukhiFedi.Addons.Media do
         |> Media.changeset_update(attrs)
         |> Repo.update()
         |> case do
-          {:ok, updated} -> {:ok, updated}
-          {:error, %Ecto.Changeset{} = cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+          {:ok, updated} ->
+            {:ok, updated}
+
+          {:error, %Ecto.Changeset{} = cs} ->
+            {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
         end
     end
   end
@@ -257,7 +267,10 @@ defmodule SukhiFedi.Addons.Media do
   defp s3_access_key, do: Application.get_env(:ex_aws, :access_key_id)
   defp s3_secret_key, do: Application.get_env(:ex_aws, :secret_access_key)
   defp s3_region, do: :ex_aws |> Application.get_env(:s3, []) |> Keyword.get(:region, "us-east-1")
-  defp s3_bucket_name, do: :sukhi_fedi |> Application.get_env(:s3, []) |> Keyword.get(:bucket, "media")
+
+  defp s3_bucket_name,
+    do: :sukhi_fedi |> Application.get_env(:s3, []) |> Keyword.get(:bucket, "media")
+
   defp s3_public_url, do: System.get_env("S3_PUBLIC_URL")
 
   defp presigned_put_url(key) do
