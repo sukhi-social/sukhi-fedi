@@ -140,6 +140,18 @@ endpoint surface is mapped out in [`docs/MISSKEY_API.md`](docs/MISSKEY_API.md).
       NULL` の部分一意インデックスを足す。`scripts/prepare_volpeon.mjs` の
       `ON CONFLICT (shortcode, domain)` も同じ理由で再実行のたびに重複する
       (新しい `scripts/emoji_import.jl` + `POST /api/admin/emojis` が置き換え)。
+- [ ] **S3 の認証情報の環境変数が、コードの中で 2 組に割れている.**
+      `elixir/config/runtime.exs:146-147` は `S3_ACCESS_KEY_ID` /
+      `S3_SECRET_ACCESS_KEY` を `fetch_env!` で読み、`addons/media.ex:256-257`
+      は `S3_ACCESS_KEY` / `S3_SECRET_KEY` を読む。ドキュメント
+      (ARCHITECTURE §10) にあるのは後者だけ。docs どおりに設定すると
+      `runtime.exs` 側が足りず、逆なら media 側が足りない。どちらかに寄せる。
+      (`scripts/env_audit.jl` が見つけた。)
+- [ ] **コードが読む環境変数のうち、どの文書にも無いもの (24 件).**
+      `SUKHI_ROOT=. tsbvm env_audit.tsb` で一覧が出る (`OBAN_*_CONCURRENCY`,
+      `INVITE_REQUIRED`, `LEGAL_FLAVOR`, `PUBLIC_PREVIEW*`, `WT_*`,
+      `SSR_URL`, `STATIC_OVERRIDE_ONLY`, `S3_*_BUCKET` など)。docs/ENV.md に
+      足したら `ENV_AUDIT_STRICT=1` を CI に入れて、増えないようにする。
 - [ ] **絵文字インポートを本物のサーバーで一度通す.** `host` は tsbvm に
       実装した (nyanrus/tsubaki の `host-capabilities` ブランチ。まだ push して
       いない)。`scripts/emoji_import.jl` は、本物のファイルと HTTP、契約どおりに
