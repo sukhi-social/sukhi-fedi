@@ -421,6 +421,16 @@ export async function createBot(username: string, displayName: string): Promise<
   return json<BotTokenResponse>(res);
 }
 
+export type PersonalToken = { name: string; token: string; expires_in_days: number };
+
+// 自分の垢の鍵を一本足す。名前と期限(日)は必須。古い鍵は閉じない。
+export async function issuePersonalToken(name: string, expiresInDays: number): Promise<PersonalToken> {
+  const res = await req('POST', '/api/v1/sukhi/tokens', 'issue_token', {
+    json: { name, expires_in_days: expiresInDays }
+  });
+  return json<PersonalToken>(res);
+}
+
 export async function rotateBotToken(id: string): Promise<BotTokenResponse> {
   const res = await req(
     'POST',

@@ -149,4 +149,29 @@ defmodule SukhiApi.Capabilities.SukhiBotsTest do
     {:ok, resp} = post("/api/v1/sukhi/bots/abc/token", %{})
     assert resp.status == 400
   end
+
+  test "本人が名前と期限つきで鍵を足す(admin でなくてよい・余分な欄は渡らない)" do
+    stub([
+      {{:issue_personal_token, [7, %{"name" => "ci", "expires_in_days" => 30}]},
+       {:ok, %{name: "ci", token: "k3y", expires_in_days: 30}}}
+    ])
+
+    {:ok, resp} =
+      post("/api/v1/sukhi/tokens", %{name: "ci", expires_in_days: 30, is_admin: true})
+
+    assert resp.status == 201
+
+    assert %{"token" => "k3y", "name" => "ci", "expires_in_days" => 30} =
+             JSON.decode!(resp.body)
+  end
+
+  test "名前や期限が悪いと 422 (gateway の検証がそのまま返る)" do
+    stub([
+      {{:issue_personal_token, [7, %{"name" => "ci", "expires_in_days" => 9999}]},
+       {:error, {:validation, %{expires_in_days: ["invalid"]}}}}
+    ])
+
+    {:ok, resp} = post("/api/v1/sukhi/tokens", %{name: "ci", expires_in_days: 9999})
+    assert resp.status == 422
+  end
 end

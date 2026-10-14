@@ -255,6 +255,65 @@ defmodule SukhiFedi.LocalAccounts do
     end
   end
 
+  @personal_token_max_days 365
+  @personal_token_name_max 40
+
+  @doc """
+  Mint a named, expiring token for the caller's own account. Adds one;
+  never revokes what the account already holds. The name rides on a
+  one-token OAuth app (`token:<name>`) owned by the account, so it can
+  be told apart later without a schema of its own.
+
+  `attrs` is the untrusted JSON body: `"name"` (1..#{@personal_token_name_max}
+  chars) and `"expires_in_days"` (integer, 1..#{@personal_token_max_days}). Both are
+  required — there is no never-expires personal token.
+  """
+  @spec issue_personal_token(integer(), map()) ::
+          {:ok, %{name: String.t(), token: String.t(), expires_in_days: pos_integer()}}
+          | {:error, term()}
+  def issue_personal_token(account_id, attrs) when is_integer(account_id) and is_map(attrs) do
+    with {:ok, name} <- personal_token_name(trim_or_nil(attrs["name"])),
+         {:ok, days} <- personal_token_days(attrs["expires_in_days"]) do
+      Multi.new()
+      |> Multi.run(:app, fn _repo, _ ->
+        case OAuth.register_app(%{
+               name: "token:" <> name,
+               redirect_uris: "urn:ietf:wg:oauth:2.0:oob",
+               scopes: "read write",
+               owner_account_id: account_id
+             }) do
+          {:ok, %{app: app}} -> {:ok, app}
+          {:error, reason} -> {:error, reason}
+        end
+      end)
+      |> Multi.run(:token, fn _repo, %{app: app} ->
+        OAuth.issue_personal_token(app.id, account_id, days * 86_400)
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{token: %{access_token: token}}} ->
+          {:ok, %{name: name, token: token, expires_in_days: days}}
+
+        {:error, _step, reason, _} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  defp personal_token_name(nil), do: {:error, {:validation, %{name: ["blank"]}}}
+
+  defp personal_token_name(name) when is_binary(name) do
+    if String.length(name) <= @personal_token_name_max,
+      do: {:ok, name},
+      else: {:error, {:validation, %{name: ["too_long"]}}}
+  end
+
+  defp personal_token_days(days)
+       when is_integer(days) and days >= 1 and days <= @personal_token_max_days,
+       do: {:ok, days}
+
+  defp personal_token_days(_), do: {:error, {:validation, %{expires_in_days: ["invalid"]}}}
+
   defp normalize(attrs) do
     get = fn keys ->
       Enum.find_value(keys, fn k -> Map.get(attrs, k) end)

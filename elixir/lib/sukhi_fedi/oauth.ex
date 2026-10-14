@@ -293,6 +293,18 @@ defmodule SukhiFedi.OAuth do
   end
 
   @doc """
+  Mint one more access token for an ordinary account, valid for
+  `ttl_seconds` (the caller has already bounded it). Nothing else the
+  account holds is touched — a personal token is added, never a swap.
+  """
+  @spec issue_personal_token(integer(), integer(), pos_integer()) :: {:ok, map()}
+  def issue_personal_token(app_id, account_id, ttl_seconds)
+      when is_integer(app_id) and is_integer(account_id) and is_integer(ttl_seconds) and
+             ttl_seconds > 0 do
+    mint_token(app_id, account_id, "read write", refresh: false, ttl: ttl_seconds)
+  end
+
+  @doc """
   Revoke every live token bound to an account. Returns how many turned.
   """
   @spec revoke_account_tokens(integer()) :: non_neg_integer()
@@ -318,9 +330,11 @@ defmodule SukhiFedi.OAuth do
     access = generate_token()
     refresh = if with_refresh?, do: generate_token(), else: nil
 
+    ttl = Keyword.get(opts, :ttl, @token_ttl_seconds)
+
     expires_at =
       if Keyword.get(opts, :expires, true),
-        do: utc_now() |> DateTime.add(@token_ttl_seconds, :second),
+        do: utc_now() |> DateTime.add(ttl, :second),
         else: nil
 
     attrs = %{
@@ -344,7 +358,7 @@ defmodule SukhiFedi.OAuth do
        token_type: "Bearer",
        scope: scopes,
        created_at: System.system_time(:second),
-       expires_in: expires_at && @token_ttl_seconds
+       expires_in: expires_at && ttl
      }}
   end
 

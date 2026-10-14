@@ -8,6 +8,10 @@ defmodule SukhiApi.Capabilities.SukhiBots do
 
       POST /api/v1/sukhi/bots            {username, display_name}   write:accounts + admin
       POST /api/v1/sukhi/bots/:id/token                             write:accounts + admin
+      POST /api/v1/sukhi/tokens          {name, expires_in_days}    write:accounts
+
+  最後の一本だけ admin では無く、いま入っている本人が、自分の垢の鍵を
+  一本足す。名前と期限(1〜365日)は必須で、古い鍵は閉じない。
 
   一本目の返事にだけ鍵が載る。二本目は鍵の取り替えで、古い鍵は全部
   その場で閉じる。
@@ -29,7 +33,8 @@ defmodule SukhiApi.Capabilities.SukhiBots do
   def routes do
     [
       {:post, "/api/v1/sukhi/bots", &create/1, scope: "write:accounts"},
-      {:post, "/api/v1/sukhi/bots/:id/token", &rotate_token/1, scope: "write:accounts"}
+      {:post, "/api/v1/sukhi/bots/:id/token", &rotate_token/1, scope: "write:accounts"},
+      {:post, "/api/v1/sukhi/tokens", &issue_token/1, scope: "write:accounts"}
     ]
   end
 
@@ -51,6 +56,11 @@ defmodule SukhiApi.Capabilities.SukhiBots do
       {:error, :forbidden} -> ok(403, %{error: "admin_required"})
       _ -> ok(400, %{error: "invalid_id"})
     end
+  end
+
+  def issue_token(%{assigns: %{current_account: %{id: id}}} = req) do
+    attrs = Map.take(decode_body(req), ["name", "expires_in_days"])
+    call(:issue_personal_token, [id, attrs], &ok(201, &1))
   end
 
   defp render(%{account: account, token: token}),

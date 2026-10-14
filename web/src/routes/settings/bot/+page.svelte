@@ -1,12 +1,21 @@
 <script lang="ts">
-  // 手だけのアカウント(bot)を、admin がつくる／鍵を取り替える。
-  // 鍵が見えるのは返事のその一回だけ。閉じたら、もう出てこない。
+  // 自分の鍵を足す(名前と期限つき)／管理者が手だけのアカウント(bot)を
+  // つくる・鍵を取り替える。鍵が見えるのは返事のその一回だけ。
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { isLoggedIn } from '$lib/auth';
-  import { createBot, rotateBotToken, type BotTokenResponse } from '$lib/api';
+  import {
+    createBot,
+    rotateBotToken,
+    issuePersonalToken,
+    type BotTokenResponse,
+    type PersonalToken
+  } from '$lib/api';
   import { t } from '$lib/i18n';
 
+  let tokenName = $state('');
+  let expiresInDays = $state(90);
+  let mine = $state<PersonalToken | null>(null);
   let username = $state('');
   let displayName = $state('');
   let rotateId = $state('');
@@ -18,16 +27,18 @@
     if (!isLoggedIn()) void goto('/');
   });
 
-  async function run(action: () => Promise<BotTokenResponse>) {
-    if (busy) return;
+  async function run<T>(action: () => Promise<T>): Promise<T | null> {
+    if (busy) return null;
     busy = true;
     error = null;
     result = null;
+    mine = null;
     try {
-      result = await action();
+      return await action();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       error = msg === 'admin_required' ? $t('bot.adminRequired') : $t('bot.failed');
+      return null;
     } finally {
       busy = false;
     }
@@ -43,18 +54,50 @@
   <p class="error">{error}</p>
 {/if}
 
+{#if mine}
+  <p class="notice">{$t('bot.tokenOnce')}</p>
+  <p class="prose-small">{$t('bot.issuedFor', { name: mine.name, days: mine.expires_in_days })}</p>
+  <p><code>{mine.token}</code></p>
+{/if}
+
 {#if result}
   <p class="notice">{$t('bot.tokenOnce')}</p>
   <p class="prose-small">@{result.account.acct}</p>
   <p><code>{result.token}</code></p>
 {/if}
 
-<h2>{$t('bot.createTitle')}</h2>
+<h2>{$t('bot.mineTitle')}</h2>
+<p class="prose-small">{$t('bot.mineHelp')}</p>
+<form
+  class="form stack"
+  onsubmit={async (e) => {
+    e.preventDefault();
+    mine = await run(() => issuePersonalToken(tokenName, expiresInDays));
+  }}
+>
+  <label class="stack-tight">
+    <span>{$t('bot.tokenName')}</span>
+    <input type="text" bind:value={tokenName} maxlength="40" autocomplete="off" required />
+  </label>
+  <label class="stack-tight">
+    <span>{$t('bot.expires')}</span>
+    <select bind:value={expiresInDays}>
+      <option value={7}>{$t('bot.days7')}</option>
+      <option value={30}>{$t('bot.days30')}</option>
+      <option value={90}>{$t('bot.days90')}</option>
+      <option value={365}>{$t('bot.days365')}</option>
+    </select>
+  </label>
+  <button type="submit" class="btn px-6 py-2" disabled={busy}>{$t('bot.issue')}</button>
+</form>
+
+<h2>{$t('bot.adminTitle')}</h2>
+<h3>{$t('bot.createTitle')}</h3>
 <form
   class="form stack"
   onsubmit={(e) => {
     e.preventDefault();
-    void run(() => createBot(username, displayName));
+    void run(() => createBot(username, displayName)).then((r) => (result = r));
   }}
 >
   <label class="stack-tight">
@@ -68,12 +111,12 @@
   <button type="submit" class="btn px-6 py-2" disabled={busy}>{$t('bot.create')}</button>
 </form>
 
-<h2>{$t('bot.rotateTitle')}</h2>
+<h3>{$t('bot.rotateTitle')}</h3>
 <form
   class="form stack"
   onsubmit={(e) => {
     e.preventDefault();
-    void run(() => rotateBotToken(rotateId));
+    void run(() => rotateBotToken(rotateId)).then((r) => (result = r));
   }}
 >
   <label class="stack-tight">
