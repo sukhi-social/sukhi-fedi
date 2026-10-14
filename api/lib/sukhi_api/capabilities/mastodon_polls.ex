@@ -33,9 +33,9 @@ defmodule SukhiApi.Capabilities.MastodonPolls do
 
     id = req[:path_params]["id"]
 
-    case GatewayRpc.call(SukhiFedi.Polls, :get_with_results, [id, viewer_id]) do
-      {:ok, {:ok, ctx}} -> ok(200, MastodonPoll.render(ctx))
-      {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+    case GatewayRpc.run(SukhiFedi.Polls, :get_with_results, [id, viewer_id]) do
+      {:ok, ctx} -> ok(200, MastodonPoll.render(ctx))
+      {:error, :not_found} -> ok(404, %{error: "not_found"})
       e -> rpc_error(e)
     end
   end
@@ -53,20 +53,20 @@ defmodule SukhiApi.Capabilities.MastodonPolls do
         choices = body["choices[]"] || body["choices"] || []
         choices = List.wrap(choices)
 
-        case GatewayRpc.call(SukhiFedi.Polls, :vote, [v.id, id, choices]) do
+        case GatewayRpc.run(SukhiFedi.Polls, :vote, [v.id, id, choices]) do
           {:ok, :ok} ->
-            case GatewayRpc.call(SukhiFedi.Polls, :get_with_results, [id, v.id]) do
-              {:ok, {:ok, ctx}} -> ok(200, MastodonPoll.render(ctx))
+            case GatewayRpc.run(SukhiFedi.Polls, :get_with_results, [id, v.id]) do
+              {:ok, ctx} -> ok(200, MastodonPoll.render(ctx))
               _ -> ok(200, %{})
             end
 
-          {:ok, {:error, :not_found}} ->
+          {:error, :not_found} ->
             ok(404, %{error: "not_found"})
 
-          {:ok, {:error, :expired}} ->
+          {:error, :expired} ->
             ok(422, %{error: "poll_expired"})
 
-          {:ok, {:error, :too_many_choices}} ->
+          {:error, :too_many_choices} ->
             ok(422, %{error: "too_many_choices"})
 
           e ->
@@ -90,10 +90,7 @@ defmodule SukhiApi.Capabilities.MastodonPolls do
     end
   end
 
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, r}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 

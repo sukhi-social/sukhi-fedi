@@ -39,7 +39,7 @@ defmodule SukhiApi.Capabilities.MastodonMarkers do
     with_viewer(req, fn v ->
       timelines = extract_timelines(req[:query])
 
-      case GatewayRpc.call(SukhiFedi.Markers, :get, [v.id, timelines]) do
+      case GatewayRpc.run(SukhiFedi.Markers, :get, [v.id, timelines]) do
         {:ok, %{} = markers} -> ok(200, render(markers))
         other -> rpc_error(other)
       end
@@ -52,8 +52,8 @@ defmodule SukhiApi.Capabilities.MastodonMarkers do
 
       results =
         Enum.reduce(updates, %{}, fn {tl, last_read_id}, acc ->
-          case GatewayRpc.call(SukhiFedi.Markers, :upsert, [v.id, tl, last_read_id]) do
-            {:ok, {:ok, marker}} -> Map.put(acc, tl, marker)
+          case GatewayRpc.run(SukhiFedi.Markers, :upsert, [v.id, tl, last_read_id]) do
+            {:ok, marker} -> Map.put(acc, tl, marker)
             _ -> acc
           end
         end)
@@ -156,10 +156,7 @@ defmodule SukhiApi.Capabilities.MastodonMarkers do
     end
   end
 
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, r}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 

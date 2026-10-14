@@ -33,7 +33,7 @@ defmodule SukhiApi.Capabilities.MisskeyDrafts do
 
   def show(req) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.NoteDrafts, :get, [v.id]) do
+      case GatewayRpc.run(SukhiFedi.NoteDrafts, :get, [v.id]) do
         {:ok, nil} -> ok(204, %{})
         {:ok, draft} -> ok(200, MisskeyNoteDraft.render(draft))
         e -> rpc_error(e)
@@ -45,9 +45,9 @@ defmodule SukhiApi.Capabilities.MisskeyDrafts do
     with_viewer(req, fn v ->
       attrs = draft_attrs(decode_body(req))
 
-      case GatewayRpc.call(SukhiFedi.NoteDrafts, :upsert, [v.id, attrs]) do
-        {:ok, {:ok, draft}} -> ok(200, MisskeyNoteDraft.render(draft))
-        {:ok, {:error, _changeset}} -> ok(422, %{error: "invalid_draft"})
+      case GatewayRpc.run(SukhiFedi.NoteDrafts, :upsert, [v.id, attrs]) do
+        {:ok, draft} -> ok(200, MisskeyNoteDraft.render(draft))
+        {:error, _changeset} -> ok(422, %{error: "invalid_draft"})
         e -> rpc_error(e)
       end
     end)
@@ -55,7 +55,7 @@ defmodule SukhiApi.Capabilities.MisskeyDrafts do
 
   def delete(req) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.NoteDrafts, :delete, [v.id]) do
+      case GatewayRpc.run(SukhiFedi.NoteDrafts, :delete, [v.id]) do
         {:ok, :ok} -> ok(200, %{})
         e -> rpc_error(e)
       end
@@ -103,10 +103,7 @@ defmodule SukhiApi.Capabilities.MisskeyDrafts do
     end
   end
 
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, r}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 
