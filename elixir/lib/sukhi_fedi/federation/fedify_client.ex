@@ -1,41 +1,37 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Federation.FedifyClient do
   @moduledoc """
-  NATS Micro client for the Bun `fedify` service.
+  The gateway's way into the fedify operations.
 
-  Wraps request/reply to the service endpoints:
+  They used to be NATS request/reply to `fedify.*.v1`, answered by
+  `SukhiFedi.Fedi.Service` -- in this very node. Since v0.3.0 the service
+  is native Elixir, so the round trip only added a socket hop, a 10 s
+  timeout and a JSON encode/decode on each side. This calls the service
+  in-process (`Fedi.Service.call/2` keeps the JSON-shaped input and output,
+  so callers see what the reply used to carry).
 
-    * `fedify.translate.v1` — build ActivityPub JSON-LD from a domain object
-    * `fedify.sign.v1`      — sign an outbound HTTP request envelope
-    * `fedify.verify.v1`    — verify an incoming signed HTTP request
-    * `fedify.inbox.v1`     — parse an incoming activity into an instruction
-    * `fedify.fetch.v1`     — fetch a remote AP document (HTTP-signed)
-
-  The service is queue-grouped (`fedify-workers`) on the Bun side so
-  multiple replicas share load automatically.
+  The delivery node has no `Fedi.*` and keeps its own client over NATS.
   """
 
-  @timeout 10_000
+  alias SukhiFedi.Fedi.Service
 
+  @doc "Build ActivityPub JSON-LD from a domain object."
   @spec translate(String.t(), map()) :: {:ok, term()} | {:error, term()}
   def translate(object_type, payload) when is_binary(object_type) and is_map(payload) do
-    request("fedify.translate.v1", %{object_type: object_type, payload: payload})
+    Service.call("fedify.translate.v1", %{object_type: object_type, payload: payload})
   end
 
+  @doc "Sign an outbound HTTP request envelope."
   @spec sign(map()) :: {:ok, term()} | {:error, term()}
-  def sign(payload) when is_map(payload) do
-    request("fedify.sign.v1", payload)
-  end
+  def sign(payload) when is_map(payload), do: Service.call("fedify.sign.v1", payload)
 
+  @doc "Verify an incoming signed HTTP request."
   @spec verify(map()) :: {:ok, term()} | {:error, term()}
-  def verify(payload) when is_map(payload) do
-    request("fedify.verify.v1", payload)
-  end
+  def verify(payload) when is_map(payload), do: Service.call("fedify.verify.v1", payload)
 
+  @doc "Parse an incoming activity into an instruction."
   @spec inbox(map()) :: {:ok, term()} | {:error, term()}
-  def inbox(payload) when is_map(payload) do
-    request("fedify.inbox.v1", payload)
-  end
+  def inbox(payload) when is_map(payload), do: Service.call("fedify.inbox.v1", payload)
 
   @doc """
   Fetch a remote ActivityPub document. When `sign_as` is a
@@ -46,35 +42,6 @@ defmodule SukhiFedi.Federation.FedifyClient do
   @spec fetch(String.t(), map() | nil) :: {:ok, term()} | {:error, term()}
   def fetch(uri, sign_as \\ nil) when is_binary(uri) do
     payload = if is_map(sign_as), do: %{uri: uri, signAs: sign_as}, else: %{uri: uri}
-    request("fedify.fetch.v1", payload)
-  end
-
-  @spec ping() :: :ok | {:ok, binary()} | {:error, term()}
-  def ping do
-    case Gnat.request(:gnat, "fedify.ping.v1", "pong", receive_timeout: @timeout) do
-      {:ok, %{body: "pong"}} -> :ok
-      {:ok, %{body: other}} -> {:ok, other}
-      {:error, _} = err -> err
-    end
-  end
-
-  defp request(subject, payload) do
-    body = JSON.encode!(payload)
-
-    case Gnat.request(:gnat, subject, body, receive_timeout: @timeout) do
-      {:ok, %{body: reply}} ->
-        case JSON.decode(reply) do
-          {:ok, %{"ok" => true, "data" => data}} -> {:ok, data}
-          {:ok, %{"ok" => false, "error" => error}} -> {:error, error}
-          {:ok, other} -> {:error, {:invalid_envelope, other}}
-          {:error, _} = err -> err
-        end
-
-      {:error, :timeout} ->
-        {:error, :timeout}
-
-      {:error, _} = err ->
-        err
-    end
+    Service.call("fedify.fetch.v1", payload)
   end
 end

@@ -205,8 +205,9 @@ defmodule SukhiFedi.Integration.RelaysTest do
 
     test "is mirrored from the body, with no round trip to the origin" do
       # The author exists as a shadow account, the note does not. Nothing
-      # in this test env can reach the network (no NATS), so a row can
-      # only appear if the signed body itself was believed.
+      # in this test env can reach origin.example (a reserved name: it never
+      # resolves), so a row can only appear if the signed body itself was
+      # believed.
       remote_author!("origin.example")
       uri = "https://origin.example/notes/signed-1"
 
@@ -222,10 +223,11 @@ defmodule SukhiFedi.Integration.RelaysTest do
       uri = "https://origin.example/notes/signed-2"
 
       # The contrast that makes the test above mean something: unsigned,
-      # the very same activity goes out to fetch the note. This env has
-      # no NATS, so the fetch client exits — which is exactly the
-      # observation we want (it tried), and the row never appears.
-      assert catch_exit(Relayed.maybe_ingest(create(uri), "relay.example", false))
+      # the very same activity goes out to fetch the note. origin.example
+      # never resolves, so the fetch comes back empty-handed: `:unresolved`
+      # is exactly the observation we want (it tried), and the row never
+      # appears.
+      assert :unresolved = Relayed.maybe_ingest(create(uri), "relay.example", false)
       assert Repo.get_by(Note, ap_id: uri) == nil
     end
 
