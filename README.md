@@ -15,6 +15,10 @@ ships bundled — built to static files and served by the gateway.
 A fresh contributor can rebuild the system from scratch using only that
 document and the code. Read it first.
 
+- **API reference** — `/api/docs` on a running instance (and `/api/docs.json`,
+  OpenAPI 3.1). Generated from the routes the API node serves, so it cannot
+  drift; nothing to annotate. Lists endpoints, methods and the OAuth scope
+  each needs — not request/response shapes.
 - [`docs/ADDONS.md`](docs/ADDONS.md) — addon ABI contract (how to pick,
   write, or distribute feature addons)
 - [`web/README.md`](web/README.md) — the bundled SvelteKit SPA (dev server,
