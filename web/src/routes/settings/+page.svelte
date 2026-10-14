@@ -34,6 +34,7 @@
   let displayName = $state('');
   let note = $state('');
   let locked = $state(false);
+  let bot = $state(false);
   // 検索インデックスへの同意(FEP-5feb)。どちらも、はじめは「しない」。
   let discoverable = $state(false);
   let indexable = $state(false);
@@ -102,6 +103,7 @@
       // 自分が前に入れた素のテキストに近づけるだけで、サーバが正本。
       note = stripTags(me.note ?? '');
       locked = !!me.locked;
+      bot = !!me.bot;
       discoverable = !!me.discoverable;
       indexable = !!me.indexable;
       // 値は HTML で返ってくる(リンクを含むことがある)。編集はテキストで
@@ -231,6 +233,7 @@
         display_name: displayName,
         note,
         locked,
+        bot,
         discoverable,
         indexable,
         fields: fields
@@ -338,21 +341,28 @@
       <input type="file" accept="image/*" onchange={onHeader} />
     </label>
 
-    <label class="stack-tight">
-      <input type="checkbox" bind:checked={locked} />
-      <span>{$t('settings.locked')}</span>
-    </label>
+    <div class="checkbox-group" style="margin-top: var(--space-4); margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3);">
+      <label class="stack-tight" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+        <input type="checkbox" bind:checked={locked} />
+        <span>{$t('settings.locked')}</span>
+      </label>
 
-    <label class="stack-tight">
-      <input type="checkbox" bind:checked={discoverable} />
-      <span>{$t('settings.discoverable')}</span>
-    </label>
+      <label class="stack-tight" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+        <input type="checkbox" bind:checked={bot} />
+        <span>{$t('settings.bot')}</span>
+      </label>
 
-    <label class="stack-tight">
-      <input type="checkbox" bind:checked={indexable} />
-      <span>{$t('settings.indexable')}</span>
-    </label>
-    <p class="muted">{$t('settings.searchConsentHint')}</p>
+      <label class="stack-tight" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+        <input type="checkbox" bind:checked={discoverable} />
+        <span>{$t('settings.discoverable')}</span>
+      </label>
+
+      <label class="stack-tight" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+        <input type="checkbox" bind:checked={indexable} />
+        <span>{$t('settings.indexable')}</span>
+      </label>
+      <p class="muted" style="margin-top: 0;">{$t('settings.searchConsentHint')}</p>
+    </div>
 
     <div style="display: flex; gap: var(--space-3); align-items: center;">
       <button type="submit" class="btn px-6 py-2" disabled={saving}>
@@ -368,13 +378,15 @@
     {/if}
   </form>
 
-  <p class="prose-small" style="margin-top: var(--space-4);">
-    <a class="chip" href="/settings/password">{$t('settings.changePassword')}</a>
-    <a class="chip" href="/settings/security">{$t('settings.security')}</a>
-    <a class="chip" href="/settings/migration">{$t('settings.migration')}</a>
-    <a class="chip" href="/requests">{$t('requests.title')}</a>
-    <a class="chip" href="/settings/cleanup">{$t('settings.cleanup')}</a>
-  </p>
+  <nav class="settings-nav" aria-label="Settings navigation" style="margin-top: var(--space-5);">
+    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-2);">
+      <li><a class="chip" href="/settings/security">{$t('settings.security')}</a></li>
+      <li><a class="chip" href="/settings/migration">{$t('settings.migration')}</a></li>
+      <li><a class="chip" href="/requests">{$t('requests.title')}</a></li>
+      <li><a class="chip" href="/settings/cleanup">{$t('settings.cleanup')}</a></li>
+      <li><a class="chip" href="/settings/bot">{$t('settings.botManagement')}</a></li>
+    </ul>
+  </nav>
 
   <PushToggle />
 

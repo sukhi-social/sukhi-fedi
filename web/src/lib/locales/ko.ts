@@ -214,6 +214,8 @@ export const ko: Dict = {
   'settings.fieldAdd': '항목 더하기',
   'settings.fieldRemove': '지우기',
   'settings.locked': '팔로우를 승인한 뒤에 받기 (잠금)',
+  'settings.bot': '봇 계정임을 명시하기',
+  'settings.botManagement': '봇 계정 관리',
   'settings.discoverable': '쉽게 발견되도록 하기 (추천·목록에 표시)',
   'settings.indexable': '글이 전문 검색에 잡히도록 하기',
   'settings.searchConsentHint':

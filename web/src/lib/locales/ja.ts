@@ -213,6 +213,8 @@ export const ja = {
   'settings.fieldAdd': '項目を足す',
   'settings.fieldRemove': '消す',
   'settings.locked': 'フォローを、承認してから受ける（鍵）',
+  'settings.bot': 'BOTアカウントであることを明記する',
+  'settings.botManagement': 'BOTアカウントの管理',
   'settings.discoverable': '見つけてもらいやすくする（おすすめや一覧に出る）',
   'settings.indexable': '投稿を全文検索で見つけられるようにする',
   'settings.searchConsentHint':

@@ -635,6 +635,7 @@ export type CredentialsUpdate = {
   avatar?: File | null;
   header?: File | null;
   locked?: boolean;
+  bot?: boolean;
   // Search-indexing consent (FEP-5feb). `discoverable` lets this account
   // surface in discovery places; `indexable` lets full-text search reach
   // its posts. Both default off — the server only flips them when asked.
@@ -650,6 +651,7 @@ export async function updateCredentials(input: CredentialsUpdate): Promise<Accou
   if (input.display_name !== undefined) fd.set('display_name', input.display_name);
   if (input.note !== undefined) fd.set('note', input.note);
   if (input.locked !== undefined) fd.set('locked', input.locked ? 'true' : 'false');
+  if (input.bot !== undefined) fd.set('bot', input.bot ? 'true' : 'false');
   if (input.discoverable !== undefined)
     fd.set('discoverable', input.discoverable ? 'true' : 'false');
   if (input.indexable !== undefined) fd.set('indexable', input.indexable ? 'true' : 'false');
