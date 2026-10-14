@@ -43,10 +43,10 @@ defmodule SukhiApi.Capabilities.AdminEmojis do
   def import_emojis(req) do
     with {:ok, admin} <- AdminAuth.require_admin(req),
          {:ok, items, dry_run?} <- parse(req) do
-      case GatewayRpc.call(SukhiFedi.CustomEmojis, :import_many, [items, admin.id, [dry_run: dry_run?]]) do
-        {:ok, {:ok, summary}} -> ok(200, render(summary))
-        {:ok, {:error, :empty}} -> ok(400, %{error: "emojis_empty"})
-        {:ok, {:error, :too_many}} -> ok(413, %{error: "too_many", max: @max_import})
+      case GatewayRpc.run(SukhiFedi.CustomEmojis, :import_many, [items, admin.id, [dry_run: dry_run?]]) do
+        {:ok, summary} -> ok(200, render(summary))
+        {:error, :empty} -> ok(400, %{error: "emojis_empty"})
+        {:error, :too_many} -> ok(413, %{error: "too_many", max: @max_import})
         other -> rpc_error(other)
       end
     else
@@ -77,10 +77,7 @@ defmodule SukhiApi.Capabilities.AdminEmojis do
   defp render_result(r),
     do: %{index: r.index, shortcode: r.shortcode, status: "error", error: to_string(r.error)}
 
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, reason}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 
