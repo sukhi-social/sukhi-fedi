@@ -9,14 +9,16 @@ defmodule SukhiApi.GatewayRpc do
   which in production is supplied via the `GATEWAY_NODE` env var
   (see `api/config/runtime.exs`).
 
-  Returns:
-    * `{:ok, value}`       — on a successful call
+  **Use `run/4`.** It answers `{:ok, x} | {:error, e} | {:unavailable, why}`
+  and `unavailable_body/1` is the 503 body for the last one, so a capability
+  is one `case` with one transport clause. `call/4` below is the raw layer
+  `run/4` stands on, and the seam tests replace; it wraps whatever the
+  gateway function returned, so `{:ok, x}` arrives as `{:ok, {:ok, x}}`:
+
+    * `{:ok, value}`       — on a successful call (value is the callee's return)
     * `{:error, {:badrpc, reason}}` — gateway unreachable or crashed
     * `{:error, :not_connected}`    — Erlang distribution disabled /
                                       no node configured
-
-  Capabilities should translate these into HTTP responses (503 for
-  transport issues, 4xx/5xx for domain failures).
 
   ## Test impl injection
 

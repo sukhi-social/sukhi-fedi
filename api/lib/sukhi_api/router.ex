@@ -164,7 +164,7 @@ defmodule SukhiApi.Router do
 
   defp cookie_attach(req, token, required_scope) do
     with :ok <- charge_rate_limit(token),
-         {:ok, {:ok, account}} <- TokenCache.session(token),
+         {:ok, account} <- TokenCache.session(token),
          :ok <- check_scope(required_scope, @cookie_scopes) do
       assigns =
         req
@@ -178,10 +178,10 @@ defmodule SukhiApi.Router do
 
       {:ok, Map.put(req, :assigns, assigns)}
     else
-      {:ok, {:error, :no_session}} when is_nil(required_scope) ->
+      {:error, :no_session} when is_nil(required_scope) ->
         {:ok, req}
 
-      {:ok, {:error, :no_session}} ->
+      {:error, :no_session} ->
         {:error, 401, %{error: "invalid_token", error_description: "session expired"}}
 
       {:error, :insufficient_scope} ->
@@ -192,11 +192,8 @@ defmodule SukhiApi.Router do
            scope: required_scope
          }}
 
-      {:error, :not_connected} ->
-        {:error, 503, %{error: "gateway_not_connected"}}
-
-      {:error, {:badrpc, reason}} ->
-        {:error, 503, %{error: "gateway_rpc_failed", detail: inspect(reason)}}
+      {:unavailable, why} ->
+        {:error, 503, SukhiApi.GatewayRpc.unavailable_body(why)}
 
       {:error, :rate_limited, retry_after} ->
         {:error, 429, %{error: "rate_limited", retry_after: retry_after}}
@@ -239,7 +236,7 @@ defmodule SukhiApi.Router do
   # valid token then carries no scope requirement (`check_scope/2`).
   defp verify_and_attach(req, token, required_scope) do
     with :ok <- charge_rate_limit(token),
-         {:ok, {:ok, %{scopes: granted} = ctx}} <- TokenCache.verify(token),
+         {:ok, %{scopes: granted} = ctx} <- TokenCache.verify(token),
          :ok <- check_scope(required_scope, granted) do
       assigns =
         req
@@ -252,9 +249,8 @@ defmodule SukhiApi.Router do
 
       {:ok, Map.put(req, :assigns, assigns)}
     else
-      {:ok, {:error, reason}} ->
-        {:error, 401, %{error: "invalid_token", error_description: to_string(reason)}}
-
+      # The router's own failures first: `{:error, _}` is also the shape of
+      # the gateway's verdict on the token (revoked, expired, …), below.
       {:error, :insufficient_scope} ->
         {:error, 403,
          %{
@@ -263,12 +259,6 @@ defmodule SukhiApi.Router do
            scope: required_scope
          }}
 
-      {:error, :not_connected} ->
-        {:error, 503, %{error: "gateway_not_connected"}}
-
-      {:error, {:badrpc, reason}} ->
-        {:error, 503, %{error: "gateway_rpc_failed", detail: inspect(reason)}}
-
       {:error, :rate_limited, retry_after} ->
         {:error, 429,
          %{
@@ -276,6 +266,13 @@ defmodule SukhiApi.Router do
            retry_after: retry_after
          }}
 
+      {:error, reason} ->
+        {:error, 401, %{error: "invalid_token", error_description: to_string(reason)}}
+
+      {:unavailable, why} ->
+        {:error, 503, SukhiApi.GatewayRpc.unavailable_body(why)}
+
+      # An answer in no shape we know is a refusal, never a pass.
       _ ->
         {:error, 401, %{error: "invalid_token"}}
     end
