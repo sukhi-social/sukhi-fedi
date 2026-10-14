@@ -61,8 +61,11 @@ caller -> facade -> Backend.call(seam, fun, args) -> impl(seam) (primary)
 * The sanitizer **settles** but is not idempotent: a second pass can change
   the output (49 of 20,000 random inputs; whitespace-only input becomes `""`).
   The contract says "settles after one more pass".
-* Earmark raises (`CaseClauseError`) on some malformed HTML blocks, so
-  `Markdown.to_html/2` can raise on such input — as it did before the split.
+* Earmark raises (`CaseClauseError`) on some malformed HTML blocks (16 of
+  3,000 random soups; e.g. an unterminated `<a href="`). Before the split a
+  local post with such text would have crashed the changeset. `Markdown.to_html/2`
+  now catches it in one place and falls back to the escaped text as
+  paragraphs, so a native renderer need not.
 * OpenGraph parsing compiles its regexes on every call (performance only).
 
 ## Why other candidates are not seams

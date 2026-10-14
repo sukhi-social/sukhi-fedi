@@ -30,8 +30,8 @@ defmodule SukhiFedi.Markdown do
   def to_html(text, lookup \\ &SukhiFedi.Linkify.known_account/1)
 
   def to_html(text, lookup) when is_binary(text) do
-    :markdown
-    |> SukhiFedi.Backend.call(:render, [text])
+    text
+    |> render()
     # `@だれか` と `#なにか` を、ここでリンクにする。Markdown のあと、
     # scrubber の前 ── 出すのはこちらの組んだ小さな HTML なので、その
     # まま allow-list を通して確かめてもらえる。
@@ -41,4 +41,24 @@ defmodule SukhiFedi.Markdown do
   end
 
   def to_html(other, _lookup), do: other
+
+  # Earmark raises a CaseClauseError on some malformed raw-HTML blocks (an
+  # unterminated attribute quote, say). A post must not 500 for that: fall
+  # back to the author's text, escaped, as plain paragraphs. Escaped means
+  # nothing here is markup, so the sanitiser after it has nothing to find.
+  # The one rescue lives here, not in each backend.
+  defp render(text) do
+    SukhiFedi.Backend.call(:markdown, :render, [text])
+  rescue
+    CaseClauseError -> plain(text)
+  end
+
+  defp plain(text) do
+    text
+    |> String.split(~r/\R{2,}/)
+    |> Enum.map_join("\n", fn para ->
+      escaped = para |> String.trim() |> Plug.HTML.html_escape() |> String.replace(~r/\R/, "<br>\n")
+      "<p>" <> escaped <> "</p>"
+    end)
+  end
 end

@@ -71,6 +71,33 @@ defmodule SukhiFedi.MarkdownTest do
     end
   end
 
+  describe "when Earmark raises on a malformed HTML block" do
+    # Found by fuzzing the renderer contract; this exact string raised.
+    @breaks ~s|<a href="<script>@<!--@@a@b.c<!--"|
+
+    test "the post still renders, as escaped text, with nothing live in it" do
+      out = ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        send(self(), {:out, SukhiFedi.Markdown.to_html(@breaks, fn _ -> nil end)})
+      end)
+
+      assert is_binary(out)
+      assert_received {:out, html}
+      assert html =~ "&lt;a href"
+      refute html =~ "<script"
+      refute html =~ "<a "
+    end
+
+    test "paragraphs and line breaks survive the fallback" do
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        send(self(), {:out, SukhiFedi.Markdown.to_html(~s|#{@breaks}\nsecond\n\nthird|, fn _ -> nil end)})
+      end)
+
+      assert_received {:out, html}
+      assert html =~ ~r/<br\s*\/?>/
+      assert html =~ "<p>third</p>"
+    end
+  end
+
   describe "the note changeset" do
     test "a local note gets its rendered form" do
       cs = Note.changeset(%Note{}, %{content: "ひとつめ\nふたつめ", account_id: 1})

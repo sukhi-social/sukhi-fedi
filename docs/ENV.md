@@ -51,6 +51,45 @@ top — those win.
 | `NATS_URL` | no | — | bun only. Full URL form, e.g. `nats://sukhi-fedi-nats:4222`. |
 | `METRICS_PORT` | no | `4001` | delivery only. Prometheus scrape port for delivery worker metrics. |
 
+## Media storage — S3 / rustfs (gateway)
+
+Unset `S3_ENDPOINT` means no object storage: uploads return `not_configured`.
+When it is set, the credentials are required (`fetch_env!` at boot).
+`config/runtime.exs` is the only place these are read; the presigned-upload
+path takes its credentials, region and bucket from the same config.
+
+| Var | Required | Default | Notes |
+|---|---|---|---|
+| `S3_ENDPOINT` | no | — | e.g. `https://<account>.r2.cloudflarestorage.com`; in prod the rustfs accessory |
+| **`S3_ACCESS_KEY_ID`** / **`S3_SECRET_ACCESS_KEY`** | yes, with `S3_ENDPOINT` | — | The names ExAws uses. (`S3_ACCESS_KEY` / `S3_SECRET_KEY` are not read.) |
+| `S3_REGION` | no | `us-east-1` | |
+| `S3_BUCKET` | no | `media` | Uploaded media |
+| `S3_INBOUND_BUCKET` / `S3_OUTBOUND_BUCKET` | no | `inbound` / `outbound` | Archived federation payloads |
+| `S3_PUBLIC_URL` | no | — | CDN base for presigned uploads' `public_url` |
+
+## Signup, legal pages, previews (gateway)
+
+| Var | Default | Notes |
+|---|---|---|
+| `INVITE_REQUIRED` | `true` | `false` lets anyone register. A mailbox is still verified either way. |
+| `LEGAL_FLAVOR` | `sukhi` | Which `/terms` and `/privacy` set to serve: `sukhi` or `natadeco`. Both are baked into the release. |
+| `PUBLIC_PREVIEW` | `off` | Server-rendered preview for logged-out visitors/crawlers: `off`, `meta` (OG / Twitter / JSON-LD head only) or `full` (plus a readable body). Public content only. |
+| `PUBLIC_PREVIEW_ROBOTS` | `noindex, nofollow` | The meta-robots string on preview pages. Set `index, follow` to be crawled. |
+| `SSR_URL` | — | When set (natadeco: `http://natadeco-ssr:3000`), pages that would get the empty SPA shell are forwarded to this SSR server. |
+| `STATIC_OVERRIDE_ONLY` | — | `true` = `STATIC_OVERRIDE=only` (kept for natadeco). See `docs/static-override.md`. |
+| `WT_TICKET_KEY` | — | Ed25519 seed (raw 32 bytes, base64) that signs WebTransport entry tickets. Unset → `/api/wt` answers 503. |
+| `WT_ENDPOINT` | `https://webtransport.f3liz.casa/wt` | The WebTransport edge a ticket is for. |
+
+## Release / test plumbing
+
+Not operator knobs; listed so the audit (`scripts/env_audit.jl`) stays quiet.
+
+| Var | Where | Notes |
+|---|---|---|
+| `RUNTIME_CONFIG_DIR`, `RELEASE_ROOT` | combined | Where `combined/config/runtime.exs` finds the three apps' runtime configs. `combined/Dockerfile` sets the first. |
+| `PGLITE` | dev/test | `1` points the DB config at the embedded PGlite (`make test-pglite`). |
+| `S3_HOST`, `S3_PORT` | test | The mock S3 the test config talks to (`127.0.0.1:19000`). |
+
 ## Transactional mail (gateway)
 
 Email verification + login codes go out through `SukhiFedi.Mailer`.
@@ -92,6 +131,13 @@ consistently >0 in `oban_jobs WHERE state='available'`.
 | `OBAN_MONITOR_CONCURRENCY` | `5` | gateway — NodeInfo poller fan-out |
 | `OBAN_DELIVERY_CONCURRENCY` | `10` | delivery — outbound inbox POSTs |
 | `OBAN_FEDERATION_CONCURRENCY` | `3` | delivery — fan-out / mention processing |
+| `OBAN_PUSH_CONCURRENCY` | `3` | delivery — Web Push sends |
+| `OBAN_OUTBOX_DISPATCH_CONCURRENCY` | `2` | delivery — outbox rows to NATS |
+| `OBAN_INBOUND_ARCHIVE_CONCURRENCY` | `10` | gateway — archive inbound payloads |
+| `OBAN_OUTBOUND_ARCHIVE_CONCURRENCY` | `10` | gateway — archive outbound payloads |
+| `OBAN_PUBLISH_CONCURRENCY` | `5` | gateway — publish jobs |
+| `OBAN_PREVIEW_CONCURRENCY` | `3` | gateway — link-preview fetches |
+| `OBAN_BACKFILL_CONCURRENCY` | `2` | gateway — remote outbox backfill |
 
 ## Tuning — Finch HTTP pool (delivery)
 

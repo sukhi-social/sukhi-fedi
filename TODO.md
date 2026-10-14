@@ -26,12 +26,6 @@ files are complementary: TODO is "do this", OPEN_QUESTIONS is
       `cache-control: public, max-age=31536000, immutable` を返せる
       はず。もう一歩進めて rustfs から直接 302 (presigned) にできれば
       federated peer の毎回 BEAM 叩きが消える。
-- [ ] **`SukhiFedi.Addons.Media` の compile-time `@bucket` / `@endpoint`.**
-      `lib/sukhi_fedi/addons/media.ex:36-41` で `System.get_env` を
-      モジュール属性で読んでいる。release build 時に焼き込まれて
-      runtime で効かない。今は presigned upload 経路でしか使って
-      いないので無害だが、信じて触ると踏む地雷。`Application.get_env`
-      に揃える。
 - [ ] **rustfs first-boot の chown 10001 を script 化.**
       kamal `directories:` が rocky 所有で作るので container が
       書けず落ちる。今コメントで残してあるだけ。`scripts/setup.sh`
@@ -140,18 +134,10 @@ endpoint surface is mapped out in [`docs/MISSKEY_API.md`](docs/MISSKEY_API.md).
       NULL` の部分一意インデックスを足す。`scripts/prepare_volpeon.mjs` の
       `ON CONFLICT (shortcode, domain)` も同じ理由で再実行のたびに重複する
       (新しい `scripts/emoji_import.jl` + `POST /api/admin/emojis` が置き換え)。
-- [ ] **S3 の認証情報の環境変数が、コードの中で 2 組に割れている.**
-      `elixir/config/runtime.exs:146-147` は `S3_ACCESS_KEY_ID` /
-      `S3_SECRET_ACCESS_KEY` を `fetch_env!` で読み、`addons/media.ex:256-257`
-      は `S3_ACCESS_KEY` / `S3_SECRET_KEY` を読む。ドキュメント
-      (ARCHITECTURE §10) にあるのは後者だけ。docs どおりに設定すると
-      `runtime.exs` 側が足りず、逆なら media 側が足りない。どちらかに寄せる。
-      (`scripts/env_audit.jl` が見つけた。)
-- [ ] **コードが読む環境変数のうち、どの文書にも無いもの (24 件).**
-      `SUKHI_ROOT=. tsbvm env_audit.tsb` で一覧が出る (`OBAN_*_CONCURRENCY`,
-      `INVITE_REQUIRED`, `LEGAL_FLAVOR`, `PUBLIC_PREVIEW*`, `WT_*`,
-      `SSR_URL`, `STATIC_OVERRIDE_ONLY`, `S3_*_BUCKET` など)。docs/ENV.md に
-      足したら `ENV_AUDIT_STRICT=1` を CI に入れて、増えないようにする。
+- [ ] **`scripts/env_audit.jl` を CI で回す.** 文書に無い変数は 0 件にした
+      (docs/ENV.md)。`ENV_AUDIT_STRICT=1` で増えたら落とせるが、CI の
+      イメージに tsbvm / tsubakic が無い。入れるか、`make` の手元用ターゲットに
+      するか決める。
 - [ ] **絵文字インポートを本物のサーバーで一度通す.** `host` は tsbvm に
       実装した (nyanrus/tsubaki の `host-capabilities` ブランチ。まだ push して
       いない)。`scripts/emoji_import.jl` は、パック / Misskey サーバー / JSON
@@ -352,6 +338,27 @@ git status
 
 ## Native seams — follow-ups (docs/native-seams.md)
 - [ ] 不正な UTF-8 を `HTML.sanitize/1` / `Linkify` に渡すと raise する(分離前から)。NIF を入れる前に、facade の境界で 1 回だけ scrub するか決める。
-- [ ] `Markdown.to_html/2` は Earmark が壊れた HTML ブロックで `CaseClauseError` を投げる(分離前から)。投稿が 500 にならないか確認し、必要なら facade で包む。
 - [ ] OpenGraph の regex が呼び出しごとに実行時コンパイルされる(性能のみ)。NIF にする前に module attribute へ。
 - [ ] sanitizer は 1 回で収束しない入力がある(20,000 件中 49)。保存前に 1 回で十分かを確かめる。
+
+## 構造の見直し候補 (2026-10 の調査から。計測はしていない)
+小さい順。詳しい根拠はセッションの調査メモ(コードの読み取りのみ)。
+- [ ] **`Addon.Registry.enabled?` を `:persistent_term` に畳む.** リクエストごとに
+      全モジュールを走査している。極小の変更で効く。
+- [ ] **`Router` が毎リクエスト capability の routes を再構築している** (`registry.ex`)。
+      起動時に 1 回組んで持つ。
+- [ ] **gateway が自分自身に NATS で往復している** (`fedify.*.v1`)。`Fedi.Service`
+      は gateway 内にあるので、`Fedi.Verifier/Inbox/Fetcher` を直接呼べば足りる。
+      `FedifyClient` が elixir/ と delivery/ に約 60 行ずつ重複。
+- [ ] **api↔gateway の `:rpc` 157 呼び出しが型なし.** `{:ok, {:ok, _}}` の二重ラップが
+      実バグになった実績あり。`gateway_not_connected` の分岐が 66 か所。型付き
+      クライアントに集約する。
+- [ ] **秘密鍵 JWK を JSON にして NATS に流し、配送ごとに DB + 署名往復**
+      (`delivery/worker.ex`)。署名を delivery に同居させる案。
+- [ ] **秘密フィールド入りの Ecto `Account` が RPC 戻り値と ETS (`TokenCache`) に載る.**
+      公開投影に絞る。
+- [ ] **delivery に UrlGuard / ActorJson / schema の複製** (CODE_STYLE §3 に反する)。
+- [ ] **`Release` の一度きり関数 7 つ (pre-v0.1.22 向け) は削除候補。**
+      `Maintenance` の `rebuild_remote_note_ids` / `wipe_remote` は SQL で足りる。
+- [ ] **管理画面の EEx 約 1800 行 → SPA の `/admin` へ** (`/api/admin/*` の JSON API は既にある)。
+      下の Admin frontend (htmx) 計画の見直しと同じ話。
