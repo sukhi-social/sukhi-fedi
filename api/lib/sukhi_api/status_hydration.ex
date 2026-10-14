@@ -43,31 +43,31 @@ defmodule SukhiApi.StatusHydration do
     viewer_id = viewer && viewer.id
 
     counts =
-      case GatewayRpc.call(SukhiFedi.Notes, :counts_for_notes, [note_ids]) do
+      case GatewayRpc.run(SukhiFedi.Notes, :counts_for_notes, [note_ids]) do
         {:ok, m} when is_map(m) -> m
         _ -> %{}
       end
 
     viewer_flags =
-      case GatewayRpc.call(SukhiFedi.Notes, :viewer_flags_many, [viewer_id, note_ids]) do
+      case GatewayRpc.run(SukhiFedi.Notes, :viewer_flags_many, [viewer_id, note_ids]) do
         {:ok, m} when is_map(m) -> m
         _ -> %{}
       end
 
     reactions =
-      case GatewayRpc.call(SukhiFedi.Notes, :reactions_for_notes, [note_ids, viewer_id]) do
+      case GatewayRpc.run(SukhiFedi.Notes, :reactions_for_notes, [note_ids, viewer_id]) do
         {:ok, m} when is_map(m) -> m
         _ -> %{}
       end
 
     cards =
-      case GatewayRpc.call(SukhiFedi.PreviewCards, :for_notes, [note_ids]) do
+      case GatewayRpc.run(SukhiFedi.PreviewCards, :for_notes, [note_ids]) do
         {:ok, m} when is_map(m) -> m
         _ -> %{}
       end
 
     parents =
-      case GatewayRpc.call(SukhiFedi.Notes, :parents_for_notes, [note_ids]) do
+      case GatewayRpc.run(SukhiFedi.Notes, :parents_for_notes, [note_ids]) do
         {:ok, m} when is_map(m) -> m
         _ -> %{}
       end
