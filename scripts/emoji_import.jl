@@ -1,58 +1,67 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Emoji pack -> files + SQL. The same job as scripts/prepare_volpeon.mjs
-# (and SukhiFedi.CustomEmojis.import_from_*), written in Tsubaki so the
-# language gets a real ops script to be tried on.
+# Emoji packs -> POST /api/admin/emojis. Replaces scripts/prepare_volpeon.mjs:
+# this script reads packs and decides WHAT to send; the server decides what
+# is valid and writes it (SukhiFedi.CustomEmojis.import_many/3, one
+# transaction, audited). No SQL is built here.
 #
-#   tsbvm emoji_import.tsb       # folded by `tsubakic scripts/emoji_import.jl`
+#   tsubakic out.tsb scripts/emoji_import.jl && tsbvm out.tsb
 #
-# Input : <src>/<pack>/meta.json  + the image files beside it
+# Input : <EMOJI_SRC>/<pack>/meta.json, plus the images beside it
 #         meta.json = {"emojis": [{"fileName": "...",
 #                                  "emoji": {"name", "category", "aliases"}}]}
-# Output: <out>/emojis/<pack>/<file>   the kept images
-#         <out>/import.sql             one transaction of upserts
-#         <out>/excluded.json          what the filter dropped, and why
+#         Images are NOT uploaded: they must already be served at
+#         <EMOJI_BASE_URL>/<pack>/<file> (the rsync step, as before).
+#         A listed emoji whose image file is missing is skipped and reported.
+#
+# Environment:
+#   EMOJI_SRC       packs directory            (/tmp/volpeon_emojis)
+#   EMOJI_BASE_URL  where the images are served (https://sukhi.f3liz.casa/static/emojis)
+#   EMOJI_API       the server                 (https://sukhi.f3liz.casa)
+#   EMOJI_TOKEN     OAuth bearer with admin:write, an admin's   (required)
+#   EMOJI_DRY_RUN   "1" -> the server checks and reports, writes nothing
+#   EMOJI_BATCH     emojis per request         (500; the server's cap is 2000)
+#
+# Exit code 1 if the server refused anything or any emoji came back failed.
 #
 # STATUS: folded with tsubakic and run on the Rust VM (tsbvm) against an
-# in-memory mock of `host` (scripts/emoji_import_test/), and its checks pass:
+# in-memory mock of `host` (scripts/emoji_import_test/), checks pass:
 #
 #   tsubakic out.tsb scripts/emoji_import_test/host_mock.jl \
 #                    scripts/emoji_import.jl scripts/emoji_import_test/check.jl
 #   tsbvm out.tsb
 #
-# NOT run against a real filesystem: `host` is a proposal that tsbvm does
-# not have yet, so the real thing waits for the host implementation.
+# NOT run against a real filesystem or server: `host` is a proposal that
+# tsbvm does not have yet.
 #
-# What this script asks of its host. `host` is a proposal, not a tsbvm
-# builtin yet: `host(name, args...)`, JSON in / JSON out, and nothing else
-# leaves the VM. The embedder chooses which names exist.
+# What this script asks of its host: `host(name, args...)`, JSON in / JSON
+# out, and nothing else leaves the VM. The embedder chooses which names exist.
 #
-#   env.get(name, default)   -> string
-#   fs.dirs(path)            -> [string]      sub-directories, sorted
-#   fs.exists(path)          -> bool
-#   fs.read(path)            -> string
-#   fs.write(path, text)     -> nothing
-#   fs.mkdirp(path)          -> nothing
-#   fs.copy(from, to)        -> nothing
-#   fs.rmrf(path)            -> nothing
-#   json.parse(text)         -> value  (objects become Dict, arrays Vector)
-#   json.stringify(value)    -> string
+#   env.get(name, default)           -> string
+#   fs.dirs(path)                    -> [string]    sub-directories, sorted
+#   fs.exists(path)                  -> bool
+#   fs.read(path)                    -> string
+#   json.parse(text)                 -> value  (objects become Dict, arrays Vector)
+#   http.post_json(url, token, body) -> Dict("status" => Int, "body" => value)
+#   exit(code)                       -> never returns
 #
-# Known to be missing from tsbvm's builtins (from reading vm.rs, not from
-# running): regex, JSON, files, env, time. The weapon filter therefore is
-# a word list + occursin instead of prepare_volpeon.mjs's regex; same
-# substring semantics, case-insensitive via lowercase.
+# Known to be missing from tsbvm's builtins (from reading vm.rs): regex,
+# JSON, files, env, HTTP, time. The weapon filter is therefore a word list +
+# occursin (case-insensitive via lowercase), the same substring test as
+# prepare_volpeon.mjs's regex.
 
 SRC = host("env.get", "EMOJI_SRC", "/tmp/volpeon_emojis")
-OUT = host("env.get", "EMOJI_OUT", "/tmp/volpeon_static")
 BASE = host("env.get", "EMOJI_BASE_URL", "https://sukhi.f3liz.casa/static/emojis")
+API = host("env.get", "EMOJI_API", "https://sukhi.f3liz.casa")
+TOKEN = host("env.get", "EMOJI_TOKEN", "")
+DRY_RUN = host("env.get", "EMOJI_DRY_RUN", "") == "1"
+BATCH = parse(Int, host("env.get", "EMOJI_BATCH", "500"))
 
-# prepare_volpeon.mjs: /(knife|knives|gun|guns|pistol|...)/i, a substring test
 WEAPON_WORDS = ["knife", "knives", "gun", "guns", "pistol", "rifle", "revolver",
                 "shotgun", "sniper", "stab", "stabbed", "blade", "dagger",
                 "sword", "weapon", "grenade", "bomb"]
 
-# a field that is missing, null or not a list reads as "none"
+# a field that is missing or null reads as "none"
 function listof(x)
     if x === nothing
         return []
@@ -72,53 +81,22 @@ function weapon_word(texts)
     return nothing
 end
 
-# SQL string literal: ' -> ''
-function sql_quote(s)
-    return "'" * replace(s, "'" => "''") * "'"
-end
-
-function sql_array(items)
-    if length(items) == 0
-        return "ARRAY[]::varchar[]"
-    end
-    quoted = [sql_quote(a) for a in items]
-    return "ARRAY[" * join(quoted, ",") * "]::varchar[]"
-end
-
-struct Emoji
-    shortcode
-    category
-    aliases
-    image_url
-    pack
-    file_name
-end
-
-function upsert(e)
-    return "INSERT INTO custom_emojis (shortcode, domain, image_url, static_url, category, aliases, visible_in_picker, created_at, last_fetched_at)\n" *
-           "VALUES (" * sql_quote(e.shortcode) * ", NULL, " * sql_quote(e.image_url) * ", " *
-           sql_quote(e.image_url) * ", " * sql_quote(e.category) * ", " * sql_array(e.aliases) *
-           ", true, NOW(), NOW())\n" *
-           "ON CONFLICT (shortcode, domain) DO UPDATE SET\n" *
-           "  image_url = EXCLUDED.image_url,\n" *
-           "  static_url = EXCLUDED.static_url,\n" *
-           "  category = EXCLUDED.category,\n" *
-           "  aliases = EXCLUDED.aliases,\n" *
-           "  visible_in_picker = EXCLUDED.visible_in_picker,\n" *
-           "  last_fetched_at = EXCLUDED.last_fetched_at;"
-end
-
-function import_pack(pack)
+# One pack -> (what to send, what the filter dropped, files that were missing)
+#
+# The locals here are named apart from the script's globals below (excluded,
+# missing, ...) on purpose: in tsbvm and the OCaml runtime, assigning a name
+# inside a function overwrites a global of the same name, where Julia would
+# make a local. (Reproduction in the commit message of this file.)
+function read_pack(pack)
     meta_path = SRC * "/" * pack * "/meta.json"
     if !host("fs.exists", meta_path)
-        return ([], [], 0)
+        return ([], [], [])
     end
     meta = host("json.parse", host("fs.read", meta_path))
-    host("fs.mkdirp", OUT * "/emojis/" * pack)
 
-    kept = []
-    excluded = []
-    copied = 0
+    kept_here = []
+    dropped_here = []
+    absent_here = []
     for item in listof(get(meta, "emojis", nothing))
         info = item["emoji"]
         aliases = listof(get(info, "aliases", nothing))
@@ -126,45 +104,88 @@ function import_pack(pack)
 
         hit = weapon_word(vcat([info["name"], file], aliases))
         if hit !== nothing
-            push!(excluded, Dict("pack" => pack, "name" => info["name"],
-                                 "fileName" => file, "matched" => hit))
+            push!(dropped_here, pack * "/" * file * " (" * hit * ")")
+            continue
+        end
+        if !host("fs.exists", SRC * "/" * pack * "/" * file)
+            push!(absent_here, pack * "/" * file)
             continue
         end
 
-        from = SRC * "/" * pack * "/" * file
-        if host("fs.exists", from)
-            host("fs.copy", from, OUT * "/emojis/" * pack * "/" * file)
-            copied = copied + 1
-        end
-        push!(kept, Emoji(info["name"], get(info, "category", pack), aliases,
-                          BASE * "/" * pack * "/" * file, pack, file))
+        push!(kept_here, Dict("shortcode" => info["name"],
+                              "image_url" => BASE * "/" * pack * "/" * file,
+                              "category" => get(info, "category", pack),
+                              "aliases" => aliases))
     end
-    return (kept, excluded, copied)
+    return (kept_here, dropped_here, absent_here)
+end
+
+# [a, b, c, d, e] with n = 2 -> [[a, b], [c, d], [e]]
+function chunks(items, n)
+    out = []
+    i = 1
+    while i <= length(items)
+        push!(out, items[i:min(i + n - 1, length(items))])
+        i = i + n
+    end
+    return out
 end
 
 # --- main ------------------------------------------------------------------
 
-host("fs.rmrf", OUT)
-host("fs.mkdirp", OUT)
-
-all_kept = []
-all_excluded = []
-copied_total = 0
-for pack in host("fs.dirs", SRC)
-    result = import_pack(pack)
-    for e in result[1]
-        push!(all_kept, e)
-    end
-    for x in result[2]
-        push!(all_excluded, x)
-    end
-    copied_total = copied_total + result[3]
+if TOKEN == ""
+    println("EMOJI_TOKEN is not set: an admin:write bearer token is required")
+    host("exit", 1)
 end
 
-statements = [upsert(e) for e in all_kept]
-host("fs.write", OUT * "/import.sql", "BEGIN;\n" * join(statements, "\n") * "\nCOMMIT;\n")
-host("fs.write", OUT * "/excluded.json", host("json.stringify", all_excluded))
+to_send = []
+excluded = []
+missing = []
+for pack in host("fs.dirs", SRC)
+    result = read_pack(pack)
+    for e in result[1]
+        push!(to_send, e)
+    end
+    for x in result[2]
+        push!(excluded, x)
+    end
+    for m in result[3]
+        push!(missing, m)
+    end
+end
 
-println("Copied $copied_total emoji image files.")
-println("Excluded $(length(all_excluded)) weapon emojis.")
-println("Generated $(length(statements)) SQL statements.")
+batches = chunks(to_send, BATCH)
+imported = 0
+failed = 0
+refused = 0
+for batch in batches
+    response = host("http.post_json", API * "/api/admin/emojis", TOKEN,
+                    Dict("emojis" => batch, "dry_run" => DRY_RUN))
+    if response["status"] != 200
+        refused = refused + 1
+        println("server refused a batch of $(length(batch)): HTTP $(response["status"]) $(response["body"])")
+        continue
+    end
+    body = response["body"]
+    imported = imported + body["imported"]
+    failed = failed + body["failed"]
+    for r in body["results"]
+        if r["status"] != "ok"
+            println("failed: $(r["shortcode"]) -> $(r["error"])")
+        end
+    end
+end
+
+for x in excluded
+    println("excluded: $x")
+end
+for m in missing
+    println("missing image: $m")
+end
+mode = DRY_RUN ? " (dry run)" : ""
+println("Sent $(length(to_send)) emoji in $(length(batches)) request(s)$mode.")
+println("Imported $imported, failed $failed, excluded $(length(excluded)), missing image $(length(missing)).")
+
+if refused > 0 || failed > 0
+    host("exit", 1)
+end
