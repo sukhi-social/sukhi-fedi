@@ -129,10 +129,10 @@ defmodule SukhiApi.Capabilities.Deco do
   # 板を畳むのも admin だけ ── 立てるのと対称。取り消せない。
   def delete_deco(req) do
     with {:ok, _admin} <- AdminAuth.require_admin(req) do
-      case GatewayRpc.call(@gateway, :delete_deco, [req[:path_params]["slug"]]) do
+      case GatewayRpc.run(@gateway, :delete_deco, [req[:path_params]["slug"]]) do
         {:ok, :ok} -> ok(204, %{})
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
-        {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
+        {:error, :not_found} -> ok(404, %{error: "not_found"})
+        {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
         _ -> ok(500, %{error: "internal_error"})
       end
     else
@@ -246,11 +246,11 @@ defmodule SukhiApi.Capabilities.Deco do
   # (裸の :ok/:error を返す gateway 関数なので、下の call/3 は使わない)。
   def delete_post(req) do
     with %{} = viewer <- viewer(req) do
-      case GatewayRpc.call(@gateway, :delete_post, [viewer, req[:path_params]["id"]]) do
+      case GatewayRpc.run(@gateway, :delete_post, [viewer, req[:path_params]["id"]]) do
         {:ok, :ok} -> ok(204, %{})
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
-        {:ok, {:error, :forbidden}} -> ok(403, %{error: "forbidden"})
-        {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
+        {:error, :not_found} -> ok(404, %{error: "not_found"})
+        {:error, :forbidden} -> ok(403, %{error: "forbidden"})
+        {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
         _ -> ok(500, %{error: "internal_error"})
       end
     else
@@ -275,18 +275,16 @@ defmodule SukhiApi.Capabilities.Deco do
   # ── 配線 ─────────────────────────────────────────────────────────────
 
   # gateway の返りは三通り（生の値／{:ok, _}／{:error, _}）。掲示板の
-  # 読みは生の list を返すので、両方をここで受ける。
+  # 読みは生の list を返す。`GatewayRpc.run` が三つを {:ok, v} / {:error, e}
+  # に平らにするので、ここは受けるだけ。
   defp call(fun, args, on_ok) do
-    case GatewayRpc.call(@gateway, fun, args) do
-      {:ok, {:ok, value}} -> on_ok.(value)
-      {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
-      {:ok, {:error, :forbidden}} -> ok(403, %{error: "forbidden"})
-      {:ok, {:error, {:validation, errors}}} -> ok(422, %{error: "validation", detail: errors})
-      {:ok, {:error, reason}} -> ok(422, %{error: to_string(reason)})
-      {:ok, value} when is_list(value) -> on_ok.(value)
-      {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
-      {:error, {:badrpc, reason}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
-      _ -> ok(500, %{error: "internal_error"})
+    case GatewayRpc.run(@gateway, fun, args) do
+      {:ok, value} -> on_ok.(value)
+      {:error, :not_found} -> ok(404, %{error: "not_found"})
+      {:error, :forbidden} -> ok(403, %{error: "forbidden"})
+      {:error, {:validation, errors}} -> ok(422, %{error: "validation", detail: errors})
+      {:error, reason} -> ok(422, %{error: to_string(reason)})
+      {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
     end
   end
 
