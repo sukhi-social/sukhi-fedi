@@ -41,7 +41,7 @@ defmodule SukhiApi.Capabilities.SukhiReactions do
 
     with %{} = v <- viewer || :no_viewer,
          {:ok, emoji} <- decode_emoji(raw),
-         {:ok, {:ok, note}} <- GatewayRpc.call(SukhiFedi.Notes, fun, [v, id, emoji]) do
+         {:ok, note} <- GatewayRpc.run(SukhiFedi.Notes, fun, [v, id, emoji]) do
       # Clips が「自分の Clip に自分でリアクション」でピンを表すので、
       # 別タブ/端末にも見た目を追いつかせるには通常の DM と同じ道が要る。
       SukhiApi.Capabilities.MastodonConversations.maybe_stream_dm(note)
@@ -49,10 +49,9 @@ defmodule SukhiApi.Capabilities.SukhiReactions do
     else
       :no_viewer -> ok(403, %{error: "this endpoint requires a user-bound token"})
       {:error, :bad_emoji} -> ok(400, %{error: "bad_emoji"})
-      {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
-      {:ok, {:error, :forbidden}} -> ok(403, %{error: "forbidden"})
-      {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
-      {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+      {:error, :not_found} -> ok(404, %{error: "not_found"})
+      {:error, :forbidden} -> ok(403, %{error: "forbidden"})
+      {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
       _ -> ok(500, %{error: "internal_error"})
     end
   end
@@ -69,19 +68,19 @@ defmodule SukhiApi.Capabilities.SukhiReactions do
 
   defp render_status_with_context(viewer, note) do
     counts =
-      case GatewayRpc.call(SukhiFedi.Notes, :counts_for_note, [note.id]) do
+      case GatewayRpc.run(SukhiFedi.Notes, :counts_for_note, [note.id]) do
         {:ok, %{} = m} -> m
         _ -> %{}
       end
 
     flags =
-      case GatewayRpc.call(SukhiFedi.Notes, :viewer_flags, [viewer.id, note.id]) do
+      case GatewayRpc.run(SukhiFedi.Notes, :viewer_flags, [viewer.id, note.id]) do
         {:ok, %{} = m} -> m
         _ -> %{}
       end
 
     reactions =
-      case GatewayRpc.call(SukhiFedi.Notes, :reactions_for_notes, [[note.id], viewer.id]) do
+      case GatewayRpc.run(SukhiFedi.Notes, :reactions_for_notes, [[note.id], viewer.id]) do
         {:ok, m} when is_map(m) -> Map.get(m, note.id, [])
         _ -> []
       end

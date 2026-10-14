@@ -65,15 +65,12 @@ defmodule SukhiApi.Capabilities.MastodonTimelines do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.call(SukhiFedi.Timelines, :home, [v, Map.to_list(opts)]) do
+        case GatewayRpc.run(SukhiFedi.Timelines, :home, [v, Map.to_list(opts)]) do
           {:ok, notes} when is_list(notes) ->
             render_page(notes, "/api/v1/timelines/home", opts, v)
 
-          {:error, :not_connected} ->
-            ok(503, %{error: "gateway_not_connected"})
-
-          {:error, {:badrpc, r}} ->
-            ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+          {:unavailable, why} ->
+            ok(503, GatewayRpc.unavailable_body(why))
 
           _ ->
             ok(500, %{error: "internal_error"})
@@ -93,15 +90,12 @@ defmodule SukhiApi.Capabilities.MastodonTimelines do
       viewer = req[:assigns][:current_account]
       opts = with_filters(base_opts, req[:query]) |> maybe_put_viewer(viewer)
 
-      case GatewayRpc.call(SukhiFedi.Timelines, :bubble, [Map.to_list(opts)]) do
+      case GatewayRpc.run(SukhiFedi.Timelines, :bubble, [Map.to_list(opts)]) do
         {:ok, notes} when is_list(notes) ->
           render_page(notes, "/api/v1/timelines/public", opts, viewer)
 
-        {:error, :not_connected} ->
-          ok(503, %{error: "gateway_not_connected"})
-
-        {:error, {:badrpc, r}} ->
-          ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+        {:unavailable, why} ->
+          ok(503, GatewayRpc.unavailable_body(why))
 
         _ ->
           ok(500, %{error: "internal_error"})
@@ -117,15 +111,12 @@ defmodule SukhiApi.Capabilities.MastodonTimelines do
           |> Map.put(:local, true)
           |> Map.put(:remote, false)
 
-        case GatewayRpc.call(SukhiFedi.Timelines, :public, [Map.to_list(opts)]) do
+        case GatewayRpc.run(SukhiFedi.Timelines, :public, [Map.to_list(opts)]) do
           {:ok, notes} when is_list(notes) ->
             render_page(notes, "/api/v1/timelines/public", opts)
 
-          {:error, :not_connected} ->
-            ok(503, %{error: "gateway_not_connected"})
-
-          {:error, {:badrpc, r}} ->
-            ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+          {:unavailable, why} ->
+            ok(503, GatewayRpc.unavailable_body(why))
 
           _ ->
             ok(500, %{error: "internal_error"})
@@ -188,15 +179,12 @@ defmodule SukhiApi.Capabilities.MastodonTimelines do
       |> with_filters(req[:query])
       |> Map.put(:local, parsed["local"] in ["true", "1", nil])
 
-    case GatewayRpc.call(SukhiFedi.Timelines, :tag, [hashtag, Map.to_list(opts)]) do
+    case GatewayRpc.run(SukhiFedi.Timelines, :tag, [hashtag, Map.to_list(opts)]) do
       {:ok, notes} when is_list(notes) ->
         render_page(notes, "/api/v1/timelines/tag/#{hashtag}", opts)
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, r}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
 
       _ ->
         ok(500, %{error: "internal_error"})
