@@ -5,6 +5,10 @@ defmodule SukhiApi.GatewayRpc do
   to read or mutate data owned by the gateway BEAM node
   (`SukhiFedi.*` context modules).
 
+  Calls go through `SukhiFedi.RpcGate` on the gateway, which blanks secret
+  fields (private keys, password hash, TOTP) in the result before it crosses;
+  against a gateway that has no such door yet they are made directly.
+
   The gateway node is read from `Application.get_env(:sukhi_api, :gateway_node)`,
   which in production is supplied via the `GATEWAY_NODE` env var
   (see `api/config/runtime.exs`).
@@ -32,6 +36,7 @@ defmodule SukhiApi.GatewayRpc do
   """
 
   @default_timeout 5_000
+  @gate SukhiFedi.RpcGate
 
   @spec call(module(), atom(), [term()], pos_integer()) ::
           {:ok, term()} | {:error, term()}
@@ -91,12 +96,24 @@ defmodule SukhiApi.GatewayRpc do
       node ->
         _ = maybe_connect(node)
 
-        case :rpc.call(node, mod, fun, args, timeout) do
-          {:badrpc, reason} -> {:error, {:badrpc, reason}}
-          other -> {:ok, other}
+        # Through the gateway's one door, which blanks key material and
+        # password/TOTP secrets in whatever it returns (SukhiFedi.RpcGate).
+        case :rpc.call(node, @gate, :call, [mod, fun, args], timeout) do
+          # A gateway that predates the door: answer directly, as before.
+          {:badrpc, {:EXIT, {:undef, [{@gate, :call, _, _} | _]}}} ->
+            direct(node, mod, fun, args, timeout)
+
+          result ->
+            wrap(result)
         end
     end
   end
+
+  defp direct(node, mod, fun, args, timeout),
+    do: wrap(:rpc.call(node, mod, fun, args, timeout))
+
+  defp wrap({:badrpc, reason}), do: {:error, {:badrpc, reason}}
+  defp wrap(other), do: {:ok, other}
 
   defp gateway_node do
     case Application.get_env(:sukhi_api, :gateway_node) do
