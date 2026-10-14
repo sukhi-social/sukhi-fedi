@@ -129,7 +129,7 @@ defmodule SukhiFedi.Fedi.OjakTest do
                Ojak.ld_verify(%{"type" => "Create"}, FediGolden.public_key())
     end
 
-    test "ojak signs a document that ojak and the native verifier both accept" do
+    test "ojak signs a document that ojak verifies; its block carries `expires`" do
       {:ok, private_key} = JWK.private_key(FediGolden.private_key_jwk())
 
       unsigned =
@@ -137,7 +137,14 @@ defmodule SukhiFedi.Fedi.OjakTest do
 
       assert {:ok, signed} = Ojak.ld_sign(unsigned, private_key, FediGolden.key_id())
       assert :ok = Ojak.ld_verify(signed, FediGolden.public_key())
-      assert :ok = LdSignature.verify(signed, FediGolden.public_key())
+
+      # Mastodon-style options: `expires` is signed along with creator/created,
+      # and there is no embedded `@context`. The native verifier rebuilds
+      # options from creator + created only, so it cannot check this shape —
+      # which is why signing through ojak (OJAK_LD_BACKEND) is a wire change,
+      # not a drop-in.
+      assert %{"expires" => _} = signed["signature"]
+      refute Map.has_key?(signed["signature"], "@context")
     end
   end
 
