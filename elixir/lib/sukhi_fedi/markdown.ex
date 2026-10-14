@@ -22,9 +22,6 @@ defmodule SukhiFedi.Markdown do
   someone else's markup would change their words.
   """
 
-  # gfm for the syntax people actually type; breaks so a newline is a newline.
-  @opts %Earmark.Options{gfm: true, breaks: true}
-
   @doc """
   Markdown → sanitised HTML. Non-binary input (a `nil` body) passes
   through unchanged, so this is safe to drop into a changeset.
@@ -33,8 +30,8 @@ defmodule SukhiFedi.Markdown do
   def to_html(text, lookup \\ &SukhiFedi.Linkify.known_account/1)
 
   def to_html(text, lookup) when is_binary(text) do
-    text
-    |> Earmark.as_html!(@opts)
+    :markdown
+    |> SukhiFedi.Backend.call(:render, [text])
     # `@だれか` と `#なにか` を、ここでリンクにする。Markdown のあと、
     # scrubber の前 ── 出すのはこちらの組んだ小さな HTML なので、その
     # まま allow-list を通して確かめてもらえる。

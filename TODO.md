@@ -349,3 +349,9 @@ session-cookie persists the bearer. Resume from "what's done" below.
 git status
 # Then ask: "TODO.md の Admin frontend のステップ 1 から実装再開"
 ```
+
+## Native seams — follow-ups (docs/native-seams.md)
+- [ ] 不正な UTF-8 を `HTML.sanitize/1` / `Linkify` に渡すと raise する(分離前から)。NIF を入れる前に、facade の境界で 1 回だけ scrub するか決める。
+- [ ] `Markdown.to_html/2` は Earmark が壊れた HTML ブロックで `CaseClauseError` を投げる(分離前から)。投稿が 500 にならないか確認し、必要なら facade で包む。
+- [ ] OpenGraph の regex が呼び出しごとに実行時コンパイルされる(性能のみ)。NIF にする前に module attribute へ。
+- [ ] sanitizer は 1 回で収束しない入力がある(20,000 件中 49)。保存前に 1 回で十分かを確かめる。

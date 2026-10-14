@@ -23,6 +23,8 @@ document and the code. Read it first.
   write, or distribute feature addons)
 - [`web/README.md`](web/README.md) — the bundled SvelteKit SPA (dev server,
   build, e2e)
+- [`docs/native-seams.md`](docs/native-seams.md) — the four places a NIF
+  would plug in (behaviour + Elixir default + shadow), and how to add one
 - [`docs/anubis.md`](docs/anubis.md) — the proof-of-work bot gate that sits
   in front of the gateway
 - [`docs/web-surface.md`](docs/web-surface.md) — which routes face the
