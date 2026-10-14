@@ -47,8 +47,19 @@ defmodule SukhiFedi.Integration.AuthFlowTest do
   defp body!(conn), do: JSON.decode!(conn.resp_body)
 
   defp session_cookie!(conn) do
-    [setcookie] = Plug.Conn.get_resp_header(conn, "set-cookie")
-    [_, token] = Regex.run(~r/session_token=([^;]+)/, setcookie)
+    # A sign-in sets more than one cookie (`sf_signed_in` rides alongside the
+    # session), so pick the session one out rather than matching a lone header.
+    token =
+      conn
+      |> Plug.Conn.get_resp_header("set-cookie")
+      |> Enum.find_value(fn c ->
+        case Regex.run(~r/^session_token=([^;]+)/, c) do
+          [_, t] -> t
+          _ -> nil
+        end
+      end)
+
+    assert is_binary(token)
     token
   end
 
