@@ -141,26 +141,19 @@ defmodule SukhiFedi.CustomEmojis do
 
   # Insert-or-replace by (shortcode, domain).
   #
-  # A remote emoji (domain set) conflicts on the unique index. A LOCAL one
-  # (domain NULL) never does: Postgres treats NULLs as distinct, so the
-  # (shortcode, domain) index lets the same local shortcode in any number of
-  # times. Local rows are therefore looked up and updated here, in code.
-  # (TODO: a partial unique index on shortcode WHERE domain IS NULL would
-  # make the database say it too; it needs the existing duplicates merged
-  # first, which is a data decision, not a code one.)
-  defp upsert(%{domain: nil, shortcode: shortcode} = changes) do
-    existing =
-      Repo.one(
-        from e in CustomEmoji,
-          where: e.shortcode == ^shortcode and is_nil(e.domain),
-          order_by: [asc: e.id],
-          limit: 1
-      )
-
-    case existing do
-      nil -> %CustomEmoji{} |> CustomEmoji.changeset(changes) |> Repo.insert()
-      row -> row |> CustomEmoji.changeset(Map.take(changes, @replaced)) |> Repo.update()
-    end
+  # A remote emoji (domain set) conflicts on the (shortcode, domain) index.
+  # A LOCAL one (domain NULL) never does there -- Postgres treats NULLs as
+  # distinct -- so it has its own partial unique index on shortcode WHERE
+  # domain IS NULL (custom_emojis_local_shortcode_index), and conflicts on
+  # that instead.
+  defp upsert(%{domain: nil} = changes) do
+    %CustomEmoji{}
+    |> CustomEmoji.changeset(changes)
+    |> Repo.insert(
+      on_conflict: {:replace, @replaced},
+      conflict_target: {:unsafe_fragment, "(shortcode) WHERE domain IS NULL"},
+      returning: true
+    )
   end
 
   defp upsert(changes) do
