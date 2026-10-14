@@ -51,7 +51,7 @@ defmodule SukhiFedi.SystemMetricsTest do
   end
 
   test "the sample template renders the snapshot, nil load slot, and disk row" do
-    html = Render.render_template("system/sample.html.eex", metrics: @metrics)
+    html = Render.render_template("system/sample.html.eex", metrics: @metrics, wt_relay: nil)
 
     assert html =~ "42.5"
     # memory 4096 / 8192 MiB at 50%
@@ -64,7 +64,7 @@ defmodule SukhiFedi.SystemMetricsTest do
   end
 
   test "the index template embeds the live sample and the polling hook" do
-    html = Render.render_template("system/index.html.eex", metrics: @metrics)
+    html = Render.render_template("system/index.html.eex", metrics: @metrics, wt_relay: nil)
 
     assert html =~ ~s(hx-get="/admin/system/sample")
     assert html =~ "every 2s"
