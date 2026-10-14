@@ -59,7 +59,7 @@ defmodule SukhiDelivery.Federation.UrlGuard do
   end
 
   # ── IPv4 ───────────────────────────────────────────────────────────────
-  defp public_ip?({a, b, _c, _d}) do
+  defp public_ip?({a, b, c, _d}) do
     cond do
       a == 0 -> false
       a == 10 -> false
@@ -67,7 +67,12 @@ defmodule SukhiDelivery.Federation.UrlGuard do
       a == 169 and b == 254 -> false
       a == 172 and b in 16..31 -> false
       a == 192 and b == 168 -> false
-      a == 192 and b == 0 -> false
+      # 192.0.0.0/24 (IETF protocol assignments) and 192.0.2.0/24 (TEST-NET-1)
+      # only. This said `b == 0`, i.e. all of 192.0.0.0/16, which swallowed
+      # 192.0.64.0/18 — Automattic's ordinary public space — while the gateway's
+      # copy had already been narrowed (2026-09-22). Keep the two decisions
+      # identical: `UrlGuardTest` on both sides runs the same table.
+      a == 192 and b == 0 and c in [0, 2] -> false
       a == 100 and b in 64..127 -> false
       a >= 224 -> false
       true -> true

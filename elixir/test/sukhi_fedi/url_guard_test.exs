@@ -3,7 +3,8 @@ defmodule SukhiFedi.Federation.UrlGuardTest do
   use ExUnit.Case, async: true
 
   # Picked up by the `--only integration` runner; uses IP literals so it
-  # needs no external DNS.
+  # needs no external DNS. Keep this table identical to the delivery node's
+  # `SukhiDelivery.Federation.UrlGuardTest` (it has its own copy of the guard).
   @moduletag :integration
 
   alias SukhiFedi.Federation.UrlGuard

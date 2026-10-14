@@ -16,6 +16,10 @@ defmodule SukhiFedi.Federation.UrlGuard do
 
   import Bitwise
 
+  # The delivery node carries its own copy (`SukhiDelivery.Federation.UrlGuard`,
+  # a separate deployable). Change a rule in both, and the table in both
+  # `UrlGuardTest`s: they are the same list on purpose.
+
   @spec safe?(term()) :: boolean()
   def safe?(url) when is_binary(url) do
     case URI.parse(url) do
