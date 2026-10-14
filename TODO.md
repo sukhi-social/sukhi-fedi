@@ -139,8 +139,7 @@ endpoint surface is mapped out in [`docs/MISSKEY_API.md`](docs/MISSKEY_API.md).
       イメージに tsbvm / tsubakic が無い。入れるか、`make` の手元用ターゲットに
       するか決める。
 - [ ] **絵文字インポートを本物のサーバーで一度通す.** `host` は tsbvm に
-      実装した (nyanrus/tsubaki の `host-capabilities` ブランチ。まだ push して
-      いない)。`scripts/emoji_import.jl` は、パック / Misskey サーバー / JSON
+      入った (nyanrus/tsubaki #7、merge 済み)。`scripts/emoji_import.jl` は、パック / Misskey サーバー / JSON
       ファイルの 3 つの入口を持ち、本物のファイルと HTTP、契約どおりに答える
       偽サーバーまでは通した。本物の `POST /api/admin/emojis` と本物の Misskey
       に対しては未実行 (`EMOJI_DRY_RUN=1` から)。通ったら

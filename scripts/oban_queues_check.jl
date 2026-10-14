@@ -117,9 +117,10 @@ function worker_queues(text)
     return found
 end
 
-# Collected, not counted: a function can push! onto a global list, but
-# assigning to a global from inside a function is not something Julia allows
-# without `global`, which Tsubaki does not read yet.
+# Collected, not counted: a function can push! onto a global list without
+# saying anything; counting would mean assigning to the global from inside
+# the function, which needs `global` (Tsubaki reads it since nyanrus/tsubaki
+# #11). A list needs none of that.
 PROBLEMS = []
 
 function bad(msg)

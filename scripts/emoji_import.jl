@@ -42,7 +42,7 @@
 # the source could not be read.
 #
 # STATUS: folded with tsubakic and run on the Rust VM (tsbvm) with its
-# standard host (nyanrus/tsubaki, branch `host-capabilities`): a scenario per
+# standard host (nyanrus/tsubaki, merged: #7): a scenario per
 # source against an in-memory mock host,
 #
 #   scripts/emoji_import_test/run.sh
@@ -81,11 +81,11 @@ WEAPON_WORDS = ["knife", "knives", "gun", "guns", "pistol", "rifle", "revolver",
                 "shotgun", "sniper", "stab", "stabbed", "blade", "dagger",
                 "sword", "weapon", "grenade", "bomb"]
 
-# A function that assigns a name also used as a global overwrites that global
-# in tsbvm and in the OCaml runtime (Julia would make a local), and `global`
-# is not read yet. So: every function here names its locals apart from the
-# globals above and below, and results leave through return values or by
-# push! onto a list the caller passed in.
+# Scoping is Julia's (nyanrus/tsubaki #11): a function that assigns a name
+# makes a local, and `global x` is how it asks for the global. These functions
+# still keep their locals' names apart from the globals above and below and
+# send results out through return values or by push! onto a list the caller
+# passed in, so none of them depends on that rule.
 
 # a field that is missing or null reads as "none"
 function listof(x)
@@ -248,7 +248,7 @@ function misskey_endpoint(spec)
         return spec
     end
     if startswith(spec, "http://") || startswith(spec, "https://")
-        # drop trailing slashes (a string cannot be sliced here, a list can)
+        # drop trailing slashes (split and rejoin)
         parts = split(spec, "/")
         while length(parts) > 0 && parts[length(parts)] == ""
             pop!(parts)
