@@ -84,4 +84,15 @@ defmodule SukhiFedi.AddonTest do
 
   defp restore(key, nil), do: Application.delete_env(:sukhi_fedi, key)
   defp restore(key, value), do: Application.put_env(:sukhi_fedi, key, value)
+
+  test "Registry.all/0 is computed once per enable/disable setting, not per call" do
+    Application.put_env(:sukhi_fedi, :enabled_addons, :all)
+    Application.put_env(:sukhi_fedi, :disabled_addons, [])
+    first = Registry.all()
+    assert {_key, ^first} = :persistent_term.get({Registry, :all})
+
+    # a changed setting is not answered from the old entry
+    Application.put_env(:sukhi_fedi, :enabled_addons, [])
+    assert Registry.all() == []
+  end
 end

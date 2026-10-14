@@ -343,10 +343,6 @@ git status
 
 ## 構造の見直し候補 (2026-10 の調査から。計測はしていない)
 小さい順。詳しい根拠はセッションの調査メモ(コードの読み取りのみ)。
-- [ ] **`Addon.Registry.enabled?` を `:persistent_term` に畳む.** リクエストごとに
-      全モジュールを走査している。極小の変更で効く。
-- [ ] **`Router` が毎リクエスト capability の routes を再構築している** (`registry.ex`)。
-      起動時に 1 回組んで持つ。
 - [ ] **gateway が自分自身に NATS で往復している** (`fedify.*.v1`)。`Fedi.Service`
       は gateway 内にあるので、`Fedi.Verifier/Inbox/Fetcher` を直接呼べば足りる。
       `FedifyClient` が elixir/ と delivery/ に約 60 行ずつ重複。

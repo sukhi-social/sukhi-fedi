@@ -13,8 +13,33 @@ defmodule SukhiFedi.Addon.Registry do
 
   @abi_major "1"
 
+  # Finding the addons walks every loaded module (thousands) and asks each
+  # for its attributes. `enabled?/1` sits on request paths, so the answer is
+  # kept in :persistent_term, valid for the enable/disable config it was
+  # computed under; changing either setting recomputes it (that is what the
+  # addon tests do). Modules loaded later under unchanged config are not
+  # noticed: in a release the set is fixed at boot.
+  @cache {__MODULE__, :all}
+
   @spec all() :: [module()]
   def all do
+    key = {
+      Application.get_env(:sukhi_fedi, :enabled_addons, :all),
+      Application.get_env(:sukhi_fedi, :disabled_addons, [])
+    }
+
+    case :persistent_term.get(@cache, nil) do
+      {^key, mods} ->
+        mods
+
+      _ ->
+        mods = discover()
+        :persistent_term.put(@cache, {key, mods})
+        mods
+    end
+  end
+
+  defp discover do
     candidates()
     |> Enum.filter(&addon?/1)
     |> filter_enabled()
