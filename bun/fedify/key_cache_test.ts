@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { test, expect, beforeEach } from "bun:test";
+import { test, beforeEach } from "node:test";
+import { expect } from "../test_support/expect.ts";
 import { generateCryptoKeyPair, exportJwk } from "@fedify/fedify";
 import { getImportedPrivateKey, _cacheSize, _cacheClear, type JwkInput } from "./key_cache.ts";
 

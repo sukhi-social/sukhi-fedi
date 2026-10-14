@@ -73,7 +73,8 @@ starts with the gateway above.
 The Bun worker under `bun/` that used to answer these subjects is retired
 (v0.3.0); it's kept only for rollback and as the oracle that mints the golden
 fixtures the native port is checked against. To run it (e.g. to regenerate
-fixtures): `cd bun && bun install && bun run start`.
+fixtures): `cd bun && npm install && npm start` (Node 22+; it runs the
+TypeScript through `tsx`).
 
 ---
 

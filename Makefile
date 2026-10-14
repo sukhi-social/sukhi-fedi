@@ -29,12 +29,11 @@ help:  ## list these targets
 
 setup:  ## fetch every project's dependencies
 	@if [ -n "$(MISE)" ]; then $(MISE) trust >/dev/null 2>&1 && $(MISE) install; fi
-	@command -v bun >/dev/null 2>&1 || echo "note: bun is missing — 'make dev' and 'make test-pglite' need it (https://bun.sh)"
 	@command -v nats-server >/dev/null 2>&1 || echo "note: nats-server is missing — 'make dev' runs without streaming (brew install nats-server nats)"
 	for d in elixir delivery api combined; do (cd $$d && $(RUN) mix deps.get); done
 	cd web && $(RUN) npm install --no-audit --no-fund
-	@command -v bun >/dev/null 2>&1 && (cd web-natadeco && bun install) \
-	  || echo "note: skipping web-natadeco (needs bun)"
+	cd bun && $(RUN) npm install --no-audit --no-fund
+	cd web-natadeco && $(RUN) npm install --no-audit --no-fund
 
 # ── Running it locally ──────────────────────────────────────────────────────
 
@@ -156,8 +155,8 @@ push-styles:  ## rsync only the raw token CSS (server-rendered pages)
 # a frontend of its own (web-natadeco/, brought in 2026-08-25). It is not on
 # DeployEx: its version still travels as an image.
 #
-# It builds with bun, not npm — its own lockfile, left as it was. Unifying
-# the two package managers is a separate decision from moving the code.
+# Built with npm, like web/ (it used to be bun; package-lock.json replaced
+# bun.lock on 2026-10-15).
 NATADECO_STATIC_DIR ?= /var/lib/natadeco/static
 
 # Since 2026-09-03 the pages are rendered by a Node next door (see
@@ -166,7 +165,7 @@ NATADECO_STATIC_DIR ?= /var/lib/natadeco/static
 # Push the static side and the ssr image from the same commit, so the
 # HTML the Node renders names the chunks that are actually there.
 push-natadeco:  ## build web-natadeco and rsync its client assets to natadeco's override dir
-	cd web-natadeco && bun run build
+	cd web-natadeco && $(RUN) npm run build
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(NATADECO_STATIC_DIR) && sudo chown $(DEPLOY_USER) $(NATADECO_STATIC_DIR)"
 	rsync -av --delete --chmod=D755,F644 web-natadeco/build/client/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(NATADECO_STATIC_DIR)/
 

@@ -45,9 +45,9 @@ case "$INSTANCE" in
     BUILD=natadeco-build
     STAGE=natadeco-stage
     DIST_DIR=/var/lib/natadeco/releases
-    SPA=web-natadeco                  # bun とその lockfile のまま（Makefile と同じ）
-    SPA_INSTALL='bun install'
-    SPA_BUILD='bun run build'
+    SPA=web-natadeco                  # web/ と同じ npm（2026-10-15 に bun から）
+    SPA_INSTALL='npm install --no-audit --no-fund'
+    SPA_BUILD='npm run build'
     DASH_PORT=5002
     ;;
   *)

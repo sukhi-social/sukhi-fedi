@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import type { webcrypto } from "node:crypto";
 import { importJwk } from "@fedify/fedify";
+
+// Node's typings declare `CryptoKey` as a value only; this is the type.
+type CryptoKey = webcrypto.CryptoKey;
 
 // Bounded FIFO cache of imported private CryptoKeys. Key is the stable
 // fingerprint of the JWK so two deliveries signed by the same actor reuse

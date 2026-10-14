@@ -3,7 +3,7 @@ import Config
 
 # Connection is env-overridable so the same test suite runs against the
 # docker-compose Postgres (default) or the PGlite embedded DB (no Docker;
-# `make test-pglite` / `bun run services/test_db.ts`). PGlite serves a
+# `make test-pglite` / `node --import tsx services/test_db.ts`). PGlite serves a
 # single connection multiplexed, so the pglite path sets DB_POOL_SIZE=1.
 # Defaults (postgres/postgres) match both the docker image and PGlite.
 config :sukhi_fedi, SukhiFedi.Repo,

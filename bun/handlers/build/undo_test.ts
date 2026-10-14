@@ -7,7 +7,8 @@
 // actor, which made Mastodon reject the Undo for not matching the
 // original activity's owner.
 
-import { test, expect } from "bun:test";
+import { test } from "node:test";
+import { expect } from "../../test_support/expect.ts";
 import { handleBuildUndo } from "./undo.ts";
 import { asStrings, containsPublic, containsFollowers, testCreds } from "./_test_helpers.ts";
 

@@ -4,7 +4,8 @@
 // ghost notes on timelines. Asserts public addressing is on the Delete
 // activity.
 
-import { test, expect } from "bun:test";
+import { test } from "node:test";
+import { expect } from "../../test_support/expect.ts";
 import { handleBuildDelete } from "./delete.ts";
 import { containsPublic, containsFollowers, testCreds } from "./_test_helpers.ts";
 

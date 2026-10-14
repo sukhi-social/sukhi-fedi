@@ -202,7 +202,7 @@ sukhi-fedi/
 │   ├── package.json                       # TS 6.0.3, @fedify/fedify 1.x,
 │   │                                        @js-temporal/polyfill, @nats-io/*
 │   ├── tsconfig.json
-│   └── Dockerfile                         # oven/bun:1-alpine
+│   └── Dockerfile                         # node:22-alpine
 │
 ├── api/                                   # ★ Mastodon/Misskey REST プラグインノード
 │   ├── mix.exs                            # 独立した :sukhi_api アプリ
@@ -854,11 +854,11 @@ cd elixir && mix test --no-start
 # Elixir統合テスト（docker-compose.test.yml 起動済みで）:
 cd elixir && mix test --only integration
 
-# Bun テスト:
-cd bun && bun test
+# Bun 側のテスト（Node 22+、tsx で node:test）:
+cd bun && npm test
 
 # Bun 全体の型チェック（TS 6.0.3 を tsc 経由で）:
-cd bun && bun run check
+cd bun && npm run check
 ```
 
 ## 12. 水平スケールの姿勢
