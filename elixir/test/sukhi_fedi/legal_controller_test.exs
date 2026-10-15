@@ -140,7 +140,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
 
     assert ko =~ ~s(<html lang="ko">)
     assert ko =~ "크레딧"
-    assert ko =~ "있는 그대로의 감사"
+    assert ko =~ "양도할 수 없으며"
     assert ko =~ "연합우주를 널리 알려 주셔서"
     assert ko =~ ~s(href="/credits")
     assert ko =~ ~s(href="/credits?lang=ja")
