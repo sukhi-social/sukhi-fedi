@@ -101,7 +101,7 @@ export function createAutocomplete(options?: { mentionDelayMs?: number }) {
     if (!item) return null;
 
     if (item.type === 'emoji' && emojiFrag) {
-      const replacement = item.emoji.unicode || `:${item.emoji.shortcode}:`;
+      const replacement = `:${item.emoji.shortcode}:`;
       recordRecentEmoji(item.emoji.shortcode);
       const res = applyEmojiPick(text, emojiFrag, replacement);
       close();

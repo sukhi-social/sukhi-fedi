@@ -70,11 +70,10 @@ test('エイリアス（日本語含む）での検索', () => {
   assert.equal(results[0].shortcode, 'blobcat');
 });
 
-test('標準 Unicode 絵文字の検索', () => {
-  const results = searchEmojis('heart');
-  assert.ok(results.length >= 1);
-  assert.equal(results[0].shortcode, 'heart');
-  assert.equal(results[0].unicode, '❤️');
+test('Unicode 絵文字は候補に出ない（端末のキーボードの仕事）', () => {
+  setCustomEmojisCache([]);
+  assert.deepEqual(searchEmojis('heart'), []);
+  assert.deepEqual(searchEmojis('ねこ'), []);
 });
 
 test('コロン付きクエリ（:blob）でも正常に検索できる', () => {

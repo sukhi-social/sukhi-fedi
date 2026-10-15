@@ -2,7 +2,6 @@
 <script lang="ts">
   import type { AutocompleteItem } from '$lib/autocomplete.svelte';
   import Avatar from './Avatar.svelte';
-  import Twemoji from './Twemoji.svelte';
 
   let {
     items = [],
@@ -37,8 +36,6 @@
                 alt={item.emoji.shortcode}
                 loading="lazy"
               />
-            {:else if item.emoji.unicode}
-              <Twemoji emoji={item.emoji.unicode} />
             {/if}
           </div>
           <span class="emoji-shortcode">:{item.emoji.shortcode}:</span>

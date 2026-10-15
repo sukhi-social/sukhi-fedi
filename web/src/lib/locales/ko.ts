@@ -179,6 +179,13 @@ export const ko: Dict = {
 
   // ── 반응 고르기 ──────────────────────────────────────
   'reaction.pick': '반응 고르기',
+  'emojiPicker.search': '이모지 찾기',
+  'emojiPicker.all': '전체',
+  'emojiPicker.recent': '최근 사용',
+  'emojiPicker.uncategorized': '기타',
+  'emojiPicker.empty': '찾지 못했어요',
+  'emojiPicker.none': '이 서버에는 아직 커스텀 이모지가 없어요. 일반 이모지는 기기의 키보드에서 넣어 주세요.',
+  'emojiPicker.close': '닫기',
 
   // ── 팔로우 버튼 ──────────────────────────────────────
   'follow.following': '팔로잉',

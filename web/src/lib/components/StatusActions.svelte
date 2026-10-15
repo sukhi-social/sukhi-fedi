@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Status, Reaction } from '$lib/api';
   import * as api from '$lib/api';
-  import ReactionPicker from './ReactionPicker.svelte';
+  import EmojiPicker from './EmojiPicker.svelte';
   import NavIcon from './NavIcon.svelte';
   import Twemoji from './Twemoji.svelte';
   import { t } from '$lib/i18n';
@@ -315,7 +315,7 @@
 
 {#if pickerOpen}
   <div class="picker-anchor">
-    <ReactionPicker onpick={pickFromPicker} onclose={() => (pickerOpen = false)} />
+    <EmojiPicker onpick={pickFromPicker} onclose={() => (pickerOpen = false)} />
   </div>
 {/if}
 
