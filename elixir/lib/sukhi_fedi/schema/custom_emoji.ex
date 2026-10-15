@@ -30,5 +30,6 @@ defmodule SukhiFedi.Schema.CustomEmoji do
     ])
     |> validate_required([:shortcode, :image_url])
     |> unique_constraint([:shortcode, :domain], name: :custom_emojis_shortcode_domain_index)
+    |> unique_constraint(:shortcode, name: :custom_emojis_local_shortcode_index)
   end
 end

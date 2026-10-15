@@ -45,6 +45,30 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
       assert updated.image_url == "https://example.com/2.png"
       assert updated.category == "B"
     end
+
+    test "registering the same local shortcode twice leaves one row" do
+      for n <- 1..2, do: {:ok, _} = CustomEmojis.register(%{name: "once_only", url: "https://example.com/#{n}.png"})
+
+      import Ecto.Query
+      assert Repo.aggregate(from(e in CustomEmoji, where: e.shortcode == "once_only"), :count) == 1
+    end
+
+    test "the database itself refuses a second local row with the same shortcode" do
+      row = fn -> %CustomEmoji{} |> CustomEmoji.changeset(%{shortcode: "db_says", image_url: "https://example.com/a.png"}) end
+
+      assert {:ok, _} = Repo.insert(row.())
+      assert {:error, changeset} = Repo.insert(row.())
+      assert {"has already been taken", _} = changeset.errors[:shortcode]
+    end
+
+    test "a remote emoji may share a local shortcode" do
+      assert {:ok, _} = CustomEmojis.register(%{name: "shared_name", url: "https://example.com/l.png"})
+
+      assert {:ok, remote} =
+               CustomEmojis.register(%{name: "shared_name", url: "https://far.example/r.png", domain: "far.example"})
+
+      assert remote.domain == "far.example"
+    end
   end
 
   describe "list_local/1 and list_categories/0" do
