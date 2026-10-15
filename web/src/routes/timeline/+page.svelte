@@ -281,26 +281,31 @@
   {#if loggedIn}
     <button
       type="button"
+      class="tab"
       aria-pressed={kind === 'home'}
       onclick={() => selectKind('home')}
     >{$t('timeline.tabHome')}</button>
   {/if}
   <button
     type="button"
+    class="tab"
     aria-pressed={kind === 'public'}
     onclick={() => selectKind('public')}
   >{$t('timeline.tabPublic')}</button>
   <button
     type="button"
+    class="tab"
     aria-pressed={kind === 'bubble'}
     onclick={() => selectKind('bubble')}
   >{$t('timeline.tabBubble')}</button>
   <button
     type="button"
+    class="tab"
     aria-pressed={kind === 'tag'}
     onclick={() => selectKind('tag')}
   >{$t('timeline.tabTag')}</button>
   <TimelineFilter
+    tabbed
     bind:onlyMedia
     bind:hideBoosts
     bind:hideSensitive

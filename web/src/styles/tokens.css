@@ -91,6 +91,8 @@
   --radius: 5px;
   --radius-sm: 3px;
   --measure: 36rem;
+  /* 下の親指の帯の高さ。帯と、その上に貼る返信箱が同じ数を使う。 */
+  --bottom-nav-h: 3.75rem;
   --page: 64rem;
 }
 

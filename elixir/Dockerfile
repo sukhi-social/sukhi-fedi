@@ -21,18 +21,9 @@ FROM elixir:1.20-alpine AS build
 
 WORKDIR /app
 
-# bash: ezstd's build_deps.sh (compiles the bundled zstd for the NIF) has
-# a bash shebang; Alpine ships only busybox sh, so without it the dep
-# fails with `env: can't execute 'bash'`. zstd builds with make here
-# (build-base) — cmake is optional and intentionally absent.
-#
-# sccache wraps cc/g++ so ezstd's from-scratch zstd+NIF build (measured at
-# ~85s of a cold build, mostly C compilation) can be skipped on a cache hit
-# instead of rebuilt. Content-hashed, unlike caching _build/deps directly —
-# it can only ever serve back an identical result or miss, never something
-# stale, which is what bit us caching compiled Elixir output before.
-RUN apk add --no-cache build-base git bash sccache
-ENV CC="sccache gcc" CXX="sccache g++"
+# build-base: a few deps (argon2_elixir) compile C with make; cmake is
+# optional and intentionally absent. git: ojak is a github dep.
+RUN apk add --no-cache build-base git
 
 # VERSION lives at the repo root and is read at compile time by
 # elixir/mix.exs and api/mix.exs. The gateway image only needs the
@@ -53,8 +44,10 @@ RUN MIX_ENV=prod mix deps.get --only prod
 # layer for the later `mix release` step, which doesn't get the mount.
 # docker-deps-cache.exs does the actual staleness decision — see its
 # header for why a plain persisted _build isn't safe on its own.
-RUN --mount=type=cache,target=/sccache,id=sukhi-fedi-gateway-sccache,sharing=locked \
-    --mount=type=cache,target=/build-cache,id=sukhi-fedi-gateway-build,sharing=locked \
+# Deps compile in parallel OS processes (Elixir 1.19+): `mix deps.compile`
+# otherwise walks ~150 deps one at a time and a cold build is mostly that
+# walk. One partition per core.
+RUN --mount=type=cache,target=/build-cache,id=sukhi-fedi-gateway-build,sharing=locked \
     sh -c ' \
       set -eu; \
       rm -rf ./_build; \
@@ -63,8 +56,7 @@ RUN --mount=type=cache,target=/sccache,id=sukhi-fedi-gateway-sccache,sharing=loc
       # rm keeps the restore exact.
       [ -d /build-cache/_build ] && cp -a /build-cache/_build ./_build || true; \
       elixir docker-deps-cache.exs; \
-      SCCACHE_DIR=/sccache MIX_ENV=prod mix deps.compile; \
-      sccache --show-stats; \
+      MIX_OS_DEPS_COMPILE_PARTITION_COUNT=$(nproc) MIX_ENV=prod mix deps.compile; \
       rm -rf /build-cache/_build; \
       cp -a _build /build-cache/_build \
     '

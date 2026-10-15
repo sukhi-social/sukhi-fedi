@@ -8,27 +8,25 @@
 # combined release serves the same web UI on :4000.
 
 # ── SPA build ─────────────────────────────────────────────────────────────
-FROM node:24-alpine AS spa
+FROM node:24-alpine AS spa-deps
 
 WORKDIR /spa
 RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
+FROM spa-deps AS spa
 COPY web/ ./
 RUN pnpm run build
 
 # ── Elixir release build ──────────────────────────────────────────────────
-FROM elixir:1.20-alpine AS build
+FROM elixir:1.20-alpine AS deps
 
 WORKDIR /repo
 
-# bash: ezstd's build_deps.sh needs it (see elixir/Dockerfile). sccache
-# wraps cc/g++ so ezstd's from-scratch zstd+NIF build doesn't get rebuilt
-# on a cache hit — measured ~75s saved on the gateway image; see
-# elixir/Dockerfile's comment for why this is content-hashed and safe.
-RUN apk add --no-cache build-base git bash sccache
-ENV CC="sccache gcc" CXX="sccache g++"
+# build-base: a few deps (argon2_elixir) compile C with make. git: ojak is
+# a github dep.
+RUN apk add --no-cache build-base git
 
 COPY VERSION ./VERSION
 # Path dependency of elixir/ and delivery/; needed in full before deps.get.
@@ -46,8 +44,10 @@ RUN MIX_ENV=prod mix deps.get --only prod
 # See elixir/Dockerfile's comment on the matching step for why this is
 # safe: docker-deps-cache.exs decides staleness from mix.lock's own
 # content hash, never from mtime ordering alone.
-RUN --mount=type=cache,target=/sccache,id=sukhi-fedi-combined-sccache,sharing=locked \
-    --mount=type=cache,target=/build-cache,id=sukhi-fedi-combined-build,sharing=locked \
+# Deps compile in parallel OS processes (Elixir 1.19+): `mix deps.compile`
+# otherwise walks ~150 deps one at a time and a cold build is mostly that
+# walk. One partition per core.
+RUN --mount=type=cache,target=/build-cache,id=sukhi-fedi-combined-build,sharing=locked \
     sh -c ' \
       set -eu; \
       rm -rf ./_build; \
@@ -57,11 +57,16 @@ RUN --mount=type=cache,target=/sccache,id=sukhi-fedi-combined-sccache,sharing=lo
       # instead of replacing, and the restore silently does nothing.
       [ -d /build-cache/_build ] && cp -a /build-cache/_build ./_build || true; \
       elixir /repo/docker-deps-cache.exs; \
-      SCCACHE_DIR=/sccache MIX_ENV=prod mix deps.compile; \
-      sccache --show-stats; \
+      MIX_OS_DEPS_COMPILE_PARTITION_COUNT=$(nproc) MIX_ENV=prod mix deps.compile; \
       rm -rf /build-cache/_build; \
       cp -a _build /build-cache/_build \
     '
+
+# Everything above changes only with a lockfile; everything below changes
+# with every commit. CI exports its layer cache from `cache-warm` (below)
+# and only reads it for the full build, so the per-commit layers (SPA
+# output, the release) aren't uploaded just to be thrown away.
+FROM deps AS build
 
 WORKDIR /repo
 COPY elixir/config elixir/config
@@ -101,6 +106,13 @@ RUN --mount=type=cache,target=/app-cache,id=sukhi-fedi-combined-app,sharing=lock
       MIX_ENV=prod mix release; \
       for a in $apps; do rm -rf /app-cache/$a; cp -a _build/prod/lib/$a /app-cache/$a; done \
     '
+
+# ── CI cache export target ────────────────────────────────────────────────
+# Builds the two slow-to-change stages and nothing else:
+#   docker build --target cache-warm --cache-to ... -f combined/Dockerfile .
+FROM scratch AS cache-warm
+COPY --from=spa-deps /spa/package.json /spa-deps
+COPY --from=deps /repo/combined/mix.exs /deps
 
 # ── Runtime ───────────────────────────────────────────────────────────────
 FROM elixir:1.20-alpine

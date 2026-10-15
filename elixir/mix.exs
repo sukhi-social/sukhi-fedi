@@ -82,11 +82,6 @@ defmodule SukhiFedi.MixProject do
       {:hackney, "~> 1.20"},
       {:sweet_xml, "~> 0.7"},
 
-      # zstd (NIF) — compresses inbound AP originals before they land in
-      # the `inbound` bucket (Q10 archive layer). Mature, stable wire
-      # format, so an archived original stays decodable long-term.
-      {:ezstd, "~> 1.0"},
-
       # libvips (NIF) — remote media proxy の WebP / AVIF 変換レイヤー
       # (Web.MediaTranscode)。precompiled の NIF + libvips が hex /
       # GitHub releases から落ちてくるので、alpine(musl) の build /

@@ -7,11 +7,11 @@ defmodule SukhiFedi.Federation.OutboundArchive do
   are kept verbatim, so keep the outgoing ones too. The `outbox` table holds
   only intent and is pruned; this is the durable record of what we sent.
 
-  Cross-node: the delivery node (`SukhiDelivery.Delivery.Worker`) has no S3 /
-  zstd dependencies, so it doesn't archive inline. After a terminal POST it
+  Cross-node: the delivery node (`SukhiDelivery.Delivery.Worker`) has no S3
+  dependencies, so it doesn't archive inline. After a terminal POST it
   inserts an Oban job into the shared `oban_jobs` table naming this worker as
   a string on the `outbound_archive` queue — only the gateway (which has
-  ex_aws + ezstd + the S3 config) polls that queue, so the PUT + index happen
+  ex_aws + the S3 config) polls that queue, so the PUT + index happen
   here. The job is durable and retried, like the inbound archive.
 
   Key: `outbound/<yyyy>/<mm>/<dd>/<sha256(body)>.json.zst`. The body is
@@ -57,7 +57,10 @@ defmodule SukhiFedi.Federation.OutboundArchive do
 
   defp put_object(key, body, args) do
     bucket = outbound_bucket()
-    compressed = :ezstd.compress(body, @zstd_level)
+    compressed =
+      body
+      |> :zstd.compress(%{compressionLevel: @zstd_level})
+      |> IO.iodata_to_binary()
 
     meta =
       [

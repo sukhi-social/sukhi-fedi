@@ -66,7 +66,7 @@ defmodule SukhiFedi.Integration.OutboundArchiveTest do
       assert {:ok, %{body: compressed}} =
                ExAws.S3.get_object(bucket, ev.object_key) |> ExAws.request()
 
-      assert :ezstd.decompress(compressed) == body
+      assert compressed |> :zstd.decompress() |> IO.iodata_to_binary() == body
     end
 
     test "is idempotent on (activity_id, inbox_url)" do
