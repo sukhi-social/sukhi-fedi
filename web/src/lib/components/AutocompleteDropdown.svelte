@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script lang="ts">
-  import type { AutocompleteItem } from '$lib/autocomplete.svelte';
+  import type { AutocompleteItem } from '#lib/autocomplete.svelte.js';
   import Avatar from './Avatar.svelte';
 
   let {

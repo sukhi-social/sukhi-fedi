@@ -14,7 +14,7 @@
 // copies `build/` — a Dockerfile, the on-box release build, an rsync —
 // carries this file along without knowing about it.
 //
-// Runs as `postbuild`, so `npm run build` is all anyone has to remember.
+// Runs as `postbuild`, so `pnpm run build` is all anyone has to remember.
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 

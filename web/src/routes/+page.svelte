@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { isLoggedIn } from '$lib/auth';
+  import { isLoggedIn } from '#lib/auth.js';
   import { goto } from '$app/navigation';
-  import LaneDoor from '$lib/components/LaneDoor.svelte';
-  import LangSwitch from '$lib/components/LangSwitch.svelte';
-  import LegalFooter from '$lib/components/LegalFooter.svelte';
-  import { t } from '$lib/i18n';
+  import LaneDoor from '#lib/components/LaneDoor.svelte';
+  import LangSwitch from '#lib/components/LangSwitch.svelte';
+  import LegalFooter from '#lib/components/LegalFooter.svelte';
+  import { t } from '#lib/i18n.js';
 
   onMount(() => {
     if (isLoggedIn()) {

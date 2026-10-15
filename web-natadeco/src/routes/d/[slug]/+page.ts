@@ -1,5 +1,5 @@
-import { browser } from '$app/environment';
-import { getDeco, listPosts, listFlow, listDecoTags, startOfToday } from '$lib/api';
+import { browser } from '$app/env';
+import { getDeco, listPosts, listFlow, listDecoTags, startOfToday } from '#lib/api.js';
 import type { PageLoad } from './$types';
 
 // 板一枚と、その中身。サーバでは匿名で取るので、入っている人はブラウザ

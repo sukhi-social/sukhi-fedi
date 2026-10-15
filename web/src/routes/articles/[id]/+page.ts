@@ -3,7 +3,7 @@
 //
 // 期待どおり失敗は throw せず種別を返す(load は予測でも走るので、ここで
 // ログアウト等の副作用を起こさない)。
-import { getStatus, getContext, type Status } from '$lib/api';
+import { getStatus, getContext, type Status } from '#lib/api.js';
 
 // 動的セグメント (id) はビルド時のクロールでは見つからないので、この
 // ルートだけ prerender を切る。中身は SPA 側で fetch するため ssr も切る。

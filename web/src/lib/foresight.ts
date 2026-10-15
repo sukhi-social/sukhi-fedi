@@ -18,7 +18,7 @@
 
 import { ForesightManager } from 'js.foresight';
 import { preloadData } from '$app/navigation';
-import { isLoggedIn } from '$lib/auth';
+import { isLoggedIn } from '#lib/auth.js';
 
 // SvelteKit が持たない道。ここへ向かうリンクに preloadData を呼ぶと投げるので、
 // 登録の時点で外す。

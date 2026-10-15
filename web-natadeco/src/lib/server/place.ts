@@ -12,7 +12,7 @@
 // 叩く。Referer が無いと 403。嫌がられたら名指しで弾けるように、
 // 正直な名前で行く。
 
-import type { Place } from '$lib/api';
+import type { Place } from '#lib/api.js';
 
 const UA = 'Mozilla/5.0 (compatible; travel.natadeco.com/0.1; +https://travel.natadeco.com/) a travel journal';
 

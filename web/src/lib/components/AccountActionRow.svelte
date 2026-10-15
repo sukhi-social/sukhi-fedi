@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { Account, Relationship } from '$lib/api';
+  import type { Account, Relationship } from '#lib/api.js';
   import FollowButton from './FollowButton.svelte';
   import Avatar from './Avatar.svelte';
-  import { phrase } from '$lib/phrase';
-  import { renderEmojis } from '$lib/emoji';
+  import { phrase } from '#lib/phrase.js';
+  import { renderEmojis } from '#lib/emoji.js';
 
   // アバター＋名前＋操作ボタンの行。解除・外す・削除など、相手の
   // アカウントに対して一手だけ用意したい一覧（ブロック/ミュート管理、リスト

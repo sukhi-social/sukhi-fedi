@@ -12,10 +12,10 @@ import {
   getPushConfig,
   getPushSubscription,
   putPushSubscription
-} from '$lib/api';
-import { loadToken } from '$lib/auth';
-import { adoptDirectTypes } from '$lib/notify';
-import { alertsFor, decodeServerKey, pushSupported } from '$lib/push';
+} from '#lib/api.js';
+import { loadToken } from '#lib/auth.js';
+import { adoptDirectTypes } from '#lib/notify.js';
+import { alertsFor, decodeServerKey, pushSupported } from '#lib/push.js';
 
 export type PushState =
   | 'unsupported' // このブラウザ・この機械では、そもそも扱えない

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { MediaAttachment } from '$lib/api';
-  import { browser } from '$app/environment';
-  import { proxyVariants } from '$lib/proxyImage';
-  import { t } from '$lib/i18n';
+  import type { MediaAttachment } from '#lib/api.js';
+  import { browser } from '$app/env';
+  import { proxyVariants } from '#lib/proxyImage.js';
+  import { t } from '#lib/i18n.js';
 
   // 動きを控えめにしたい人の合図。base.css の view-transition と同じ
   // prefers-reduced-motion を読んで、gifv の自動ループを止める。true の
@@ -30,9 +30,11 @@
 
 <div class="media" class:sensitive={blurMedia}>
   {#if blurMedia}
-    <button type="button" class="media-reveal" onclick={() => (mediaShown = true)}>
-      {$t('status.tapToShow')}
-    </button>
+    <button
+      type="button"
+      class="media-reveal"
+      onclick={() => mediaShown = true}
+    >{$t('status.tapToShow')}</button>
   {/if}
   {#each attachments as m (m.id)}
     {#if m.type === 'image'}
@@ -40,7 +42,7 @@
       <button
         type="button"
         class="media-zoom"
-        onclick={() => (lightbox = m.url)}
+        onclick={() => lightbox = m.url}
         aria-label={m.description || $t('status.imageZoom')}
       >
         <!-- リモート画像はプロキシに avif/webp 変換を頼む。ライトボックスも
@@ -86,7 +88,7 @@
     type="button"
     class="lightbox"
     aria-label={$t('status.close')}
-    onclick={() => (lightbox = null)}
+    onclick={() => lightbox = null}
     onkeydown={(e) => e.key === 'Escape' && (lightbox = null)}
   >
     <picture>

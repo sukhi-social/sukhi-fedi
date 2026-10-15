@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Author } from '$lib/api';
+  import type { Author } from '#lib/api.js';
 
   // 板の上に立つ、その人。表示名を大きく、ハンドルを小さく ── 同じ
   // 表示名が並んだときに、どちらか分かるように両方出す。

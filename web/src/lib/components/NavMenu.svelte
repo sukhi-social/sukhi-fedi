@@ -33,12 +33,14 @@
     if (open && e.key === 'Escape') open = false;
   }
 
-  afterNavigate(() => {
+  afterNavigate(({ shallow, type }) => {
+    if (shallow && type === 'goto') return;
+
     open = false;
   });
 </script>
 
-<svelte:window onclick={onWindowClick} onkeydown={onWindowKey} />
+<svelte:window onclick={onWindowClick} onkeydown={onWindowKey}></svelte:window>
 
 <div class="nav-menu" bind:this={root}>
   <button
@@ -47,10 +49,9 @@
     aria-haspopup="menu"
     aria-expanded={open}
     aria-label={ariaLabel}
-    onclick={() => (open = !open)}
-  >
-    {@render trigger()}
-  </button>
+    onclick={() => open = !open}
+  >{@render trigger()}</button>
+
   {#if open}
     <div class="nav-menu-panel" role="menu">
       {@render children()}

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { Status, Reaction } from '$lib/api';
-  import * as api from '$lib/api';
+  import type { Status, Reaction } from '#lib/api.js';
+  import * as api from '#lib/api.js';
   import EmojiPicker from './EmojiPicker.svelte';
   import NavIcon from './NavIcon.svelte';
   import Twemoji from './Twemoji.svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n.js';
 
   let {
     status,

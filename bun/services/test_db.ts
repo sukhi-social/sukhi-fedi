@@ -4,9 +4,9 @@
 // exposed over the Postgres wire protocol so Elixir's Postgrex can
 // connect — no Docker / Postgres server required.
 //
-//   node --import tsx services/test_db.ts            # in-memory, 127.0.0.1:15432
-//   PGLITE_PORT=15999 node --import tsx services/test_db.ts
-//   PGLITE_DATA=./.pglite-test node --import tsx ...  # persist to a dir
+//   node --import @oxc-node/core/register services/test_db.ts            # in-memory, 127.0.0.1:15432
+//   PGLITE_PORT=15999 node --import @oxc-node/core/register services/test_db.ts
+//   PGLITE_DATA=./.pglite-test node --import @oxc-node/core/register ...  # persist to a dir
 //
 // Caveats (see docs/TESTING.md): single database (PGlite has no
 // CREATE DATABASE — the Repo connects with whatever DB name PGlite

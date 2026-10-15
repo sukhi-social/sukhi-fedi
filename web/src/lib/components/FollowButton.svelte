@@ -3,10 +3,10 @@
     followAccount,
     unfollowAccount,
     type Relationship
-  } from '$lib/api';
-  import { clearToken, isLoggedIn } from '$lib/auth';
+  } from '#lib/api.js';
+  import { clearToken, isLoggedIn } from '#lib/auth.js';
   import { goto } from '$app/navigation';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n.js';
 
   let {
     accountId,

@@ -3,8 +3,8 @@
   // 入力を、持たない人(いまの標準)には「コードを送る→6桁入力」を
   // 出す。親はバインドされた password / reauthCode を Reauth 型に
   // 詰めてサーバへ渡すだけ。
-  import { requestReauthCode } from '$lib/auth';
-  import { t } from '$lib/i18n';
+  import { requestReauthCode } from '#lib/auth.js';
+  import { t } from '#lib/i18n.js';
 
   let {
     hasPassword,

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getAccountCached, type Status } from '$lib/api';
+  import { getAccountCached, type Status } from '#lib/api.js';
   import Self from './Status.svelte';
   import Avatar from './Avatar.svelte';
   import CircleBadge from './CircleBadge.svelte';
@@ -9,10 +9,10 @@
   import StatusPoll from './StatusPoll.svelte';
   import PreviewCard from './PreviewCard.svelte';
   import Twemoji from './Twemoji.svelte';
-  import { renderEmojis } from '$lib/emoji';
-  import { renderMfm } from '$lib/mfm';
-  import { phrase } from '$lib/phrase';
-  import { t, locale, type Locale, type TranslationKey } from '$lib/i18n';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { renderMfm } from '#lib/mfm.js';
+  import { phrase } from '#lib/phrase.js';
+  import { t, locale, type Locale, type TranslationKey } from '#lib/i18n.js';
 
   let {
     status,

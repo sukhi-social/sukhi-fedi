@@ -5,12 +5,12 @@
     lookupAccount,
     type Account,
     type Relationship
-  } from '$lib/api';
-  import { clearToken } from '$lib/auth';
-  import { createPager } from '$lib/pager.svelte';
-  import { loadAccountList, type AccountKind } from '$lib/relations';
+  } from '#lib/api.js';
+  import { clearToken } from '#lib/auth.js';
+  import { createPager } from '#lib/pager.svelte.js';
+  import { loadAccountList, type AccountKind } from '#lib/relations.js';
   import AccountRow from './AccountRow.svelte';
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n.js';
 
   let { acct, kind }: { acct: string; kind: AccountKind } = $props();
 

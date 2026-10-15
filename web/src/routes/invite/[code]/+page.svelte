@@ -1,18 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { saveSignupDraft } from '$lib/auth';
-  import { t } from '$lib/i18n';
-  import LangSwitch from '$lib/components/LangSwitch.svelte';
+  import { saveSignupDraft } from '#lib/auth.js';
+  import { t } from '#lib/i18n.js';
+  import LangSwitch from '#lib/components/LangSwitch.svelte';
 
-  let code = $derived($page.params.code ?? '');
+  let code = $derived(page.params.code ?? '');
 
   // サーバの確認結果。valid の二択 ─ 生きていれば誰が招いたか、
   // そうでなければ理由(used/expired/invalid)だけ。
-  type Preview =
-    | { valid: true; issuer_handle: string | null; issuer_display_name: string | null }
-    | { valid: false; reason: string };
+  type Preview = 
+    { 
+      valid: true;
+      issuer_handle: string | null;
+      issuer_display_name: string | null
+     } |
+    { valid: false; reason: string };
 
   let phase = $state<'loading' | 'ok' | 'dead' | 'error'>('loading');
   let issuer = $state<string | null>(null);
@@ -38,7 +42,7 @@
         phase = 'error';
         return;
       }
-      const data = (await res.json()) as Preview;
+      const data = await res.json() as Preview;
       if (data.valid) {
         // 表示名があればそれ、無ければ @ハンドル、どちらも無ければ
         // 名前を伏せて「招待されています」だけ出す。

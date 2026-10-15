@@ -9,10 +9,10 @@
     signedIn,
     type Person,
     type Post
-  } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
-  import Flow from '$lib/Flow.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  } from '#lib/api.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import Flow from '#lib/Flow.svelte';
+  import PageHeader from '#lib/PageHeader.svelte';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();

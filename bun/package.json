@@ -3,33 +3,37 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "node --import tsx services/fedify_service.ts",
-    "test": "node --import tsx --test $(find . -name '*_test.ts' -not -path './node_modules/*')",
+    "start": "node --import @oxc-node/core/register services/fedify_service.ts",
+    "test": "node --import @oxc-node/core/register --test $(find . -name '*_test.ts' -not -path './node_modules/*')",
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@fedify/fedify": "2.2.3",
+    "@fedify/fedify": "2.4.4",
     "@js-temporal/polyfill": "^0.5.1",
-    "@nats-io/nats-core": "3.3.1",
-    "@nats-io/services": "3.3.1",
-    "nats": "npm:@nats-io/transport-node@3.3.1"
+    "@nats-io/nats-core": "3.4.0",
+    "@nats-io/services": "3.4.0",
+    "nats": "npm:@nats-io/transport-node@3.4.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.4.6",
     "@electric-sql/pglite-socket": "^0.1.6",
-    "@types/node": "^24",
-    "tsx": "^4",
+    "@oxc-node/core": "^0.1.7",
+    "@types/node": "^24.19.2",
+    "json-canon": "^1.0.1",
     "typescript": "^6.0.3"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
-  "overrides": {
-    "@fedify/vocab": "2.2.3",
-    "@fedify/vocab-runtime": "2.2.3",
-    "@fedify/vocab-tools": "2.2.3",
-    "@fedify/webfinger": "2.2.3",
-    "@nats-io/nats-core": "3.3.1",
-    "@logtape/logtape": "2.1.1"
-  }
+  "pnpm": {
+    "overrides": {
+      "@fedify/vocab": "2.4.4",
+      "@fedify/vocab-runtime": "2.4.4",
+      "@fedify/vocab-tools": "2.4.4",
+      "@fedify/webfinger": "2.4.4",
+      "@nats-io/nats-core": "3.4.0",
+      "@logtape/logtape": "2.4.1"
+    }
+  },
+  "packageManager": "pnpm@10.28.2"
 }

@@ -4,9 +4,9 @@
   // 行き先だけを素直に出す ─ 数字も、煽りも、アニメーションもなし。
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getMigration, setAliases, moveAccount } from '$lib/api';
-  import { clearToken, isLoggedIn } from '$lib/auth';
-  import { t, type TranslationKey } from '$lib/i18n';
+  import { getMigration, setAliases, moveAccount } from '#lib/api.js';
+  import { clearToken, isLoggedIn } from '#lib/auth.js';
+  import { t, type TranslationKey } from '#lib/i18n.js';
 
   const MAX_ALIASES = 5;
 

@@ -14,7 +14,7 @@
 // automatically via `queue: "fedify-workers"` so load is balanced across
 // instances.
 //
-// Running: NATS_URL=nats://localhost:4222 node --import tsx services/fedify_service.ts
+// Running: NATS_URL=nats://localhost:4222 node --import @oxc-node/core/register services/fedify_service.ts
 // Testing: nats --server nats://localhost:4222 req fedify.ping.v1 hello
 
 import { resolve } from "node:path";
@@ -216,7 +216,7 @@ export async function startFedifyService(
   return { service, nc, stop };
 }
 
-// Run as `node --import tsx services/fedify_service.ts` (not when imported by a test).
+// Run as `node --import @oxc-node/core/register services/fedify_service.ts` (not when imported by a test).
 if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
   const url = process.env.NATS_URL ?? "nats://localhost:4222";
   const { service, stop } = await startFedifyService(url);

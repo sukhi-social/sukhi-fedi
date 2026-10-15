@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { isRevealed } from '$lib/hinataVisibility.svelte';
+  import { isRevealed } from '#lib/hinataVisibility.svelte.js';
 
   // ひなたの一言。絵は既定で見せる。見せる/隠すの切り替えはここでは
   // 持たない ── 選んだ人がどこか(/hello)で切り替えた状態を、ここは

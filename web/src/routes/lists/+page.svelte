@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getLists, createList, deleteList, type List } from '$lib/api';
-  import { isLoggedIn, clearToken } from '$lib/auth';
-  import { t } from '$lib/i18n';
-  import { refreshCircles } from '$lib/circles';
+  import { getLists, createList, deleteList, type List } from '#lib/api.js';
+  import { isLoggedIn, clearToken } from '#lib/auth.js';
+  import { t } from '#lib/i18n.js';
+  import { refreshCircles } from '#lib/circles.js';
 
   let lists = $state<List[]>([]);
   let loading = $state(true);

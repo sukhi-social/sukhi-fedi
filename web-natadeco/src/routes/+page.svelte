@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { listDecos, createDeco, getCurrentAccount, localized, signedIn, type Deco } from '$lib/api';
-  import { t, getLang } from '$lib/i18n.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
-  import LangTabs from '$lib/LangTabs.svelte';
+  import { listDecos, createDeco, getCurrentAccount, localized, signedIn, type Deco } from '#lib/api.js';
+  import { t, getLang } from '#lib/i18n.svelte.js';
+  import PageHeader from '#lib/PageHeader.svelte';
+  import LangTabs from '#lib/LangTabs.svelte';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();

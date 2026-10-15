@@ -1,18 +1,12 @@
 {
-  "extends": "./.svelte-kit/tsconfig.json",
+  "extends": "$app/tsconfig",
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
     "sourceMap": true,
-    "strict": true,
-    "moduleResolution": "bundler",
-    // 単体の試験は Node 組み込みの走者で動かす(`node --test src/lib/*.test.ts`)。
-    // Node の型剥がしは相対 import に実拡張子を要求するので、`./x.ts` と
-    // 書けるようにする。vite は元から解決できるので、ビルドには影響しない。
-    "allowImportingTsExtensions": true
-  }
+    "strict": true
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "playwright.config.ts"
+  ]
 }

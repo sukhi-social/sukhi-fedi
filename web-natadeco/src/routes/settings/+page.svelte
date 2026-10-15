@@ -1,9 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { getCurrentAccount, updateProfile, signedIn, type CurrentAccount } from '$lib/api';
-  import { currentPushState, enablePush, disablePush, type PushState } from '$lib/push';
-  import { t } from '$lib/i18n.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  import { getCurrentAccount, updateProfile, signedIn, type CurrentAccount } from '#lib/api.js';
+  import { currentPushState, enablePush, disablePush, type PushState } from '#lib/push.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import PageHeader from '#lib/PageHeader.svelte';
 
   let account = $state<CurrentAccount | null>(null);
   let loading = $state(true);

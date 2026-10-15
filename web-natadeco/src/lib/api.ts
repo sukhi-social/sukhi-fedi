@@ -9,8 +9,8 @@
 // `localStorage` の `sf.token`(OAuth の bearer)は、前からある人のために
 // 読むだけ残す。新しく書くことは、もうない。
 
-import { browser } from '$app/environment';
-import { getLang } from '$lib/i18n.svelte';
+import { browser } from '$app/env';
+import { getLang } from '#lib/i18n.svelte.js';
 
 export type Deco = {
   id: number;
@@ -227,7 +227,7 @@ export async function listFriends(opts: { maxId?: string; since?: Date } = {}) {
 const SNOWFLAKE_EPOCH_MS = 1704067200000;
 
 function snowflakeAt(d: Date): string {
-  return ((BigInt(d.getTime() - SNOWFLAKE_EPOCH_MS) << 16n) | 0n).toString();
+  return (BigInt(d.getTime() - SNOWFLAKE_EPOCH_MS) << 16n | 0n).toString();
 }
 
 export const getPerson = (id: string) => req<Person>('GET', `/api/v1/accounts/${id}`);
@@ -351,7 +351,7 @@ function cookieHeader(): string {
 
 /** `sf_signed_in` の印が立っているか(httpOnly の本体は見えないので、その横の印を見る)。 */
 export function cookieSignedIn(): boolean {
-  return /(?:^|;\s*)sf_signed_in=1(?:;|$)/.test(cookieHeader());
+  return (/(?:^|;\s*)sf_signed_in=1(?:;|$)/).test(cookieHeader());
 }
 
 export function signedIn(): boolean {
@@ -371,7 +371,9 @@ export class ApiError extends Error {
 // BEAM を直に指す(INTERNAL_API_URL、haloy では http://natadeco:4000)。
 // 請求の cookie を付けて渡すので、サーバでも読んでいる人の目で描ける。
 // ブラウザでは今までどおり同じ origin へ(cookie はブラウザが付ける)。
-const serverBase = browser ? '' : (process.env.INTERNAL_API_URL ?? 'http://localhost:4000');
+const serverBase = browser
+  ? ''
+  : process.env.INTERNAL_API_URL ?? 'http://localhost:4000';
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   // cookie で書くときに API が求める、同じ家からの印。他所のフォームや
@@ -481,11 +483,8 @@ export const createPost = (
 const reactPath = (id: number | string, emoji: string) =>
   `/api/v1/sukhi/statuses/${id}/react/${encodeURIComponent(emoji)}`;
 
-export const react = (id: number | string, emoji: string) =>
-  req<{ reactions: Reaction[] }>('PUT', reactPath(id, emoji));
-
-export const unreact = (id: number | string, emoji: string) =>
-  req<{ reactions: Reaction[] }>('DELETE', reactPath(id, emoji));
+export const react = (id: number | string, emoji: string) => req<{ reactions: Reaction[] }>('PUT', reactPath(id, emoji));
+export const unreact = (id: number | string, emoji: string) => req<{ reactions: Reaction[] }>('DELETE', reactPath(id, emoji));
 
 export const createReply = (
   id: number | string,

@@ -11,22 +11,22 @@
     type Account,
     type Relationship,
     type Status
-  } from '$lib/api';
-  import { clearToken } from '$lib/auth';
-  import { createPager } from '$lib/pager.svelte';
-  import { proxyVariants } from '$lib/proxyImage';
-  import StatusCard from '$lib/components/Status.svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import FollowButton from '$lib/components/FollowButton.svelte';
-  import AddToListButton from '$lib/components/AddToListButton.svelte';
-  import Composer from '$lib/components/Composer.svelte';
-  import Twemoji from '$lib/components/Twemoji.svelte';
-  import TimelineFilter from '$lib/components/TimelineFilter.svelte';
-  import MediaGrid from '$lib/components/MediaGrid.svelte';
-  import { phrase } from '$lib/phrase';
-  import { renderEmojis } from '$lib/emoji';
-  import LegalFooter from '$lib/components/LegalFooter.svelte';
-  import { t } from '$lib/i18n';
+  } from '#lib/api.js';
+  import { clearToken } from '#lib/auth.js';
+  import { createPager } from '#lib/pager.svelte.js';
+  import { proxyVariants } from '#lib/proxyImage.js';
+  import StatusCard from '#lib/components/Status.svelte';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import FollowButton from '#lib/components/FollowButton.svelte';
+  import AddToListButton from '#lib/components/AddToListButton.svelte';
+  import Composer from '#lib/components/Composer.svelte';
+  import Twemoji from '#lib/components/Twemoji.svelte';
+  import TimelineFilter from '#lib/components/TimelineFilter.svelte';
+  import MediaGrid from '#lib/components/MediaGrid.svelte';
+  import { phrase } from '#lib/phrase.js';
+  import { renderEmojis } from '#lib/emoji.js';
+  import LegalFooter from '#lib/components/LegalFooter.svelte';
+  import { t } from '#lib/i18n.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();

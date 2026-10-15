@@ -29,11 +29,11 @@
     clearSignupPassword,
     loadLoginEmail,
     clearLoginEmail
-  } from '$lib/auth';
-  import { passkeySupported } from '$lib/webauthn';
-  import { t } from '$lib/i18n.svelte';
-  import Hinata from '$lib/Hinata.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  } from '#lib/auth.js';
+  import { passkeySupported } from '#lib/webauthn.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import Hinata from '#lib/Hinata.svelte';
+  import PageHeader from '#lib/PageHeader.svelte';
 
   type Intent = 'login' | 'signup' | 'login-email';
 

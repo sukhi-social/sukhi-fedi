@@ -1,10 +1,10 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { when, localized, type Post } from '$lib/api';
-  import { renderEmojis } from '$lib/emoji';
-  import { t } from '$lib/i18n.svelte';
-  import Author from '$lib/Author.svelte';
-  import Reactions from '$lib/Reactions.svelte';
+  import { when, localized, type Post } from '#lib/api.js';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import Author from '#lib/Author.svelte';
+  import Reactions from '#lib/Reactions.svelte';
 
   // 話す板の流れ。平らに、書かれた順（新しい順）。
   //

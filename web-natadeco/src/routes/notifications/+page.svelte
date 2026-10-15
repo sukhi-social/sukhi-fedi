@@ -1,9 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { listNotices, setReadMarker, signedIn, when, type Notice } from '$lib/api';
-  import { renderEmojis } from '$lib/emoji';
-  import { t } from '$lib/i18n.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  import { listNotices, setReadMarker, signedIn, when, type Notice } from '#lib/api.js';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import PageHeader from '#lib/PageHeader.svelte';
 
   // 友デコを出すと「返事が来ても気づけない」が目に見える形になるので、
   // 一緒に置いた。数は出さない ── 数字は圧になるし、追う人が増える

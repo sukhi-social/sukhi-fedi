@@ -20,16 +20,16 @@
     markConversationRead,
     type Account,
     type Status
-  } from '$lib/api';
-  import { isLoggedIn, clearToken } from '$lib/auth';
-  import { reconnect, slowPoll } from '$lib/connection';
-  import { createPager } from '$lib/pager.svelte';
-  import { atBottom, distanceFromBottom, keepPlaceAfterPrepend, onArrival } from '$lib/scroll';
-  import { watchDirect } from '$lib/direct.svelte';
-  import { PIN_EMOJI } from '$lib/reactions';
-  import DmMessage from '$lib/components/DmMessage.svelte';
-  import Composer from '$lib/components/Composer.svelte';
-  import { t } from '$lib/i18n';
+  } from '#lib/api.js';
+  import { isLoggedIn, clearToken } from '#lib/auth.js';
+  import { reconnect, slowPoll } from '#lib/connection.js';
+  import { createPager } from '#lib/pager.svelte.js';
+  import { atBottom, distanceFromBottom, keepPlaceAfterPrepend, onArrival } from '#lib/scroll.js';
+  import { watchDirect } from '#lib/direct.svelte.js';
+  import { PIN_EMOJI } from '#lib/reactions.js';
+  import DmMessage from '#lib/components/DmMessage.svelte';
+  import Composer from '#lib/components/Composer.svelte';
+  import { t } from '#lib/i18n.js';
 
   // Clips だけ、画像に限らず何でも添付できる(サーバは元々 MIME で
   // 弾いていない)。ここが「アップロードの経路」の入口 ── ローカルの

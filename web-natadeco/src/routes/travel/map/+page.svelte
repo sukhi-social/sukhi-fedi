@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listFlow, localized, type Post } from '$lib/api';
-  import { TRAVEL_SLUG } from '$lib/site';
-  import { t } from '$lib/i18n.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  import { listFlow, localized, type Post } from '#lib/api.js';
+  import { TRAVEL_SLUG } from '#lib/site.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import PageHeader from '#lib/PageHeader.svelte';
   import 'leaflet/dist/leaflet.css';
 
   // 場所のある記録だけが、ここに立つ。星も順位も無い ── ただ、

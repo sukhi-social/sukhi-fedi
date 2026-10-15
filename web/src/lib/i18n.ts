@@ -7,7 +7,7 @@
 // いるところは静かに描き直される。ja を正本に、ko に無い鍵があっても
 // ja へ落ちる(型で防いではいるけれど、念のため)。
 import { writable, derived } from 'svelte/store';
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import { ja, type TranslationKey } from './locales/ja';
 import { ko } from './locales/ko';
 

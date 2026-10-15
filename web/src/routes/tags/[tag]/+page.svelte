@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
-  import { fetchTimeline, type Status } from '$lib/api';
-  import { isLoggedIn, clearToken } from '$lib/auth';
-  import { createPager } from '$lib/pager.svelte';
-  import StatusCard from '$lib/components/Status.svelte';
-  import { t } from '$lib/i18n';
+  import { fetchTimeline, type Status } from '#lib/api.js';
+  import { isLoggedIn, clearToken } from '#lib/auth.js';
+  import { createPager } from '#lib/pager.svelte.js';
+  import StatusCard from '#lib/components/Status.svelte';
+  import { t } from '#lib/i18n.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();

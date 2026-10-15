@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { getLists, getListAccounts, addToList, removeFromList, type List } from '$lib/api';
-  import { refreshCircles } from '$lib/circles';
-  import { t } from '$lib/i18n';
+  import { getLists, getListAccounts, addToList, removeFromList, type List } from '#lib/api.js';
+  import { refreshCircles } from '#lib/circles.js';
+  import { t } from '#lib/i18n.js';
 
   // フォローとは別の「この人を名簿(リスト/サークル)に入れる」口。開いたとき
   // リスト一覧と所属を読み、チェックでその場で add / remove する。フォローは

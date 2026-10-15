@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { PreviewCard } from '$lib/api';
+  import type { PreviewCard } from '#lib/api.js';
 
   let { card }: { card: PreviewCard } = $props();
 

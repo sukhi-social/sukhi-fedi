@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { isDefaultAvatar, avatarInitial, avatarColor } from '$lib/avatar';
-  import { proxyVariants } from '$lib/proxyImage';
+  import { isDefaultAvatar, avatarInitial, avatarColor } from '#lib/avatar.js';
+  import { proxyVariants } from '#lib/proxyImage.js';
 
   // class はサイズを決める既存のクラス(avatar / avatar-sm / avatar-lg /
   // nav-avatar / quote-avatar)をそのまま受け取る。頭文字のときも同じ

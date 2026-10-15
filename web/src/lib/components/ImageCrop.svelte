@@ -8,7 +8,7 @@
   //
   // 動く GIF を切ると、最初の一コマだけの静止画になる ─ 切り抜きは
   // どうしてもラスタライズなので、ここは諦める。
-  import { t } from '$lib/i18n';
+  import { t } from '#lib/i18n.js';
 
   let {
     file,

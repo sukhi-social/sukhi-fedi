@@ -4,7 +4,7 @@
   // 見せる。ここだけの部品にしておくと、アップロード経路ごと要らなく
   // なったときに DmMessage 側の一行を戻して、このファイルを消すだけで
   // 済む。
-  import type { MediaAttachment } from '$lib/api';
+  import type { MediaAttachment } from '#lib/api.js';
 
   let { media }: { media: MediaAttachment } = $props();
 

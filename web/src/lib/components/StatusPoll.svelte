@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { Poll } from '$lib/api';
-  import * as api from '$lib/api';
-  import { t } from '$lib/i18n';
+  import type { Poll } from '#lib/api.js';
+  import * as api from '#lib/api.js';
+  import { t } from '#lib/i18n.js';
 
   // 投票は楽観更新せずサーバの集計をそのまま映す。投票後 / 締切後 / 既に
   // 投票済みは結果表示、それ以外は選択 UI。single choice は radio、

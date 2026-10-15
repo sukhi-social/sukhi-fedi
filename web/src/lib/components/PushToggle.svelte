@@ -6,8 +6,8 @@
   //
   // 何が鳴るかを、釦の前にちゃんと書く。押してから知るのは遅い。
   import { onMount } from 'svelte';
-  import { createPush } from '$lib/push.svelte';
-  import { t } from '$lib/i18n';
+  import { createPush } from '#lib/push.svelte.js';
+  import { t } from '#lib/i18n.js';
 
   const push = createPush();
   onMount(() => void push.refresh());

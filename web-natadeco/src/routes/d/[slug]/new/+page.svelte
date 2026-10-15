@@ -1,14 +1,14 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { getDeco, createPost, signedIn, localized, type Deco, type Place, type Visibility } from '$lib/api';
-  import { autoresize, submitOnMetaEnter } from '$lib/textarea';
-  import { loadDraft, saveDraft, clearDraft, hasSeenComposeTip, markComposeTipSeen } from '$lib/composeDraft';
-  import { t, getLang } from '$lib/i18n.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
-  import LangTabs from '$lib/LangTabs.svelte';
-  import VisibilityPicker from '$lib/VisibilityPicker.svelte';
-  import MarkdownToolbar from '$lib/MarkdownToolbar.svelte';
+  import { getDeco, createPost, signedIn, localized, type Deco, type Place, type Visibility } from '#lib/api.js';
+  import { autoresize, submitOnMetaEnter } from '#lib/textarea.js';
+  import { loadDraft, saveDraft, clearDraft, hasSeenComposeTip, markComposeTipSeen } from '#lib/composeDraft.js';
+  import { t, getLang } from '#lib/i18n.svelte.js';
+  import PageHeader from '#lib/PageHeader.svelte';
+  import LangTabs from '#lib/LangTabs.svelte';
+  import VisibilityPicker from '#lib/VisibilityPicker.svelte';
+  import MarkdownToolbar from '#lib/MarkdownToolbar.svelte';
 
   const slug = $derived(page.params.slug ?? '');
 

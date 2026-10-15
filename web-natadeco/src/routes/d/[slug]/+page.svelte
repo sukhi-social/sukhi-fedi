@@ -17,12 +17,12 @@
     localized,
     type Deco,
     type Post
-  } from '$lib/api';
-  import { t, getLang } from '$lib/i18n.svelte';
-  import Author from '$lib/Author.svelte';
-  import Flow from '$lib/Flow.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
-  import LangTabs from '$lib/LangTabs.svelte';
+  } from '#lib/api.js';
+  import { t, getLang } from '#lib/i18n.svelte.js';
+  import Author from '#lib/Author.svelte';
+  import Flow from '#lib/Flow.svelte';
+  import PageHeader from '#lib/PageHeader.svelte';
+  import LangTabs from '#lib/LangTabs.svelte';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();

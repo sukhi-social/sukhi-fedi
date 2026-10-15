@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
-  import type { Visibility } from '$lib/api';
+  import { t } from '#lib/i18n.svelte.js';
+  import type { Visibility } from '#lib/api.js';
 
   // 公開範囲(全域/ローカル)を選ぶ欄。書くたびに選び直すものではない
   // (既定の全域のままで書く人がほとんど)ので、タブより控えめな

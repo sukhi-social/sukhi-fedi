@@ -6,7 +6,7 @@
     dismissNotification,
     clearNotifications,
     type Notification
-  } from '$lib/api';
+  } from '#lib/api.js';
   import {
     directTypeList,
     markAllSeen,
@@ -14,14 +14,14 @@
     seenId,
     isNewer,
     type Tier
-  } from '$lib/notify';
-  import { isLoggedIn, clearToken } from '$lib/auth';
-  import { createPager } from '$lib/pager.svelte';
-  import { renderEmojis } from '$lib/emoji';
-  import { phrase } from '$lib/phrase';
-  import StatusCard from '$lib/components/Status.svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import { t } from '$lib/i18n';
+  } from '#lib/notify.js';
+  import { isLoggedIn, clearToken } from '#lib/auth.js';
+  import { createPager } from '#lib/pager.svelte.js';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { phrase } from '#lib/phrase.js';
+  import StatusCard from '#lib/components/Status.svelte';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import { t } from '#lib/i18n.js';
 
   // ふたつのタブ(lib/notify.ts の層と同じ割り方):
   //   あなたへ — 返信・DM・フォロー申請。会話だから、先に出る。

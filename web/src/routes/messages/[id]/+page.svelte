@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import {
     currentAccountId,
@@ -8,24 +8,24 @@
     markConversationRead,
     type Conversation,
     type Status
-  } from '$lib/api';
-  import { isLoggedIn, clearToken } from '$lib/auth';
-  import { reconnect, slowPoll } from '$lib/connection';
-  import { createPager } from '$lib/pager.svelte';
-  import { atBottom, distanceFromBottom, keepPlaceAfterPrepend, onArrival } from '$lib/scroll';
-  import { watchDirect } from '$lib/direct.svelte';
-  import { renderEmojis } from '$lib/emoji';
-  import { phrase } from '$lib/phrase';
-  import DmMessage from '$lib/components/DmMessage.svelte';
-  import Composer from '$lib/components/Composer.svelte';
-  import { t } from '$lib/i18n';
+  } from '#lib/api.js';
+  import { isLoggedIn, clearToken } from '#lib/auth.js';
+  import { reconnect, slowPoll } from '#lib/connection.js';
+  import { createPager } from '#lib/pager.svelte.js';
+  import { atBottom, distanceFromBottom, keepPlaceAfterPrepend, onArrival } from '#lib/scroll.js';
+  import { watchDirect } from '#lib/direct.svelte.js';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { phrase } from '#lib/phrase.js';
+  import DmMessage from '#lib/components/DmMessage.svelte';
+  import Composer from '#lib/components/Composer.svelte';
+  import { t } from '#lib/i18n.js';
 
   let convo = $state<Conversation | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
   let initial = $state(true);
 
-  let id = $derived($page.params.id ?? '');
+  let id = $derived(page.params.id ?? '');
 
   // 会話の中身は新しい順で来る。画面は古いものが上、いつもの会話の並び。
   const pager = createPager<Status>((maxId) => getConversationStatuses(id, { maxId }));
@@ -33,7 +33,7 @@
 
   // 自分の発言を見分けるため。取れなくても表示は止めない(印が消えるだけ)。
   let meId = $state<string | null>(null);
-  onMount(() => void currentAccountId().then((v) => (meId = v)));
+  onMount(() => void currentAccountId().then((v) => meId = v));
 
   // 続けて喋ったぶんは、名前を一度だけ。同じ人が、間を置かずに続けたとき
   // だけ畳む ── 一時間空いたら、それは新しいひと続きなので名前を出す。
@@ -41,13 +41,16 @@
 
   let rows = $derived(
     messages.map((s, i) => {
-      const prev = messages[i - 1];
-      const sameAuthor = prev?.account.id === s.account.id;
-      const close =
-        prev && new Date(s.created_at).getTime() - new Date(prev.created_at).getTime() < GROUP_WINDOW_MS;
-      return { status: s, mine: !!meId && s.account.id === meId, grouped: !!(sameAuthor && close) };
-    })
-  );
+    const prev = messages[i - 1];
+    const sameAuthor = prev?.account.id === s.account.id;
+    const close = prev && new Date(s.created_at).getTime() - new Date(prev.created_at).getTime() < GROUP_WINDOW_MS;
+
+    return {
+      status: s,
+      mine: !!meId && s.account.id === meId,
+      grouped: !!(sameAuthor && close)
+    };
+  }));
 
   onMount(() => {
     if (!isLoggedIn()) {
@@ -129,9 +132,7 @@
     const added = byId.size - before;
 
     // pager は新しい順。id は snowflake なので、数として降順に。
-    pager.items = [...byId.values()].sort((a, b) =>
-      a.id.length === b.id.length ? (a.id < b.id ? 1 : -1) : b.id.length - a.id.length
-    );
+    pager.items = [...byId.values()].sort((a, b) => a.id.length === b.id.length ? a.id < b.id ? 1 : -1 : b.id.length - a.id.length);
 
     switch (onArrival({ added, wasAtBottom, mine: opts.mine })) {
       case 'follow':

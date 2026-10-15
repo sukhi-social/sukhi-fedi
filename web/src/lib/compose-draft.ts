@@ -12,7 +12,7 @@
 // media は覚えない。アップロード済みの id はサーバ側で期限切れ・
 // GC されるので、戻しても切れた id を指すだけ ─ 文字だけ戻す。
 // 返信の下書きは覚えない(トップの新規ノート専用)。
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import {
   type Visibility,
   type ServerDraft,

@@ -6,14 +6,15 @@
 # passes `context: .` and `file: ./elixir/Dockerfile`.
 
 # ── SPA build ─────────────────────────────────────────────────────────────
-FROM node:20-alpine AS spa
+FROM node:24-alpine AS spa
 
 WORKDIR /spa
-COPY web/package.json web/package-lock.json* ./
-RUN npm install --no-audit --no-fund
+RUN corepack enable
+COPY web/package.json web/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY web/ ./
-RUN npm run build
+RUN pnpm run build
 
 # ── Elixir release build ──────────────────────────────────────────────────
 FROM elixir:1.20-alpine AS build

@@ -1,17 +1,17 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
-  import { browser } from '$app/environment';
-  import { fetchTimeline, type Status, type TimelineKind } from '$lib/api';
-  import { warmAvatars } from '$lib/avatarWarm';
-  import { isLoggedIn, clearToken } from '$lib/auth';
-  import { autoRetry, isConnectivityError } from '$lib/connection';
-  import StatusCard from '$lib/components/Status.svelte';
-  import Composer from '$lib/components/Composer.svelte';
-  import TimelineFilter from '$lib/components/TimelineFilter.svelte';
-  import LegalFooter from '$lib/components/LegalFooter.svelte';
-  import { t } from '$lib/i18n';
-  import { startTimelineStream } from '$lib/webtransport';
+  import { browser } from '$app/env';
+  import { fetchTimeline, type Status, type TimelineKind } from '#lib/api.js';
+  import { warmAvatars } from '#lib/avatarWarm.js';
+  import { isLoggedIn, clearToken } from '#lib/auth.js';
+  import { autoRetry, isConnectivityError } from '#lib/connection.js';
+  import StatusCard from '#lib/components/Status.svelte';
+  import Composer from '#lib/components/Composer.svelte';
+  import TimelineFilter from '#lib/components/TimelineFilter.svelte';
+  import LegalFooter from '#lib/components/LegalFooter.svelte';
+  import { t } from '#lib/i18n.js';
+  import { startTimelineStream } from '#lib/webtransport.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
@@ -269,8 +269,8 @@
 
 {#if composerOpen && loggedIn}
   <Composer
-    {replyTo}
-    {quoteOf}
+    replyTo={replyTo}
+    quoteOf={quoteOf}
     prefillMention={!!replyTo}
     onposted={onPosted}
     oncancel={onCancel}

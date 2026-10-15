@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  import { t } from '#lib/i18n.svelte.js';
+  import PageHeader from '#lib/PageHeader.svelte';
 
   // 変えないと決めていることの一枚。ここに書いてあるのは機能の説明では
   // なく約束なので、数も増やさない ── 増えたら、それは約束ではなく

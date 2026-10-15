@@ -4,7 +4,7 @@
 //
 // 非対応ブラウザ(WebTransport 無し)や接続失敗のときは黙って何もしない ── SSE と
 // 再接続時の refetch がフォールバックとして残る。
-import { loadToken } from '$lib/auth';
+import { loadToken } from '#lib/auth.js';
 
 type OnStatus = (status: unknown) => void;
 
