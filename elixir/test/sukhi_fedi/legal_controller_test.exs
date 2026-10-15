@@ -181,12 +181,16 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert ja =~ "この感謝は、譲渡できません。"
   end
 
-  test "the people on /credits link to their GitHub pages in every language" do
+  test "the people on /credits link to their own sites in every language" do
     for path <- ["/credits", "/credits?lang=ja", "/credits?lang=ko"] do
       body = get(path) |> LegalController.credits() |> Map.get(:resp_body)
 
-      for user <- ["ltlapy", "dahlia", "malkoG"] do
-        assert body =~ ~s(href="https://github.com/#{user}"), "#{path} #{user}"
+      for url <- [
+            "https://lapy.link/",
+            "https://hongminhee.org/",
+            "https://kodingwarrior.github.io/about/"
+          ] do
+        assert body =~ ~s(href="#{url}"), "#{path} #{url}"
       end
     end
 

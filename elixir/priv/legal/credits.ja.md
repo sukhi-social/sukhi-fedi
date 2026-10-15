@@ -14,11 +14,11 @@ sukhi が従ったり、学んだりしているプロジェクトとコミュ�
 
 ### 人
 
-[ltlapy](https://github.com/ltlapy) [k.lapy.link](https://k.lapy.link) は、初めての韓国の Misskey サーバーであり、すっきりして読みやすい利用規約に惹かれて、登録を決めたサーバーです。多くの韓国の Misskey 利用者が居場所にしていて、サーバーが終了する瞬間に居合わせた私として、残念な思いと感謝を表します。私を含む多くの人たちに、連合宇宙を広めてくださり、心から感謝します。
+[ltlapy](https://lapy.link/) [k.lapy.link](https://k.lapy.link) は、初めての韓国の Misskey サーバーであり、すっきりして読みやすい利用規約に惹かれて、登録を決めたサーバーです。多くの韓国の Misskey 利用者が居場所にしていて、サーバーが終了する瞬間に居合わせた私として、残念な思いと感謝を表します。私を含む多くの人たちに、連合宇宙を広めてくださり、心から感謝します。
 
-[hongminhee](https://github.com/dahlia) 홍민희さんは、[fedidev.kr](https://fedidev.kr/) を通して知った方です。Fedify を通して、数多くの連合宇宙のサーバーを支え、標準化に貢献するインフラを維持していらっしゃることに、敬意を表します。
+[hongminhee](https://hongminhee.org/) 홍민희さんは、[fedidev.kr](https://fedidev.kr/) を通して知った方です。Fedify を通して、数多くの連合宇宙のサーバーを支え、標準化に貢献するインフラを維持していらっしゃることに、敬意を表します。
 
-[malkoG](https://github.com/malkoG) 이재열さんは、[fedidev.kr](https://fedidev.kr/) の Discord を運営している方です。moim.live を通して hackers.pub の招待状を配っていらっしゃって、問い合わせなしに hackers.pub に勝手に入ることができました。(?) 私が招待状を持っていないときも、そのリンクは、知人に勧めるときに大切に使わせてもらいました。(??) ありがとうございます！
+[kodingwarrior](https://kodingwarrior.github.io/about/) 이재열さんは、[fedidev.kr](https://fedidev.kr/) の Discord を運営している方です。moim.live を通して hackers.pub の招待状を配っていらっしゃって、問い合わせなしに hackers.pub に勝手に入ることができました。(?) 私が招待状を持っていないときも、そのリンクは、知人に勧めるときに大切に使わせてもらいました。(??) ありがとうございます！
 
 ### Mastodon と Misskey
 
