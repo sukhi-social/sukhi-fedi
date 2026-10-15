@@ -148,6 +148,11 @@ defmodule SukhiFedi.Fedi.Builders do
     |> put_if("name", p["title"])
     |> put_if("summary", summary_for(p))
     |> put_if("sensitive", p["sensitive"])
+    # 本文の `:shortcode:` を絵文字として描くための宣言。これが無いと、
+    # 向こうの Misskey / Mastodon には `:neocat:` の文字のまま届く。
+    # inject_quote / inject_author_mention は `tag` に足す形なので、
+    # ここで先に置いても重ならない。
+    |> put_if("tag", emoji_tags(p["emojis"]))
     # FEP-044f canonical `quote` (signed), plus the authorization stamp
     # once the quoted author granted it. The Misskey aliases + FEP-e232
     # tag are still injected post-sign (`inject_quote`).
@@ -540,6 +545,25 @@ defmodule SukhiFedi.Fedi.Builders do
   end
 
   defp emoji_tag(_), do: nil
+
+  # 保存してある絵文字(`notes.emojis`、Mastodon の形)を AP の `tag` へ。
+  # url の無いものは、向こうで描けないので落とす。
+  defp emoji_tags(emojis) when is_list(emojis) do
+    tags =
+      for %{"shortcode" => sc, "url" => url} <- emojis,
+          is_binary(sc) and sc != "" and is_binary(url) and url != "" do
+        %{
+          "id" => url,
+          "type" => "Emoji",
+          "name" => ":#{sc}:",
+          "icon" => %{"type" => "Image", "url" => url}
+        }
+      end
+
+    if tags == [], do: nil, else: tags
+  end
+
+  defp emoji_tags(_), do: nil
 
   defp put_if(map, _key, nil), do: map
   defp put_if(map, key, value), do: Map.put(map, key, value)
