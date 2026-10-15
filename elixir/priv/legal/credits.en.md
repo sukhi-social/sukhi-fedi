@@ -12,7 +12,7 @@ Standards that sukhi follows, and the projects it learns from. The software it u
 
 Projects and communities sukhi follows or learns from.
 
-### People
+### People who influenced me
 
 [ltlapy](https://lapy.link/) ([k.lapy.link](https://k.lapy.link)) was the first Korean Misskey server, and the one I decided to join because of its clean, comfortable-to-read terms of use. Many Korean Misskey users made it their home. I was there when the server shut down, and I want to say both how sorry I am and how grateful. Thank you, truly, for spreading the word about the fediverse far and wide, to so many people, me included.
 
