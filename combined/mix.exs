@@ -19,15 +19,7 @@ defmodule SukhiCombined.MixProject do
 
   @external_resource Path.expand("../VERSION", __DIR__)
 
-  # DeployEx decides "is a deploy needed?" by comparing the version string
-  # in current.json against the one it is already running — the `hash`
-  # field next to it is carried along but never compared. VERSION only
-  # moves on a release, so every build in between would be a silent
-  # no-op. bin/release-on-box.sh stamps the commit into SemVer build
-  # metadata (`0.4.14+8f3c1d2`) so each commit is its own version; unset
-  # (compose, `make dev`, the ghcr images) it stays the plain VERSION.
-  @version (System.get_env("SUKHI_RELEASE_VERSION") ||
-              Path.expand("../VERSION", __DIR__) |> File.read!() |> String.trim())
+  @version Path.expand("../VERSION", __DIR__) |> File.read!() |> String.trim()
 
   def project do
     [
@@ -80,23 +72,14 @@ defmodule SukhiCombined.MixProject do
   defp releases do
     [
       combined: [
-        # :tar is what turns the assembled release into the single
-        # artifact DeployEx picks up from the dist dir. The Docker image
-        # build ignores it and keeps copying out of _build/prod/rel.
-        #
-        # The step in between is what makes that tarball self-sufficient:
-        # config/runtime.exs here re-reads the three projects' own runtime
-        # configs, and outside a repo checkout they have to travel with
-        # the release. The Docker image used to be the only thing that
-        # supplied them (it copies them in and sets RUNTIME_CONFIG_DIR),
-        # so a release unpacked anywhere else died at boot looking for
+        # copy_runtime_configs is what makes the assembled release
+        # self-sufficient: config/runtime.exs here re-reads the three
+        # projects' own runtime configs, and outside a repo checkout they
+        # have to travel with the release. The Docker image also supplies
+        # them (it copies them in and sets RUNTIME_CONFIG_DIR), but a release
+        # unpacked anywhere else would die at boot looking for
         # elixir/config/runtime.exs.
-        #
-        # The Docker build sets SUKHI_SKIP_TAR=1: it copies out of
-        # _build/prod/rel and never opens the tarball, which cost ~9s.
-        steps:
-          [:assemble, &__MODULE__.copy_runtime_configs/1] ++
-            if(System.get_env("SUKHI_SKIP_TAR") == "1", do: [], else: [:tar]),
+        steps: [:assemble, &__MODULE__.copy_runtime_configs/1],
         applications: [
           sukhi_fedi: :permanent,
           sukhi_delivery: :permanent,

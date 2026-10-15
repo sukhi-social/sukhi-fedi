@@ -97,7 +97,7 @@ RUN --mount=type=cache,target=/app-cache,id=sukhi-fedi-combined-app,sharing=lock
       for a in $apps; do \
         if [ -d /app-cache/$a ]; then rm -rf _build/prod/lib/$a; cp -a /app-cache/$a _build/prod/lib/$a; fi; \
       done; \
-      SUKHI_SKIP_TAR=1 MIX_ENV=prod mix release; \
+      MIX_ENV=prod mix release; \
       for a in $apps; do rm -rf /app-cache/$a; cp -a _build/prod/lib/$a /app-cache/$a; done \
     '
 
