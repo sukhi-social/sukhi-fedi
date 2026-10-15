@@ -15,7 +15,7 @@ defmodule SukhiFedi.Integration.RebuildRemoteNotesTest do
 
       # A legacy row: small serial id, fetch-time created_at.
       old =
-        Repo.insert!(%Note{
+        insert_legacy_note!(%Note{
           id: 770_042,
           account_id: author.id,
           content: "the original body",
@@ -57,7 +57,7 @@ defmodule SukhiFedi.Integration.RebuildRemoteNotesTest do
       ap_id = "https://remote.example/notes/legacy-2"
 
       old =
-        Repo.insert!(%Note{
+        insert_legacy_note!(%Note{
           id: 770_043,
           account_id: author.id,
           content: "no date",
@@ -79,7 +79,7 @@ defmodule SukhiFedi.Integration.RebuildRemoteNotesTest do
       author = create_remote_account!("target_author", "remote.example")
 
       remote_serial =
-        Repo.insert!(%Note{
+        insert_legacy_note!(%Note{
           id: 770_044,
           account_id: author.id,
           content: "remote serial",
@@ -114,6 +114,16 @@ defmodule SukhiFedi.Integration.RebuildRemoteNotesTest do
       refute snowflake.id in ids
       assert remote_serial.id == 770_044
     end
+  end
+
+  # The `notes_remote_id_from_published` trigger overwrites `id` on any
+  # INSERT that carries an `ap_id`, so a legacy serial-id remote note can't be
+  # inserted in one go. Same route the maintenance tool takes: insert with
+  # `ap_id` NULL (id kept), then set `ap_id` by UPDATE (trigger is INSERT-only).
+  defp insert_legacy_note!(%Note{ap_id: ap_id} = note) do
+    inserted = Repo.insert!(%{note | ap_id: nil})
+    Repo.query!("UPDATE notes SET ap_id = $1 WHERE id = $2", [ap_id, inserted.id])
+    %{inserted | ap_id: ap_id}
   end
 
   defp create_account!(username) do

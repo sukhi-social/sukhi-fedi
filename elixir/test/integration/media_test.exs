@@ -26,6 +26,7 @@ defmodule SukhiFedi.Integration.MediaTest do
   end
 
   describe "create_from_upload/3" do
+    @tag skip: s3_skip()
     test "writes object + inserts Media row" do
       a = create_account!("alice_upload")
       bytes = <<137, 80, 78, 71, 13, 10, 26, 10>> <> :binary.copy(<<0>>, 100)
@@ -60,6 +61,7 @@ defmodule SukhiFedi.Integration.MediaTest do
       assert {:error, :file_too_large} = MediaCtx.create_from_upload(a.id, huge, %{})
     end
 
+    @tag skip: s3_skip()
     test "infers type from content_type" do
       a = create_account!("alice_types")
 
@@ -75,6 +77,7 @@ defmodule SukhiFedi.Integration.MediaTest do
   end
 
   describe "get_media/2" do
+    @tag skip: s3_skip()
     test "owner gets the row" do
       a = create_account!("alice_get")
       {:ok, m} = MediaCtx.create_from_upload(a.id, "X", %{"content_type" => "image/png", "filename" => "a.png"})
@@ -83,6 +86,7 @@ defmodule SukhiFedi.Integration.MediaTest do
       assert fetched.id == m.id
     end
 
+    @tag skip: s3_skip()
     test "non-owner → :forbidden" do
       a = create_account!("alice_perm_g")
       b = create_account!("bob_perm_g")
@@ -98,6 +102,7 @@ defmodule SukhiFedi.Integration.MediaTest do
   end
 
   describe "update_media/3" do
+    @tag skip: s3_skip()
     test "updates description while unattached" do
       a = create_account!("alice_upd")
       {:ok, m} = MediaCtx.create_from_upload(a.id, "X", %{"content_type" => "image/png", "filename" => "a.png"})
@@ -106,6 +111,7 @@ defmodule SukhiFedi.Integration.MediaTest do
       assert updated.description == "updated"
     end
 
+    @tag skip: s3_skip()
     test "rejects update after attachment" do
       a = create_account!("alice_attached")
       {:ok, m} = MediaCtx.create_from_upload(a.id, "X", %{"content_type" => "image/png", "filename" => "a.png"})
@@ -118,6 +124,7 @@ defmodule SukhiFedi.Integration.MediaTest do
   end
 
   describe "attach_to_note via create_status pipeline" do
+    @tag skip: s3_skip()
     test "stamps attached_at on the Media row" do
       a = create_account!("alice_stamp")
       {:ok, m} = MediaCtx.create_from_upload(a.id, "X", %{"content_type" => "image/png", "filename" => "a.png"})

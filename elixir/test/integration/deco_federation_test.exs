@@ -311,6 +311,17 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
     # 連合に出ている `url` は `/@alice` と `/@alice/123`(sukhi の SPA の
     # 道)。natadeco のフロントにその頁は無いので、Mastodon の「元の
     # 投稿を見る」がここへ落ちて 404 になっていた(2026-09-07)。
+    # 案内するのは natadeco の画面(= SSR あり)のときだけ。sukhi の web は
+    # `/@alice` を自分で持つので、そちらは SSR_URL 無しのまま素通し(2026-09-22)。
+    setup do
+      prev = System.get_env("SSR_URL")
+      System.put_env("SSR_URL", "http://localhost:3000")
+
+      on_exit(fn ->
+        if prev, do: System.put_env("SSR_URL", prev), else: System.delete_env("SSR_URL")
+      end)
+    end
+
     defp get_html(path) do
       conn(:get, path)
       |> put_req_header("accept", "text/html")

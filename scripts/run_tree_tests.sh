@@ -27,8 +27,11 @@ fail=0
 for tree in "$dir"/*/; do
   name="$(basename "$tree")"
   extra=()
-  if [[ -f "$tree/.env" ]]; then mapfile -t extra < "$tree/.env"; fi
-  actual="$(env SUKHI_ROOT="$tree" "${extra[@]}" $TSBVM "$tsb" 2>&1 | sed "s#$tree##g"; echo "exit=${PIPESTATUS[0]}")"
+  if [[ -f "$tree/.env" ]]; then
+    # not mapfile: macOS still ships bash 3.2
+    while IFS= read -r line; do extra+=("$line"); done < "$tree/.env"
+  fi
+  actual="$(env SUKHI_ROOT="$tree" ${extra[@]+"${extra[@]}"} $TSBVM "$tsb" 2>&1 | sed "s#$tree##g"; echo "exit=${PIPESTATUS[0]}")"
   if [[ "${UPDATE:-}" == 1 ]]; then printf '%s\n' "$actual" > "$dir/$name.expected"; continue; fi
   if [[ "$actual" == "$(cat "$dir/$name.expected")" ]]; then
     echo "ok   $name"

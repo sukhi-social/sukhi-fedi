@@ -22,7 +22,8 @@ integration`, and stops PGlite on exit.
 **What it covers:** every test that only needs Postgres.
 
 **What it does NOT:** tests that need NATS (streaming) or S3 (media,
-inbound_archive). The script sets `DISABLE_ADDONS=streaming` so the app
+inbound_archive); those tests carry `skip: s3_skip()` and the script
+sets `SKIP_S3_TESTS=1`, so they show as skipped. The script sets `DISABLE_ADDONS=streaming` so the app
 boots without NATS — streaming integration tests are skipped on this
 path. For those, use the Docker route below.
 

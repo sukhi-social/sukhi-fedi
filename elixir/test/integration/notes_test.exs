@@ -39,7 +39,8 @@ defmodule SukhiFedi.Integration.NotesTest do
         )
 
       assert ev.payload["note_id"] == note.id
-      assert ev.payload["content"] == "<p><strong>hello</strong></p>"
+      # Earmark puts a newline after `<p>`; HTML doesn't care, so don't pin it.
+      assert ev.payload["content"] =~ ~r{^<p>\s*<strong>hello</strong></p>$}
       assert ev.payload["misskey_content"] == "**hello**"
     end
 

@@ -41,7 +41,7 @@ defmodule SukhiFedi.IntegrationCase do
         :ok
 
       _pid ->
-        :ok = Ecto.Adapters.SQL.Sandbox.checkout(SukhiFedi.Repo)
+        :ok = checkout_with_retry()
         unless tags[:async], do: Ecto.Adapters.SQL.Sandbox.mode(SukhiFedi.Repo, {:shared, self()})
     end
 
@@ -50,6 +50,30 @@ defmodule SukhiFedi.IntegrationCase do
     {:ok,
      mock_remote: bypass,
      mock_remote_url: "http://localhost:#{bypass.port}"}
+  end
+
+  # On PGlite every pooled connection shares one backend session, so one
+  # client's open sandbox transaction shows up as "already a transaction
+  # running" to the next test's BEGIN. It clears within a few ms; retry
+  # briefly. Real Postgres (a session per connection) never hits it.
+  defp checkout_with_retry(attempts \\ 20) do
+    Ecto.Adapters.SQL.Sandbox.checkout(SukhiFedi.Repo)
+  catch
+    :exit, _ when attempts > 1 ->
+      Process.sleep(25)
+      checkout_with_retry(attempts - 1)
+  end
+
+  @doc """
+  Value for `@tag skip:` / `@moduletag skip:` on tests that write to S3.
+  `scripts/test-pglite.sh` sets SKIP_S3_TESTS=1 (PGlite alone has no S3);
+  everywhere else this is `false` and the test runs.
+
+  (A tag + `--exclude` can't do this: `--only integration` includes these
+  tests, and in ExUnit an include beats an exclude.)
+  """
+  def s3_skip do
+    if System.get_env("SKIP_S3_TESTS") == "1", do: "needs S3 (not on PGlite)", else: false
   end
 
   @doc """

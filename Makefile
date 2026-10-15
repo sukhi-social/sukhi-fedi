@@ -4,7 +4,7 @@
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev dev-web test test-shared test-elixir test-delivery test-api test-web \
-        test-pglite test-e2e check check-presets up down preflight \
+        test-pglite test-e2e check check-presets env-audit script-tests need-tsubaki up down preflight \
         push-static push-styles clear-static static-status \
         release release-natadeco release-images push-deployex-config \
         push-natadeco-deployex-config \
@@ -94,6 +94,24 @@ check: check-presets  ## linters and type checks
 
 check-presets:
 	@bash scripts/check_presets_sync.sh
+
+# scripts/*.jl are Tsubaki programs. They need a tsubakic (folds a .jl into
+# a .tsb) and a tsbvm (runs it); CI only builds images and has neither, so
+# these run by hand. Point at yours (see nyanrus/tsubaki; tsbvm wants
+# `cargo build --release --features http`):
+#   export TSUBAKIC='node ../tsubaki/_build/default/bin/tsubakic.bc.wasm.js'
+#   export TSBVM=../tsubaki/tsbvm/target/release/tsbvm
+need-tsubaki:
+	@[ -n "$$TSUBAKIC" ] && [ -n "$$TSBVM" ] || { \
+	  echo "set TSUBAKIC and TSBVM first (see the comment above need-tsubaki in the Makefile)"; exit 2; }
+
+env-audit: need-tsubaki  ## env vars the code reads but docs/ENV.md omits (needs TSUBAKIC, TSBVM)
+	@t="$$(mktemp -d)/env_audit.tsb"; $$TSUBAKIC "$$t" scripts/env_audit.jl >/dev/null \
+	  && SUKHI_ROOT=. ENV_AUDIT_STRICT=1 $$TSBVM "$$t"
+
+script-tests: need-tsubaki  ## fixture tests for scripts/*.jl (needs TSUBAKIC, TSBVM)
+	@bash scripts/run_tree_tests.sh scripts/env_audit.jl scripts/env_audit_test
+	@bash scripts/run_tree_tests.sh scripts/oban_queues_check.jl scripts/oban_queues_test
 
 preflight:  ## pre-deploy verification (see infra/preflight.sh)
 	@bash infra/preflight.sh
