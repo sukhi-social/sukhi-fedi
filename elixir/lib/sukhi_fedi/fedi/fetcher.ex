@@ -5,7 +5,7 @@ defmodule SukhiFedi.Fedi.Fetcher do
   HTTP-signed for Mastodon Secure Mode / Misskey auth-fetch peers.
 
   Every hop — including each redirect target — passes
-  `Federation.UrlGuard.safe?/1`, preserving the SSRF property the
+  `SukhiShared.UrlGuard.safe?/1`, preserving the SSRF property the
   fedify document loader provided. Redirects are followed manually so
   the signature can be recomputed per hop (it covers
   `(request-target)`, which changes with the URL).
@@ -18,7 +18,7 @@ defmodule SukhiFedi.Fedi.Fetcher do
   require Logger
 
   alias SukhiFedi.Cache.Ets
-  alias SukhiFedi.Federation.UrlGuard
+  alias SukhiShared.UrlGuard
   alias SukhiFedi.Fedi.{HttpFetch, HttpSignature, JWK}
 
   @accept ~s(application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams")

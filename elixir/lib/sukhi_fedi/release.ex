@@ -16,8 +16,6 @@ defmodule SukhiFedi.Release do
   same gate.
   """
 
-  import Ecto.Query, only: [from: 2]
-
   @app :sukhi_fedi
 
   def migrate_all do
@@ -213,262 +211,54 @@ defmodule SukhiFedi.Release do
   end
 
   @doc """
-  One-shot: for every `MonitoredInstance` that already has at least one
-  snapshot, publish an "監視を始めました" Note using the latest snapshot.
-  Use after `backfill_monitored_instances/0` on a deployment where the
-  initial polls already ran through PollWorker's old :initial branch
-  (pre-v0.1.22), which recorded snapshots but did not publish.
+  Run a one-shot maintenance script from `priv/scripts/<name>.exs` against
+  the live database, with the Repo started for the call if it isn't already.
+  `args` is bound inside the script as `args`; the script's last value is
+  printed and returned as `{:ok, value}`.
 
-      bin/sukhi_fedi eval 'SukhiFedi.Release.publish_initial_notes_for_backfill()'
+      bin/sukhi_fedi eval 'SukhiFedi.Release.run_script("backfill_followed_outboxes")'
+      bin/sukhi_fedi eval 'SukhiFedi.Release.run_script("broadcast_actor_update", ["nyanrus"])'
+
+  The scripts are the old one-shot `Release` functions (pre-v0.1.22 data
+  fixes, manual backfills); they live as files so the module that runs on
+  every boot doesn't carry them.
   """
-  def publish_initial_notes_for_backfill do
+  def run_script(name, args \\ []) when is_binary(name) and is_list(args) do
     load_app()
 
-    do_publish = fn ->
-      alias SukhiFedi.Repo
-      alias SukhiFedi.Addons.NodeinfoMonitor
-      alias SukhiFedi.Schema.{MonitoredInstance, NodeinfoSnapshot}
-
-      per_instance =
-        from(m in MonitoredInstance, order_by: [asc: m.domain])
-        |> Repo.all()
-        |> Enum.map(fn mi ->
-          snap =
-            from(s in NodeinfoSnapshot,
-              where: s.monitored_instance_id == ^mi.id,
-              order_by: [desc: s.polled_at],
-              limit: 1
-            )
-            |> Repo.one()
-
-          if snap do
-            NodeinfoMonitor.publish_initial_note(
-              mi,
-              %{software_name: snap.software_name, version: snap.version},
-              summary?: false
-            )
-            |> case do
-              {:ok, _note} -> {mi.domain, :ok}
-              other -> {mi.domain, other}
-            end
-          else
-            {mi.domain, :no_snapshot}
-          end
-        end)
-
-      # Fire the @watcher aggregate exactly once after all per-instance
-      # posts land, instead of N times from inside the loop.
-      NodeinfoMonitor.publish_summary_to_default_watcher()
-
-      per_instance
+    unless name =~ ~r/\A[a-z][a-z0-9_]*\z/ do
+      raise ArgumentError, "bad script name: #{inspect(name)}"
     end
+
+    path = Application.app_dir(@app, Path.join(["priv", "scripts", name <> ".exs"]))
+
+    unless File.regular?(path) do
+      raise ArgumentError,
+            "no such script #{inspect(name)} (looked for #{path}); " <>
+              "available: #{Enum.join(scripts(), ", ")}"
+    end
+
+    source = File.read!(path)
+    run = fn -> source |> Code.eval_string([args: args], file: path) |> elem(0) end
 
     result =
       if Process.whereis(SukhiFedi.Repo) do
-        do_publish.()
+        run.()
       else
-        {:ok, r, _apps} = Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo -> do_publish.() end)
+        {:ok, r, _apps} = Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo -> run.() end)
         r
       end
 
-    IO.inspect(result, label: :publish_initial_notes_for_backfill)
+    IO.inspect(result, label: name)
     {:ok, result}
   end
 
-  @doc """
-  One-shot: delete every Note owned by the default `@watcher` account
-  (aggregate summaries) via the standard Notes.delete_note path, so
-  each removal fans out as a Delete(Note). Pair with
-  `NodeinfoMonitor.publish_summary_to_default_watcher/0` to re-seed
-  a single fresh summary.
-
-      bin/sukhi_fedi eval 'SukhiFedi.Release.resync_default_watcher_summary()'
-  """
-  def resync_default_watcher_summary do
-    load_app()
-
-    do_resync = fn ->
-      alias SukhiFedi.{Repo, Notes}
-      alias SukhiFedi.Addons.NodeinfoMonitor
-      alias SukhiFedi.Schema.{Account, Note}
-
-      case SukhiFedi.Accounts.by_local_username("watcher") do
-        nil ->
-          :no_default_watcher
-
-        %Account{id: account_id} ->
-          deleted =
-            from(n in Note, where: n.account_id == ^account_id, select: n.id)
-            |> Repo.all()
-            |> Enum.map(fn note_id ->
-              {note_id, Notes.delete_note(account_id, note_id) |> elem(0)}
-            end)
-
-          {:deleted, deleted, NodeinfoMonitor.publish_summary_to_default_watcher()}
-      end
-    end
-
-    result =
-      if Process.whereis(SukhiFedi.Repo) do
-        do_resync.()
-      else
-        {:ok, r, _apps} = Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo -> do_resync.() end)
-        r
-      end
-
-    IO.inspect(result, label: :resync_default_watcher_summary)
-    {:ok, result}
-  end
-
-  @doc """
-  One-shot: delete every Note owned by a watcher bot via the standard
-  Notes.delete_note path, so each removal fans out as a proper
-  Delete(Note) to federation instead of vanishing silently. Useful
-  when republishing watcher notes after a Bun translator fix — the
-  old ghost copies on remote timelines need a Delete to clear first.
-
-      bin/sukhi_fedi eval 'SukhiFedi.Release.delete_all_watcher_notes()'
-  """
-  def delete_all_watcher_notes do
-    load_app()
-
-    do_delete = fn ->
-      alias SukhiFedi.{Repo, Notes}
-      alias SukhiFedi.Schema.{Account, Note}
-
-      Repo.all(
-        from(n in Note,
-          join: a in Account,
-          on: a.id == n.account_id,
-          where: not is_nil(a.monitored_domain),
-          select: {a.id, n.id}
-        )
-      )
-      |> Enum.map(fn {account_id, note_id} ->
-        Notes.delete_note(account_id, note_id) |> elem(0) |> then(&{note_id, &1})
-      end)
-    end
-
-    result =
-      if Process.whereis(SukhiFedi.Repo) do
-        do_delete.()
-      else
-        {:ok, r, _apps} = Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo -> do_delete.() end)
-        r
-      end
-
-    IO.inspect(result, label: :delete_all_watcher_notes)
-    {:ok, result}
-  end
-
-  @doc """
-  One-shot: fire `Update {Person}` to every known follower's inbox
-  (+ relays) for a local account, without changing any profile field.
-  Use to nudge a remote server with a stale cached actor — they refresh
-  the cached publicKey and HTTP-sig verification recovers.
-
-      bin/sukhi_fedi eval 'SukhiFedi.Release.broadcast_actor_update("nyanrus")'
-  """
-  def broadcast_actor_update(username) when is_binary(username) do
-    load_app()
-
-    do_broadcast = fn -> SukhiFedi.Accounts.broadcast_actor_update(username) end
-
-    result =
-      if Process.whereis(SukhiFedi.Repo) do
-        do_broadcast.()
-      else
-        {:ok, r, _apps} =
-          Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo -> do_broadcast.() end)
-
-        r
-      end
-
-    IO.inspect(result, label: :broadcast_actor_update)
-    result
-  end
-
-  @doc """
-  One-shot: insert a `monitored_instances` row for every existing
-  watcher `Account` that doesn't have one yet. Safe to run multiple
-  times (no-op on conflict).
-
-      bin/sukhi_fedi eval 'SukhiFedi.Release.backfill_monitored_instances()'
-  """
-  def backfill_monitored_instances do
-    load_app()
-
-    do_backfill = fn ->
-      alias SukhiFedi.Repo
-      alias SukhiFedi.Schema.{Account, MonitoredInstance}
-
-      from(a in Account, where: not is_nil(a.monitored_domain))
-      |> Repo.all()
-      |> Enum.map(fn a ->
-        %MonitoredInstance{}
-        |> MonitoredInstance.changeset(%{domain: a.monitored_domain, actor_id: a.id})
-        |> Repo.insert(on_conflict: :nothing, conflict_target: :domain)
-      end)
-    end
-
-    if Process.whereis(SukhiFedi.Repo) do
-      {:ok, do_backfill.()}
-    else
-      {:ok, result, _apps} =
-        Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo -> do_backfill.() end)
-
-      {:ok, result}
-    end
-  end
-
-  @doc """
-  One-shot: enqueue an outbox backfill for every accepted remote follow.
-
-  The backfill normally runs when a new follow is accepted
-  (`AP.Instructions.maybe_handle_follow_accept/1`), and a restart already
-  re-pends the untouched ones on its own (`Federation.OutboxBackfill.
-  pending_existing/0`). This is the manual version for when you don't want
-  to wait for a restart.
-
-  Rows are inserted straight into `oban_jobs` (not via `Oban.insert/2`), so
-  this runs from a plain `eval` with only the Repo started — the running
-  gateway's `:backfill` queue picks them up. Running it twice is harmless:
-  the mirror is idempotent on `ap_id`, so duplicate jobs just re-read the
-  same outbox.
-
-      bin/combined eval 'SukhiFedi.Release.backfill_followed_outboxes()'
-  """
-  def backfill_followed_outboxes do
-    load_app()
-
-    do_backfill = fn ->
-      alias SukhiFedi.Repo
-      alias SukhiFedi.Schema.{Account, Follow}
-
-      from(f in Follow,
-        join: a in Account,
-        on: a.id == f.followee_id,
-        where: f.state == "accepted" and not is_nil(a.domain) and not is_nil(a.actor_uri),
-        distinct: a.id,
-        select: a.actor_uri
-      )
-      |> Repo.all()
-      |> Enum.map(fn actor_uri ->
-        SukhiFedi.Federation.OutboxBackfill.mark_pending(actor_uri)
-
-        %{"actor_uri" => actor_uri}
-        |> SukhiFedi.Federation.OutboxBackfill.new()
-        |> Repo.insert()
-      end)
-    end
-
-    if Process.whereis(SukhiFedi.Repo) do
-      {:ok, do_backfill.()}
-    else
-      {:ok, result, _apps} =
-        Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo -> do_backfill.() end)
-
-      {:ok, result}
-    end
+  @doc "Names `run_script/2` accepts (the files in `priv/scripts/`)."
+  def scripts do
+    Application.app_dir(@app, Path.join(["priv", "scripts"]))
+    |> Path.join("*.exs")
+    |> Path.wildcard()
+    |> Enum.map(&Path.basename(&1, ".exs"))
+    |> Enum.sort()
   end
 end

@@ -23,7 +23,8 @@ defmodule SukhiFedi.Relays do
 
   alias SukhiFedi.AP.ActorJson
   alias SukhiFedi.AP.Instructions.Extract
-  alias SukhiFedi.Federation.{ActorFetcher, UrlGuard}
+  alias SukhiFedi.Federation.ActorFetcher
+  alias SukhiShared.UrlGuard
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.{Account, Relay}
 

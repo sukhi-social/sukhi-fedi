@@ -47,7 +47,17 @@
 #
 #   scripts/emoji_import_test/run.sh
 #
-# NOT yet run against the real server, nor against a real Misskey.
+# Run end to end against a LOCAL gateway + api (`combined`, PGlite, a test
+# admin and an admin:write token made for it; 2026-10-15), from a Misskey-shaped
+# EMOJI_FILE: a dry run sent 2 and wrote nothing; the real run wrote 2; running
+# it again left 2 (the upsert, on the partial unique index); a wrong token gave
+# HTTP 401 and exit 1; no token stopped at once with exit 1. Items with a weapon
+# word or no url were left out and reported.
+#
+# NOT yet run against the real server (sukhi.f3liz.casa), nor against a real
+# Misskey (EMOJI_MISSKEY). That needs an admin's own bearer; do a dry run first
+# (`EMOJI_DRY_RUN=1`). Once it passes there, scripts/prepare_volpeon.mjs and the
+# old Makefile steps can go.
 #
 # What this script asks of its host: `host(name, args...)`, JSON in / JSON
 # out, and nothing else leaves the VM (tsbvm's StdHost has all of these).

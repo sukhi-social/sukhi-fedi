@@ -3,7 +3,7 @@
 # One place to start from. `make` on its own lists everything.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev dev-web test test-elixir test-delivery test-api test-web \
+.PHONY: help setup dev dev-web test test-shared test-elixir test-delivery test-api test-web \
         test-pglite test-e2e check check-presets env-audit script-tests need-tsubaki up down preflight \
         push-static push-styles clear-static static-status \
         release release-natadeco release-images push-deployex-config \
@@ -55,7 +55,10 @@ down:  ## stop that stack (volumes are kept)
 
 # ── Checking it ─────────────────────────────────────────────────────────────
 
-test: test-elixir test-delivery test-api test-web  ## every layer's unit tests
+test: test-shared test-elixir test-delivery test-api test-web  ## every layer's unit tests
+
+test-shared:
+	cd shared && $(RUN) mix test
 
 test-elixir:
 	cd elixir && $(RUN) mix test --no-start

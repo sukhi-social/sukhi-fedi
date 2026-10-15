@@ -26,6 +26,9 @@ defmodule SukhiDelivery.MixProject do
 
   defp deps do
     [
+      # Code the gateway and delivery must decide identically (UrlGuard).
+      {:sukhi_shared, path: "../shared"},
+
       # Database (reads outbox, writes delivery_receipts)
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.18"},

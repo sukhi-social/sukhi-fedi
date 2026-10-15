@@ -48,7 +48,7 @@ defmodule SukhiDelivery.Delivery.Worker do
   end
 
   defp do_deliver(job, args, activity_id, inbox_url) do
-    if SukhiDelivery.Federation.UrlGuard.safe?(inbox_url) do
+    if SukhiShared.UrlGuard.safe?(inbox_url) do
       deliver_to(job, args, activity_id, inbox_url)
     else
       # The inbox resolved to a non-public / non-https target — an SSRF
