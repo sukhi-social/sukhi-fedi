@@ -10,7 +10,7 @@ Standards that sukhi follows, and the projects it learns from. The software it u
 
 <h2 id="credit">Credit</h2>
 
-Projects and communities whose work sukhi follows or learns from. They are not dependencies: nothing of theirs is built in.
+Projects and communities sukhi follows or learns from.
 
 ### People
 

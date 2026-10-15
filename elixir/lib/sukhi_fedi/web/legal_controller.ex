@@ -53,49 +53,72 @@ defmodule SukhiFedi.Web.LegalController do
 
   @docs docs
 
+  # The closing words under every page: the parody grant, then (only where the
+  # page is about open-source software) the thanks for keeping it open, then
+  # the punchline. /credits is not about open-source software, so it leaves the
+  # middle out.
+  @closing_files ~w(licenses-end.en.md licenses-end.ja.md licenses-end.ko.md licenses-end-oss.en.md licenses-end-oss.ja.md licenses-end-last.en.md licenses-end-last.ja.md licenses-end-last.ko.md)
+  for file <- @closing_files, do: @external_resource(Path.join(@dir, file))
+
+  closing = fn lang, oss? ->
+    parts =
+      ["licenses-end.#{lang}.md"] ++
+        if(oss?, do: ["licenses-end-oss.#{lang}.md"], else: []) ++
+        ["licenses-end-last.#{lang}.md"]
+
+    Enum.map_join(parts, &bake.(@dir, &1))
+  end
+
+  @closing %{en: closing.("en", true), ja: closing.("ja", true)}
+  @closing_credits %{
+    en: closing.("en", false),
+    ja: closing.("ja", false),
+    ko: closing.("ko", false)
+  }
+
   # /licenses — thanks to the open-source projects underneath. Not a legal
   # document, so it has no flavor: one text per language (English is the
   # base; Korean readers get it too), plus the generated per-category list
   # (scripts/gen_licenses.mjs, one per language) baked in after the text.
-  @licenses_files ~w(licenses.en.md licenses.ja.md licenses-list.en.html licenses-list.ja.html licenses-end.en.md licenses-end.ja.md)
+  @licenses_files ~w(licenses.en.md licenses.ja.md licenses-list.en.html licenses-list.ja.html)
   for file <- @licenses_files, do: @external_resource(Path.join(@dir, file))
 
   @licenses %{
     en:
       bake.(@dir, "licenses.en.md") <>
-        File.read!(Path.join(@dir, "licenses-list.en.html")) <> bake.(@dir, "licenses-end.en.md"),
+        File.read!(Path.join(@dir, "licenses-list.en.html")) <> @closing.en,
     ja:
       bake.(@dir, "licenses.ja.md") <>
-        File.read!(Path.join(@dir, "licenses-list.ja.html")) <> bake.(@dir, "licenses-end.ja.md")
+        File.read!(Path.join(@dir, "licenses-list.ja.html")) <> @closing.ja
   }
 
   # /licenses/rust — the Rust crates inside ojak, off the main page (see the
   # footnote there): their own text plus the generated list, then the same
   # closing words as the main page.
-  @rust_files ~w(licenses-rust.en.md licenses-rust.ja.md licenses-rust-list.en.html licenses-rust-list.ja.html licenses-end.en.md licenses-end.ja.md)
+  @rust_files ~w(licenses-rust.en.md licenses-rust.ja.md licenses-rust-list.en.html licenses-rust-list.ja.html)
   for file <- @rust_files, do: @external_resource(Path.join(@dir, file))
 
   @rust %{
     en:
       bake.(@dir, "licenses-rust.en.md") <>
         File.read!(Path.join(@dir, "licenses-rust-list.en.html")) <>
-        bake.(@dir, "licenses-end.en.md"),
+        @closing.en,
     ja:
       bake.(@dir, "licenses-rust.ja.md") <>
         File.read!(Path.join(@dir, "licenses-rust-list.ja.html")) <>
-        bake.(@dir, "licenses-end.ja.md")
+        @closing.ja
   }
 
   # /credits — the standards sukhi implements and the projects it learns from
   # (none of them a dependency, so not on /licenses), then the same closing
   # words as the other pages. Hand-written; nothing generated.
-  @credits_files ~w(credits.en.md credits.ja.md credits.ko.md licenses-end.en.md licenses-end.ja.md licenses-end.ko.md)
+  @credits_files ~w(credits.en.md credits.ja.md credits.ko.md)
   for file <- @credits_files, do: @external_resource(Path.join(@dir, file))
 
   @credits %{
-    en: bake.(@dir, "credits.en.md") <> bake.(@dir, "licenses-end.en.md"),
-    ja: bake.(@dir, "credits.ja.md") <> bake.(@dir, "licenses-end.ja.md"),
-    ko: bake.(@dir, "credits.ko.md") <> bake.(@dir, "licenses-end.ko.md")
+    en: bake.(@dir, "credits.en.md") <> @closing_credits.en,
+    ja: bake.(@dir, "credits.ja.md") <> @closing_credits.ja,
+    ko: bake.(@dir, "credits.ko.md") <> @closing_credits.ko
   }
 
   defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor, :sukhi)

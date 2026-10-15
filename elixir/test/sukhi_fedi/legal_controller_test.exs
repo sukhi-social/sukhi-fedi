@@ -181,6 +181,23 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert ja =~ "この感謝は、譲渡できません。"
   end
 
+  test "the open-source thanks closes /licenses but not /credits" do
+    lic = get("/licenses") |> LegalController.licenses() |> Map.get(:resp_body)
+    assert lic =~ "maintaining this project as open source"
+    assert lic =~ "This thanks is non-transferable."
+
+    for {path, lang} <- [
+          {"/credits", "en"},
+          {"/credits?lang=ja", "ja"},
+          {"/credits?lang=ko", "ko"}
+        ] do
+      body = get(path) |> LegalController.credits() |> Map.get(:resp_body)
+      refute body =~ "maintaining this project as open source", lang
+      refute body =~ "オープンソースとして", lang
+      refute body =~ "오픈소스로서", lang
+    end
+  end
+
   test "the standards left /licenses; it points to /credits instead" do
     body = get("/licenses") |> LegalController.licenses() |> Map.get(:resp_body)
 
