@@ -53,48 +53,72 @@ defmodule SukhiFedi.Web.LegalController do
 
   @docs docs
 
+  # The closing words under every page: the parody grant, then (only where the
+  # page is about open-source software) the thanks for keeping it open, then
+  # the punchline. /credits is not about open-source software, so it leaves the
+  # middle out.
+  @closing_files ~w(licenses-end.en.md licenses-end.ja.md licenses-end.ko.md licenses-end-oss.en.md licenses-end-oss.ja.md licenses-end-last.en.md licenses-end-last.ja.md licenses-end-last.ko.md)
+  for file <- @closing_files, do: @external_resource(Path.join(@dir, file))
+
+  closing = fn lang, oss? ->
+    parts =
+      ["licenses-end.#{lang}.md"] ++
+        if(oss?, do: ["licenses-end-oss.#{lang}.md"], else: []) ++
+        ["licenses-end-last.#{lang}.md"]
+
+    Enum.map_join(parts, &bake.(@dir, &1))
+  end
+
+  @closing %{en: closing.("en", true), ja: closing.("ja", true)}
+  @closing_credits %{
+    en: closing.("en", false),
+    ja: closing.("ja", false),
+    ko: closing.("ko", false)
+  }
+
   # /licenses — thanks to the open-source projects underneath. Not a legal
   # document, so it has no flavor: one text per language (English is the
   # base; Korean readers get it too), plus the generated per-category list
   # (scripts/gen_licenses.mjs, one per language) baked in after the text.
-  @licenses_files ~w(licenses.en.md licenses.ja.md licenses-list.en.html licenses-list.ja.html licenses-end.en.md licenses-end.ja.md)
+  @licenses_files ~w(licenses.en.md licenses.ja.md licenses-list.en.html licenses-list.ja.html)
   for file <- @licenses_files, do: @external_resource(Path.join(@dir, file))
 
   @licenses %{
     en:
       bake.(@dir, "licenses.en.md") <>
-        File.read!(Path.join(@dir, "licenses-list.en.html")) <> bake.(@dir, "licenses-end.en.md"),
+        File.read!(Path.join(@dir, "licenses-list.en.html")) <> @closing.en,
     ja:
       bake.(@dir, "licenses.ja.md") <>
-        File.read!(Path.join(@dir, "licenses-list.ja.html")) <> bake.(@dir, "licenses-end.ja.md")
+        File.read!(Path.join(@dir, "licenses-list.ja.html")) <> @closing.ja
   }
 
   # /licenses/rust — the Rust crates inside ojak, off the main page (see the
   # footnote there): their own text plus the generated list, then the same
   # closing words as the main page.
-  @rust_files ~w(licenses-rust.en.md licenses-rust.ja.md licenses-rust-list.en.html licenses-rust-list.ja.html licenses-end.en.md licenses-end.ja.md)
+  @rust_files ~w(licenses-rust.en.md licenses-rust.ja.md licenses-rust-list.en.html licenses-rust-list.ja.html)
   for file <- @rust_files, do: @external_resource(Path.join(@dir, file))
 
   @rust %{
     en:
       bake.(@dir, "licenses-rust.en.md") <>
         File.read!(Path.join(@dir, "licenses-rust-list.en.html")) <>
-        bake.(@dir, "licenses-end.en.md"),
+        @closing.en,
     ja:
       bake.(@dir, "licenses-rust.ja.md") <>
         File.read!(Path.join(@dir, "licenses-rust-list.ja.html")) <>
-        bake.(@dir, "licenses-end.ja.md")
+        @closing.ja
   }
 
   # /credits — the standards sukhi implements and the projects it learns from
   # (none of them a dependency, so not on /licenses), then the same closing
   # words as the other pages. Hand-written; nothing generated.
-  @credits_files ~w(credits.en.md credits.ja.md licenses-end.en.md licenses-end.ja.md)
+  @credits_files ~w(credits.en.md credits.ja.md credits.ko.md)
   for file <- @credits_files, do: @external_resource(Path.join(@dir, file))
 
   @credits %{
-    en: bake.(@dir, "credits.en.md") <> bake.(@dir, "licenses-end.en.md"),
-    ja: bake.(@dir, "credits.ja.md") <> bake.(@dir, "licenses-end.ja.md")
+    en: bake.(@dir, "credits.en.md") <> @closing_credits.en,
+    ja: bake.(@dir, "credits.ja.md") <> @closing_credits.ja,
+    ko: bake.(@dir, "credits.ko.md") <> @closing_credits.ko
   }
 
   defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor, :sukhi)
@@ -153,6 +177,9 @@ defmodule SukhiFedi.Web.LegalController do
   .nav { padding-top: 1.1rem; font-size: .9rem; }
   .nav a { color: #777; text-decoration: none; margin-right: 1rem; }
   .nav a:hover { text-decoration: underline; }
+  .nav a[aria-current] { color: #222; font-weight: 700; }
+  .nav .lang { display: inline-block; border-left: 1px solid #ccc; padding-left: 1rem; }
+  .nav .lang a:last-child { margin-right: 0; }
   .legal { padding: 1.5rem 1.25rem 3rem; }
   .legal h1 { font-size: 1.7rem; line-height: 1.3; margin: .5rem 0 1rem; }
   .legal h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; }
@@ -217,6 +244,8 @@ defmodule SukhiFedi.Web.LegalController do
     .deps .l { border-color: #333; }
     .deps a.l:hover { color: #7aa2f7; border-color: #7aa2f7; }
     .nav a, .foot, .foot a { color: #8b8f99; }
+    .nav a[aria-current] { color: #e6e6e6; }
+    .nav .lang { border-color: #2a2e37; }
     .cta-btn { color: #dcdde0; border-color: #3a4150; }
     .cta-btn:hover { background: #20242c; }
   }
@@ -326,7 +355,19 @@ defmodule SukhiFedi.Web.LegalController do
           "/credits",
           {"ライセンス", "/licenses?lang=ja"},
           false,
-          {"English", nil}
+          [{"English", nil}, {"한국어", "lang=ko"}]
+        )
+
+      %{"lang" => "ko"} ->
+        render(
+          conn,
+          "ko",
+          "크레딧",
+          @credits.ko,
+          "/credits",
+          {"라이선스", "/licenses"},
+          false,
+          [{"English", nil}, {"日本語", "lang=ja"}]
         )
 
       _ ->
@@ -338,7 +379,7 @@ defmodule SukhiFedi.Web.LegalController do
           "/credits",
           {"Licenses", "/licenses"},
           false,
-          {"日本語", "lang=ja"}
+          [{"日本語", "lang=ja"}, {"한국어", "lang=ko"}]
         )
     end
   end
@@ -379,6 +420,33 @@ defmodule SukhiFedi.Web.LegalController do
     end
   end
 
+  # {path, label, query} for the four documents, in the page's language. Terms
+  # and privacy are ja ⇄ ko; licenses are en ⇄ ja (Korean readers get en);
+  # credits are all three.
+  defp doc_nav("ko"),
+    do: [
+      {"/terms", "이용약관", "lang=ko"},
+      {"/privacy", "개인정보 처리방침", "lang=ko"},
+      {"/licenses", "라이선스", nil},
+      {"/credits", "크레딧", "lang=ko"}
+    ]
+
+  defp doc_nav("en"),
+    do: [
+      {"/terms", "Terms", nil},
+      {"/privacy", "Privacy Policy", nil},
+      {"/licenses", "Licenses", nil},
+      {"/credits", "Credits", nil}
+    ]
+
+  defp doc_nav(_ja),
+    do: [
+      {"/terms", "利用規約", nil},
+      {"/privacy", "プライバシーポリシー", nil},
+      {"/licenses", "ライセンス", "lang=ja"},
+      {"/credits", "クレジット", "lang=ja"}
+    ]
+
   # Join a path with the non-nil query parts, in order. [] -> bare path.
   defp query_url(path, parts) do
     case Enum.reject(parts, &is_nil/1) do
@@ -394,7 +462,8 @@ defmodule SukhiFedi.Web.LegalController do
   # on the cross-link and the language toggle so neither loses the way back.
   #
   # `toggle` is `{label, query}` for the language link; terms/privacy leave
-  # it out (ja ⇄ ko), /licenses passes its own (en ⇄ ja).
+  # it out (ja ⇄ ko), /licenses passes its own (en ⇄ ja); /credits passes a list
+  # (en, ja, ko: each page links the other two).
   defp render(conn, lang, title, body, self_path, cross, signup?, toggle \\ nil)
 
   defp render(conn, lang, title, body, self_path, {cross_label, cross_path}, signup?, toggle) do
@@ -408,13 +477,27 @@ defmodule SukhiFedi.Web.LegalController do
         _ -> "トップへ"
       end
 
-    {toggle_label, toggle_lang} =
-      toggle ||
-        if lang == "ko",
-          do: {"日本語", nil},
-          else: {"한국어", "lang=ko"}
+    toggles =
+      case toggle do
+        nil when lang == "ko" -> [{"日本語", nil}]
+        nil -> [{"한국어", "lang=ko"}]
+        {_, _} = one -> [one]
+        many -> many
+      end
 
-    toggle_href = query_url(self_path, [sq, toggle_lang])
+    toggle_links =
+      Enum.map_join(toggles, fn {label, q} ->
+        ~s(<a href="#{query_url(self_path, [sq, q])}">#{label}</a>)
+      end)
+
+    # The four documents, on top of every one of them; the one you are on is
+    # marked (the Rust page counts as Licenses).
+    doc_links =
+      Enum.map_join(doc_nav(lang), fn {path, label, q} ->
+        current = if String.starts_with?(self_path, path), do: ~s( aria-current="page"), else: ""
+        ~s(<a href="#{query_url(path, [sq, q])}"#{current}>#{label}</a>)
+      end)
+
     cross_href = query_url(cross_path, [sq, lang_q])
 
     cta =
@@ -443,10 +526,10 @@ defmodule SukhiFedi.Web.LegalController do
     <style>#{@css}#{font}</style>
     </head>
     <body>
-    <nav class="nav"><a href="/">← #{home}</a><a href="#{cross_href}">#{cross_label}</a><a href="#{toggle_href}">#{toggle_label}</a></nav>
+    <nav class="nav"><a href="/">← #{home}</a>#{doc_links}<span class="lang">#{toggle_links}</span></nav>
     <main class="legal">#{body}</main>
     #{cta}
-    <footer class="foot"><a href="#{cross_href}">#{cross_label}</a><a href="#{toggle_href}">#{toggle_label}</a><a href="/">#{home}</a></footer>
+    <footer class="foot"><a href="#{cross_href}">#{cross_label}</a>#{toggle_links}<a href="/">#{home}</a></footer>
     </body>
     </html>
     """

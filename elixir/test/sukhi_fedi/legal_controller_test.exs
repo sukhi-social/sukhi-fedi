@@ -135,6 +135,30 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert ja =~ "そのままの、感謝を"
   end
 
+  test "/credits has a Korean page, and the three pages link each other" do
+    ko = get("/credits?lang=ko") |> LegalController.credits() |> Map.get(:resp_body)
+
+    assert ko =~ ~s(<html lang="ko">)
+    assert ko =~ "크레딧"
+    assert ko =~ "작고, 취소할 수 없는"
+    assert ko =~ "이 감사는 양도할 수 없습니다."
+    assert ko =~ "연합우주를 널리 알려 주셔서"
+    assert ko =~ ~s(href="/credits")
+    assert ko =~ ~s(href="/credits?lang=ja")
+
+    en = get("/credits") |> LegalController.credits() |> Map.get(:resp_body)
+    assert en =~ ~s(href="/credits?lang=ko")
+    assert en =~ ~s(href="/credits?lang=ja")
+    # the thanks are translated on en/ja, the Korean original lives on ko
+    assert en =~ "spreading the word about the fediverse"
+    refute en =~ "연합우주"
+
+    ja = get("/credits?lang=ja") |> LegalController.credits() |> Map.get(:resp_body)
+    assert ja =~ ~s(href="/credits?lang=ko")
+    assert ja =~ "連合宇宙を広めてくださり"
+    refute ja =~ "연합우주"
+  end
+
   test "/credits holds standards and credit — not dependencies — in both languages" do
     en = get("/credits") |> LegalController.credits() |> Map.get(:resp_body)
 
@@ -147,12 +171,51 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert en =~ ~s(href="https://fediverse.codeberg.page/fep/fep/8b32/")
     assert en =~ "Mastodon"
     assert en =~ "AS-IS “Thank you!”"
+    assert en =~ "This thanks is non-transferable."
     refute en =~ "<script"
 
     ja = get("/credits?lang=ja") |> LegalController.credits() |> Map.get(:resp_body)
     assert ja =~ "クレジット"
     assert ja =~ ~s(href="/licenses?lang=ja")
     assert ja =~ "そのままの、感謝を"
+    assert ja =~ "この感謝は、譲渡できません。"
+  end
+
+  test "the people on /credits link to their own sites in every language" do
+    for path <- ["/credits", "/credits?lang=ja", "/credits?lang=ko"] do
+      body = get(path) |> LegalController.credits() |> Map.get(:resp_body)
+
+      for url <- [
+            "https://lapy.link/",
+            "https://hongminhee.org/",
+            "https://kodingwarrior.github.io/about/"
+          ] do
+        assert body =~ ~s(href="#{url}"), "#{path} #{url}"
+      end
+    end
+
+    ko = get("/credits?lang=ko") |> LegalController.credits() |> Map.get(:resp_body)
+    assert ko =~ "님은"
+    # ltlapy is a person; k.lapy.link is the server, and it is theirs
+    assert ko =~ ~s(>ltlapy</a>의 <a href="https://k.lapy.link">)
+    refute ko =~ "Jaeyeol"
+  end
+
+  test "the open-source thanks closes /licenses but not /credits" do
+    lic = get("/licenses") |> LegalController.licenses() |> Map.get(:resp_body)
+    assert lic =~ "maintaining this project as open source"
+    assert lic =~ "This thanks is non-transferable."
+
+    for {path, lang} <- [
+          {"/credits", "en"},
+          {"/credits?lang=ja", "ja"},
+          {"/credits?lang=ko", "ko"}
+        ] do
+      body = get(path) |> LegalController.credits() |> Map.get(:resp_body)
+      refute body =~ "maintaining this project as open source", lang
+      refute body =~ "オープンソースとして", lang
+      refute body =~ "오픈소스로서", lang
+    end
   end
 
   test "the standards left /licenses; it points to /credits instead" do

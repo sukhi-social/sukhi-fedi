@@ -19,5 +19,5 @@ All under the SIL Open Font License 1.1 — see `*-OFL.txt`. Source TTFs:
 github.com/google/fonts (ofl/bizudpgothic, ofl/nanumgothic). Re-subset with
 `pyftsubset <ttf> --text-file=<chars> --flavor=woff2 --layout-features='*'`,
 where `<chars>` is every character the rendered pages use (both flavors, all
-languages) plus ASCII. Add a page, re-run this, or its new glyphs fall back to the
+languages: terms, privacy, licenses, credits, in ja / ko / en) plus ASCII. Add a page, re-run this, or its new glyphs fall back to the
 system font.
