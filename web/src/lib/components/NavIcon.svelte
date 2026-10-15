@@ -18,15 +18,25 @@
     | 'user'
     | 'back'
     | 'image'
-    | 'send';
+    | 'send'
+    | 'plus'
+    | 'repeat'
+    | 'quote'
+    | 'reply'
+    | 'more'
+    | 'pin'
+    | 'trash'
+    | 'flag';
 
-  let { name }: { name: IconName } = $props();
+  // filled: 押している状態を「かたち」でも示す(星・栞を塗りつぶす)。
+  // 色だけに頼らない ── 淡い地の色は読み上げにも印刷にも残らないから。
+  let { name, filled = false }: { name: IconName; filled?: boolean } = $props();
 </script>
 
 <svg
   class="nav-ico"
   viewBox="0 0 24 24"
-  fill="none"
+  fill={filled ? 'currentColor' : 'none'}
   stroke="currentColor"
   stroke-width="1.7"
   stroke-linecap="round"
@@ -85,5 +95,31 @@
   {:else if name === 'logout'}
     <path d="M14 4H6v16h8" />
     <path d="M10 12h10M16.5 8.5 20 12l-3.5 3.5" />
+  {:else if name === 'plus'}
+    <path d="M12 5.5v13M5.5 12h13" />
+  {:else if name === 'repeat'}
+    <!-- ブースト。角の丸い輪をぐるりと回る矢印 ── 同じものを繰り返す、の形。 -->
+    <path d="M4 11V9.5A3.5 3.5 0 0 1 7.5 6H20" />
+    <path d="M17 3l3 3-3 3" />
+    <path d="M20 13v1.5a3.5 3.5 0 0 1-3.5 3.5H4" />
+    <path d="M7 21l-3-3 3-3" />
+  {:else if name === 'quote'}
+    <!-- 引用。ことばの吹き出し。 -->
+    <path d="M4.5 5.5h15v10h-9l-4.5 3.5v-3.5h-1.5Z" />
+  {:else if name === 'reply'}
+    <path d="M9.5 8 5 12.5 9.5 17" />
+    <path d="M5 12.5h8.5a5.5 5.5 0 0 1 5.5 5.5" />
+  {:else if name === 'more'}
+    <circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+  {:else if name === 'pin'}
+    <path d="M9 4.5h6l-1 5 2.5 2.5v1.5h-9V12L10 9.5Z" />
+    <path d="M12 13.5V20" />
+  {:else if name === 'trash'}
+    <path d="M5 7h14M10 7V5h4v2M7 7l1 12.5h8L17 7" />
+  {:else if name === 'flag'}
+    <path d="M6 20.5V4.5" />
+    <path d="M6 5h11l-2.2 3.5L17 12H6" />
   {/if}
 </svg>

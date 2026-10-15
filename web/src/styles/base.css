@@ -58,6 +58,14 @@ html[lang='ja'] {
 
 /* Links read as ink with an underline — the plainest, most recognisable
  * link there is. No coloured link text. */
+/* Keyboard focus is always visible, and drawn one way everywhere. Mouse
+ * focus on buttons/links stays quiet (:focus-visible), but a Tab press
+ * always leaves a ring. Inputs add their own border change on top. */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 a {
   color: var(--color-text);
   text-underline-offset: 0.16em;

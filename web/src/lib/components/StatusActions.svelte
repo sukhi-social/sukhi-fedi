@@ -2,6 +2,7 @@
   import type { Status, Reaction } from '$lib/api';
   import * as api from '$lib/api';
   import ReactionPicker from './ReactionPicker.svelte';
+  import NavIcon from './NavIcon.svelte';
   import Twemoji from './Twemoji.svelte';
   import { t } from '$lib/i18n';
 
@@ -225,8 +226,14 @@
 
 {#if !readonly}
 <footer class="status-actions">
-  <button type="button" class="chip" onclick={() => (pickerOpen = !pickerOpen)} aria-haspopup="dialog">
-    ＋
+  <button
+    type="button"
+    class="chip"
+    onclick={() => (pickerOpen = !pickerOpen)}
+    aria-haspopup="dialog"
+    aria-label={$t('reaction.pick')}
+  >
+    <NavIcon name="plus" />
   </button>
   <button
     type="button"
@@ -235,7 +242,9 @@
     onclick={toggleFavourite}
     aria-pressed={favourited}
   >
-    <Twemoji emoji="⭐" label={$t('status.favourite')} /> {favCount > 0 ? favCount : ''}
+    <NavIcon name="star" filled={favourited} />
+    <span class="visually-hidden">{$t('status.favourite')}</span>
+    {favCount > 0 ? favCount : ''}
   </button>
   <!-- 🔁 を押すと、ブースト/引用の小メニューがこのボタンの真下に吊るされる
        (相対ラッパ + 絶対配置)。行全体の下ではなくボタン直下に出すことで、
@@ -250,7 +259,8 @@
       aria-expanded={boostMenuOpen}
       aria-label={$t('status.boost')}
     >
-      <Twemoji emoji="🔁" /> {reblogCount > 0 ? reblogCount : ''}
+      <NavIcon name="repeat" />
+      {reblogCount > 0 ? reblogCount : ''}
     </button>
     {#if boostMenuOpen}
       <div class="menu boost-menu" role="menu">
@@ -261,10 +271,12 @@
           role="menuitem"
           onclick={boostFromMenu}
         >
-          <Twemoji emoji="🔁" /> {$t('status.boost')}
+          <NavIcon name="repeat" />
+          <span>{$t('status.boost')}</span>
         </button>
         <button type="button" class="menu-item" role="menuitem" onclick={quoteFromMenu}>
-          <Twemoji emoji="💬" /> {$t('status.quote')}
+          <NavIcon name="quote" />
+          <span>{$t('status.quote')}</span>
         </button>
       </div>
     {/if}
@@ -283,7 +295,7 @@
       aria-expanded={menuOpen}
       aria-label={$t('status.more')}
     >
-      ⋯
+      <NavIcon name="more" />
     </button>
   {/if}
   <!-- ブックマークは自分だけの栞なので、社交の並び(⭐🔁返信)から
@@ -296,7 +308,7 @@
     aria-pressed={bookmarked}
     aria-label={bookmarked ? $t('status.bookmarkRemove') : $t('status.bookmarkAdd')}
   >
-    <Twemoji emoji={bookmarked ? '🔖' : '🏷'} />
+    <NavIcon name="bookmark" filled={bookmarked} />
   </button>
 </footer>
 {/if}
@@ -311,7 +323,8 @@
   <div class="menu" role="menu">
     {#if mine}
       <button type="button" class="menu-item" role="menuitem" onclick={togglePin}>
-        <Twemoji emoji="📌" /> {pinned ? $t('status.unpin') : $t('status.pin')}
+        <NavIcon name="pin" filled={pinned} />
+        <span>{pinned ? $t('status.unpin') : $t('status.pin')}</span>
       </button>
       <button
         type="button"
@@ -320,7 +333,8 @@
         onclick={remove}
         disabled={deleting}
       >
-        <Twemoji emoji="🗑" /> {$t('status.delete')}
+        <NavIcon name="trash" />
+        <span>{$t('status.delete')}</span>
       </button>
     {:else}
       <button
@@ -330,7 +344,8 @@
         onclick={doReport}
         disabled={reported}
       >
-        <Twemoji emoji="🚩" /> {reported ? $t('status.reported') : $t('status.report')}
+        <NavIcon name="flag" />
+        <span>{reported ? $t('status.reported') : $t('status.report')}</span>
       </button>
     {/if}
   </div>
@@ -382,8 +397,19 @@
     font-variant-numeric: tabular-nums;
     color: var(--color-text-muted);
   }
+  /* 押している状態は、地の色と字の濃さと、塗りつぶした星・栞で示す。
+     グローバルの chip[aria-pressed] は地を暗く塗るので、ここで淡い行に
+     合わせて上書きする ── 字が淡い地に溶けない(旧: 白字 on 薄灰 ≒1.3:1)。 */
   .status-actions .chip.active {
+    color: var(--color-text);
     background: var(--fill-active);
+    border-color: var(--fill-active-edge);
+    font-weight: 600;
+  }
+  /* 行の中のアイコンは本文より一回り小さく。字と同じ重さで並ぶように。 */
+  .status-actions :global(.nav-ico) {
+    width: 1.2em;
+    height: 1.2em;
   }
   .status-actions .bookmark {
     margin-left: auto;
@@ -419,6 +445,9 @@
     background: var(--color-surface);
   }
   .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     padding: 0.375rem 0.5rem;
     border: none;
     border-radius: var(--radius-sm);
@@ -427,6 +456,10 @@
     color: inherit;
     text-align: left;
     cursor: pointer;
+  }
+  .menu-item :global(.nav-ico) {
+    width: 1.15em;
+    height: 1.15em;
   }
   .menu-item:hover:not(:disabled) {
     background: var(--fill-hover);

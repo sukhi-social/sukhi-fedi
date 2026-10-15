@@ -399,7 +399,7 @@ body.in-thread main.wrap {
   cursor: pointer;
   color: var(--color-text-muted);
   background: transparent;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-control);
   border-radius: 999px;
   transition:
     color 0.1s ease,
@@ -430,7 +430,7 @@ body.in-thread main.wrap {
   display: inline-block;
   background: var(--color-surface);
   color: var(--color-text);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-control);
   border-radius: var(--radius-sm);
   cursor: pointer;
   text-decoration: none;
@@ -654,7 +654,7 @@ img.twemoji {
   align-items: center;
   width: 100%;
   background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-control);
   border-radius: var(--radius-sm);
   padding-left: var(--space-3);
 }
@@ -725,7 +725,7 @@ img.twemoji {
   display: block;
   margin: var(--space-6) auto 0;
   background: transparent;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-control);
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-6);
   color: var(--color-text-muted);
@@ -786,7 +786,7 @@ input[type='email'] {
   font: inherit;
   background: var(--color-surface);
   color: var(--color-text);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-control);
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
 }
@@ -812,10 +812,10 @@ textarea {
   }
 }
 
+/* 焦点の輪は :focus-visible (base.css) が一手に持つ。ここでは枠の色だけ。 */
 textarea:focus,
 select:focus,
 input:focus {
-  outline: none;
   border-color: var(--color-text);
 }
 
@@ -931,7 +931,7 @@ button:disabled {
   align-items: flex-end;
   gap: var(--space-1);
   padding: 2px;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-control);
   border-radius: 23px;
   background: var(--color-surface);
 }
@@ -991,7 +991,7 @@ button:disabled {
   height: 44px;
   padding: 0;
   background: transparent;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-control);
   border-radius: 999px;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -1281,6 +1281,14 @@ button:disabled {
 .status-actions .chip:hover,
 .status-actions .chip:focus-visible {
   border-color: var(--color-border-strong);
+}
+
+/* 指で押す行なので、押せる高さは 44px(ナビの戻るとそろえる)。
+   マウスの画面では今の詰まった高さのまま。 */
+@media (pointer: coarse) {
+  .status-actions .chip {
+    min-height: 2.75rem;
+  }
 }
 
 /* ── プロフィール ────────────────────────────────────────────────── */
