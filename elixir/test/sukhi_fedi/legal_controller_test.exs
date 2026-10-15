@@ -141,6 +141,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert ko =~ ~s(<html lang="ko">)
     assert ko =~ "크레딧"
     assert ko =~ "작고, 취소할 수 없는"
+    assert ko =~ "이 감사는 양도할 수 없습니다."
     assert ko =~ "연합우주를 널리 알려 주셔서"
     assert ko =~ ~s(href="/credits")
     assert ko =~ ~s(href="/credits?lang=ja")
@@ -170,12 +171,14 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert en =~ ~s(href="https://fediverse.codeberg.page/fep/fep/8b32/")
     assert en =~ "Mastodon"
     assert en =~ "AS-IS “Thank you!”"
+    assert en =~ "This thanks is non-transferable."
     refute en =~ "<script"
 
     ja = get("/credits?lang=ja") |> LegalController.credits() |> Map.get(:resp_body)
     assert ja =~ "クレジット"
     assert ja =~ ~s(href="/licenses?lang=ja")
     assert ja =~ "そのままの、感謝を"
+    assert ja =~ "この感謝は、譲渡できません。"
   end
 
   test "the standards left /licenses; it points to /credits instead" do
