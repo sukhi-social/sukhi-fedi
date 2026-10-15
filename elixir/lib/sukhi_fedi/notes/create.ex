@@ -226,7 +226,8 @@ defmodule SukhiFedi.Notes.Create do
           media: SukhiFedi.AP.MediaSerialize.descriptors(note.media),
           quote_of_ap_id: note.quote_of_ap_id,
           quote_authorization_ap_id: note.quote_authorization_ap_id,
-          in_reply_to_ap_id: note.in_reply_to_ap_id
+          in_reply_to_ap_id: note.in_reply_to_ap_id,
+          emojis: note.emojis || []
         })
 
       _ ->

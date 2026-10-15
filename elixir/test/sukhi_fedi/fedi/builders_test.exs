@@ -23,6 +23,47 @@ defmodule SukhiFedi.Fedi.BuildersTest do
     result
   end
 
+  describe "本文のカスタム絵文字" do
+    defp with_emojis!(emojis, type \\ "note") do
+      build!(
+        type,
+        %{
+          "actor" => FediGolden.actor(),
+          "content" => "<p>:neocat:</p>",
+          "recipientInboxes" => ["https://remote.test/inbox"],
+          "noteId" => "https://sukhi.test/notes/2",
+          "activityId" => "https://sukhi.test/notes/2/activity",
+          "emojis" => emojis
+        }
+      )
+      |> then(&(&1["note"] || &1["update"]))
+      |> Map.fetch!("object")
+    end
+
+    @neocat %{
+      "shortcode" => "neocat",
+      "url" => "https://sukhi.test/static/emojis/neocat/neocat.png",
+      "static_url" => "https://sukhi.test/static/emojis/neocat/neocat.png"
+    }
+
+    test "`:shortcode:` は Emoji の tag として載る ── 無いと向こうでは文字のまま" do
+      assert [tag] = with_emojis!([@neocat])["tag"]
+      assert tag["type"] == "Emoji"
+      assert tag["name"] == ":neocat:"
+      assert tag["icon"] == %{"type" => "Image", "url" => @neocat["url"]}
+    end
+
+    test "Update(引用の承認などの再配達)にも、同じ tag が載る" do
+      assert [%{"name" => ":neocat:"}] = with_emojis!([@neocat], "update")["tag"]
+    end
+
+    test "絵文字が無い / url が無いなら tag を出さない" do
+      refute Map.has_key?(with_emojis!([]), "tag")
+      refute Map.has_key?(with_emojis!(nil), "tag")
+      refute Map.has_key?(with_emojis!([%{"shortcode" => "x", "url" => nil}]), "tag")
+    end
+  end
+
   describe "題つきの投稿" do
     defp titled!(extra \\ %{}) do
       build!(

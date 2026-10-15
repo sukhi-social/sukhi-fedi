@@ -201,6 +201,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
           |> maybe_put_attachments(p["media"])
           |> maybe_put_cw(p["cw"])
           |> maybe_put_sensitive(p["sensitive"])
+          |> maybe_put_emojis(p["emojis"])
 
         translate_and_fanout("update", translator_payload, actor_uri, activity_id, recipients,
           extract: "update"
