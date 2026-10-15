@@ -2,6 +2,8 @@
 
 Here are the main categories of software *we* use. At the bottom, there is a list of everything sukhi uses. Please take a look!
 
+Standards, and the people we learn from, are on [Credits](/credits).
+
 <nav class="index">
 <p class="index-title">Index</p>
 <a href="#languages">Languages</a>
@@ -19,13 +21,13 @@ Here are the main categories of software *we* use. At the bottom, there is a lis
 
 Thank you for a language that is easy and fun to write and to read. A small thank-you for everything you contribute to, and keep up, in the language we look at every day.
 
-*Elixir · Erlang/OTP · Node.js · TypeScript*
+*Elixir · Erlang/OTP · Node.js · TypeScript · Rust*
 
 <h2 id="federation">Federation</h2>
 
 Thank you for making the walls we have to get over, when talking with good friends, easy to see. And thank you for supporting my friends' instances every day.
 
-*Fedify · Feder · ojak · ActivityPub · WebFinger · JSON-LD · RDF · rdf-canonize · PKI.js*
+*Fedify · Feder · ojak · rdf-canonize · PKI.js*
 
 <h2 id="web">Web</h2>
 

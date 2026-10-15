@@ -2,6 +2,8 @@
 
 ここには、*私たち*が使っているソフトウェアを、大きなカテゴリーに分けて載せています。いちばん下に、sukhi が使っているすべてのソフトウェアの一覧があります。ぜひ見てください。
 
+規格と、学んでいる相手は、[クレジット](/credits?lang=ja)にあります。
+
 <nav class="index">
 <p class="index-title">索引</p>
 <a href="#languages">言語</a>
@@ -19,13 +21,13 @@
 
 書いて見るのに楽で楽しい言葉をありがとう。毎日ながめている言葉への貢献、維持に小さな感謝を述べます。
 
-*Elixir · Erlang/OTP · Node.js · TypeScript*
+*Elixir · Erlang/OTP · Node.js · TypeScript · Rust*
 
 <h2 id="federation">連合（フェデレーション）</h2>
 
 良き友人と話すとき、超えるべき壁をわかりやすくしてくれてありがとう。また、友人のインスタンスを毎日支えてくれてありがとう。
 
-*Fedify · Feder · ojak · ActivityPub · WebFinger · JSON-LD · RDF · rdf-canonize · PKI.js*
+*Fedify · Feder · ojak · rdf-canonize · PKI.js*
 
 <h2 id="web">Web</h2>
 

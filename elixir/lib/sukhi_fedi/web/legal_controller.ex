@@ -86,6 +86,17 @@ defmodule SukhiFedi.Web.LegalController do
         bake.(@dir, "licenses-end.ja.md")
   }
 
+  # /credits — the standards sukhi implements and the projects it learns from
+  # (none of them a dependency, so not on /licenses), then the same closing
+  # words as the other pages. Hand-written; nothing generated.
+  @credits_files ~w(credits.en.md credits.ja.md licenses-end.en.md licenses-end.ja.md)
+  for file <- @credits_files, do: @external_resource(Path.join(@dir, file))
+
+  @credits %{
+    en: bake.(@dir, "credits.en.md") <> bake.(@dir, "licenses-end.en.md"),
+    ja: bake.(@dir, "credits.ja.md") <> bake.(@dir, "licenses-end.ja.md")
+  }
+
   defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor, :sukhi)
   defp docs, do: Map.fetch!(@docs, flavor())
 
@@ -297,6 +308,35 @@ defmodule SukhiFedi.Web.LegalController do
           @licenses.en,
           "/licenses",
           {"Terms", "/terms"},
+          false,
+          {"日本語", "lang=ja"}
+        )
+    end
+  end
+
+  @spec credits(Plug.Conn.t()) :: Plug.Conn.t()
+  def credits(conn) do
+    case conn.query_params do
+      %{"lang" => "ja"} ->
+        render(
+          conn,
+          "ja",
+          "クレジット",
+          @credits.ja,
+          "/credits",
+          {"ライセンス", "/licenses?lang=ja"},
+          false,
+          {"English", nil}
+        )
+
+      _ ->
+        render(
+          conn,
+          "en",
+          "Credits",
+          @credits.en,
+          "/credits",
+          {"Licenses", "/licenses"},
           false,
           {"日本語", "lang=ja"}
         )

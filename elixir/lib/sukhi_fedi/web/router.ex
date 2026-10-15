@@ -101,6 +101,10 @@ defmodule SukhiFedi.Web.Router do
     SukhiFedi.Web.LegalController.licenses(conn)
   end
 
+  get "/credits" do
+    SukhiFedi.Web.LegalController.credits(conn)
+  end
+
   get "/licenses/rust" do
     SukhiFedi.Web.LegalController.rust(conn)
   end
