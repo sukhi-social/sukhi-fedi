@@ -44,7 +44,7 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
       %{} = v ->
         opts = Pagination.parse_opts(req[:query])
 
-        case GatewayRpc.call(SukhiFedi.Conversations, :list, [v.id, Map.to_list(opts)]) do
+        case GatewayRpc.run(SukhiFedi.Conversations, :list, [v.id, Map.to_list(opts)]) do
           {:ok, list} when is_list(list) ->
             body = Enum.map(list, &render/1)
             ok(200, body)
@@ -69,8 +69,8 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
         # 無視する共有ヘルパーなので、ここだけで別途拾う。
         opts = Pagination.parse_opts(req[:query]) |> Map.put(:q, URI.decode_query(req[:query] || "")["q"])
 
-        case GatewayRpc.call(SukhiFedi.Conversations, :statuses, [v.id, id, Map.to_list(opts)]) do
-          {:ok, {:ok, notes}} when is_list(notes) ->
+        case GatewayRpc.run(SukhiFedi.Conversations, :statuses, [v.id, id, Map.to_list(opts)]) do
+          {:ok, notes} when is_list(notes) ->
             # Through StatusHydration, not `render/1` bare: the bare call
             # silently drops the reaction chips and the viewer's own flags,
             # which is exactly how the note page and the profile lost theirs
@@ -85,7 +85,7 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
             # this one was written without it.
             page_with_link(notes, "/api/v1/conversations/#{id}/statuses", opts, v)
 
-          {:ok, {:error, :not_found}} ->
+          {:error, :not_found} ->
             ok(404, %{error: "not_found"})
 
           e ->
@@ -103,13 +103,13 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
   """
   def stream_new_dm(conversation_ap_id) when is_binary(conversation_ap_id) do
     with {:ok, targets} when is_list(targets) <-
-           GatewayRpc.call(SukhiFedi.Conversations, :fanout_entries, [conversation_ap_id]) do
+           GatewayRpc.run(SukhiFedi.Conversations, :fanout_entries, [conversation_ap_id]) do
       payload =
         Enum.map(targets, fn %{account_id: account_id, entry: entry} ->
           %{account_id: account_id, conversation: render(entry)}
         end)
 
-      GatewayRpc.call(SukhiFedi.Streaming, :publish_direct, [payload])
+      GatewayRpc.run(SukhiFedi.Streaming, :publish_direct, [payload])
     end
 
     :ok
@@ -142,9 +142,9 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.call(SukhiFedi.Conversations, :mark_read, [v.id, id]) do
-          {:ok, {:ok, entry}} -> ok(200, render(entry))
-          {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+        case GatewayRpc.run(SukhiFedi.Conversations, :mark_read, [v.id, id]) do
+          {:ok, entry} -> ok(200, render(entry))
+          {:error, :not_found} -> ok(404, %{error: "not_found"})
           e -> rpc_error(e)
         end
     end
@@ -159,10 +159,7 @@ defmodule SukhiApi.Capabilities.MastodonConversations do
     }
   end
 
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, r}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 

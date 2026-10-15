@@ -56,40 +56,40 @@ defmodule SukhiApi.Capabilities.MastodonModeration do
         # blocked) — the refetched Relationship below reports what
         # actually took effect, so only transport failures are errors.
         case call_op(op, v.id, id) do
-          {:ok, _applied} ->
+          {:unavailable, _} = e ->
+            rpc_error(e)
+
+          _answered ->
             rel =
-              case GatewayRpc.call(SukhiFedi.Social, :list_relationships, [v, [id]]) do
+              case GatewayRpc.run(SukhiFedi.Social, :list_relationships, [v, [id]]) do
                 {:ok, [r]} -> r
                 _ -> %{id: id}
               end
 
             ok(200, MastodonRelationship.render(rel))
-
-          e ->
-            rpc_error(e)
         end
       end
     end)
   end
 
   defp call_op(:block, viewer_id, target_id),
-    do: GatewayRpc.call(SukhiFedi.Addons.Moderation, :block, [viewer_id, target_id])
+    do: GatewayRpc.run(SukhiFedi.Addons.Moderation, :block, [viewer_id, target_id])
 
   defp call_op(:unblock, viewer_id, target_id),
-    do: GatewayRpc.call(SukhiFedi.Addons.Moderation, :unblock, [viewer_id, target_id])
+    do: GatewayRpc.run(SukhiFedi.Addons.Moderation, :unblock, [viewer_id, target_id])
 
   defp call_op(:mute, viewer_id, target_id),
-    do: GatewayRpc.call(SukhiFedi.Addons.Moderation, :mute, [viewer_id, target_id])
+    do: GatewayRpc.run(SukhiFedi.Addons.Moderation, :mute, [viewer_id, target_id])
 
   defp call_op(:unmute, viewer_id, target_id),
-    do: GatewayRpc.call(SukhiFedi.Addons.Moderation, :unmute, [viewer_id, target_id])
+    do: GatewayRpc.run(SukhiFedi.Addons.Moderation, :unmute, [viewer_id, target_id])
 
   def list_blocks(req), do: list_relationship(req, :list_blocks)
   def list_mutes(req), do: list_relationship(req, :list_mutes)
 
   defp list_relationship(req, fun) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.Addons.Moderation, fun, [v.id]) do
+      case GatewayRpc.run(SukhiFedi.Addons.Moderation, fun, [v.id]) do
         {:ok, accounts} when is_list(accounts) ->
           ok(200, Enum.map(accounts, &MastodonAccount.render(&1, %{})))
 
@@ -118,8 +118,8 @@ defmodule SukhiApi.Capabilities.MastodonModeration do
           comment: comment
         }
 
-        case GatewayRpc.call(SukhiFedi.Addons.Moderation, :create_report, [attrs]) do
-          {:ok, {:ok, report}} ->
+        case GatewayRpc.run(SukhiFedi.Addons.Moderation, :create_report, [attrs]) do
+          {:ok, report} ->
             ok(200, %{
               id: Id.encode(report.id),
               action_taken: false,
@@ -127,7 +127,7 @@ defmodule SukhiApi.Capabilities.MastodonModeration do
               created_at: format_dt(Map.get(report, :inserted_at))
             })
 
-          {:ok, {:error, _}} ->
+          {:error, _} ->
             ok(422, %{error: "validation_failed"})
 
           e ->
@@ -139,10 +139,10 @@ defmodule SukhiApi.Capabilities.MastodonModeration do
 
   def list_domain_blocks(req) do
     with_viewer(req, fn _v ->
-      case GatewayRpc.call(SukhiFedi.Addons.Moderation, :list_instance_blocks, [
+      case GatewayRpc.run(SukhiFedi.Addons.Moderation, :list_instance_blocks, [
              %{offset: 0, limit: 200}
            ]) do
-        {:ok, {:ok, {rows, _total}}} ->
+        {:ok, {rows, _total}} ->
           ok(200, Enum.map(rows, fn r -> r.domain end))
 
         e ->
@@ -157,14 +157,14 @@ defmodule SukhiApi.Capabilities.MastodonModeration do
 
       case body["domain"] do
         d when is_binary(d) and d != "" ->
-          case GatewayRpc.call(SukhiFedi.Addons.Moderation, :block_instance, [
+          case GatewayRpc.run(SukhiFedi.Addons.Moderation, :block_instance, [
                  d,
                  "silence",
                  "",
                  v.id
                ]) do
-            {:ok, {:ok, _block}} -> ok(200, %{})
-            {:ok, {:error, _}} -> ok(422, %{error: "block_failed"})
+            {:ok, _block} -> ok(200, %{})
+            {:error, _} -> ok(422, %{error: "block_failed"})
             e -> rpc_error(e)
           end
 
@@ -180,11 +180,11 @@ defmodule SukhiApi.Capabilities.MastodonModeration do
 
       case body["domain"] do
         d when is_binary(d) and d != "" ->
-          case GatewayRpc.call(SukhiFedi.Addons.Moderation, :unblock_instance, [d, v.id]) do
-            {:ok, {:ok, _}} -> ok(200, %{})
+          case GatewayRpc.run(SukhiFedi.Addons.Moderation, :unblock_instance, [d, v.id]) do
+            {:ok, _} -> ok(200, %{})
             # Deleting a block that isn't there is idempotent.
-            {:ok, {:error, :not_found}} -> ok(200, %{})
-            {:ok, {:error, _}} -> ok(422, %{error: "unblock_failed"})
+            {:error, :not_found} -> ok(200, %{})
+            {:error, _} -> ok(422, %{error: "unblock_failed"})
             e -> rpc_error(e)
           end
 
@@ -234,10 +234,7 @@ defmodule SukhiApi.Capabilities.MastodonModeration do
   defp format_dt(%NaiveDateTime{} = dt), do: NaiveDateTime.to_iso8601(dt)
   defp format_dt(_), do: nil
 
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, r}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 

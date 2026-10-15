@@ -37,7 +37,7 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
       %{} = v ->
         opts = parse_opts(req[:query])
 
-        case GatewayRpc.call(SukhiFedi.Notifications, :list, [v.id, Map.to_list(opts)]) do
+        case GatewayRpc.run(SukhiFedi.Notifications, :list, [v.id, Map.to_list(opts)]) do
           {:ok, notifs} when is_list(notifs) ->
             body = MastodonNotification.render_list(notifs)
             headers = [{"content-type", "application/json"}]
@@ -50,8 +50,8 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
 
             {:ok, %{status: 200, body: JSON.encode!(body), headers: headers}}
 
-          {:error, reason} ->
-            rpc_error(reason)
+          {:unavailable, why} ->
+            ok(503, GatewayRpc.unavailable_body(why))
 
           _ ->
             ok(500, %{error: "internal_error"})
@@ -68,10 +68,10 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.call(SukhiFedi.Notifications, :get, [v.id, id]) do
+        case GatewayRpc.run(SukhiFedi.Notifications, :get, [v.id, id]) do
           {:ok, nil} -> ok(404, %{error: "not_found"})
           {:ok, notif} -> ok(200, MastodonNotification.render(notif))
-          {:error, reason} -> rpc_error(reason)
+          {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
           _ -> ok(500, %{error: "internal_error"})
         end
     end
@@ -88,9 +88,9 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.call(SukhiFedi.Notifications, fun, [v.id | extra_args]) do
+        case GatewayRpc.run(SukhiFedi.Notifications, fun, [v.id | extra_args]) do
           {:ok, :ok} -> ok(200, %{})
-          {:error, reason} -> rpc_error(reason)
+          {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
           _ -> ok(500, %{error: "internal_error"})
         end
     end
@@ -125,13 +125,6 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
   defp maybe_put_list(opts, _key, nil), do: opts
   defp maybe_put_list(opts, key, v) when is_list(v), do: Map.put(opts, key, v)
   defp maybe_put_list(opts, key, v) when is_binary(v), do: Map.put(opts, key, [v])
-
-  defp rpc_error(:not_connected), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:badrpc, r}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
-
-  defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 
   defp ok(status, body) do
     {:ok,

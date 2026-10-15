@@ -24,25 +24,19 @@ defmodule SukhiApi.Capabilities.Invites do
   def show(req) do
     code = req[:path_params]["code"] || ""
 
-    case GatewayRpc.call(SukhiFedi.InviteCodes, :preview, [code]) do
-      {:ok, {:ok, info}} ->
+    case GatewayRpc.run(SukhiFedi.InviteCodes, :preview, [code]) do
+      {:ok, info} ->
         ok(200, %{
           valid: true,
           issuer_handle: info.issuer_handle,
           issuer_display_name: info.issuer_display_name
         })
 
-      {:ok, {:error, reason}} ->
+      {:error, reason} ->
         ok(200, %{valid: false, reason: to_string(reason)})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
-
-      _ ->
-        ok(500, %{error: "internal_error"})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
     end
   end
 

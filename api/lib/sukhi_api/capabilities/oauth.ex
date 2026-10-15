@@ -73,7 +73,7 @@ defmodule SukhiApi.Capabilities.OAuth do
             html_account_picker(sessions, params)
 
           target ->
-            case GatewayRpc.call(@session_cookie, :layout_for_promote, [sessions, account_id]) do
+            case GatewayRpc.run(@session_cookie, :layout_for_promote, [sessions, account_id]) do
               {:ok, {new_primary, new_extras}} ->
                 authorize_with_session(
                   target.account,
@@ -84,11 +84,8 @@ defmodule SukhiApi.Capabilities.OAuth do
                   session_set_cookie_headers(new_primary, new_extras)
                 )
 
-              {:error, :not_connected} ->
-                html_error(503, "gateway_not_connected", "the gateway is unreachable")
-
-              {:error, {:badrpc, reason}} ->
-                html_error(503, "gateway_rpc_failed", inspect(reason))
+              {:unavailable, why} ->
+                html_unavailable(why)
             end
         end
 
@@ -120,45 +117,39 @@ defmodule SukhiApi.Capabilities.OAuth do
   # だけ乗る、並べ替えた Set-Cookie(このリクエストの応答が最初にそれを
   # 運ぶ唯一の機会)。
   defp authorize_with_session(account, client_id, redirect_uri, scope, state, extra_headers \\ []) do
-    case GatewayRpc.call(@gateway, :find_app_by_client_id, [client_id]) do
-      {:ok, {:ok, app}} ->
+    case GatewayRpc.run(@gateway, :find_app_by_client_id, [client_id]) do
+      {:ok, app} ->
         if first_party?(redirect_uri) do
           mint_and_redirect(app, account, redirect_uri, scope, state, extra_headers)
         else
           html_form(app, redirect_uri, scope, state, extra_headers)
         end
 
-      {:ok, {:error, :not_found}} ->
+      {:error, :not_found} ->
         html_error(404, "invalid_client", "unknown client_id")
 
-      {:error, :not_connected} ->
-        html_error(503, "gateway_not_connected", "the gateway is unreachable")
-
-      {:error, {:badrpc, reason}} ->
-        html_error(503, "gateway_rpc_failed", inspect(reason))
+      {:unavailable, why} ->
+        html_unavailable(why)
     end
   end
 
   defp mint_and_redirect(app, account, redirect_uri, scope, state, extra_headers) do
-    case GatewayRpc.call(@gateway, :create_authorization_code, [
+    case GatewayRpc.run(@gateway, :create_authorization_code, [
            app,
            account,
            %{redirect_uri: redirect_uri, scopes: scope, state: state}
          ]) do
-      {:ok, {:ok, %{code: code, state: returned_state}}} ->
+      {:ok, %{code: code, state: returned_state}} ->
         redirect(redirect_uri, [code: code, state: returned_state], extra_headers)
 
-      {:ok, {:error, :invalid_redirect_uri}} ->
+      {:error, :invalid_redirect_uri} ->
         html_error(400, "invalid_redirect_uri", "redirect_uri does not match registered URIs")
 
-      {:ok, {:error, :invalid_scope}} ->
+      {:error, :invalid_scope} ->
         html_error(400, "invalid_scope", "requested scope exceeds the app's allowed scopes")
 
-      {:error, :not_connected} ->
-        html_error(503, "gateway_not_connected", "the gateway is unreachable")
-
-      {:error, {:badrpc, reason}} ->
-        html_error(503, "gateway_rpc_failed", inspect(reason))
+      {:unavailable, why} ->
+        html_unavailable(why)
     end
   end
 
@@ -214,9 +205,9 @@ defmodule SukhiApi.Capabilities.OAuth do
 
   defp do_authorize_submit(client_id, redirect_uri, scope, state, token_candidates) do
     with {:ok, account} <- resolve_session_any(token_candidates),
-         {:ok, {:ok, app}} <- GatewayRpc.call(@gateway, :find_app_by_client_id, [client_id]),
-         {:ok, {:ok, %{code: code, state: returned_state}}} <-
-           GatewayRpc.call(@gateway, :create_authorization_code, [
+         {:ok, app} <- GatewayRpc.run(@gateway, :find_app_by_client_id, [client_id]),
+         {:ok, %{code: code, state: returned_state}} <-
+           GatewayRpc.run(@gateway, :create_authorization_code, [
              app,
              account,
              %{redirect_uri: redirect_uri, scopes: scope, state: state}
@@ -226,20 +217,17 @@ defmodule SukhiApi.Capabilities.OAuth do
       {:error, :no_session} ->
         html_error(401, "unauthorized", "log in first to authorize this app")
 
-      {:ok, {:error, :not_found}} ->
+      {:error, :not_found} ->
         html_error(404, "invalid_client", "unknown client_id")
 
-      {:ok, {:error, :invalid_redirect_uri}} ->
+      {:error, :invalid_redirect_uri} ->
         html_error(400, "invalid_redirect_uri", "redirect_uri does not match registered URIs")
 
-      {:ok, {:error, :invalid_scope}} ->
+      {:error, :invalid_scope} ->
         html_error(400, "invalid_scope", "requested scope exceeds the app's allowed scopes")
 
-      {:error, :not_connected} ->
-        html_error(503, "gateway_not_connected", "the gateway is unreachable")
-
-      {:error, {:badrpc, reason}} ->
-        html_error(503, "gateway_rpc_failed", inspect(reason))
+      {:unavailable, why} ->
+        html_unavailable(why)
 
       _ ->
         html_error(400, "invalid_request", "could not authorize")
@@ -268,34 +256,28 @@ defmodule SukhiApi.Capabilities.OAuth do
   end
 
   defp do_authorization_code(body) do
-    case GatewayRpc.call(@gateway, :exchange_code_for_token, [body]) do
-      {:ok, {:ok, token_payload}} ->
+    case GatewayRpc.run(@gateway, :exchange_code_for_token, [body]) do
+      {:ok, token_payload} ->
         json(200, present_token(token_payload))
 
-      {:ok, {:error, reason}} ->
+      {:error, reason} ->
         json(400, %{error: oauth_error_for(reason)})
 
-      {:error, :not_connected} ->
-        json(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        json(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        json(503, GatewayRpc.unavailable_body(why))
     end
   end
 
   defp do_refresh(body) do
-    case GatewayRpc.call(@gateway, :refresh_token_grant, [body]) do
-      {:ok, {:ok, token_payload}} ->
+    case GatewayRpc.run(@gateway, :refresh_token_grant, [body]) do
+      {:ok, token_payload} ->
         json(200, present_token(token_payload))
 
-      {:ok, {:error, reason}} ->
+      {:error, reason} ->
         json(400, %{error: oauth_error_for(reason)})
 
-      {:error, :not_connected} ->
-        json(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        json(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        json(503, GatewayRpc.unavailable_body(why))
     end
   end
 
@@ -304,18 +286,15 @@ defmodule SukhiApi.Capabilities.OAuth do
     secret = body["client_secret"]
     scope = body["scope"]
 
-    case GatewayRpc.call(@gateway, :client_credentials_grant, [cid, secret, scope]) do
-      {:ok, {:ok, token_payload}} ->
+    case GatewayRpc.run(@gateway, :client_credentials_grant, [cid, secret, scope]) do
+      {:ok, token_payload} ->
         json(200, present_token(token_payload))
 
-      {:ok, {:error, reason}} ->
+      {:error, reason} ->
         json(400, %{error: oauth_error_for(reason)})
 
-      {:error, :not_connected} ->
-        json(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        json(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        json(503, GatewayRpc.unavailable_body(why))
     end
   end
 
@@ -324,15 +303,12 @@ defmodule SukhiApi.Capabilities.OAuth do
   def revoke(req) do
     body = decode_token_body(req)
 
-    case GatewayRpc.call(@gateway, :revoke_token, [body]) do
+    case GatewayRpc.run(@gateway, :revoke_token, [body]) do
       {:ok, :ok} ->
         json(200, %{})
 
-      {:error, :not_connected} ->
-        json(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        json(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        json(503, GatewayRpc.unavailable_body(why))
 
       _ ->
         # RFC 7009 mandates idempotent success even on unknown token
@@ -398,7 +374,7 @@ defmodule SukhiApi.Capabilities.OAuth do
   # `SessionCookie.decode_extra/1` — the format (base64url'd JSON) is that
   # module's to own, not something to re-parse by hand here.
   defp extra_tokens_from_cookies(headers) do
-    case GatewayRpc.call(@session_cookie, :decode_extra, [cookie_value(headers, "session_tokens")]) do
+    case GatewayRpc.run(@session_cookie, :decode_extra, [cookie_value(headers, "session_tokens")]) do
       {:ok, tokens} -> tokens
       _ -> []
     end
@@ -429,7 +405,7 @@ defmodule SukhiApi.Capabilities.OAuth do
   # rather than surfacing a 503 here; `authorize_with_session`'s own RPC
   # calls right after would fail the same way and explain it properly.
   defp resolve_sessions(primary_token, extra_tokens) do
-    case GatewayRpc.call(@session_cookie, :resolve_all, [primary_token, extra_tokens]) do
+    case GatewayRpc.run(@session_cookie, :resolve_all, [primary_token, extra_tokens]) do
       {:ok, sessions} -> sessions
       _ -> []
     end
@@ -458,7 +434,7 @@ defmodule SukhiApi.Capabilities.OAuth do
           {"set-cookie", cleared}
 
         tokens ->
-          case GatewayRpc.call(@session_cookie, :encode_extra, [tokens]) do
+          case GatewayRpc.run(@session_cookie, :encode_extra, [tokens]) do
             {:ok, value} -> {"set-cookie", "session_tokens=#{value}; HttpOnly; #{flags}"}
             _ -> {"set-cookie", cleared}
           end
@@ -470,7 +446,7 @@ defmodule SukhiApi.Capabilities.OAuth do
   defp resolve_session(nil), do: {:error, :no_session}
 
   defp resolve_session(token) when is_binary(token) do
-    case GatewayRpc.call(SukhiFedi.Accounts, :get_account_by_session_token, [token]) do
+    case GatewayRpc.run(SukhiFedi.Accounts, :get_account_by_session_token, [token]) do
       {:ok, %{} = account} -> {:ok, account}
       {:ok, nil} -> {:error, :no_session}
       _ -> {:error, :no_session}
@@ -654,6 +630,12 @@ defmodule SukhiApi.Capabilities.OAuth do
     do: {"通知を整える", "通知を消したり、まとめて既読にしたりします。"}
 
   defp scope_explain(other), do: {other, "この権限の説明は、まだ用意していません。"}
+
+  defp html_unavailable(:not_connected),
+    do: html_error(503, "gateway_not_connected", "the gateway is unreachable")
+
+  defp html_unavailable({:badrpc, reason}),
+    do: html_error(503, "gateway_rpc_failed", inspect(reason))
 
   defp html_error(status, code, detail) do
     body = """

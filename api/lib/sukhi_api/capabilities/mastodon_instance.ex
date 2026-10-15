@@ -127,7 +127,7 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
   # gateway falls back to the latched answer: better to ask for a code
   # that turns out unnecessary than to hide a field that is required.
   defp invite_required? do
-    case SukhiApi.GatewayRpc.call(SukhiFedi.Config, :invite_required?, []) do
+    case SukhiApi.GatewayRpc.run(SukhiFedi.Config, :invite_required?, []) do
       {:ok, v} when is_boolean(v) -> v
       _ -> true
     end
@@ -137,14 +137,14 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
   # push is simply off here, and hides its own switch instead of offering
   # one that cannot work.
   defp vapid_public_key do
-    case SukhiApi.GatewayRpc.call(SukhiFedi.Addons.WebPush, :server_key, []) do
+    case SukhiApi.GatewayRpc.run(SukhiFedi.Addons.WebPush, :server_key, []) do
       {:ok, key} when is_binary(key) and key != "" -> key
       _ -> nil
     end
   end
 
   defp direct_types do
-    case SukhiApi.GatewayRpc.call(SukhiFedi.Addons.WebPush, :direct_types, []) do
+    case SukhiApi.GatewayRpc.run(SukhiFedi.Addons.WebPush, :direct_types, []) do
       {:ok, list} when is_list(list) -> list
       _ -> []
     end

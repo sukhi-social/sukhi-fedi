@@ -27,15 +27,12 @@ defmodule SukhiApi.Capabilities.MisskeyEmojis do
   end
 
   def emojis(_req) do
-    case GatewayRpc.call(SukhiFedi.CustomEmojis, :list_local, []) do
+    case GatewayRpc.run(SukhiFedi.CustomEmojis, :list_local, []) do
       {:ok, list} when is_list(list) ->
         ok(200, %{emojis: MisskeyEmoji.render_list(list)})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
 
       _ ->
         ok(500, %{error: "internal_error"})
@@ -50,7 +47,7 @@ defmodule SukhiApi.Capabilities.MisskeyEmojis do
       end
 
     with n when is_binary(n) and n != "" <- name,
-         {:ok, %{} = item} <- GatewayRpc.call(SukhiFedi.CustomEmojis, :get_local, [n]) do
+         {:ok, %{} = item} <- GatewayRpc.run(SukhiFedi.CustomEmojis, :get_local, [n]) do
       ok(200, MisskeyEmoji.render(item))
     else
       nil ->
@@ -59,11 +56,8 @@ defmodule SukhiApi.Capabilities.MisskeyEmojis do
       {:ok, nil} ->
         ok(404, %{error: "emoji_not_found"})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
 
       _ ->
         ok(500, %{error: "internal_error"})

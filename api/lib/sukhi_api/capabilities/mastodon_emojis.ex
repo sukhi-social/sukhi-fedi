@@ -21,12 +21,12 @@ defmodule SukhiApi.Capabilities.MastodonEmojis do
   end
 
   def index(_req) do
-    case GatewayRpc.call(SukhiFedi.CustomEmojis, :list_local, []) do
+    case GatewayRpc.run(SukhiFedi.CustomEmojis, :list_local, []) do
       {:ok, list} when is_list(list) ->
         ok(200, Enum.map(list, &render/1))
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
 
       _ ->
         ok(500, %{error: "internal_error"})

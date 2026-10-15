@@ -32,7 +32,7 @@ defmodule SukhiApi.Capabilities.MastodonScheduledStatuses do
 
   def index(req) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.ScheduledStatuses, :list, [v.id]) do
+      case GatewayRpc.run(SukhiFedi.ScheduledStatuses, :list, [v.id]) do
         {:ok, list} when is_list(list) -> ok(200, MastodonScheduledStatus.render_list(list))
         e -> rpc_error(e)
       end
@@ -41,9 +41,9 @@ defmodule SukhiApi.Capabilities.MastodonScheduledStatuses do
 
   def show(req) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.ScheduledStatuses, :get, [v.id, req[:path_params]["id"]]) do
-        {:ok, {:ok, scheduled}} -> ok(200, MastodonScheduledStatus.render(scheduled))
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+      case GatewayRpc.run(SukhiFedi.ScheduledStatuses, :get, [v.id, req[:path_params]["id"]]) do
+        {:ok, scheduled} -> ok(200, MastodonScheduledStatus.render(scheduled))
+        {:error, :not_found} -> ok(404, %{error: "not_found"})
         e -> rpc_error(e)
       end
     end)
@@ -54,11 +54,11 @@ defmodule SukhiApi.Capabilities.MastodonScheduledStatuses do
       id = req[:path_params]["id"]
       scheduled_at = decode_body(req)["scheduled_at"]
 
-      case GatewayRpc.call(SukhiFedi.ScheduledStatuses, :reschedule, [v.id, id, scheduled_at]) do
-        {:ok, {:ok, scheduled}} -> ok(200, MastodonScheduledStatus.render(scheduled))
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
-        {:ok, {:error, :too_soon}} -> ok(422, %{error: "scheduled_at must be at least 5 minutes in the future"})
-        {:ok, {:error, :invalid_time}} -> ok(422, %{error: "scheduled_at is not a valid datetime"})
+      case GatewayRpc.run(SukhiFedi.ScheduledStatuses, :reschedule, [v.id, id, scheduled_at]) do
+        {:ok, scheduled} -> ok(200, MastodonScheduledStatus.render(scheduled))
+        {:error, :not_found} -> ok(404, %{error: "not_found"})
+        {:error, :too_soon} -> ok(422, %{error: "scheduled_at must be at least 5 minutes in the future"})
+        {:error, :invalid_time} -> ok(422, %{error: "scheduled_at is not a valid datetime"})
         e -> rpc_error(e)
       end
     end)
@@ -66,9 +66,9 @@ defmodule SukhiApi.Capabilities.MastodonScheduledStatuses do
 
   def delete(req) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.ScheduledStatuses, :cancel, [v.id, req[:path_params]["id"]]) do
-        {:ok, {:ok, _}} -> ok(200, %{})
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+      case GatewayRpc.run(SukhiFedi.ScheduledStatuses, :cancel, [v.id, req[:path_params]["id"]]) do
+        {:ok, _} -> ok(200, %{})
+        {:error, :not_found} -> ok(404, %{error: "not_found"})
         e -> rpc_error(e)
       end
     end)
@@ -102,10 +102,7 @@ defmodule SukhiApi.Capabilities.MastodonScheduledStatuses do
     end
   end
 
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, r}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 

@@ -29,7 +29,7 @@ defmodule SukhiApi.Capabilities.MastodonAnnouncements do
 
   def index(req) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.Announcements, :active_for, [v.id]) do
+      case GatewayRpc.run(SukhiFedi.Announcements, :active_for, [v.id]) do
         {:ok, pairs} when is_list(pairs) -> ok(200, MastodonAnnouncement.render_pairs(pairs))
         e -> rpc_error(e)
       end
@@ -38,9 +38,9 @@ defmodule SukhiApi.Capabilities.MastodonAnnouncements do
 
   def dismiss(req) do
     with_viewer(req, fn v ->
-      case GatewayRpc.call(SukhiFedi.Announcements, :dismiss, [v.id, req[:path_params]["id"]]) do
+      case GatewayRpc.run(SukhiFedi.Announcements, :dismiss, [v.id, req[:path_params]["id"]]) do
         {:ok, :ok} -> ok(200, %{})
-        {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
+        {:error, :not_found} -> ok(404, %{error: "not_found"})
         e -> rpc_error(e)
       end
     end)
@@ -55,10 +55,7 @@ defmodule SukhiApi.Capabilities.MastodonAnnouncements do
     end
   end
 
-  defp rpc_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp rpc_error({:error, {:badrpc, r}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+  defp rpc_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp rpc_error(_), do: ok(500, %{error: "internal_error"})
 

@@ -38,16 +38,15 @@ defmodule SukhiApi.TokenCache do
   @doc """
   Resolve a bearer token to its `%{account, app, scopes}` context.
 
-  Behaves exactly like `SukhiFedi.OAuth.verify_bearer/1` on the wire:
+  Answers in `GatewayRpc.run/4`'s shape, hit or miss:
 
-      {:ok, ctx}                — verified
-      {:error, reason}          — revoked, expired, unknown, …
-      {:error, :not_connected}  — gateway RPC unreachable (no cache fallback)
+      {:ok, ctx}              — verified
+      {:error, reason}        — revoked, expired, unknown, …
+      {:unavailable, why}     — gateway RPC unreachable (no cache fallback)
 
   Honours TTL: cached entries older than `ttl_ms` are treated as a miss.
   """
-  @spec verify(String.t(), pos_integer()) ::
-          {:ok, map()} | {:error, term()}
+  @spec verify(String.t(), pos_integer()) :: GatewayRpc.result()
   def verify(token, ttl_ms \\ @default_ttl_ms) when is_binary(token) do
     if cache_enabled?() do
       key = key_for(token)
@@ -55,66 +54,53 @@ defmodule SukhiApi.TokenCache do
       cutoff = now - ttl_ms
 
       case lookup(key, cutoff) do
-        # Mirror the wire shape of `SukhiFedi.OAuth.verify_bearer/1`
-        # as it comes out of GatewayRpc: `{:ok, {:ok, ctx}}`. The
-        # router's `with` clause matches against the double wrap, so a
-        # cache hit returning a single `{:ok, ctx}` would fall through
-        # and the request would 401 ─ the bug that ate every second
-        # /api/v1/timelines/home call.
-        {:ok, ctx} -> {:ok, {:ok, ctx}}
+        {:ok, ctx} -> {:ok, ctx}
         :miss -> do_verify(key, token, now)
       end
     else
       # Tests inject a fake gateway RPC by setting :gateway_rpc_impl;
       # caching would let one test's response leak into the next. The
       # real prod path with a nil impl uses the cache.
-      passthrough(token)
+      GatewayRpc.run(@gateway_oauth, :verify_bearer, [token])
     end
   end
 
   @doc """
   Resolve a `session_token` cookie value to its account.
 
-      {:ok, {:ok, account}}   — a live session
-      {:ok, {:error, :no_session}} — expired, revoked, or never was
-      {:error, :not_connected} / {:error, {:badrpc, _}} — gateway unreachable
+      {:ok, account}          — a live session
+      {:error, :no_session}   — expired, revoked, or never was
+      {:unavailable, why}     — gateway unreachable
 
   Only live sessions are cached (a revoked one must be seen as such
   on the next request, same as bearers).
   """
-  @spec session(String.t(), pos_integer()) :: {:ok, term()} | {:error, term()}
+  @spec session(String.t(), pos_integer()) :: GatewayRpc.result()
   def session(token, ttl_ms \\ @default_ttl_ms) when is_binary(token) do
     key = {:session, key_for(token)}
     now = System.monotonic_time(:millisecond)
 
     case cache_enabled?() and lookup(key, now - ttl_ms) do
       {:ok, account} ->
-        {:ok, {:ok, account}}
+        {:ok, account}
 
       _ ->
-        case GatewayRpc.call(SukhiFedi.Accounts, :get_account_by_session_token, [token]) do
+        case GatewayRpc.run(SukhiFedi.Accounts, :get_account_by_session_token, [token]) do
           {:ok, nil} ->
-            {:ok, {:error, :no_session}}
+            {:error, :no_session}
 
           {:ok, account} ->
             if cache_enabled?(), do: safe_insert(key, now, account)
-            {:ok, {:ok, account}}
+            {:ok, account}
 
-          {:error, _} = err ->
-            err
+          other ->
+            other
         end
     end
   end
 
   defp cache_enabled? do
     Application.get_env(:sukhi_api, :gateway_rpc_impl) == nil
-  end
-
-  defp passthrough(token) do
-    case GatewayRpc.call(@gateway_oauth, :verify_bearer, [token]) do
-      {:ok, _} = ok -> ok
-      {:error, _} = err -> err
-    end
   end
 
   # ── GenServer (table owner + TTL sweep) ─────────────────────────────────
@@ -148,18 +134,15 @@ defmodule SukhiApi.TokenCache do
   end
 
   defp do_verify(key, token, now) do
-    case GatewayRpc.call(@gateway_oauth, :verify_bearer, [token]) do
-      {:ok, {:ok, ctx}} ->
+    case GatewayRpc.run(@gateway_oauth, :verify_bearer, [token]) do
+      {:ok, ctx} = ok ->
         safe_insert(key, now, ctx)
-        {:ok, {:ok, ctx}}
+        ok
 
-      {:ok, {:error, _} = err} ->
-        # do NOT cache negative results — revocation visibility matters
-        # more than the saved RPC.
-        {:ok, err}
-
-      {:error, _} = err ->
-        err
+      # Negative results and outages are not cached — revocation
+      # visibility matters more than the saved RPC.
+      other ->
+        other
     end
   end
 

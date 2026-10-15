@@ -59,35 +59,29 @@ defmodule SukhiApi.Capabilities.MastodonMedia do
               "description" => fields["description"]
             }
 
-            case GatewayRpc.call(SukhiFedi.Addons.Media, :create_from_upload, [
+            case GatewayRpc.run(SukhiFedi.Addons.Media, :create_from_upload, [
                    viewer.id,
                    file.bytes,
                    attrs
                  ]) do
-              {:ok, {:ok, media}} ->
+              {:ok, media} ->
                 status = if sync?, do: 200, else: 202
                 ok(status, MastodonMedia.render(media))
 
-              {:ok, {:error, :empty_upload}} ->
+              {:error, :empty_upload} ->
                 ok(422, %{error: "empty_upload"})
 
-              {:ok, {:error, :file_too_large}} ->
+              {:error, :file_too_large} ->
                 ok(413, %{error: "file_too_large"})
 
-              {:ok, {:error, {:validation, errors}}} ->
+              {:error, {:validation, errors}} ->
                 ok(422, %{error: "validation_failed", details: errors})
 
-              {:ok, {:error, reason}} ->
+              {:error, reason} ->
                 ok(422, %{error: inspect(reason)})
 
-              {:error, :not_connected} ->
-                ok(503, %{error: "gateway_not_connected"})
-
-              {:error, {:badrpc, r}} ->
-                ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
-
-              _ ->
-                ok(500, %{error: "internal_error"})
+              {:unavailable, why} ->
+                ok(503, GatewayRpc.unavailable_body(why))
             end
 
           {:error, :file_too_large} ->
@@ -110,12 +104,11 @@ defmodule SukhiApi.Capabilities.MastodonMedia do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.call(SukhiFedi.Addons.Media, :get_media, [v.id, id]) do
-          {:ok, {:ok, media}} -> ok(200, MastodonMedia.render(media))
-          {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
-          {:ok, {:error, :forbidden}} -> ok(403, %{error: "forbidden"})
-          {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
-          {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+        case GatewayRpc.run(SukhiFedi.Addons.Media, :get_media, [v.id, id]) do
+          {:ok, media} -> ok(200, MastodonMedia.render(media))
+          {:error, :not_found} -> ok(404, %{error: "not_found"})
+          {:error, :forbidden} -> ok(403, %{error: "forbidden"})
+          {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
           _ -> ok(500, %{error: "internal_error"})
         end
     end
@@ -133,14 +126,13 @@ defmodule SukhiApi.Capabilities.MastodonMedia do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.call(SukhiFedi.Addons.Media, :update_media, [v.id, id, attrs]) do
-          {:ok, {:ok, media}} -> ok(200, MastodonMedia.render(media))
-          {:ok, {:error, :not_found}} -> ok(404, %{error: "not_found"})
-          {:ok, {:error, :forbidden}} -> ok(403, %{error: "forbidden"})
-          {:ok, {:error, :already_attached}} -> ok(422, %{error: "already_attached"})
-          {:ok, {:error, {:validation, errors}}} -> ok(422, %{error: "validation_failed", details: errors})
-          {:error, :not_connected} -> ok(503, %{error: "gateway_not_connected"})
-          {:error, {:badrpc, r}} -> ok(503, %{error: "gateway_rpc_failed", detail: inspect(r)})
+        case GatewayRpc.run(SukhiFedi.Addons.Media, :update_media, [v.id, id, attrs]) do
+          {:ok, media} -> ok(200, MastodonMedia.render(media))
+          {:error, :not_found} -> ok(404, %{error: "not_found"})
+          {:error, :forbidden} -> ok(403, %{error: "forbidden"})
+          {:error, :already_attached} -> ok(422, %{error: "already_attached"})
+          {:error, {:validation, errors}} -> ok(422, %{error: "validation_failed", details: errors})
+          {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
           _ -> ok(500, %{error: "internal_error"})
         end
     end

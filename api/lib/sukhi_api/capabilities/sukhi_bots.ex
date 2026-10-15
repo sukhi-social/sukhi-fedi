@@ -84,27 +84,21 @@ defmodule SukhiApi.Capabilities.SukhiBots do
   end
 
   defp call(fun, args, on_ok) do
-    case GatewayRpc.call(@gateway, fun, args) do
-      {:ok, {:ok, value}} ->
+    case GatewayRpc.run(@gateway, fun, args) do
+      {:ok, value} ->
         on_ok.(value)
 
-      {:ok, {:error, :not_found}} ->
+      {:error, :not_found} ->
         ok(404, %{error: "not_found"})
 
-      {:ok, {:error, {:validation, errors}}} ->
+      {:error, {:validation, errors}} ->
         ok(422, %{error: "validation", detail: errors})
 
-      {:ok, {:error, reason}} ->
+      {:error, reason} ->
         ok(422, %{error: to_string(reason)})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
-
-      _ ->
-        ok(500, %{error: "internal_error"})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
     end
   end
 end

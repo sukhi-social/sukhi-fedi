@@ -10,6 +10,9 @@ defmodule SukhiFedi.Fedi.Service do
   the floor.
 
   This module is only the wire adapter: decode, dispatch, encode. The
+  gateway's own `Federation.FedifyClient` skips the wire and calls `call/2`
+  directly: same dispatch, same JSON-shaped result, no NATS hop to itself.
+  The
   actual properties live where they belong — signing policy in
   `HttpSignature`, canonicalization in `Canon`, SSRF in `UrlGuard` via
   `Fetcher`, signer/actor binding in `Verifier` + the inbox controller.
@@ -52,6 +55,24 @@ defmodule SukhiFedi.Fedi.Service do
       {:error, reason} -> {:reply, JSON.encode!(%{ok: false, error: describe(reason)})}
     end
   end
+
+  @doc """
+  The same dispatch `request/1` does for a NATS message, without the NATS.
+
+  The payload goes through a JSON round trip first and so does the result,
+  so a caller sees exactly what a NATS reply would have given it: string
+  keys, JSON types, errors as strings. (The handlers match on string keys;
+  atom-keyed maps and tuples inside a result would otherwise leak out.)
+  """
+  @spec call(String.t(), map()) :: {:ok, term()} | {:error, String.t()}
+  def call(topic, payload) when is_binary(topic) and is_map(payload) do
+    case dispatch(topic, json_shape(payload)) do
+      {:ok, data} -> {:ok, json_shape(data)}
+      {:error, reason} -> {:error, describe(reason)}
+    end
+  end
+
+  defp json_shape(term), do: term |> JSON.encode!() |> JSON.decode!()
 
   defp dispatch(topic, payload) do
     handle(topic, payload)

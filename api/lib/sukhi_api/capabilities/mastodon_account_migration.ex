@@ -44,14 +44,14 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigration do
     with_account(req, fn %{id: id} ->
       aliases = decode_body(req) |> Map.get("aliases", []) |> List.wrap()
 
-      case GatewayRpc.call(SukhiFedi.AccountMigration, :set_aliases, [id, aliases]) do
-        {:ok, {:ok, account}} ->
+      case GatewayRpc.run(SukhiFedi.AccountMigration, :set_aliases, [id, aliases]) do
+        {:ok, account} ->
           ok(200, %{aliases: account.aliases || []})
 
-        {:ok, {:error, :too_many}} ->
+        {:error, :too_many} ->
           ok(422, %{error: "too_many_aliases"})
 
-        {:ok, {:error, :not_found}} ->
+        {:error, :not_found} ->
           ok(404, %{error: "account_not_found"})
 
         other ->
@@ -66,20 +66,20 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigration do
     with_account(req, fn %{id: id} ->
       target = decode_body(req) |> Map.get("target", "") |> to_string()
 
-      case GatewayRpc.call(SukhiFedi.AccountMigration, :move, [id, target]) do
-        {:ok, {:ok, account}} ->
+      case GatewayRpc.run(SukhiFedi.AccountMigration, :move, [id, target]) do
+        {:ok, account} ->
           ok(200, %{moved_to: account.moved_to_uri})
 
-        {:ok, {:error, :consent_missing}} ->
+        {:error, :consent_missing} ->
           ok(422, %{error: "target_must_alias_back"})
 
-        {:ok, {:error, :invalid_target}} ->
+        {:error, :invalid_target} ->
           ok(422, %{error: "invalid_target"})
 
-        {:ok, {:error, :already_moved}} ->
+        {:error, :already_moved} ->
           ok(422, %{error: "already_moved"})
 
-        {:ok, {:error, :not_found}} ->
+        {:error, :not_found} ->
           ok(404, %{error: "account_not_found"})
 
         other ->
@@ -125,10 +125,7 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigration do
     end)
   end
 
-  defp gateway_error({:error, :not_connected}), do: ok(503, %{error: "gateway_not_connected"})
-
-  defp gateway_error({:error, {:badrpc, reason}}),
-    do: ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+  defp gateway_error({:unavailable, why}), do: ok(503, GatewayRpc.unavailable_body(why))
 
   defp gateway_error(_), do: ok(500, %{error: "internal_error"})
 

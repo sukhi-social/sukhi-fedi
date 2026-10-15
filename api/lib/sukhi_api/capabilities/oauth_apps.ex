@@ -24,8 +24,8 @@ defmodule SukhiApi.Capabilities.OAuthApps do
   def create(req) do
     with {:ok, body} <- decode_body(req),
          params = build_register_params(body),
-         {:ok, {:ok, %{app: app, client_secret: secret}}} <-
-           GatewayRpc.call(@gateway, :register_app, [params]) do
+         {:ok, %{app: app, client_secret: secret}} <-
+           GatewayRpc.run(@gateway, :register_app, [params]) do
       ok(200, %{
         id: to_string(app.id),
         name: app.name,
@@ -36,14 +36,11 @@ defmodule SukhiApi.Capabilities.OAuthApps do
         vapid_key: nil
       })
     else
-      {:ok, {:error, {:validation, errors}}} ->
+      {:error, {:validation, errors}} ->
         ok(422, %{error: "validation_failed", details: errors})
 
-      {:error, :not_connected} ->
-        ok(503, %{error: "gateway_not_connected"})
-
-      {:error, {:badrpc, reason}} ->
-        ok(503, %{error: "gateway_rpc_failed", detail: inspect(reason)})
+      {:unavailable, why} ->
+        ok(503, GatewayRpc.unavailable_body(why))
 
       {:error, :bad_json} ->
         ok(400, %{error: "invalid_json"})

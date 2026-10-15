@@ -100,6 +100,16 @@ defmodule SukhiApi.Capabilities.MastodonFollowsTest do
       assert resp.status == 404
     end
 
+    test "gateway drops out before the Relationship refetch → 503, not a 500" do
+      # request_follow is answered; list_relationships is not configured, which
+      # this fake reports as :not_connected.
+      Application.put_env(:sukhi_api, :fake_social, %{request_follow: {:ok, %{id: 99}}})
+
+      {:ok, resp} = Router.handle(authed_post("/api/v1/accounts/2/follow"))
+      assert resp.status == 503
+      assert JSON.decode!(resp.body) == %{"error" => "gateway_not_connected"}
+    end
+
     test "missing token → 401" do
       {:ok, resp} =
         Router.handle(%{
@@ -152,6 +162,13 @@ defmodule SukhiApi.Capabilities.MastodonFollowsTest do
 
       {:ok, resp} = Router.handle(authed_post("/api/v1/accounts/2/unfollow"))
       assert resp.status == 200
+    end
+
+    test "gateway unreachable → 503" do
+      # Nothing configured: every call comes back :not_connected.
+      {:ok, resp} = Router.handle(authed_post("/api/v1/accounts/2/unfollow"))
+      assert resp.status == 503
+      assert JSON.decode!(resp.body) == %{"error" => "gateway_not_connected"}
     end
   end
 

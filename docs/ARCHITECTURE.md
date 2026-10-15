@@ -370,6 +370,10 @@ Service name: `fedify`, queue group `fedify-workers`. Served natively by
 retired Bun worker answered these same endpoints and can be brought back on the
 same queue group for rollback.
 
+The gateway itself no longer goes over NATS for these: `Federation.FedifyClient`
+calls `Fedi.Service.call/2` in-process (same dispatch, same JSON-shaped result).
+The wire form is for the delivery node (`translate`, `sign`) and for rollback.
+
 | Endpoint              | Request                                                       | Response                                 |
 | --------------------- | ------------------------------------------------------------- | ---------------------------------------- |
 | `fedify.ping.v1`      | raw bytes                                                     | echoes request (health check)            |
@@ -574,11 +578,12 @@ Elixir InboxController (captures raw body + headers)
    │
    ▼
 FedifyClient.verify(%{raw: body})
-   │   NATS Micro → fedify.verify.v1 → Bun handleVerify
+   │   in-process → Fedi.Service.call("fedify.verify.v1", …) → Verifier
+   │   (was NATS Micro → Bun handleVerify before v0.3.0)
    │   {ok: true} or {ok: false}
    ▼
 FedifyClient.inbox(%{raw: body})
-   │   NATS Micro → fedify.inbox.v1 → Bun handleInbox
+   │   in-process → Fedi.Service.call("fedify.inbox.v1", …) → Inbox
    │   returns an Instructions map
    ▼
 Instructions.execute(instruction)

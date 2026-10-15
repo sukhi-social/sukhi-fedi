@@ -5,18 +5,24 @@ defmodule SukhiApi.GatewayRpc do
   to read or mutate data owned by the gateway BEAM node
   (`SukhiFedi.*` context modules).
 
+  Calls go through `SukhiFedi.RpcGate` on the gateway, which blanks secret
+  fields (private keys, password hash, TOTP) in the result before it crosses;
+  against a gateway that has no such door yet they are made directly.
+
   The gateway node is read from `Application.get_env(:sukhi_api, :gateway_node)`,
   which in production is supplied via the `GATEWAY_NODE` env var
   (see `api/config/runtime.exs`).
 
-  Returns:
-    * `{:ok, value}`       — on a successful call
+  **Use `run/4`.** It answers `{:ok, x} | {:error, e} | {:unavailable, why}`
+  and `unavailable_body/1` is the 503 body for the last one, so a capability
+  is one `case` with one transport clause. `call/4` below is the raw layer
+  `run/4` stands on, and the seam tests replace; it wraps whatever the
+  gateway function returned, so `{:ok, x}` arrives as `{:ok, {:ok, x}}`:
+
+    * `{:ok, value}`       — on a successful call (value is the callee's return)
     * `{:error, {:badrpc, reason}}` — gateway unreachable or crashed
     * `{:error, :not_connected}`    — Erlang distribution disabled /
                                       no node configured
-
-  Capabilities should translate these into HTTP responses (503 for
-  transport issues, 4xx/5xx for domain failures).
 
   ## Test impl injection
 
@@ -30,6 +36,7 @@ defmodule SukhiApi.GatewayRpc do
   """
 
   @default_timeout 5_000
+  @gate SukhiFedi.RpcGate
 
   @spec call(module(), atom(), [term()], pos_integer()) ::
           {:ok, term()} | {:error, term()}
@@ -41,6 +48,46 @@ defmodule SukhiApi.GatewayRpc do
     end
   end
 
+  @typedoc """
+  What `run/4` answers. Three outcomes, three shapes, no nesting:
+
+    * `{:ok, value}`        — the gateway function succeeded
+    * `{:error, reason}`    — it ran and said no (a domain error)
+    * `{:unavailable, why}` — it never ran: `:not_connected` or `{:badrpc, reason}`
+  """
+  @type result :: {:ok, term()} | {:error, term()} | {:unavailable, term()}
+
+  @doc """
+  Like `call/4`, but flattened.
+
+  `call/4` wraps whatever the gateway function returned, so a context
+  function that answers `{:ok, x}` or `{:error, e}` arrives as
+  `{:ok, {:ok, x}}` / `{:ok, {:error, e}}` — and a caller that forgets the
+  inner layer turns a transport failure into a `MatchError` (a 500). Here the
+  inner tuple replaces the outer one, and transport failures get their own
+  tag, so `{:error, _}` always means "the gateway answered". A bare return
+  (a list, a map, `nil`, `:ok`) is `{:ok, value}`.
+  """
+  @spec run(module(), atom(), [term()], pos_integer()) :: result()
+  def run(mod, fun, args, timeout \\ @default_timeout) do
+    case call(mod, fun, args, timeout) do
+      {:ok, {:ok, value}} -> {:ok, value}
+      {:ok, {:error, reason}} -> {:error, reason}
+      {:ok, value} -> {:ok, value}
+      {:error, :not_connected} -> {:unavailable, :not_connected}
+      {:error, {:badrpc, _} = why} -> {:unavailable, why}
+    end
+  end
+
+  @doc """
+  The JSON body for a 503 when `run/4` says `{:unavailable, why}`.
+  """
+  @spec unavailable_body(term()) :: map()
+  def unavailable_body(:not_connected), do: %{error: "gateway_not_connected"}
+
+  def unavailable_body({:badrpc, reason}),
+    do: %{error: "gateway_rpc_failed", detail: inspect(reason)}
+
   defp do_call(mod, fun, args, timeout) do
     case gateway_node() do
       nil ->
@@ -49,12 +96,24 @@ defmodule SukhiApi.GatewayRpc do
       node ->
         _ = maybe_connect(node)
 
-        case :rpc.call(node, mod, fun, args, timeout) do
-          {:badrpc, reason} -> {:error, {:badrpc, reason}}
-          other -> {:ok, other}
+        # Through the gateway's one door, which blanks key material and
+        # password/TOTP secrets in whatever it returns (SukhiFedi.RpcGate).
+        case :rpc.call(node, @gate, :call, [mod, fun, args], timeout) do
+          # A gateway that predates the door: answer directly, as before.
+          {:badrpc, {:EXIT, {:undef, [{@gate, :call, _, _} | _]}}} ->
+            direct(node, mod, fun, args, timeout)
+
+          result ->
+            wrap(result)
         end
     end
   end
+
+  defp direct(node, mod, fun, args, timeout),
+    do: wrap(:rpc.call(node, mod, fun, args, timeout))
+
+  defp wrap({:badrpc, reason}), do: {:error, {:badrpc, reason}}
+  defp wrap(other), do: {:ok, other}
 
   defp gateway_node do
     case Application.get_env(:sukhi_api, :gateway_node) do

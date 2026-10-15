@@ -80,26 +80,26 @@ defmodule SukhiApi.Capabilities.MastodonSearch do
 
       # `alice` だけ → local の username prefix で複数返す。
       true ->
-        case GatewayRpc.call(SukhiFedi.Accounts, :list_accounts, [
+        case GatewayRpc.run(SukhiFedi.Accounts, :list_accounts, [
                %{username: bare, suspended: false},
                %{offset: 0, limit: limit}
              ]) do
-          {:ok, {:ok, {accounts, _total}}} -> accounts
+          {:ok, {accounts, _total}} -> accounts
           _ -> []
         end
     end
   end
 
   defp lookup_acct_one(bare, resolve?) do
-    case GatewayRpc.call(SukhiFedi.Accounts, :lookup_by_acct, [bare, [resolve: resolve?]]) do
-      {:ok, {:ok, account}} -> [account]
+    case GatewayRpc.run(SukhiFedi.Accounts, :lookup_by_acct, [bare, [resolve: resolve?]]) do
+      {:ok, account} -> [account]
       _ -> []
     end
   end
 
   defp render_account(account) do
     counts =
-      case GatewayRpc.call(SukhiFedi.Accounts, :counts_for, [account.id]) do
+      case GatewayRpc.run(SukhiFedi.Accounts, :counts_for, [account.id]) do
         {:ok, %{} = m} -> m
         _ -> %{followers: 0, following: 0, statuses: 0}
       end
@@ -115,7 +115,7 @@ defmodule SukhiApi.Capabilities.MastodonSearch do
     if bare == "" do
       []
     else
-      case GatewayRpc.call(SukhiFedi.Tags, :search, [bare, [limit: limit]]) do
+      case GatewayRpc.run(SukhiFedi.Tags, :search, [bare, [limit: limit]]) do
         {:ok, list} when is_list(list) -> list
         _ -> []
       end
