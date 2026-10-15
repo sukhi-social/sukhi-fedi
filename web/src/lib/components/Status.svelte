@@ -252,7 +252,6 @@
      :last-child の罫線消しは、枠の唯一の子にも効く（boost 側で分離線を持つ）。 */
   .status {
     display: flex;
-    gap: var(--space-4);
     padding: var(--space-4) 0;
     border-bottom: 1px solid var(--color-border);
   }
@@ -273,9 +272,13 @@
     font-weight: 700;
     font-size: var(--text-base);
   }
+  /* アバターとの間は gap ではなく、本文の左の余白で取る。gap は子の数で
+     増えるので、アバターの <picture>(display: contents)の中身まで数えて
+     しまい、本文の位置がずれていた。 */
   .body {
     flex: 1;
     min-width: 0;
+    margin-left: var(--space-4);
   }
   .content {
     margin-top: var(--space-2);
@@ -291,8 +294,11 @@
      ハンドルのほうを縮める ── 誰か・いつ、が一行で読めるほうが役に立つ。 */
   @media (max-width: 40rem) {
     .status {
-      gap: var(--space-3);
       padding: var(--space-3) 0;
+    }
+
+    .body {
+      margin-left: var(--space-3);
     }
 
     .meta {
@@ -431,7 +437,7 @@
 
   .boost-by {
     display: block;
-    padding: 0.25rem 1rem 0;
+    padding: 0.25rem 0 0;
     font-size: 0.8rem;
     color: var(--color-text-muted);
     text-decoration: none;
@@ -456,7 +462,11 @@
     align-items: center;
     gap: 0.5rem;
     width: 100%;
-    padding: 0.4rem 1rem;
+    /* 畳んだ行も、タイムラインの一件と同じく罫線で区切る。罫線が無いと、
+       行が次の投稿の上に浮いて、空きだけが残って見える。左右は投稿と同じ
+       0 にして、アバターの縦の列をそろえる。 */
+    border-bottom: 1px solid var(--color-border);
+    padding: 0.4rem 0;
     background: none;
     border: none;
     text-align: left;
