@@ -4,3 +4,5 @@
 I hereby give a small, irrevocable, warranty-free, AS-IS “Thank you!”*
 
 Thank you for maintaining this project as open source. Wishing you good days filled with things you enjoy!
+
+This thanks is non-transferable.
