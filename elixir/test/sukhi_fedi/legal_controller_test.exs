@@ -196,6 +196,8 @@ defmodule SukhiFedi.Web.LegalControllerTest do
 
     ko = get("/credits?lang=ko") |> LegalController.credits() |> Map.get(:resp_body)
     assert ko =~ "님은"
+    # ltlapy is a person; k.lapy.link is the server, and it is theirs
+    assert ko =~ ~s(>ltlapy</a>의 <a href="https://k.lapy.link">)
     refute ko =~ "Jaeyeol"
   end
 
