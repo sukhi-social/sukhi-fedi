@@ -55,7 +55,7 @@ defmodule SukhiFedi.MixProject do
       # On Linux `mix deps.compile` downloads the prebuilt library for the
       # platform (musl included) and checks its SHA-256 — no Rust in the
       # image. Pinned to a tag: ojak-ex is young and its API may change.
-      {:ojak, github: "sukhi-social/ojak-ex", tag: "v0.1.1"},
+      {:ojak, github: "sukhi-social/ojak-ex", tag: "v0.1.2"},
 
       # Database
       {:ecto_sql, "~> 3.11"},
