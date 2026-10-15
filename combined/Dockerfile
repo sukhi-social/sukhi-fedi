@@ -8,17 +8,18 @@
 # combined release serves the same web UI on :4000.
 
 # ── SPA build ─────────────────────────────────────────────────────────────
-FROM node:20-alpine AS spa
+FROM node:20-alpine AS spa-deps
 
 WORKDIR /spa
 COPY web/package.json web/package-lock.json* ./
 RUN npm install --no-audit --no-fund
 
+FROM spa-deps AS spa
 COPY web/ ./
 RUN npm run build
 
 # ── Elixir release build ──────────────────────────────────────────────────
-FROM elixir:1.20-alpine AS build
+FROM elixir:1.20-alpine AS deps
 
 WORKDIR /repo
 
@@ -60,6 +61,12 @@ RUN --mount=type=cache,target=/build-cache,id=sukhi-fedi-combined-build,sharing=
       cp -a _build /build-cache/_build \
     '
 
+# Everything above changes only with a lockfile; everything below changes
+# with every commit. CI exports its layer cache from `cache-warm` (below)
+# and only reads it for the full build, so the per-commit layers (SPA
+# output, the release) aren't uploaded just to be thrown away.
+FROM deps AS build
+
 WORKDIR /repo
 COPY elixir/config elixir/config
 COPY elixir/lib elixir/lib
@@ -98,6 +105,13 @@ RUN --mount=type=cache,target=/app-cache,id=sukhi-fedi-combined-app,sharing=lock
       MIX_ENV=prod mix release; \
       for a in $apps; do rm -rf /app-cache/$a; cp -a _build/prod/lib/$a /app-cache/$a; done \
     '
+
+# ── CI cache export target ────────────────────────────────────────────────
+# Builds the two slow-to-change stages and nothing else:
+#   docker build --target cache-warm --cache-to ... -f combined/Dockerfile .
+FROM scratch AS cache-warm
+COPY --from=spa-deps /spa/package.json /spa-deps
+COPY --from=deps /repo/combined/mix.exs /deps
 
 # ── Runtime ───────────────────────────────────────────────────────────────
 FROM elixir:1.20-alpine

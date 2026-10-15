@@ -38,6 +38,22 @@ jobs:
       - id: tag
         run: echo "sha=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
+      # Build only the stages that rarely change, and export the layer cache
+      # from just those. The full build below reads that cache but doesn't
+      # write one: its layers (SPA output, the release) differ on every
+      # commit, so uploading them cost ~14s per run for nothing.
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: combined/Dockerfile
+          target: cache-warm
+          platforms: linux/arm64
+          outputs: type=cacheonly
+          cache-from: type=gha,scope=combined-arm64
+          # zstd, not the default gzip: writing the cache took ~60s of the
+          # 176s cold run (run 38718204455); zstd compresses faster.
+          cache-to: type=gha,scope=combined-arm64,mode=max,compression=zstd
+
       - uses: docker/build-push-action@v5
         with:
           context: .
@@ -46,6 +62,3 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-combined:${{ steps.tag.outputs.sha }}
           cache-from: type=gha,scope=combined-arm64
-          # zstd, not the default gzip: writing the cache took ~60s of the
-          # 176s cold run (run 38718204455); zstd compresses faster.
-          cache-to: type=gha,scope=combined-arm64,mode=max,compression=zstd
