@@ -52,7 +52,7 @@ defmodule SukhiFedi.Integration.InboundArchiveTest do
       assert {:ok, %{body: compressed}} =
                ExAws.S3.get_object(bucket, ev.object_key) |> ExAws.request()
 
-      assert :ezstd.decompress(compressed) == body
+      assert compressed |> :zstd.decompress() |> IO.iodata_to_binary() == body
     end
 
     test "is idempotent — a re-sent activity does not duplicate the index row" do

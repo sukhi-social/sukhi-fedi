@@ -151,11 +151,13 @@
 <nav class="tabs timeline" aria-label={$t('notif.tabsLabel')}>
   <button
     type="button"
+    class="tab"
     aria-pressed={tier === 'direct'}
     onclick={() => selectTier('direct')}
   >{$t('notif.tabToYou')}</button>
   <button
     type="button"
+    class="tab"
     aria-pressed={tier === 'ambient'}
     onclick={() => selectTier('ambient')}
   >{$t('notif.tabReactions')}</button>

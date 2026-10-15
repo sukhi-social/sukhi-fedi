@@ -591,4 +591,35 @@
     color: var(--color-text);
     border-bottom-color: var(--color-text);
   }
+  .profile-note {
+    font-size: var(--text-base);
+    overflow-wrap: anywhere;
+  }
+
+  .profile-note :global(p) + :global(p) {
+    margin-top: var(--space-2);
+  }
+
+  .profile-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+
+  .profile-counts a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .profile-counts a:hover {
+    color: var(--color-text);
+  }
+
+  .profile-counts strong {
+    color: var(--color-text);
+    font-weight: 700;
+  }
 </style>

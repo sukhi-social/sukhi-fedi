@@ -221,28 +221,26 @@
   // 複数行で伸びる(Composer の textarea.grows)ので、決め打ちの余白だと
   // 伸びたときにまた隠れる。実測して CSS 変数に渡す。
   //
-  // 高さ(offsetHeight)だけでなく、画面の底から入力欄の上端までの距離を
-  // 見る ── スマホでは下タブの帯ぶん(3.75rem)入力欄が浮いているので、
-  // 高さだけだとその浮きぶんを見落として、最後のクリップがタブ帯の
-  // 裏まで隠れてしまう。
+  // 入力欄の根は Composer の root で受け取る(セレクタで探さない)。
+  let composerRoot = $state<HTMLElement | null>(null);
+
+  // 測るのは入力欄の高さだけ。画面の底からの距離で測ると、スマホの下タブ
+  // の帯ぶんを二重に数える ── その帯のぶんは、main が既に持っている余白
+  // (body.has-bottom-nav main)で空いているから。textarea が伸びたときは
+  // ResizeObserver が拾う。
   $effect(() => {
     if (resolving || error || !me) return;
-    const el = document.querySelector<HTMLElement>('.composer.composer-dm');
+    const el = composerRoot;
     if (!el) return;
 
     const setH = () => {
-      const gap = window.innerHeight - el.getBoundingClientRect().top;
-      document.body.style.setProperty('--clips-composer-h', `${Math.max(gap, 0)}px`);
+      document.body.style.setProperty('--clips-composer-h', `${el.getBoundingClientRect().height}px`);
     };
     setH();
     const ro = new ResizeObserver(setH);
     ro.observe(el);
-    // 画面の回転・リサイズでスマホの下タブ帯の有無が変わることがある
-    // ── 入力欄自体の大きさは変わらなくても、浮きぶんは変わりうる。
-    window.addEventListener('resize', setH);
     return () => {
       ro.disconnect();
-      window.removeEventListener('resize', setH);
       document.body.style.removeProperty('--clips-composer-h');
     };
   });
@@ -361,12 +359,17 @@
 
 {#if !resolving && !error && me}
   <Composer
+    bind:root={composerRoot}
     replyTo={lastStatus}
     prefillRecipients={[me.acct]}
     dmConversationId={id ?? 'clips-new'}
+    fixed
     accept={CLIPS_FILE_ACCEPT}
     onposted={onPosted}
   />
+  <!-- 固定された入力欄の下に、実測した高さぶんの余白を置く。流れの中の
+       要素として持つので、親の .wrap の余白を書き換えずに済む。 -->
+  <div class="clips-dock-space" aria-hidden="true"></div>
 {/if}
 
 <style>
@@ -375,19 +378,12 @@
      Clips は最初 0 件から始まる(=中身が画面より低い)のがふつうの状態
      なので、ここだけ本当に固定する。main.wrap の幅と中央寄せ(margin:
      0 auto と max-width)はそのまま効くよう、left/right だけ足す。 */
-  :global(main.wrap .composer.composer-dm) {
-    position: fixed;
-    left: 0;
-    right: 0;
-  }
-
   /* fixed にした入力欄は流れから抜けているので、いちばん下のクリップが
-     その裏に隠れる。sticky ならここが自然に空くところ ── 実測した高さ
-     (--clips-composer-h、上の $effect が ResizeObserver で更新)ぶんだけ
-     余白を用意して、隠れないようにする。JS が効く前の初回描画だけ、
-     控えめな既定値(一行ぶん)で仮置きする。 */
-  :global(main.wrap:has(> .composer.composer-dm)) {
-    padding-bottom: calc(var(--clips-composer-h, 4.5rem) + var(--space-3));
+     その裏に隠れる。実測した高さ(--clips-composer-h、上の $effect が
+     ResizeObserver で更新)ぶんだけ、流れの末尾に余白を置く。JS が効く前の
+     初回描画だけ、控えめな既定値(一行ぶん)で仮置きする。 */
+  .clips-dock-space {
+    height: calc(var(--clips-composer-h, 4.5rem) + var(--space-3));
   }
 
   .clips-search {

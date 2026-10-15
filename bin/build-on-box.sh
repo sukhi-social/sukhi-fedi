@@ -31,7 +31,8 @@ BOX="rocky@${DEPLOY_HOST:?set DEPLOY_HOST to the box ip/hostname}"
 REG=127.0.0.1:5000
 REGUSER=sukhi                       # techo の registry container に相乗り、user は分ける
 SHA=$(git rev-parse HEAD)
-REGPASS=$(grep '^REGISTRY_PASSWORD=' .kamal/secrets | cut -d= -f2)
+# 箱の registry のパスワードは環境変数で渡す(kamal の .kamal/secrets には頼らない)。
+REGPASS="${REGISTRY_PASSWORD:?set REGISTRY_PASSWORD to the box registry password}"
 # 同じ箱に相乗りする別サービス用の image 名前空間。既定は今までどおり
 # sukhi-fedi-*。Kamal は web role の image に `service=$PREFIX` ラベルを
 # 要求するので(anti-misconfig guard)、ラベルも一緒に付け替える ── 相手の
