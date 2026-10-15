@@ -89,7 +89,10 @@ defmodule SukhiFedi.Federation.InboundArchive do
 
   defp put_object(key, raw_body, args) do
     bucket = inbound_bucket()
-    compressed = :ezstd.compress(raw_body, @zstd_level)
+    compressed =
+      raw_body
+      |> :zstd.compress(%{compressionLevel: @zstd_level})
+      |> IO.iodata_to_binary()
 
     meta =
       [

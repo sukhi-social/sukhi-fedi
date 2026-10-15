@@ -354,9 +354,11 @@ defmodule SukhiFedi.Maintenance.RebuildFromArchive do
 
     case bucket |> ExAws.S3.get_object(key) |> ExAws.request() do
       {:ok, %{body: compressed}} ->
-        case :ezstd.decompress(compressed) do
-          bin when is_binary(bin) -> {:ok, bin}
-          other -> {:error, {:zstd, other}}
+        # :zstd.decompress/1 raises on bytes that aren't a zstd frame.
+        try do
+          {:ok, compressed |> :zstd.decompress() |> IO.iodata_to_binary()}
+        rescue
+          e -> {:error, {:zstd, e}}
         end
 
       {:error, reason} ->
