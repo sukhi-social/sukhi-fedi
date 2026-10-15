@@ -14,11 +14,11 @@ Projects and communities whose work sukhi follows or learns from. They are not d
 
 ### People
 
-<p lang="ko">ltlapy <a href="https://k.lapy.link">https://k.lapy.link</a> 는 첫 한국 Misskey 서버이자, 깔끔하고 읽기 편안한 이용규약으로 가입을 결정한 서버입니다. 수많은 한국 Misskey 이용자가 터로 삼고 있었으며, 서버 종료 순간에 참여한 저로서 유감과 감사를 표합니다. 저를 포함한 수많은 분들에게 연합우주를 알려주셔서 진심으로 감사드립니다.</p>
+[ltlapy](https://k.lapy.link) was the first Korean Misskey server, and the one I decided to join because of its clean, comfortable-to-read terms of use. Many Korean Misskey users made it their home. I was there when the server shut down, and I want to say both how sorry I am and how grateful. Thank you, truly, for showing the fediverse to so many people, me included.
 
-<p lang="ko">hongminhee 홍민희님은 <a href="https://fedidev.kr/">https://fedidev.kr/</a> 를 통해 알게된 분입니다. Fedify를 통해 수많은 연합우주 서버를 지탱해 주시고, 표준화에 기여하는 인프라를 유지하고 계셔, 존경의 뜻을 표합니다.</p>
+I know hongminhee (홍민희) through [fedidev.kr](https://fedidev.kr/). Through Fedify, you support countless fediverse servers, and you keep up the infrastructure that contributes to standardization. I say this with respect.
 
-<p lang="ko">Jaeyeol Lee <a href="https://fedidev.kr/">https://fedidev.kr/</a> 디스코드를 운영하고 계시는 분입니다. moim.live를 통해 hackers.pub 초대장을 뿌리고 계셔서, 문의 없이 hackers.pub에 멋대로 들어갈 수 있었습니다. (?) 제가 초대장을 가지고 있지 않을 때에도 그 링크는 지인에게 추천할 때 소중히 활용하였습니다. (??) 감사합니다!</p>
+Jaeyeol Lee runs the Discord of [fedidev.kr](https://fedidev.kr/). By handing out hackers.pub invitations through moim.live, you let me walk into hackers.pub without even asking. (?) Even when I had no invitation of my own, I treasured that link and used it whenever I recommended the place to friends. (??) Thank you!
 
 ### Mastodon and Misskey
 

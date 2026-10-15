@@ -89,12 +89,13 @@ defmodule SukhiFedi.Web.LegalController do
   # /credits — the standards sukhi implements and the projects it learns from
   # (none of them a dependency, so not on /licenses), then the same closing
   # words as the other pages. Hand-written; nothing generated.
-  @credits_files ~w(credits.en.md credits.ja.md licenses-end.en.md licenses-end.ja.md)
+  @credits_files ~w(credits.en.md credits.ja.md credits.ko.md licenses-end.en.md licenses-end.ja.md licenses-end.ko.md)
   for file <- @credits_files, do: @external_resource(Path.join(@dir, file))
 
   @credits %{
     en: bake.(@dir, "credits.en.md") <> bake.(@dir, "licenses-end.en.md"),
-    ja: bake.(@dir, "credits.ja.md") <> bake.(@dir, "licenses-end.ja.md")
+    ja: bake.(@dir, "credits.ja.md") <> bake.(@dir, "licenses-end.ja.md"),
+    ko: bake.(@dir, "credits.ko.md") <> bake.(@dir, "licenses-end.ko.md")
   }
 
   defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor, :sukhi)
@@ -326,7 +327,19 @@ defmodule SukhiFedi.Web.LegalController do
           "/credits",
           {"ライセンス", "/licenses?lang=ja"},
           false,
-          {"English", nil}
+          [{"English", nil}, {"한국어", "lang=ko"}]
+        )
+
+      %{"lang" => "ko"} ->
+        render(
+          conn,
+          "ko",
+          "크레딧",
+          @credits.ko,
+          "/credits",
+          {"라이선스", "/licenses"},
+          false,
+          [{"English", nil}, {"日本語", "lang=ja"}]
         )
 
       _ ->
@@ -338,7 +351,7 @@ defmodule SukhiFedi.Web.LegalController do
           "/credits",
           {"Licenses", "/licenses"},
           false,
-          {"日本語", "lang=ja"}
+          [{"日本語", "lang=ja"}, {"한국어", "lang=ko"}]
         )
     end
   end
@@ -394,7 +407,8 @@ defmodule SukhiFedi.Web.LegalController do
   # on the cross-link and the language toggle so neither loses the way back.
   #
   # `toggle` is `{label, query}` for the language link; terms/privacy leave
-  # it out (ja ⇄ ko), /licenses passes its own (en ⇄ ja).
+  # it out (ja ⇄ ko), /licenses passes its own (en ⇄ ja); /credits passes a list
+  # (en, ja, ko: each page links the other two).
   defp render(conn, lang, title, body, self_path, cross, signup?, toggle \\ nil)
 
   defp render(conn, lang, title, body, self_path, {cross_label, cross_path}, signup?, toggle) do
@@ -408,13 +422,19 @@ defmodule SukhiFedi.Web.LegalController do
         _ -> "トップへ"
       end
 
-    {toggle_label, toggle_lang} =
-      toggle ||
-        if lang == "ko",
-          do: {"日本語", nil},
-          else: {"한국어", "lang=ko"}
+    toggles =
+      case toggle do
+        nil when lang == "ko" -> [{"日本語", nil}]
+        nil -> [{"한국어", "lang=ko"}]
+        {_, _} = one -> [one]
+        many -> many
+      end
 
-    toggle_href = query_url(self_path, [sq, toggle_lang])
+    toggle_links =
+      Enum.map_join(toggles, fn {label, q} ->
+        ~s(<a href="#{query_url(self_path, [sq, q])}">#{label}</a>)
+      end)
+
     cross_href = query_url(cross_path, [sq, lang_q])
 
     cta =
@@ -443,10 +463,10 @@ defmodule SukhiFedi.Web.LegalController do
     <style>#{@css}#{font}</style>
     </head>
     <body>
-    <nav class="nav"><a href="/">← #{home}</a><a href="#{cross_href}">#{cross_label}</a><a href="#{toggle_href}">#{toggle_label}</a></nav>
+    <nav class="nav"><a href="/">← #{home}</a><a href="#{cross_href}">#{cross_label}</a>#{toggle_links}</nav>
     <main class="legal">#{body}</main>
     #{cta}
-    <footer class="foot"><a href="#{cross_href}">#{cross_label}</a><a href="#{toggle_href}">#{toggle_label}</a><a href="/">#{home}</a></footer>
+    <footer class="foot"><a href="#{cross_href}">#{cross_label}</a>#{toggle_links}<a href="/">#{home}</a></footer>
     </body>
     </html>
     """
