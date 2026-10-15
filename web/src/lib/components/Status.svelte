@@ -437,6 +437,13 @@
     text-decoration: none;
   }
 
+  /* 「○○がブースト」の見出しの下に、元の投稿が続く。投稿は子のコンポーネント
+     (Self)の article なので、:global で指す(scoped のままだと、この親からは
+     見えず、規則ごと消える)。見出しと投稿の間が二重に空かないよう、上の余白を詰める。 */
+  .boost > :global(.status) {
+    padding-top: var(--space-2);
+  }
+
   .boost-by:hover {
     text-decoration: underline;
   }
