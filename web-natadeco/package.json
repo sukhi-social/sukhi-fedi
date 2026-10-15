@@ -11,7 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "shots": "npm run build && node shots/run.mjs"
+    "shots": "pnpm run build && node shots/run.mjs"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "5.5.7",
@@ -31,5 +31,6 @@
     "@twemoji/api": "^17.0.3",
     "@twemoji/svg": "^15.0.0",
     "leaflet": "^1.9.4"
-  }
+  },
+  "packageManager": "pnpm@10.28.2"
 }

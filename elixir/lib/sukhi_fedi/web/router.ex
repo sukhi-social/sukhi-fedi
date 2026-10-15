@@ -959,7 +959,7 @@ defmodule SukhiFedi.Web.Router do
         |> send_file(200, index)
 
       nil ->
-        send_resp(conn, 404, "frontend not built — run `cd web && npm run build`")
+        send_resp(conn, 404, "frontend not built — run `cd web && pnpm run build`")
     end
   end
 

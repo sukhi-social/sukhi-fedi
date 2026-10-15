@@ -1,5 +1,5 @@
 # Keep the build context small and secret-free. The Dockerfiles copy source
-# selectively and run `mix deps.get` / `npm run build` inside, so none of the
+# selectively and run `mix deps.get` / `pnpm run build` inside, so none of the
 # artifacts, deps, or local secrets below are needed in the context.
 
 # VCS & tooling

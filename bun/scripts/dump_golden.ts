@@ -7,7 +7,7 @@
 // The Elixir test suite then proves compatibility the strong way: its
 // canonicalization + verification must accept what fedify produced.
 //
-// Usage: node --import tsx scripts/dump_golden.ts > ../elixir/test/support/fixtures/fedify_golden.json
+// Usage: node --import @oxc-node/core/register scripts/dump_golden.ts > ../elixir/test/support/fixtures/fedify_golden.json
 
 import { generateCryptoKeyPair, exportJwk, signRequest, signJsonLd, signObject, verifyProof } from "@fedify/fedify";
 import { Announce, Multikey } from "@fedify/fedify/vocab";

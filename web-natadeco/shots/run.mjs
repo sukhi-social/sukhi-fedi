@@ -1,9 +1,9 @@
 // natadeco の画面を、ぜんぶ絵にする。
 //
-//   npm run shots                     # ja/ko × light/dark、全ページ
-//   npm run shots -- --only login     # 一枚だけ撮り直す
-//   npm run shots -- --langs ko       # 韓国語だけ
-//   npm run shots -- --mobile         # 細い画面で
+//   pnpm run shots                     # ja/ko × light/dark、全ページ
+//   pnpm run shots -- --only login     # 一枚だけ撮り直す
+//   pnpm run shots -- --langs ko       # 韓国語だけ
+//   pnpm run shots -- --mobile         # 細い画面で
 //
 // 箱もサーバも要らない ── build したものを `vite preview` で出して、
 // API は shots/mock.mjs が途中で受け取る。時計も止めてあるので、

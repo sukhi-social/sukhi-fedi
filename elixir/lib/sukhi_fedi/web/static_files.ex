@@ -15,7 +15,7 @@ defmodule SukhiFedi.Web.StaticFiles do
   ## How it chooses
 
   By **when each copy was built**, not by when its files last touched a
-  disk. `npm run build` leaves a `.static-build.json` behind (web/scripts/
+  disk. `pnpm run build` leaves a `.static-build.json` behind (web/scripts/
   static-manifest.mjs) and it travels with the tree — into the image, into
   the release tarball, across the rsync. The newer build wins, as a whole
   tree rather than file by file, so an index.html and the chunks it names

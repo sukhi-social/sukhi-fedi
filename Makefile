@@ -29,9 +29,9 @@ setup:  ## fetch every project's dependencies
 	@if [ -n "$(MISE)" ]; then $(MISE) trust >/dev/null 2>&1 && $(MISE) install; fi
 	@command -v nats-server >/dev/null 2>&1 || echo "note: nats-server is missing — 'make dev' runs without streaming (brew install nats-server nats)"
 	for d in elixir delivery api combined; do (cd $$d && $(RUN) mix deps.get); done
-	cd web && $(RUN) npm install --no-audit --no-fund
-	cd bun && $(RUN) npm install --no-audit --no-fund
-	cd web-natadeco && $(RUN) npm install --no-audit --no-fund
+	cd web && $(RUN) pnpm install
+	cd bun && $(RUN) pnpm install
+	cd web-natadeco && $(RUN) pnpm install
 
 # ── Running it locally ──────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ dev:  ## run the whole thing locally, no Docker (:4000, IEx shell)
 	@bash scripts/dev.sh
 
 dev-web:  ## the SPA dev server (:5173), in a second terminal
-	cd web && $(RUN) npm run dev
+	cd web && $(RUN) pnpm run dev
 
 up:  ## the full docker-compose stack instead (:4000)
 	@docker info >/dev/null 2>&1 || { echo "Docker isn't answering — start it first (colima start / Docker Desktop)."; exit 1; }
@@ -67,7 +67,7 @@ test-api:
 	cd api && $(RUN) mix test --no-start
 
 test-web:
-	cd web && $(RUN) npm run check
+	cd web && $(RUN) pnpm run check
 
 # The DB-backed integration suite, against an embedded PGlite Postgres —
 # no Docker. Extra args pass through to `mix test`:
@@ -80,14 +80,14 @@ test-pglite:  ## DB integration tests on embedded PGlite (no Docker)
 # Builds the SPA and runs the flow in web/e2e against `vite preview`.
 #   make test-e2e ARGS="--project=firefox"
 test-e2e:  ## cross-browser SPA smoke (Playwright)
-	cd web && $(RUN) npx playwright test $(ARGS)
+	cd web && $(RUN) pnpm exec playwright test $(ARGS)
 
 # `mix credo --strict` is deliberately not here: credo 1.7.18 crashes on
 # Elixir 1.20's sigil tokens (`Protocol.UndefinedError ... for Tuple` out
 # of Credo.Code.Token) and exits 1 on every run, so it can only make this
 # target useless. Run it by hand once credo catches up.
 check: check-presets  ## linters and type checks
-	cd web && $(RUN) npm run check
+	cd web && $(RUN) pnpm run check
 
 check-presets:
 	@bash scripts/check_presets_sync.sh
@@ -126,7 +126,7 @@ DOMAIN      ?= sukhi.f3liz.casa
 # "only the raw token CSS" variant.
 #
 # Which of the two trees answers is decided by *when each was built*, not
-# by file mtimes: `npm run build` leaves a .static-build.json behind and
+# by file mtimes: `pnpm run build` leaves a .static-build.json behind and
 # it rides along in the rsync. So a later deploy (a newer image) supersedes
 # this push, on purpose. To keep a push in place across deploys, set
 # STATIC_OVERRIDE=prefer in the app's env (haloy.yaml). See
@@ -143,7 +143,7 @@ DOMAIN      ?= sukhi.f3liz.casa
 # rsync で別途同期する役割なので、build rsync の delete 対象から
 # 外しておく。emojis/ も同じ(あちらは実行時に増える)。
 push-static:  ## build the SPA and rsync it to the host override dir
-	cd web && SUKHI_STATIC_SOURCE=push $(RUN) npm run build
+	cd web && SUKHI_STATIC_SOURCE=push $(RUN) pnpm run build
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(STATIC_DIR) && sudo chown $(DEPLOY_USER) $(STATIC_DIR)"
 	rsync -av --delete --chmod=D755,F644 --exclude=styles --exclude=emojis web/build/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/
 	rsync -av --delete --chmod=D755,F644 web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
@@ -175,8 +175,7 @@ push-styles:  ## rsync only the raw token CSS (server-rendered pages)
 # is deployed with haloy (sukhi-deploy/natadeco); its version travels as an
 # image.
 #
-# Built with npm, like web/ (it used to be bun; package-lock.json replaced
-# bun.lock on 2026-10-15).
+# Built with pnpm, like web/ (it used to be bun, then npm).
 NATADECO_STATIC_DIR ?= /var/lib/natadeco/static
 
 # Since 2026-09-03 the pages are rendered by a Node next door (see
@@ -185,7 +184,7 @@ NATADECO_STATIC_DIR ?= /var/lib/natadeco/static
 # Push the static side and the ssr image from the same commit, so the
 # HTML the Node renders names the chunks that are actually there.
 push-natadeco:  ## build web-natadeco and rsync its client assets to natadeco's override dir
-	cd web-natadeco && $(RUN) npm run build
+	cd web-natadeco && $(RUN) pnpm run build
 	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(NATADECO_STATIC_DIR) && sudo chown $(DEPLOY_USER) $(NATADECO_STATIC_DIR)"
 	rsync -av --delete --chmod=D755,F644 web-natadeco/build/client/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(NATADECO_STATIC_DIR)/
 

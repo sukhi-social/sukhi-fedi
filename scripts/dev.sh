@@ -58,11 +58,11 @@ command -v node >/dev/null 2>&1 || {
   echo "→ node is needed for the embedded Postgres (mise install, or https://nodejs.org)" >&2
   exit 1
 }
-[ -d "$ROOT/bun/node_modules" ] || (cd "$ROOT/bun" && npm install --no-audit --no-fund)
+[ -d "$ROOT/bun/node_modules" ] || (cd "$ROOT/bun" && pnpm install)
 
 echo "→ PGlite on 127.0.0.1:$PGLITE_PORT  (data: ${PGLITE_DATA#"$ROOT"/})"
 ( cd "$ROOT/bun" && PGLITE_PORT="$PGLITE_PORT" PGLITE_DATA="$PGLITE_DATA" \
-    exec node --import tsx services/test_db.ts >/dev/null 2>&1 ) &
+    exec node --import @oxc-node/core/register services/test_db.ts >/dev/null 2>&1 ) &
 pids+=("$!")
 wait_for_port "$PGLITE_PORT" "PGlite"
 
