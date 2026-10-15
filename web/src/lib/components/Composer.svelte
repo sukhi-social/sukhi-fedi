@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import {
     postStatus,
     uploadMedia,
@@ -25,7 +25,7 @@
   import Avatar from './Avatar.svelte';
   import NavIcon from './NavIcon.svelte';
   import QuoteCard from './QuoteCard.svelte';
-  import ReactionPicker from './ReactionPicker.svelte';
+  import EmojiPicker from './EmojiPicker.svelte';
   import Twemoji from './Twemoji.svelte';
 
   let {
@@ -133,10 +133,27 @@
   let fileInput: HTMLInputElement | undefined = $state();
   let emojiPickerOpen = $state(false);
 
-  function insertEmoji(emoji: string) {
+  // カーソルのある場所に入れる。前後が語のつながりなら、:shortcode: が
+  // 字とくっつかないよう空白を一つ挟む。入れたあとのカーソルは、絵文字の後ろ。
+  async function insertEmoji(value: string) {
     emojiPickerOpen = false;
-    text = text ? `${text} ${emoji} ` : `${emoji} `;
-    box?.focus();
+    const el = box;
+    if (!el) {
+      text = `${text}${value} `;
+      return;
+    }
+    const start = el.selectionStart ?? text.length;
+    const end = el.selectionEnd ?? start;
+    const before = text.slice(0, start);
+    const after = text.slice(end);
+    const lead = before && !/\s$/.test(before) ? ' ' : '';
+    const trail = after && !/^\s/.test(after) ? ' ' : '';
+    const inserted = lead + value + trail;
+    text = before + inserted + after;
+    const caret = (before + inserted).length;
+    await tick();
+    el.focus();
+    el.setSelectionRange(caret, caret);
   }
 
   // ── メンション・絵文字の自動補完 ─────────────────────────────────
@@ -564,7 +581,7 @@
         </button>
         {#if emojiPickerOpen}
           <div class="composer-picker-anchor">
-            <ReactionPicker onpick={insertEmoji} onclose={() => (emojiPickerOpen = false)} />
+            <EmojiPicker onpick={insertEmoji} onclose={() => (emojiPickerOpen = false)} />
           </div>
         {/if}
       </div>

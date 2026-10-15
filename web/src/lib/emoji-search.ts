@@ -1,7 +1,7 @@
 // 絵文字検索・インデックスと最近使用した絵文字の管理。
 //
-// カスタム絵文字（API経由）と標準Unicode絵文字を統合し、
-// 短コード・エイリアス（別名）・カテゴリ名から高速に候補を検索・ランキングします。
+// カスタム絵文字（API経由）だけを対象に、短コード・エイリアス（別名）・
+// カテゴリ名から候補を検索・ランキングします。Unicode 絵文字は端末のキーボードの仕事で、ここには置きません。
 
 import type { Emoji } from './api';
 
@@ -9,63 +9,9 @@ export interface AutocompleteEmoji {
   shortcode: string;
   url?: string;
   staticUrl?: string;
-  unicode?: string;
   category?: string;
   aliases: string[];
 }
-
-export const STANDARD_EMOJIS: AutocompleteEmoji[] = [
-  { shortcode: '+1', unicode: '👍', aliases: ['thumbsup', 'いいね', 'グッド', 'good'], category: 'People' },
-  { shortcode: 'heart', unicode: '❤️', aliases: ['love', 'ハート', 'すき', '好き'], category: 'Symbols' },
-  { shortcode: 'laughing', unicode: '😆', aliases: ['lol', '笑', 'わらい', '草'], category: 'People' },
-  { shortcode: 'tada', unicode: '🎉', aliases: ['party', 'おめでとう', '祝', 'クラッカー'], category: 'Activities' },
-  { shortcode: 'open_mouth', unicode: '😮', aliases: ['surprised', 'びっくり', 'わあ'], category: 'People' },
-  { shortcode: 'cry', unicode: '😢', aliases: ['tear', '泣き', 'かなしい', '涙'], category: 'People' },
-  { shortcode: 'thinking', unicode: '🤔', aliases: ['hmm', '考える', 'うーん', '思案'], category: 'People' },
-  { shortcode: 'pray', unicode: '🙏', aliases: ['thanks', 'お願いします', '合掌', '感謝', 'たすかる'], category: 'People' },
-  { shortcode: 'fire', unicode: '🔥', aliases: ['flame', '炎', 'アツい', '火'], category: 'Nature' },
-  { shortcode: 'sparkles', unicode: '✨', aliases: ['shine', 'きらきら', 'キラキラ', 'ピカピカ'], category: 'Nature' },
-  { shortcode: 'cherry_blossom', unicode: '🌸', aliases: ['sakura', 'さくら', '桜', '花'], category: 'Nature' },
-  { shortcode: 'coffee', unicode: '☕', aliases: ['cafe', 'コーヒー', 'カフェ', '珈琲'], category: 'Food' },
-  { shortcode: 'tea', unicode: '🍵', aliases: ['greentea', 'お茶', '抹茶', '日本茶'], category: 'Food' },
-  { shortcode: 'seedling', unicode: '🌱', aliases: ['sprout', '若葉', '芽', '草'], category: 'Nature' },
-  { shortcode: 'cat', unicode: '🐈', aliases: ['neko', '猫', 'ねこ'], category: 'Animals' },
-  { shortcode: 'cat_face', unicode: '🐱', aliases: ['neko', 'ねこ', '猫', 'にゃー'], category: 'Animals' },
-  { shortcode: 'dog', unicode: '🐶', aliases: ['inu', '犬', 'いぬ', 'わんこ'], category: 'Animals' },
-  { shortcode: 'feet', unicode: '🐾', aliases: ['paw_prints', '肉球', '足跡'], category: 'Animals' },
-  { shortcode: 'bulb', unicode: '💡', aliases: ['idea', 'ひらめき', '電球', 'アイデア'], category: 'Objects' },
-  { shortcode: 'eyes', unicode: '👀', aliases: ['look', '目', 'みる', 'みてる'], category: 'People' },
-  { shortcode: 'clap', unicode: '👏', aliases: ['applause', '拍手', 'パチパチ'], category: 'People' },
-  { shortcode: 'pleading_face', unicode: '🥺', aliases: ['plead', 'ぴえん', 'うるうる'], category: 'People' },
-  { shortcode: 'smiley_cat', unicode: '😺', aliases: ['happy_cat', 'にこにこねこ'], category: 'Animals' },
-  { shortcode: 'sleeping', unicode: '😴', aliases: ['sleep', 'おやすみ', 'ねる', 'zzz', '睡眠'], category: 'People' },
-  { shortcode: 'heart_hands', unicode: '🫶', aliases: ['love_hands', 'ハートの手'], category: 'People' },
-  { shortcode: 'dango', unicode: '🍡', aliases: ['団子', 'だんご', 'スイーツ'], category: 'Food' },
-  { shortcode: 'smile', unicode: '😊', aliases: ['happy', '笑顔', 'にこ', 'にっこり'], category: 'People' },
-  { shortcode: 'sob', unicode: '😭', aliases: ['crying', '号泣', 'うわーん', '大泣き'], category: 'People' },
-  { shortcode: 'rofl', unicode: '🤣', aliases: ['kusa', '草', '大爆笑', 'ウケる'], category: 'People' },
-  { shortcode: 'rocket', unicode: '🚀', aliases: ['launch', 'ロケット'], category: 'Travel' },
-  { shortcode: '100', unicode: '💯', aliases: ['score', '百点', '満点', '完璧'], category: 'Symbols' },
-  { shortcode: 'star', unicode: '⭐', aliases: ['hoshi', '星', 'スター'], category: 'Nature' },
-  { shortcode: 'zap', unicode: '⚡', aliases: ['lightning', '雷', 'いなずま', '電撃'], category: 'Nature' },
-  { shortcode: 'sushi', unicode: '🍣', aliases: ['すし', '寿司', 'スシ'], category: 'Food' },
-  { shortcode: 'ramen', unicode: '🍜', aliases: ['noodle', 'ラーメン', 'らーめん', '拉麺'], category: 'Food' },
-  { shortcode: 'onigiri', unicode: '🍙', aliases: ['rice_ball', 'おにぎり', 'おむすび'], category: 'Food' },
-  { shortcode: 'beer', unicode: '🍺', aliases: ['kanpai', 'ビール', '乾杯', 'お酒'], category: 'Food' },
-  { shortcode: 'cake', unicode: '🍰', aliases: ['ショートケーキ', 'ケーキ', 'おやつ'], category: 'Food' },
-  { shortcode: 'muscle', unicode: '💪', aliases: ['flex', '筋肉', 'がんばる', 'マッチョ'], category: 'People' },
-  { shortcode: 'notes', unicode: '🎶', aliases: ['music', '音符', 'おんぷ', '歌'], category: 'Symbols' },
-  { shortcode: 'crescent_moon', unicode: '🌙', aliases: ['moon', '月', 'つき', '三日月'], category: 'Nature' },
-  { shortcode: 'sunny', unicode: '☀️', aliases: ['sun', '太陽', 'たいよう', '晴れ'], category: 'Nature' },
-  { shortcode: 'cloud', unicode: '☁️', aliases: ['くもり', '雲'], category: 'Nature' },
-  { shortcode: 'umbrella', unicode: '☔', aliases: ['rain', '雨', 'あめ', '傘'], category: 'Nature' },
-  { shortcode: 'snowflake', unicode: '❄️', aliases: ['snow', '雪', 'ゆき', '冬'], category: 'Nature' },
-  { shortcode: 'strawberry', unicode: '🍓', aliases: ['いちご', '苺'], category: 'Food' },
-  { shortcode: 'apple', unicode: '🍎', aliases: ['ringo', 'りんご', '林檎'], category: 'Food' },
-  { shortcode: 'penguin', unicode: '🐧', aliases: ['ペンギン', 'ぺんぎん'], category: 'Animals' },
-  { shortcode: 'bear', unicode: '🐻', aliases: ['kuma', 'くま', '熊'], category: 'Animals' },
-  { shortcode: 'rabbit', unicode: '🐰', aliases: ['usagi', 'うさぎ', '兎'], category: 'Animals' }
-];
 
 const RECENT_STORAGE_KEY = 'sukhi_recent_emojis';
 const MAX_RECENTS = 30;
@@ -84,7 +30,6 @@ export function setCustomEmojisCache(emojis: (Emoji | AutocompleteEmoji)[]): voi
         shortcode: e.shortcode,
         url: 'url' in e ? e.url : undefined,
         staticUrl: 'static_url' in e ? e.static_url : ('staticUrl' in e ? e.staticUrl : undefined),
-        unicode: 'unicode' in e ? e.unicode : undefined,
         category: e.category || undefined,
         aliases
       };
@@ -151,7 +96,7 @@ export function clearRecentEmojis(): void {
  * 短コード・エイリアス・カテゴリ・最近の使用履歴から絵文字候補を検索・ランキングする。
  */
 export function searchEmojis(query: string, limit = 8): AutocompleteEmoji[] {
-  const allEmojis = [...customEmojiCache, ...STANDARD_EMOJIS];
+  const allEmojis = customEmojiCache;
   const recents = getRecentEmojis();
 
   const q = query.trim().toLowerCase().replace(/^:|:$/g, '');
@@ -165,7 +110,7 @@ export function searchEmojis(query: string, limit = 8): AutocompleteEmoji[] {
     // 1. 最近使った絵文字から探す
     for (const r of recents) {
       const match = allEmojis.find(
-        (e) => e.shortcode.toLowerCase() === r.toLowerCase() || (e.unicode && e.unicode === r)
+        (e) => e.shortcode.toLowerCase() === r.toLowerCase()
       );
       if (match && !seen.has(match.shortcode)) {
         seen.add(match.shortcode);
@@ -233,7 +178,7 @@ export function searchEmojis(query: string, limit = 8): AutocompleteEmoji[] {
     if (score > 0) {
       // 最近使った絵文字の加点 (最大 +200)
       const recentIdx = recents.findIndex(
-        (r) => r.toLowerCase() === sc || (item.unicode && r === item.unicode)
+        (r) => r.toLowerCase() === sc
       );
       if (recentIdx >= 0) {
         score += Math.max(0, 200 - recentIdx * 10);

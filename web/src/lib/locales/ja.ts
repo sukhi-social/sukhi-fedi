@@ -178,6 +178,13 @@ export const ja = {
 
   // ── リアクション選び ─────────────────────────────────
   'reaction.pick': 'リアクションを選ぶ',
+  'emojiPicker.search': '絵文字をさがす',
+  'emojiPicker.all': 'すべて',
+  'emojiPicker.recent': '最近使った',
+  'emojiPicker.uncategorized': 'ほか',
+  'emojiPicker.empty': '見つかりませんでした',
+  'emojiPicker.none': 'このサーバには、まだカスタム絵文字がありません。ふつうの絵文字は、端末のキーボードから入れてください。',
+  'emojiPicker.close': 'とじる',
 
   // ── フォローボタン ───────────────────────────────────
   'follow.following': 'フォロー中',

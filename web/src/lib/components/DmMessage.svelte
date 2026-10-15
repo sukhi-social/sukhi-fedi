@@ -14,7 +14,7 @@
   import { phrase } from '$lib/phrase';
   import Avatar from './Avatar.svelte';
   import Twemoji from './Twemoji.svelte';
-  import ReactionPicker from './ReactionPicker.svelte';
+  import EmojiPicker from './EmojiPicker.svelte';
   import FileChip from './FileChip.svelte';
   import * as api from '$lib/api';
   import { toggled, willAdd, PIN_EMOJI } from '$lib/reactions';
@@ -203,7 +203,7 @@
   </div>
 
   {#if pickerOpen}
-    <ReactionPicker
+    <EmojiPicker
       onpick={(e) => void toggle(e)}
       onclose={() => (pickerOpen = false)}
     />
