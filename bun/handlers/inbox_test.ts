@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { test, expect } from "bun:test";
+import { test } from "node:test";
+import { expect } from "../test_support/expect.ts";
 import { strictEqual, notStrictEqual } from "node:assert/strict";
 import { handleInbox } from "./inbox.ts";
 

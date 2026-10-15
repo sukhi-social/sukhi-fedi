@@ -5,13 +5,13 @@
 # 中身のハッシュは一致する(Vite のハッシュは中身から決まる)。
 #
 #   IMAGE_PREFIX=natadeco bin/build-on-box.sh ssr
-FROM oven/bun:1-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY . .
-RUN bun run build \
-  && bun install --production --frozen-lockfile
+RUN npm run build \
+  && npm prune --omit=dev --no-audit --no-fund
 
 FROM node:22-alpine
 WORKDIR /app

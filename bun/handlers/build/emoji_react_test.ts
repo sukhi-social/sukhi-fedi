@@ -7,7 +7,8 @@
 // We send Like (not EmojiReact) so Mastodon peers downgrade to plain
 // likes instead of dropping the activity.
 
-import { test, expect } from "bun:test";
+import { test } from "node:test";
+import { expect } from "../../test_support/expect.ts";
 import { handleBuildEmojiReact } from "./emoji_react.ts";
 import { testCreds } from "./_test_helpers.ts";
 

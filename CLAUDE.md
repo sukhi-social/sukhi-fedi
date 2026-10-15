@@ -20,6 +20,7 @@ Practical notes:
   `make dev` runs the whole thing locally with no Docker.
 - Tests: `make test` (unit, every layer), `make test-pglite`
   (DB integration, no docker).
-- TypeScript in `bun/` is checked with `bun run check` (type-only).
+- TypeScript in `bun/` (a Node 22+ sidecar, kept under its old name) is checked
+  with `npm run check` in that directory (type-only).
 - Every source file starts with
   `# SPDX-License-Identifier: AGPL-3.0-or-later`.

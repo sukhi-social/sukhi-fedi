@@ -9,7 +9,7 @@ defmodule SukhiFedi.FediGolden do
 
   Regenerate (only needed when fedify changes):
 
-      cd bun && bun run scripts/dump_golden.ts \\
+      cd bun && node --import tsx scripts/dump_golden.ts \\
         > ../elixir/test/support/fixtures/fedify_golden.json
   """
 

@@ -5,7 +5,8 @@
 // locks in the expected public-boost addressing so the next repair
 // to announce.ts can't regress visibility.
 
-import { test, expect } from "bun:test";
+import { test } from "node:test";
+import { expect } from "../../test_support/expect.ts";
 import { handleBuildAnnounce } from "./announce.ts";
 import { containsPublic, containsFollowers, testCreds } from "./_test_helpers.ts";
 

@@ -15,7 +15,7 @@ make test-pglite ARGS="test/integration/social_test.exs:97"
 scripts/test-pglite.sh test/integration/social_test.exs
 ```
 
-The script starts `bun run bun/services/test_db.ts` (an in-memory PGlite
+The script starts `node --import tsx bun/services/test_db.ts` (an in-memory PGlite
 on `127.0.0.1:15433`), runs `mix sukhi.migrate`, then `mix test --only
 integration`, and stops PGlite on exit.
 

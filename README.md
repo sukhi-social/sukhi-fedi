@@ -108,7 +108,7 @@ make check         # linters and type checks
 (`make test-api`, …) when you want just one.
 
 Two things `make test` does not cover: the retired Bun worker (`cd bun &&
-bun test`, `bun run check`), and the integration tests that need NATS or S3
+npm test`, `npm run check`; Node 22+), and the integration tests that need NATS or S3
 rather than only Postgres — those want the Docker stack:
 
 ```bash

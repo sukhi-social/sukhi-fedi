@@ -17,8 +17,8 @@
 # existed to fight `mix deps.get` re-stamping every mtime inside a layer,
 # and there is no layer here.)
 #
-# It carries node *and* bun, because the box bakes two instances' SPAs
-# (web/ with npm, web-natadeco/ with bun) — see bin/release-on-box.sh.
+# It carries node, because the box bakes two instances' SPAs (web/ and
+# web-natadeco/, both with npm) — see bin/release-on-box.sh.
 #
 # Same OS family as infra/deployex/Dockerfile's runtime stage — ubuntu
 # noble, glibc — so the three NIFs (vix / ezstd / argon2_elixir) are
@@ -47,24 +47,6 @@ RUN set -eu; \
     esac; \
     curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${narch}.tar.xz" \
       | tar -xJ -C /usr/local --strip-components=1
-
-# bun for web-natadeco. The two SPAs came from different places and kept
-# their own lockfiles — web/ has package-lock.json, web-natadeco/ has
-# bun.lock — and a release should install from the same lockfile the
-# author builds with, so both package managers live here. (Unifying them
-# is a separate decision; Makefile says the same.)
-ARG BUN_VERSION=1.3.13
-RUN set -eu; \
-    case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
-      amd64) barch=x64 ;; \
-      arm64) barch=aarch64 ;; \
-      *) echo "unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL -o /tmp/bun.zip \
-      "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-${barch}.zip"; \
-    unzip -q /tmp/bun.zip -d /tmp; \
-    install -m 0755 "/tmp/bun-linux-${barch}/bun" /usr/local/bin/bun; \
-    rm -rf /tmp/bun.zip "/tmp/bun-linux-${barch}"
 
 # The container runs as the *host* user (see release-on-box.sh) so that
 # everything it writes into the bind mount stays owned by `rocky`. That

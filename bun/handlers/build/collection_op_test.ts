@@ -5,7 +5,8 @@
 // `target`, which Mastodon treated as no-ops (the receiver couldn't
 // tell which collection to update).
 
-import { test, expect } from "bun:test";
+import { test } from "node:test";
+import { expect } from "../../test_support/expect.ts";
 import { handleBuildAdd, handleBuildRemove } from "./collection_op.ts";
 import { testCreds } from "./_test_helpers.ts";
 

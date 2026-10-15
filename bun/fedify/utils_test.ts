@@ -8,7 +8,8 @@
 //
 // まちがった行き先を渡すのは、渡さないより悪い。だから組めないときは
 // null で、何も足さない。
-import { test, expect } from "bun:test";
+import { test } from "node:test";
+import { expect } from "../test_support/expect.ts";
 import { humanNoteUrl } from "./utils.ts";
 
 const ACTOR = "https://sukhi.f3liz.casa/users/shiro_mudita";

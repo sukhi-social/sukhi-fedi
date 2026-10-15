@@ -54,14 +54,15 @@ wait_for_port() {
   return 1
 }
 
-command -v bun >/dev/null 2>&1 || {
-  echo "→ bun is needed for the embedded Postgres (https://bun.sh)" >&2
+command -v node >/dev/null 2>&1 || {
+  echo "→ node is needed for the embedded Postgres (mise install, or https://nodejs.org)" >&2
   exit 1
 }
+[ -d "$ROOT/bun/node_modules" ] || (cd "$ROOT/bun" && npm install --no-audit --no-fund)
 
 echo "→ PGlite on 127.0.0.1:$PGLITE_PORT  (data: ${PGLITE_DATA#"$ROOT"/})"
 ( cd "$ROOT/bun" && PGLITE_PORT="$PGLITE_PORT" PGLITE_DATA="$PGLITE_DATA" \
-    exec bun run services/test_db.ts >/dev/null 2>&1 ) &
+    exec node --import tsx services/test_db.ts >/dev/null 2>&1 ) &
 pids+=("$!")
 wait_for_port "$PGLITE_PORT" "PGlite"
 

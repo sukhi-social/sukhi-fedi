@@ -295,9 +295,11 @@ verify against Mastodon.** All delivery signing already routes through
 
 ## 5. When fedify upgrades
 
-Our `package.json` pin is `@fedify/fedify: ^2.2.3`. On minor bumps:
+Our `package.json` pins `@fedify/fedify` to exactly `2.2.3` (its `@fedify/*`
+siblings are held there by `overrides`; the lockfile is `package-lock.json`).
+On a bump:
 
-1. Re-run `bun test` — `bun/handlers/inbox_test.ts` and
+1. Re-run `npm test` in `bun/` — `bun/handlers/inbox_test.ts` and
    `bun/fedify/key_cache_test.ts` cover the live surface.
 2. Smoke-test a Follow/Undo round-trip against a real Mastodon
    instance — the cache-refresh behavior (§2.3) and the split loader

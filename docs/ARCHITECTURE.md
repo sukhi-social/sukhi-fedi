@@ -251,7 +251,7 @@ sukhi-fedi/
 │   ├── package.json                       # TS 6.0.3, @fedify/fedify 1.x,
 │   │                                        @js-temporal/polyfill, @nats-io/*
 │   ├── tsconfig.json
-│   └── Dockerfile                         # oven/bun:1-alpine
+│   └── Dockerfile                         # node:22-alpine
 │
 ├── api/                                   # ★ Mastodon/Misskey REST plugin node
 │   ├── mix.exs                            # independent :sukhi_api app
@@ -974,11 +974,11 @@ cd elixir && mix test --no-start
 # Elixir integration tests (needs docker-compose.test.yml up):
 cd elixir && mix test --only integration
 
-# Bun tests:
-cd bun && bun test
+# Bun-sidecar tests (Node 22+, node:test via tsx):
+cd bun && npm test
 
 # Type-check the whole bun surface (TS 6.0.3 via tsc):
-cd bun && bun run check
+cd bun && npm run check
 ```
 
 ## 12. Horizontal scale posture

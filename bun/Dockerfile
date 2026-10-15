@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-FROM oven/bun:1-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile || bun install
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 COPY . .
 
-CMD ["bun", "run", "services/fedify_service.ts"]
+# tsx runs the TypeScript as-is (node 22 alone would need a flag).
+CMD ["node", "--import", "tsx", "services/fedify_service.ts"]
