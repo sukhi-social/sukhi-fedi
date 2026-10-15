@@ -14,11 +14,11 @@ sukhi가 따르거나 배우고 있는 프로젝트 및 커뮤니티입니다.
 
 ### 사람
 
-<p lang="ko">ltlapy <a href="https://k.lapy.link">https://k.lapy.link</a> 는 첫 한국 Misskey 서버이자, 깔끔하고 읽기 편안한 이용규약으로 가입을 결정한 서버입니다. 수많은 한국 Misskey 이용자가 터로 삼고 있었으며, 서버 종료 순간에 참여한 저로서 유감과 감사를 표합니다. 저를 포함한 수많은 분들에게 연합우주를 널리 알려 주셔서 진심으로 감사드립니다.</p>
+<p lang="ko"><a href="https://github.com/ltlapy">ltlapy</a> <a href="https://k.lapy.link">https://k.lapy.link</a> 는 첫 한국 Misskey 서버이자, 깔끔하고 읽기 편안한 이용규약으로 가입을 결정한 서버입니다. 수많은 한국 Misskey 이용자가 터로 삼고 있었으며, 서버 종료 순간에 참여한 저로서 유감과 감사를 표합니다. 저를 포함한 수많은 분들에게 연합우주를 널리 알려 주셔서 진심으로 감사드립니다.</p>
 
-<p lang="ko">hongminhee 홍민희님은 <a href="https://fedidev.kr/">https://fedidev.kr/</a> 를 통해 알게된 분입니다. Fedify를 통해 수많은 연합우주 서버를 지탱해 주시고, 표준화에 기여하는 인프라를 유지하고 계셔, 존경의 뜻을 표합니다.</p>
+<p lang="ko"><a href="https://github.com/dahlia">hongminhee</a> 홍민희님은 <a href="https://fedidev.kr/">https://fedidev.kr/</a> 를 통해 알게된 분입니다. Fedify를 통해 수많은 연합우주 서버를 지탱해 주시고, 표준화에 기여하는 인프라를 유지하고 계셔, 존경의 뜻을 표합니다.</p>
 
-<p lang="ko">Jaeyeol Lee <a href="https://fedidev.kr/">https://fedidev.kr/</a> 디스코드를 운영하고 계시는 분입니다. moim.live를 통해 hackers.pub 초대장을 뿌리고 계셔서, 문의 없이 hackers.pub에 멋대로 들어갈 수 있었습니다. (?) 제가 초대장을 가지고 있지 않을 때에도 그 링크는 지인에게 추천할 때 소중히 활용하였습니다. (??) 감사합니다!</p>
+<p lang="ko"><a href="https://github.com/malkoG">이재열</a>님은 <a href="https://fedidev.kr/">https://fedidev.kr/</a> 디스코드를 운영하고 계시는 분입니다. moim.live를 통해 hackers.pub 초대장을 뿌리고 계셔서, 문의 없이 hackers.pub에 멋대로 들어갈 수 있었습니다. (?) 제가 초대장을 가지고 있지 않을 때에도 그 링크는 지인에게 추천할 때 소중히 활용하였습니다. (??) 감사합니다!</p>
 
 ### Mastodon과 Misskey
 

@@ -14,11 +14,11 @@ Projects and communities sukhi follows or learns from.
 
 ### People
 
-[ltlapy](https://k.lapy.link) was the first Korean Misskey server, and the one I decided to join because of its clean, comfortable-to-read terms of use. Many Korean Misskey users made it their home. I was there when the server shut down, and I want to say both how sorry I am and how grateful. Thank you, truly, for spreading the word about the fediverse far and wide, to so many people, me included.
+[ltlapy](https://github.com/ltlapy) ([k.lapy.link](https://k.lapy.link)) was the first Korean Misskey server, and the one I decided to join because of its clean, comfortable-to-read terms of use. Many Korean Misskey users made it their home. I was there when the server shut down, and I want to say both how sorry I am and how grateful. Thank you, truly, for spreading the word about the fediverse far and wide, to so many people, me included.
 
-I know hongminhee (홍민희) through [fedidev.kr](https://fedidev.kr/). Through Fedify, you support countless fediverse servers, and you keep up the infrastructure that contributes to standardization. I say this with respect.
+I know [hongminhee](https://github.com/dahlia) (홍민희) through [fedidev.kr](https://fedidev.kr/). Through Fedify, you support countless fediverse servers, and you keep up the infrastructure that contributes to standardization. I say this with respect.
 
-Jaeyeol Lee runs the Discord of [fedidev.kr](https://fedidev.kr/). By handing out hackers.pub invitations through moim.live, you let me walk into hackers.pub without even asking. (?) Even when I had no invitation of my own, I treasured that link and used it whenever I recommended the place to friends. (??) Thank you!
+[malkoG](https://github.com/malkoG) (이재열) runs the Discord of [fedidev.kr](https://fedidev.kr/). By handing out hackers.pub invitations through moim.live, you let me walk into hackers.pub without even asking. (?) Even when I had no invitation of my own, I treasured that link and used it whenever I recommended the place to friends. (??) Thank you!
 
 ### Mastodon and Misskey
 
