@@ -97,6 +97,14 @@ defmodule SukhiFedi.Web.Router do
     SukhiFedi.Web.LegalController.terms(conn)
   end
 
+  get "/licenses" do
+    SukhiFedi.Web.LegalController.licenses(conn)
+  end
+
+  get "/licenses/rust" do
+    SukhiFedi.Web.LegalController.rust(conn)
+  end
+
   post "/login" do
     LoginController.submit(conn)
   end

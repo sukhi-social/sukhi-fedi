@@ -53,6 +53,39 @@ defmodule SukhiFedi.Web.LegalController do
 
   @docs docs
 
+  # /licenses — thanks to the open-source projects underneath. Not a legal
+  # document, so it has no flavor: one text per language (English is the
+  # base; Korean readers get it too), plus the generated per-category list
+  # (scripts/gen_licenses.mjs, one per language) baked in after the text.
+  @licenses_files ~w(licenses.en.md licenses.ja.md licenses-list.en.html licenses-list.ja.html licenses-end.en.md licenses-end.ja.md)
+  for file <- @licenses_files, do: @external_resource(Path.join(@dir, file))
+
+  @licenses %{
+    en:
+      bake.(@dir, "licenses.en.md") <>
+        File.read!(Path.join(@dir, "licenses-list.en.html")) <> bake.(@dir, "licenses-end.en.md"),
+    ja:
+      bake.(@dir, "licenses.ja.md") <>
+        File.read!(Path.join(@dir, "licenses-list.ja.html")) <> bake.(@dir, "licenses-end.ja.md")
+  }
+
+  # /licenses/rust — the Rust crates inside ojak, off the main page (see the
+  # footnote there): their own text plus the generated list, then the same
+  # closing words as the main page.
+  @rust_files ~w(licenses-rust.en.md licenses-rust.ja.md licenses-rust-list.en.html licenses-rust-list.ja.html licenses-end.en.md licenses-end.ja.md)
+  for file <- @rust_files, do: @external_resource(Path.join(@dir, file))
+
+  @rust %{
+    en:
+      bake.(@dir, "licenses-rust.en.md") <>
+        File.read!(Path.join(@dir, "licenses-rust-list.en.html")) <>
+        bake.(@dir, "licenses-end.en.md"),
+    ja:
+      bake.(@dir, "licenses-rust.ja.md") <>
+        File.read!(Path.join(@dir, "licenses-rust-list.ja.html")) <>
+        bake.(@dir, "licenses-end.ja.md")
+  }
+
   defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor, :sukhi)
   defp docs, do: Map.fetch!(@docs, flavor())
 
@@ -64,6 +97,12 @@ defmodule SukhiFedi.Web.LegalController do
   # embedded per request.
   @biz_path Path.expand("../../../priv/legal/fonts/bizudpgothic.woff2", __DIR__)
   @nanum_path Path.expand("../../../priv/legal/fonts/nanumgothic.woff2", __DIR__)
+  @plex_regular_path Path.expand("../../../priv/legal/fonts/ibmplexsans-regular.woff2", __DIR__)
+  @plex_bold_path Path.expand("../../../priv/legal/fonts/ibmplexsans-bold.woff2", __DIR__)
+  @external_resource @plex_regular_path
+  @external_resource @plex_bold_path
+  @plex_regular_b64 @plex_regular_path |> File.read!() |> Base.encode64()
+  @plex_bold_b64 @plex_bold_path |> File.read!() |> Base.encode64()
   @external_resource @biz_path
   @external_resource @nanum_path
   @biz_b64 @biz_path |> File.read!() |> Base.encode64()
@@ -75,6 +114,18 @@ defmodule SukhiFedi.Web.LegalController do
   body { font-family: "BIZ UDPGothic", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif; }
   """
 
+  # English: IBM Plex Sans (Latin only, regular + bold). IBM's license reserves
+  # the name "Plex", so these subsets carry a different internal family name
+  # ("Sukhi Sans"); the copyright and license stay in the files, and the thanks
+  # on the page name IBM Plex Sans as the source.
+  @font_en """
+  @font-face { font-family: "Sukhi Sans"; font-style: normal; font-weight: 400; font-display: swap;
+    src: url(data:font/woff2;base64,#{@plex_regular_b64}) format("woff2"); }
+  @font-face { font-family: "Sukhi Sans"; font-style: normal; font-weight: 700; font-display: swap;
+    src: url(data:font/woff2;base64,#{@plex_bold_b64}) format("woff2"); }
+  body { font-family: "Sukhi Sans", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo, system-ui, sans-serif; }
+  """
+
   @font_ko """
   @font-face { font-family: "Nanum Gothic"; font-style: normal; font-weight: 400; font-display: swap;
     src: url(data:font/woff2;base64,#{@nanum_b64}) format("woff2"); }
@@ -84,6 +135,8 @@ defmodule SukhiFedi.Web.LegalController do
   @css """
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+  .legal h2[id] { scroll-margin-top: 1rem; }
   body { margin: 0; line-height: 1.7; color: #222; background: #fafafa; }
   .nav, .legal, .foot { max-width: 720px; margin: 0 auto; padding-left: 1.25rem; padding-right: 1.25rem; }
   .nav { padding-top: 1.1rem; font-size: .9rem; }
@@ -103,6 +156,33 @@ defmodule SukhiFedi.Web.LegalController do
   .legal code { background: #f0f0f0; padding: .1rem .3rem; border-radius: 4px; font-size: .9em;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .legal pre code { background: none; padding: 0; }
+  .legal h2 ~ p em { display: block; margin: -.2rem 0 0; font-size: .88rem; font-style: normal; color: #777; }
+  .legal hr.thin ~ p em { display: inline; margin: 0; font-size: inherit; font-style: italic; color: inherit; }
+  .legal .index { margin: 1.2rem 0 2rem; border-left: 3px solid #cbd5e1; }
+  .legal .index-title { margin: 0 0 .2rem; padding: 0 1rem; font-size: .85rem; letter-spacing: .08em; color: #888; }
+  .legal .index a { display: block; padding: .45rem 1rem; font-size: 1.15rem; line-height: 1.4; text-decoration: none; }
+  @media (min-width: 700px) { .legal .index a { padding: .3rem 1rem; } }
+  .legal .index a:hover { background: #f0f0f0; }
+  .legal sup.ref { margin-left: .1rem; font-size: .7em; }
+  .legal sup.ref a { color: inherit; text-decoration: none; }
+  .legal .notes { margin: 1.6rem 0 0; padding-top: .8rem; border-top: 1px solid #e3e3e3; font-size: .85rem; color: #777; }
+  .legal .notes p { margin: 0; }
+  .legal .notes a { color: inherit; }
+  .legal .notes p { scroll-margin-top: 1.5rem; }
+  .legal .notes p:target { padding: .5rem .7rem; margin: -.5rem -.7rem; outline: 2px dotted #2563eb; outline-offset: 2px; border-radius: 4px; color: #333; }
+  .deps summary .n { color: #999; font-size: .85em; font-weight: 400; }
+  .deps details { margin: .35rem 0; }
+  .deps summary { cursor: pointer; padding: .25rem 0; font-size: 1.05rem; }
+  .deps .names { list-style: none; margin: .3rem 0 .9rem; padding: 0 0 0 .9rem; columns: 2 19rem; column-gap: 1.5rem; font-size: .88rem; line-height: 1.55; word-break: break-word; }
+  .deps .names li { break-inside: avoid; padding: .15rem 0; }
+  .deps .names a { color: inherit; }
+  .deps .v { color: #888; }
+  .deps .l { margin-left: .35rem; padding: 0 .35rem; border: 1px solid #ddd; border-radius: 4px; font-size: .72rem; color: #888; white-space: nowrap; }
+  .deps a.w { margin-left: .35rem; font-size: .78rem; color: #888; }
+  .deps a.l { text-decoration: none; }
+  .deps a.l:hover { color: #2563eb; border-color: #2563eb; }
+  .deps .c a { color: inherit; }
+  .deps .c { display: block; font-size: .8rem; color: #777; }
   .foot { padding: 1.5rem 1.25rem 3rem; border-top: 1px solid #e3e3e3; font-size: .9rem; color: #888; }
   .foot a { color: #666; margin-right: .6rem; }
   .cta { max-width: 720px; margin: 0 auto; padding: .5rem 1.25rem 1rem; text-align: center; }
@@ -117,6 +197,14 @@ defmodule SukhiFedi.Web.LegalController do
     .legal th { background: #20242c; }
     .legal blockquote { color: #aab; background: #1c2027; border-left-color: #3a4150; }
     .legal pre, .legal code { background: #20242c; }
+    .legal .index { border-left-color: #3a4150; }
+    .legal .index-title { color: #9aa0ab; }
+    .legal .index a:hover { background: #20242c; }
+    .legal h2 ~ p em, .deps .names, .deps .c, .legal .notes { color: #9aa0ab; }
+    .legal .notes { border-top-color: #2a2e37; }
+    .legal .notes p:target { outline-color: #7aa2f7; color: #dcdde0; }
+    .deps .l { border-color: #333; }
+    .deps a.l:hover { color: #7aa2f7; border-color: #7aa2f7; }
     .nav a, .foot, .foot a { color: #8b8f99; }
     .cta-btn { color: #dcdde0; border-color: #3a4150; }
     .cta-btn:hover { background: #20242c; }
@@ -186,6 +274,64 @@ defmodule SukhiFedi.Web.LegalController do
     end
   end
 
+  @spec licenses(Plug.Conn.t()) :: Plug.Conn.t()
+  def licenses(conn) do
+    case conn.query_params do
+      %{"lang" => "ja"} ->
+        render(
+          conn,
+          "ja",
+          "ありがとう",
+          @licenses.ja,
+          "/licenses",
+          {"利用規約", "/terms"},
+          false,
+          {"English", nil}
+        )
+
+      _ ->
+        render(
+          conn,
+          "en",
+          "Licenses",
+          @licenses.en,
+          "/licenses",
+          {"Terms", "/terms"},
+          false,
+          {"日本語", "lang=ja"}
+        )
+    end
+  end
+
+  @spec rust(Plug.Conn.t()) :: Plug.Conn.t()
+  def rust(conn) do
+    case conn.query_params do
+      %{"lang" => "ja"} ->
+        render(
+          conn,
+          "ja",
+          "ojak の中の Rust クレート",
+          @rust.ja,
+          "/licenses/rust",
+          {"ライセンス", "/licenses?lang=ja"},
+          false,
+          {"English", nil}
+        )
+
+      _ ->
+        render(
+          conn,
+          "en",
+          "Rust crates inside ojak",
+          @rust.en,
+          "/licenses/rust",
+          {"Licenses", "/licenses"},
+          false,
+          {"日本語", "lang=ja"}
+        )
+    end
+  end
+
   defp lang(conn) do
     case conn.query_params do
       %{"lang" => "ko"} -> "ko"
@@ -206,14 +352,27 @@ defmodule SukhiFedi.Web.LegalController do
   # toggle). Pure string work — cannot fail. `signup?` adds a "read it"
   # button at the bottom that returns to /signup, and keeps the signup flag
   # on the cross-link and the language toggle so neither loses the way back.
-  defp render(conn, lang, title, body, self_path, {cross_label, cross_path}, signup?) do
+  #
+  # `toggle` is `{label, query}` for the language link; terms/privacy leave
+  # it out (ja ⇄ ko), /licenses passes its own (en ⇄ ja).
+  defp render(conn, lang, title, body, self_path, cross, signup?, toggle \\ nil)
+
+  defp render(conn, lang, title, body, self_path, {cross_label, cross_path}, signup?, toggle) do
     sq = if signup?, do: "signup=true", else: nil
     lang_q = if lang == "ko", do: "lang=ko", else: nil
 
-    {home, toggle_label, toggle_lang} =
-      if lang == "ko",
-        do: {"처음으로", "日本語", nil},
-        else: {"トップへ", "한국어", "lang=ko"}
+    home =
+      case lang do
+        "ko" -> "처음으로"
+        "en" -> "Home"
+        _ -> "トップへ"
+      end
+
+    {toggle_label, toggle_lang} =
+      toggle ||
+        if lang == "ko",
+          do: {"日本語", nil},
+          else: {"한국어", "lang=ko"}
 
     toggle_href = query_url(self_path, [sq, toggle_lang])
     cross_href = query_url(cross_path, [sq, lang_q])
@@ -226,7 +385,12 @@ defmodule SukhiFedi.Web.LegalController do
         ""
       end
 
-    font = if lang == "ko", do: @font_ko, else: @font_ja
+    font =
+      case lang do
+        "ko" -> @font_ko
+        "en" -> @font_en
+        _ -> @font_ja
+      end
 
     html = """
     <!doctype html>

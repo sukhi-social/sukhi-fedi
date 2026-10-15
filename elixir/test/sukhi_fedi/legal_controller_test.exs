@@ -81,6 +81,68 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert privacy =~ "admin@natadeco.com"
   end
 
+  test "/licenses is English by default, self-contained, with the list closed" do
+    conn = get("/licenses") |> LegalController.licenses()
+
+    assert conn.status == 200
+    assert conn.resp_body =~ "<h1>\nLicenses</h1>"
+    assert conn.resp_body =~ "Thank you for maintaining this project as open source"
+    assert conn.resp_body =~ "AS-IS “Thank you!”"
+    assert conn.resp_body =~ "scroll-behavior: smooth"
+    assert conn.resp_body =~ ~s(<p class="index-title">Index</p>)
+    assert conn.resp_body =~ ~s(<a href="#all-dependencies">)
+    assert conn.resp_body =~ ~s(<h2 id="all-dependencies">)
+    assert conn.resp_body =~ ~s(<details id="deps-languages"><summary>Languages)
+    refute conn.resp_body =~ "<details open"
+    refute conn.resp_body =~ "<script"
+    # English embeds its own Latin subset (IBM Plex Sans, renamed) — and still
+    # no external font request, nor the Japanese font
+    assert conn.resp_body =~ ~s(font-family: "Sukhi Sans")
+    assert conn.resp_body =~ "font/woff2;base64,"
+    refute conn.resp_body =~ ~s(font-family: "BIZ UDPGothic")
+    refute conn.resp_body =~ "fonts.googleapis"
+    refute conn.resp_body =~ "fonts.gstatic"
+  end
+
+  test "/licenses?lang=ja serves the Japanese words and links back to English" do
+    conn = get("/licenses?lang=ja") |> LegalController.licenses()
+
+    assert conn.status == 200
+    assert conn.resp_body =~ "ささやかな感謝を"
+    assert conn.resp_body =~ "そのままの、感謝を"
+    assert conn.resp_body =~ "<summary>言語"
+    assert conn.resp_body =~ ~s(href="/licenses")
+    assert conn.resp_body =~ "font/woff2;base64,"
+  end
+
+  test "the Rust crates have their own page, categories closed like the main list" do
+    conn = get("/licenses/rust") |> LegalController.rust()
+
+    assert conn.status == 200
+    assert conn.resp_body =~ "Rust crates inside ojak"
+    assert conn.resp_body =~ ~s(<details id="rust-security">)
+    refute conn.resp_body =~ "<details open"
+    assert conn.resp_body =~ "ed25519-dalek"
+    assert conn.resp_body =~ "AS-IS “Thank you!”"
+    assert conn.resp_body =~ "Thank you for maintaining this project as open source"
+    refute conn.resp_body =~ "<script"
+
+    ja = get("/licenses/rust?lang=ja") |> LegalController.rust() |> Map.get(:resp_body)
+    assert ja =~ "ojak の中の Rust クレート"
+    assert ja =~ ~s(href="/licenses?lang=ja")
+    assert ja =~ "そのままの、感謝を"
+  end
+
+  test "the main page points to the Rust page by a footnote, and no longer lists the crates" do
+    body = get("/licenses") |> LegalController.licenses() |> Map.get(:resp_body)
+
+    assert body =~ ~s(href="#note-rust")
+    assert body =~ ~s(<p id="note-rust">)
+    assert body =~ ".notes p:target"
+    assert body =~ ~s(href="/licenses/rust")
+    refute body =~ "ed25519-dalek"
+  end
+
   test "/terms?lang=ko serves the Korean version" do
     conn = get("/terms?lang=ko") |> LegalController.terms()
 
