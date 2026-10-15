@@ -34,7 +34,17 @@ defmodule SukhiFedi.Web.Router do
   # Global per-peer rate limit. Conservative ceiling; internal probes
   # like /up from k8s LBs still fit easily. Tighten per-endpoint via
   # dedicated forwarders when needed.
-  plug(SukhiFedi.Web.RateLimitPlug, bucket: "global", limit: 500, scale_ms: 60_000)
+  #
+  # Files served as-is (the SPA build, custom emoji, twemoji) are left out:
+  # the emoji picker alone asks for hundreds of images at once, and counting
+  # them used up the window, so the next 60s of API calls and images got 429.
+  plug(SukhiFedi.Web.RateLimitPlug,
+    bucket: "global",
+    limit: 500,
+    scale_ms: 60_000,
+    skip_prefixes: ["/static/", "/_app/", "/twemoji/"]
+  )
+
   # HEAD を GET として捌く。Plug.Router の `get` は GET しか拾わないので、
   # これが無いと HEAD は一つ残らず 404 になる ── 見張りサービスの多くは
   # HEAD で叩くので、開いているページが「落ちている」と読まれる。
