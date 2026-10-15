@@ -17,6 +17,17 @@ export const extra = [
   // Languages
   { cat: 'languages', name: 'Erlang/OTP', version: '28.4', repo: 'erlang/otp', website: 'https://www.erlang.org/' },
   { cat: 'languages', name: 'Elixir', version: '1.20', repo: 'elixir-lang/elixir', website: 'https://elixir-lang.org/' },
+  // Rust builds ojak's NIF (the Rust crates on /licenses/rust); listed with ojak.
+  {
+    cat: 'languages',
+    name: 'Rust',
+    repo: 'rust-lang/rust',
+    website: 'https://www.rust-lang.org/',
+    license: 'MIT OR Apache-2.0',
+    licenseHref: 'https://github.com/rust-lang/rust/blob/HEAD/LICENSE-MIT',
+    notice: '© The Rust Project Contributors',
+    requires: 'ojak',
+  },
   { cat: 'languages', name: 'Node.js', version: '24', repo: 'nodejs/node', website: 'https://nodejs.org/', license: 'MIT' },
 
   // Federation — Feder is where ojak began (ojak started as a fork of it, as its

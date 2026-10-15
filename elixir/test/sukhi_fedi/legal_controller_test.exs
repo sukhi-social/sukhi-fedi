@@ -110,6 +110,8 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert conn.status == 200
     assert conn.resp_body =~ "ささやかな感謝を"
     assert conn.resp_body =~ "そのままの、感謝を"
+    assert conn.resp_body =~ "<strong>\nこのソフトウェア" or conn.resp_body =~ "<strong>このソフトウェア"
+    refute conn.resp_body =~ "<em>このソフトウェア"
     assert conn.resp_body =~ "<summary>言語"
     assert conn.resp_body =~ ~s(href="/licenses")
     assert conn.resp_body =~ "font/woff2;base64,"
@@ -131,6 +133,34 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert ja =~ "ojak の中の Rust クレート"
     assert ja =~ ~s(href="/licenses?lang=ja")
     assert ja =~ "そのままの、感謝を"
+  end
+
+  test "/credits holds standards and credit — not dependencies — in both languages" do
+    en = get("/credits") |> LegalController.credits() |> Map.get(:resp_body)
+
+    assert en =~ "<h1>\nCredits</h1>"
+    assert en =~ ~s(<h2 id="standards">)
+    assert en =~ ~s(<h2 id="credit">)
+    assert en =~ "NodeInfo"
+    assert en =~ "RFC 9421"
+    assert en =~ "RFC 8785"
+    assert en =~ ~s(href="https://fediverse.codeberg.page/fep/fep/8b32/")
+    assert en =~ "Mastodon"
+    assert en =~ "AS-IS “Thank you!”"
+    refute en =~ "<script"
+
+    ja = get("/credits?lang=ja") |> LegalController.credits() |> Map.get(:resp_body)
+    assert ja =~ "クレジット"
+    assert ja =~ ~s(href="/licenses?lang=ja")
+    assert ja =~ "そのままの、感謝を"
+  end
+
+  test "the standards left /licenses; it points to /credits instead" do
+    body = get("/licenses") |> LegalController.licenses() |> Map.get(:resp_body)
+
+    assert body =~ ~s(href="/credits")
+    refute body =~ "ActivityPub ·"
+    refute body =~ "ECMAScript"
   end
 
   test "the main page points to the Rust page by a footnote, and no longer lists the crates" do
