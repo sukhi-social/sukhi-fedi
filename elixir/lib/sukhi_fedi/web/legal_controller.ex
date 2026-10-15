@@ -177,6 +177,9 @@ defmodule SukhiFedi.Web.LegalController do
   .nav { padding-top: 1.1rem; font-size: .9rem; }
   .nav a { color: #777; text-decoration: none; margin-right: 1rem; }
   .nav a:hover { text-decoration: underline; }
+  .nav a[aria-current] { color: #222; font-weight: 700; }
+  .nav .lang { display: inline-block; border-left: 1px solid #ccc; padding-left: 1rem; }
+  .nav .lang a:last-child { margin-right: 0; }
   .legal { padding: 1.5rem 1.25rem 3rem; }
   .legal h1 { font-size: 1.7rem; line-height: 1.3; margin: .5rem 0 1rem; }
   .legal h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; }
@@ -241,6 +244,8 @@ defmodule SukhiFedi.Web.LegalController do
     .deps .l { border-color: #333; }
     .deps a.l:hover { color: #7aa2f7; border-color: #7aa2f7; }
     .nav a, .foot, .foot a { color: #8b8f99; }
+    .nav a[aria-current] { color: #e6e6e6; }
+    .nav .lang { border-color: #2a2e37; }
     .cta-btn { color: #dcdde0; border-color: #3a4150; }
     .cta-btn:hover { background: #20242c; }
   }
@@ -415,6 +420,33 @@ defmodule SukhiFedi.Web.LegalController do
     end
   end
 
+  # {path, label, query} for the four documents, in the page's language. Terms
+  # and privacy are ja ⇄ ko; licenses are en ⇄ ja (Korean readers get en);
+  # credits are all three.
+  defp doc_nav("ko"),
+    do: [
+      {"/terms", "이용약관", "lang=ko"},
+      {"/privacy", "개인정보 처리방침", "lang=ko"},
+      {"/licenses", "라이선스", nil},
+      {"/credits", "크레딧", "lang=ko"}
+    ]
+
+  defp doc_nav("en"),
+    do: [
+      {"/terms", "Terms", nil},
+      {"/privacy", "Privacy Policy", nil},
+      {"/licenses", "Licenses", nil},
+      {"/credits", "Credits", nil}
+    ]
+
+  defp doc_nav(_ja),
+    do: [
+      {"/terms", "利用規約", nil},
+      {"/privacy", "プライバシーポリシー", nil},
+      {"/licenses", "ライセンス", "lang=ja"},
+      {"/credits", "クレジット", "lang=ja"}
+    ]
+
   # Join a path with the non-nil query parts, in order. [] -> bare path.
   defp query_url(path, parts) do
     case Enum.reject(parts, &is_nil/1) do
@@ -458,6 +490,14 @@ defmodule SukhiFedi.Web.LegalController do
         ~s(<a href="#{query_url(self_path, [sq, q])}">#{label}</a>)
       end)
 
+    # The four documents, on top of every one of them; the one you are on is
+    # marked (the Rust page counts as Licenses).
+    doc_links =
+      Enum.map_join(doc_nav(lang), fn {path, label, q} ->
+        current = if String.starts_with?(self_path, path), do: ~s( aria-current="page"), else: ""
+        ~s(<a href="#{query_url(path, [sq, q])}"#{current}>#{label}</a>)
+      end)
+
     cross_href = query_url(cross_path, [sq, lang_q])
 
     cta =
@@ -486,7 +526,7 @@ defmodule SukhiFedi.Web.LegalController do
     <style>#{@css}#{font}</style>
     </head>
     <body>
-    <nav class="nav"><a href="/">← #{home}</a><a href="#{cross_href}">#{cross_label}</a>#{toggle_links}</nav>
+    <nav class="nav"><a href="/">← #{home}</a>#{doc_links}<span class="lang">#{toggle_links}</span></nav>
     <main class="legal">#{body}</main>
     #{cta}
     <footer class="foot"><a href="#{cross_href}">#{cross_label}</a>#{toggle_links}<a href="/">#{home}</a></footer>

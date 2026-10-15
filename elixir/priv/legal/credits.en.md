@@ -16,7 +16,7 @@ Projects and communities sukhi follows or learns from.
 
 [ltlapy](https://lapy.link/)'s [k.lapy.link](https://k.lapy.link) was the first Korean Misskey server, and the one I decided to join because of its clean, comfortable-to-read terms of use. Many Korean Misskey users made it their home. I was there when the server shut down, and I want to say both how sorry I am and how grateful. Thank you, truly, for spreading the word about the fediverse far and wide, to so many people, me included.
 
-[hongminhee](https://hongminhee.org/) (홍민희) is the one I know through [fedidev.kr](https://fedidev.kr/). Through Fedify, you support countless fediverse servers, and you keep up the infrastructure that contributes to standardization. I say this with respect.
+[hongminhee](https://hongminhee.org/) (홍민희) is the one I know through [fedidev.kr](https://fedidev.kr/). Through Fedify, he supports countless fediverse servers, and he keeps up the infrastructure that contributes to standardization. I say this with respect.
 
 [kodingwarrior](https://kodingwarrior.github.io/about/) (이재열) runs the Discord of [fedidev.kr](https://fedidev.kr/). By handing out hackers.pub invitations through moim.live, you let me walk into hackers.pub without even asking. (?) Even when I had no invitation of my own, I treasured that link and used it whenever I recommended the place to friends. (??) Thank you!
 
