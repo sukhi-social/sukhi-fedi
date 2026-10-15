@@ -2,7 +2,7 @@
 
 Here are the main categories of software *we* use. At the bottom, there is a list of everything sukhi uses. Please take a look!
 
-Standards, and the people we learn from, are on [Credits](/credits).
+The standards sukhi implements, and the people we learn from, are on [Credits](/credits).
 
 <nav class="index">
 <p class="index-title">Index</p>
