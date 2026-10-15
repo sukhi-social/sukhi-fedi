@@ -72,7 +72,7 @@ definition. The current set:
 | --- | --- | --- |
 | Who may see a note | `Notes.Read.visible_to?/2` (`notes/read.ex:61`) | single read, thread context, polls, interactions |
 | Which rows a viewer's query may return | `WHERE` clauses + `scope_profile_statuses/3` (`notes/read.ex:87`, `timelines.ex:76,117`) | every timeline |
-| Which hosts we may fetch/POST | `UrlGuard.safe?/1` (`url_guard.ex:20`; checked at `delivery/worker.ex:51`) | every outbound HTTP |
+| Which hosts we may fetch/POST | `SukhiShared.UrlGuard.safe?/1` (`shared/lib/sukhi_shared/url_guard.ex`; checked at `delivery/worker.ex:51`) — one copy, a path dependency of the gateway and delivery | every outbound HTTP |
 | Which HTML may be stored | `HTML.sanitize/1` + `HTML.Scrubber` (`html.ex:20`) | every content/bio changeset |
 | Which inline AP data is trustworthy | `trusted_inline_origin?/2` (`ap/instructions.ex:96`) | every inbox instruction |
 

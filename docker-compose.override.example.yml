@@ -20,7 +20,7 @@ services:
 
   delivery:
     build:
-      context: delivery
+      context: .
       dockerfile: delivery/Dockerfile
 
   api:

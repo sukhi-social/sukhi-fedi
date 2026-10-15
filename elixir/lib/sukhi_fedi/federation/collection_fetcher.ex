@@ -22,7 +22,8 @@ defmodule SukhiFedi.Federation.CollectionFetcher do
   全部取りに行くと、こちらの都合ではなく相手の都合で時間が決まる。
   """
 
-  alias SukhiFedi.Federation.{FedifyClient, UrlGuard}
+  alias SukhiFedi.Federation.FedifyClient
+  alias SukhiShared.UrlGuard
 
   @default_pages 3
   @default_items 60

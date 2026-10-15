@@ -28,7 +28,7 @@ defmodule SukhiFedi.Web.MediaProxyController do
 
   import Plug.Conn
 
-  alias SukhiFedi.Federation.UrlGuard
+  alias SukhiShared.UrlGuard
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
   alias SukhiFedi.Schema.Media

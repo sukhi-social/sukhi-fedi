@@ -33,6 +33,9 @@ defmodule SukhiFedi.MixProject do
 
   defp deps do
     [
+      # Code the gateway and delivery must decide identically (UrlGuard).
+      {:sukhi_shared, path: "../shared"},
+
       # HTTP server
       {:bandit, "~> 1.5"},
       {:plug, "~> 1.16"},
