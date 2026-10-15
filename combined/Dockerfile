@@ -30,6 +30,8 @@ RUN apk add --no-cache build-base git bash sccache
 ENV CC="sccache gcc" CXX="sccache g++"
 
 COPY VERSION ./VERSION
+# Path dependency of elixir/ and delivery/; needed in full before deps.get.
+COPY shared shared/
 COPY elixir/mix.exs elixir/mix.lock elixir/
 COPY delivery/mix.exs delivery/mix.lock delivery/
 COPY api/mix.exs api/mix.lock api/

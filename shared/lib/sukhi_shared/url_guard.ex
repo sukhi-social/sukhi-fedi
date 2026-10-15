@@ -1,20 +1,23 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-defmodule SukhiDelivery.Federation.UrlGuard do
+defmodule SukhiShared.UrlGuard do
   @moduledoc """
-  SSRF guard for outbound federation requests.
+  SSRF guard for outbound requests whose destination comes from attacker
+  controlled data: the `host` of a WebFinger handle, an actor's inbox or
+  sharedInbox, an inbox derived from a remote note's `id`, a media URL.
 
-  Delivery only ever talks to real remote peers over HTTPS, yet the
-  destination — an actor inbox / sharedInbox, or an inbox derived from a
-  remote note's `id` — is attacker-controlled. Without a guard a hostile
-  actor can point it at `http://169.254.169.254/…` (cloud metadata),
-  `http://127.0.0.1:PORT/…` or an internal `10.x` service and make this
-  node issue the request for them.
+  Without it a hostile actor can point us at `http://169.254.169.254/…`
+  (cloud metadata), `http://127.0.0.1:PORT/…` or an internal `10.x` service
+  and make this node issue the request for them.
 
-  `safe?/1` requires `https` and refuses any host that resolves to a
-  loopback / private / link-local / unique-local / CGNAT / unspecified /
-  multicast address. DNS is resolved here and *every* returned address is
-  checked, so a name that resolves to an internal IP (DNS rebinding) is
-  rejected too.
+  Only `https` URLs whose host resolves to public addresses pass. A host is
+  rejected if *any* address it resolves to is loopback, private, link-local,
+  carrier-grade NAT, unspecified or multicast. DNS is resolved here and every
+  returned address is checked, so a name that resolves to an internal IP (DNS
+  rebinding) is rejected too.
+
+  This is the one copy: the gateway and the delivery node both call it (it
+  lives in `shared/`, a path dependency of each). Change a rule here and add
+  a row to `shared/test/url_guard_test.exs`.
   """
 
   import Bitwise
@@ -24,7 +27,7 @@ defmodule SukhiDelivery.Federation.UrlGuard do
     cond do
       # Test env only: Bypass stands up an http://localhost server, which a
       # real guard must reject. Never set in dev/prod.
-      Application.get_env(:sukhi_delivery, :disable_url_guard, false) ->
+      Application.get_env(:sukhi_shared, :disable_url_guard, false) ->
         true
 
       true ->
@@ -68,10 +71,10 @@ defmodule SukhiDelivery.Federation.UrlGuard do
       a == 172 and b in 16..31 -> false
       a == 192 and b == 168 -> false
       # 192.0.0.0/24 (IETF protocol assignments) and 192.0.2.0/24 (TEST-NET-1)
-      # only. This said `b == 0`, i.e. all of 192.0.0.0/16, which swallowed
-      # 192.0.64.0/18 — Automattic's ordinary public space — while the gateway's
-      # copy had already been narrowed (2026-09-22). Keep the two decisions
-      # identical: `UrlGuardTest` on both sides runs the same table.
+      # only. `b == 0` refused 192.0.0.0/16 whole, which swallowed
+      # 192.0.64.0/18 — Automattic's (Gravatar, WordPress.com) ordinary public
+      # space; a remote avatar there came back 502 from /proxy/avatar
+      # (2026-09-22).
       a == 192 and b == 0 and c in [0, 2] -> false
       a == 100 and b in 64..127 -> false
       a >= 224 -> false

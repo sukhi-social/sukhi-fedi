@@ -1,13 +1,25 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-defmodule SukhiFedi.Federation.UrlGuardTest do
-  use ExUnit.Case, async: true
+defmodule SukhiShared.UrlGuardTest do
+  # Not async: it flips an application-wide switch for its duration.
+  use ExUnit.Case, async: false
 
-  # Picked up by the `--only integration` runner; uses IP literals so it
-  # needs no external DNS. Keep this table identical to the delivery node's
-  # `SukhiDelivery.Federation.UrlGuardTest` (it has its own copy of the guard).
-  @moduletag :integration
+  # The one table for the one guard (gateway and delivery both call it).
+  # IP literals only, so no DNS is needed.
 
-  alias SukhiFedi.Federation.UrlGuard
+  alias SukhiShared.UrlGuard
+
+  # delivery's config/test.exs turns the guard off so Bypass (http://localhost)
+  # can serve its tests; here it must be the real thing.
+  setup do
+    prev = Application.get_env(:sukhi_shared, :disable_url_guard)
+    Application.put_env(:sukhi_shared, :disable_url_guard, false)
+
+    on_exit(fn ->
+      if is_nil(prev),
+        do: Application.delete_env(:sukhi_shared, :disable_url_guard),
+        else: Application.put_env(:sukhi_shared, :disable_url_guard, prev)
+    end)
+  end
 
   test "rejects loopback / private / link-local / metadata targets" do
     refute UrlGuard.safe?("https://127.0.0.1/inbox")

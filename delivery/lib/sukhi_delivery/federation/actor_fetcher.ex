@@ -48,7 +48,7 @@ defmodule SukhiDelivery.Federation.ActorFetcher do
   defp inbox(_), do: nil
 
   defp do_fetch(actor_uri) do
-    if not SukhiDelivery.Federation.UrlGuard.safe?(actor_uri) do
+    if not SukhiShared.UrlGuard.safe?(actor_uri) do
       {:error, :blocked_host}
     else
       do_fetch_safe(actor_uri)

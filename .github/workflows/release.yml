@@ -44,7 +44,7 @@ jobs:
         # points at the sub-tree Dockerfile.
         image:
           - { name: gateway, context: ., file: elixir/Dockerfile }
-          - { name: delivery, context: ./delivery }
+          - { name: delivery, context: ., file: delivery/Dockerfile }
           - { name: api, context: ., file: api/Dockerfile }
           - { name: bun, context: ./bun }
           - { name: anubis, context: ./config/anubis }

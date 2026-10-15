@@ -56,7 +56,7 @@ defmodule SukhiFedi.Federation.WebFinger do
     ]
 
     cond do
-      not SukhiFedi.Federation.UrlGuard.safe?(url) ->
+      not SukhiShared.UrlGuard.safe?(url) ->
         # `host` comes from the handle (attacker-controlled via a mention /
         # search), so refuse internal / non-https targets (SSRF).
         {:error, :blocked_host}

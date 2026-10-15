@@ -37,6 +37,9 @@ ENV CC="sccache gcc" CXX="sccache g++"
 # elixir/mix.exs and api/mix.exs. The gateway image only needs the
 # elixir tree to compile, so copy it next to the mix files.
 COPY VERSION ../VERSION
+# Path dependency (../shared): code the gateway and the delivery node must
+# decide identically. Needed in full before `mix deps.get` / `deps.compile`.
+COPY shared ../shared
 COPY elixir/mix.exs elixir/mix.lock ./
 RUN mix local.hex --force && mix local.rebar --force
 COPY elixir/rel/docker-deps-cache.exs ./docker-deps-cache.exs
