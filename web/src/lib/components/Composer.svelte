@@ -53,6 +53,10 @@
     // 入力を大きく取る ── 面そのものが composer なので、面の中でもう一度
     // 箱を描く必要がない。
     page = false,
+    // 流れの外に、画面の底へ固定して置くとき(Clips)。
+    fixed = false,
+    // 入力欄の根(form)を親へ渡す。親が高さを測るときに使う。
+    root = $bindable(null),
     // 添付ファイルの入力ダイアログに渡す accept。既定は画像だけ(いまの
     // 全画面の実際の挙動と同じ) ── Clips だけ、ここを広げて任意のファイルを
     // 通す。サーバ側はもう MIME で弾いていない(image/video/audio 以外は
@@ -67,6 +71,8 @@
     prefillRecipients?: string[] | null;
     dmConversationId?: string | null;
     page?: boolean;
+    fixed?: boolean;
+    root?: HTMLElement | null;
     accept?: string;
     onposted?: (s: Status) => void;
     oncancel?: () => void;
@@ -398,8 +404,10 @@
 </script>
 
 <form
+  bind:this={root}
   class="composer"
   class:composer-page={page}
+  class:fixed-dock={fixed}
   class:composer-dm={dm}
   onsubmit={(e) => {
     e.preventDefault();
@@ -500,6 +508,7 @@
     <AutocompleteDropdown
       items={autocomplete.items}
       active={autocomplete.active}
+      above={dm}
       onpick={pickAutocomplete}
     />
   {/if}
@@ -618,5 +627,268 @@
     left: 0;
     margin-bottom: 0.25rem;
     z-index: 50;
+  }
+
+  .composer {
+    max-width: var(--measure);
+    margin: 0 auto var(--space-6);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  /* DM の入力。長い文を書く場所なので、書いたぶんだけ伸びる。上限は置かない
+     ── 途中でスクロールに切り替わると、書いている場所を見失う。
+     field-sizing が無いブラウザでは rows のまま(4 行)で、壊れはしない。 */
+  .composer textarea.grows {
+    field-sizing: content;
+    /* 短い一言を続けて投げる場所なので、二行から。長く書けば伸びる。 */
+    min-height: calc(2lh + var(--space-4));
+  }
+
+  /* ── メッセージの返信箱 ─────────────────────────────────────────────
+     会話の面では、返信箱は下に貼りつく。流れの末尾に置くと、長いやりとりでは
+     毎回いちばん下まで漕がないと返せない ── 話しかける口が、遠い。
+     (スマホの SNS がどれも下に固定しているのは、そういう理由。) */
+  .composer-dm {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin-bottom: 0;
+    background: var(--color-bg);
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    border-radius: 0;
+    padding: var(--space-3) var(--space-4);
+    padding-bottom: max(var(--space-3), env(safe-area-inset-bottom, 0px));
+  }
+
+  /* スマホでは下に親指の帯があるので、その上に貼る。帯が縁の余白(safe-area)を
+     もう持っているから、ここでは重ねて取らない。 */
+  @media (max-width: 40rem) {
+    :global(body.has-bottom-nav) .composer-dm {
+      bottom: var(--bottom-nav-h);
+      padding-bottom: var(--space-3);
+    }
+
+    /* 返信箱は、画面の端から端まで。.wrap の左右 gutter を負の margin で
+       いったん外に出て、カプセルに幅を返す ── 打つところは広いほうがいい。
+       罫線も端まで通るので、下の帯として素直に見える。 */
+    .composer-dm {
+      max-width: none;
+      margin-inline: calc(var(--space-4) * -1);
+      padding-inline: var(--space-2);
+    }
+  }
+
+  /* 伸びるのは、画面の半分まで。それを超えたら中で漕ぐ ── 長い一通を書いて
+     いるあいだに、宛てている会話がぜんぶ画面の外へ出てしまわないように。
+     (「書く」の面には上限を置かない。あちらは会話を見ながらではないので。) */
+  .composer-dm textarea.grows {
+    max-height: 40vh;
+    overflow-y: auto;
+    /* 自分で伸びるので、つまんで伸ばす取っ手は要らない。 */
+    resize: none;
+    /* 基本はひと行。書いたぶんだけ、そこから伸びる。 */
+    min-height: calc(1lh + var(--space-4));
+  }
+
+  /* 画像・本文・送る を、ひと並びに。左に画像、右に送る ── 本文の両脇に、
+     すること二つ。行が一つ減るぶんは、そのまま会話の見えるところに返る。
+     囲うのはこのカプセル一つだけ。中の本文欄は枠を持たない ── 枠の中に枠を
+     描くと輪郭が二重になる(「塗りと枠は片方だけ」の、入れ子版)。
+     伸びても端は丸いままなので、半径は高さの半分で置く。 */
+  .composer-line {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-1);
+    padding: 2px;
+    border: 1px solid var(--color-control);
+    border-radius: 23px;
+    background: var(--color-surface);
+  }
+
+  /* 中では、枠も背景も持たない。カプセルが面で、これはその中の文。 */
+  .composer-line-field textarea {
+    border: 0;
+    background: transparent;
+    border-radius: 0;
+    padding-inline: var(--space-2);
+  }
+
+  .composer-line-field textarea:focus {
+    outline: none;
+  }
+
+  /* カプセルが focus を受け止める ── 中の一つひとつではなく、この一つが
+     光る。どこを触っているかは、囲いの側で言う。 */
+  .composer-line:focus-within {
+    border-color: var(--color-text);
+  }
+
+  /* 中の印は、丸い縁を持たない。カプセルの中で丸が三つ並ぶと、囲いが
+     どれなのか分からなくなる。 */
+  .composer-line .icon-btn {
+    border-color: transparent;
+  }
+
+  .composer-line-field {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+  }
+
+  /* textarea はインライン要素なので、下に行の余り(descender のぶん)が残る。
+     そのぶんだけ入力欄が両脇のボタンより浮いて見えていた。block にして、
+     下端をそろえる。 */
+  .composer-line-field textarea {
+    display: block;
+  }
+
+  /* カプセルの内側では、いちばん低いところ(1行)がボタンと同じ高さになる
+     ように。上下の余白はカプセルの padding が持つ。 */
+  .composer-dm .composer-line textarea.grows {
+    min-height: 40px;
+    padding-block: var(--space-2);
+  }
+
+  /* 絵の印だけのボタン。丸くて、指で押せて、押せないときは薄い。
+     語は aria-label と title に残してある(読み上げと hover には届く)。 */
+  .icon-btn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--color-control);
+    border-radius: 999px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition:
+      color 0.1s ease,
+      border-color 0.1s ease;
+  }
+
+  .icon-btn:hover:not(:disabled) {
+    color: var(--color-text);
+    border-color: var(--color-text);
+  }
+
+  /* 「書く」の面。ほかに何も無い一枚なので、枠で囲わない ── 面そのものが
+     composer なのに、その中でもう一度箱を描くと、輪郭が二重になる。
+     (図解の頁が言う「塗りと枠は片方だけ」の、入れ子版。) */
+  .composer-page {
+    border: 0;
+    padding: 0;
+    margin-bottom: var(--space-6);
+  }
+
+  /* 「書く」は短い一言のための場所。白紙を大きく開けると「たくさん書け」に
+     見えるので、三行から始めて、書いたぶんだけ伸ばす。 */
+  .composer-page textarea.grows {
+    min-height: calc(3lh + var(--space-4));
+  }
+
+  /* 畳んである「ほかの設定」。開くまで、何も主張しない。 */
+  .composer-more > summary {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+
+  .composer-more-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin-top: var(--space-2);
+  }
+
+  .composer-more-row label.stack-tight {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+
+  .composer-reply {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .composer-hint {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .composer-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .composer-row label.stack-tight {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+
+  .composer-row > button[type='submit'] {
+    margin-left: auto;
+  }
+
+  .composer-media {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  }
+
+  .composer-media li {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .composer-media img {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    display: block;
+  }
+
+  /* 「書く」を画面の底に固定する。Clips は流れの外に置きたいので、親から
+     fixed で頼む(親が :global で触るのをやめる)。 */
+  .composer-dm.fixed-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+  }
+
+  /* 固定したときは、親の .wrap の gutter を外へ抜ける必要がない(基準が
+     画面になる)。ここで負の margin を重ねると、画面の両側へはみ出す。 */
+  @media (max-width: 40rem) {
+    .composer-dm.fixed-dock {
+      margin-inline: 0;
+    }
   }
 </style>

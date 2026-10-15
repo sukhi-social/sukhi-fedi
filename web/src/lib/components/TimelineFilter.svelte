@@ -15,6 +15,8 @@
     viewMode = $bindable<'list' | 'photo'>('list'),
     showHideBoosts = false,
     showViewMode = false,
+    // タブの行(nav.tabs)の中に置くとき。右端へ寄せ、chip の枠を消す。
+    tabbed = false,
     onchange
   }: {
     onlyMedia?: boolean;
@@ -23,6 +25,7 @@
     viewMode?: 'list' | 'photo';
     showHideBoosts?: boolean;
     showViewMode?: boolean;
+    tabbed?: boolean;
     onchange?: () => void;
   } = $props();
 
@@ -32,7 +35,7 @@
   );
 </script>
 
-<div class="filter-bar">
+<div class="filter-bar" class:in-tabs={tabbed}>
   <button
     type="button"
     class="chip"
@@ -91,6 +94,15 @@
     position: relative;
     display: flex;
     justify-content: flex-end;
+  }
+  /* タブの行の中では、右端へ寄せて、chip の枠は淡く消す(タブの下線と
+     紛れないように。ホバーでも枠は出さない)。 */
+  .filter-bar.in-tabs {
+    margin-left: auto;
+  }
+  .in-tabs .chip,
+  .in-tabs .chip:hover {
+    border-color: transparent;
   }
   .filter-menu {
     position: absolute;

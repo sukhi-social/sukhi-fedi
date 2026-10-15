@@ -329,3 +329,22 @@
     {/if}
   </section>
 {/if}
+
+<style>
+  /* 見出しの上に、そっと一行で置く「← もどる先」(パンくず)。.timeline と
+     併用して本文と同じ measure 幅にそろえ、左端から始める。見出しとの
+     間は .stack の標準 gap(space-4)だと浮くので、隣接見出しだけ tight に
+     寄せる(owl より詳細度が高いので勝つ)。 */
+  .back-link {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    text-decoration: none;
+  }
+  .back-link:hover {
+    color: var(--color-text);
+    text-decoration: underline;
+  }
+  .back-row + .page-head {
+    margin-top: var(--space-1);
+  }
+</style>

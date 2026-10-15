@@ -307,3 +307,215 @@
     onclose={() => (adminPickerOpen = false)}
   />
 {/if}
+
+<style>
+  /* ── 共通ヘッダー ─────────────────────────────────────────────────
+     ログイン後の全ページにかかる屋根(AppNav.svelte)。wordmark を左に、
+     行き先の nav-link を右に。罫線は画面の端まで通し、中身は .wrap 幅に
+     そろえる。広い画面ではここに「流れ」も「棚」も全部出る。狭い画面
+     では「流れ」を下の帯(.nav-bottom)に移し、ここには「棚」だけが
+     アイコンで残る。 */
+  .app-nav {
+    /* 屋根を画面上端に貼り付ける。スクロールしても流れの行き先が消えない
+       ので、デスクトップで「上まで戻らないと移動できない」がなくなる。
+       本文がこの下を流れるので不透明な地色を敷き、境界の罫線で「貼り付い
+       ている」ことが分かるようにする。 */
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .app-nav-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+    padding-block: var(--space-3);
+  }
+
+  .app-nav-name {
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  /* 名前の左の印(手書きの「好」)。行は baseline 揃えなので flex にせず、
+     インライン画像を少し沈めて文字と目線を合わせる。角丸は画像に焼き込み済み。
+     base.css のリセットが img を block にするので、ここだけ inline に戻す。 */
+  .app-nav-mark {
+    display: inline-block;
+    width: 1.25em;
+    height: 1.25em;
+    vertical-align: -0.3em;
+    margin-right: var(--space-2);
+  }
+
+  .app-nav-name:hover {
+    text-decoration: underline;
+  }
+
+  /* 会話の面のときだけ、表札の場所に立つ「戻る」。矢だけにしない ──
+     かたちだけで意味を負わせず、言葉も添える(色や図形に頼らない、の続き)。
+     指で押すので 44px。 */
+  .app-nav-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 44px;
+    margin-left: calc(var(--space-2) * -1);
+    padding-inline: var(--space-2);
+    font-weight: 700;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .app-nav-back:hover {
+    text-decoration: underline;
+  }
+
+  .nav-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  /* ラベルと未見の指標(数字・glyph)は一塊。上の帯では icon の隣に
+     一行で、下の帯では icon の下に一行で ── どちらも同じ並び。 */
+  .nav-text {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .nav-label {
+    white-space: nowrap;
+  }
+
+  /* direct の未見数。バッジにしない ── 赤も丸もなく、ただの数字。 */
+  .notif-count {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 下の帯は、広い画面では存在しない。 */
+  .nav-bottom {
+    display: none;
+  }
+
+  @media (max-width: 40rem) {
+    /* 「流れ」は下の帯へ。上の帯には「棚」だけが、ことばを伏せて
+       アイコンで残る(読み上げには .nav-label が生きている)。 */
+    .nav-top .nav-flow {
+      display: none;
+    }
+    .nav-top .nav-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .nav-top :global(.nav-link) {
+      padding-inline: var(--space-1);
+    }
+
+    /* 親指の帯。fixed で下に貼りつき、スクロールしても消えない。 */
+    .nav-bottom {
+      display: flex;
+      --nav-ico-size: 1.5rem;
+      position: fixed;
+      inset: auto 0 0 0;
+      z-index: 30;
+      background: var(--color-surface);
+      border-top: 1px solid var(--color-border);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      /* 遷移のたびにページ高さや URL バーが動くと、fixed のこの帯は
+         再ラスタライズされて中の線画 SVG が一瞬飛ぶことがある。独立した
+         合成レイヤーに固定して、描き直しの巻き添えにしない。 */
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+    .nav-bottom .nav-link {
+      flex: 1;
+      flex-direction: column;
+      gap: 2px;
+      padding: var(--space-2) 0;
+      border-radius: 0;
+      font-size: 0.7rem;
+      text-align: center;
+      /* flex:1 でも、ラベルが nowrap だと中身の最小幅が効いて 5 つ並びが
+         画面を超えることがある。0 まで縮めて宛がうことを許して、横の
+         はみ出しを止める。 */
+      min-width: 0;
+    }
+
+    /* 本文が帯の下に隠れないよう、ぶんだけ余白を空ける。
+       お知らせの類はもう浮いていない(流れの中＝main の先頭)ので、
+       帯の上に持ち上げる特別扱いは要らなくなった。 */
+    :global(body.has-bottom-nav) :global(main) {
+      padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
+  /* ── ナビのドロップダウン(ライブラリ / アバター) ───────────────
+     棚を畳んだ二つの小さなメニュー。開くまで何も主張しない。面は
+     StatusActions の .menu と同じ作法(枠だけ・影なし)で平らに。 */
+
+  /* アバターの引き金だけは、丸い画像にそって詰める。 */
+  :global(.nav-avatar-trigger) {
+    padding: var(--space-1);
+    border-radius: 999px;
+  }
+  .nav-top :global(.nav-avatar) {
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 999px;
+    object-fit: cover;
+    display: block;
+  }
+
+
+  .nav-menu-item {
+    --nav-ico-size: 1.15em;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: var(--text-sm);
+    text-decoration: none;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .nav-menu-item:hover {
+    background: var(--fill-soft);
+    color: var(--color-text);
+  }
+  .nav-menu-item[aria-current='page'] {
+    color: var(--color-text);
+  }
+
+  .nav-menu-sep {
+    height: 1px;
+    margin: var(--space-1) 0;
+    background: var(--color-border);
+  }
+
+  /* 会話の面では、返信箱が画面の底に貼りつく。その下に「底に付かないための
+     余白」が残ると、返事の下に理由のない空きになる ── 底に付くのが正しい
+     ものが、いちばん下にいるので。 */
+  :global(body.in-thread) :global(main.wrap) {
+    padding-bottom: 0;
+  }
+</style>

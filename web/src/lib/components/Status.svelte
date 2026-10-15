@@ -248,6 +248,93 @@
 {/if}
 
 <style>
+  /* 投稿カード。影なし、細い罫線だけ。ブーストの中の入れ子も同じ作法で、
+     :last-child の罫線消しは、枠の唯一の子にも効く（boost 側で分離線を持つ）。 */
+  .status {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .status:last-child {
+    border-bottom: 0;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: baseline;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .display-name {
+    color: var(--color-text);
+    font-weight: 700;
+    font-size: var(--text-base);
+  }
+  .body {
+    flex: 1;
+    min-width: 0;
+  }
+  .content {
+    margin-top: var(--space-2);
+    overflow-wrap: anywhere;
+  }
+  /* 本文は {@html} なので、子の p は :global で拾う。 */
+  .content :global(p) + :global(p) {
+    margin-top: var(--space-3);
+  }
+
+  /* 投稿カード、手のなかで。狭い画面だと、長い `@user@host` が時刻を次の
+     行に押し出して、外部リンクの印だけが取り残されていた。名前と時刻は残して、
+     ハンドルのほうを縮める ── 誰か・いつ、が一行で読めるほうが役に立つ。 */
+  @media (max-width: 40rem) {
+    .status {
+      gap: var(--space-3);
+      padding: var(--space-3) 0;
+    }
+
+    .meta {
+      flex-wrap: nowrap;
+      gap: var(--space-2);
+    }
+
+    /* 名前は縮めない(誰かが分からなくなる)。ただし名前だけで一行を
+       埋めないよう、半分で頭打ちにする。 */
+    .display-name {
+      flex: 0 1 auto;
+      max-width: 50%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 縮むのはここ。@host が長いほど、先に削られる。 */
+    .handle {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 時刻を右端へ寄せるので、中黒は要らなくなる。 */
+    .sep {
+      display: none;
+    }
+
+    .timestamp,
+    .orig {
+      flex: none;
+      margin-left: auto;
+    }
+
+    .orig {
+      margin-left: 0;
+    }
+  }
+
   /* 長文（Article）を畳むとき。下端をふわっと薄くして「まだ続く」を示す。 */
   .content-wrap.collapsed {
     max-height: 22rem;

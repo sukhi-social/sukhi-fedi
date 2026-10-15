@@ -123,3 +123,12 @@
     <path d="M6 5h11l-2.2 3.5L17 12H6" />
   {/if}
 </svg>
+
+<style>
+  .nav-ico {
+    width: var(--nav-ico-size, 1.6em);
+    height: var(--nav-ico-size, 1.6em);
+    flex: none;
+    display: block;
+  }
+</style>

@@ -100,6 +100,24 @@
 {/if}
 
 <style>
+  /* 添付の並び。Status の中では横に並べ、画像は枠をはめて切る。 */
+  .media {
+    margin-top: var(--space-3);
+    display: grid;
+    gap: var(--space-2);
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  }
+  .media img {
+    display: block;
+    width: 100%;
+    /* 上下左右に枠をはめる。縦長でも伸び放題にせず、はみ出しは切る。
+       原寸はクリックでライトボックス（下の .lightbox）。 */
+    max-height: 22rem;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+  }
+
   .media video,
   .media audio {
     max-width: 100%;

@@ -57,3 +57,25 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .nav-menu {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .nav-menu-panel {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    right: 0;
+    z-index: 40;
+    min-width: 11rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-1);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+</style>

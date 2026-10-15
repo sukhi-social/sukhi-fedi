@@ -352,6 +352,61 @@
 {/if}
 
 <style>
+  /* Status カードの下に、返信・ブースト等の操作の列。 */
+  .status-actions {
+    margin-top: var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    /* 行の中のアイコンは本文より一回り小さく。字と同じ重さで並ぶように。 */
+    --nav-ico-size: 1.2em;
+  }
+
+  /* chip の中身(Twemoji アイコン + 数字)を縦の真ん中にそろえる。
+     inline の vertical-align: middle だと、アイコンが文字よりすこし
+     沈んで見える。min-height は「文字一行ぶん(1.6em) + 上下 padding
+     3px×2 + 枠線 1px×2」── アイコンだけの chip (栞・数字なしの⭐🔁)
+     が、文字入りの chip より低くならないように。 */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: calc(1.6em + 8px);
+    /* 罫線は淡いほうへ。本文は枠のない地の文なのに、その真下で枠つきの輪が
+       六つ閉じていて、視線が先にそちらへ行っていた。「余計な線を消し、行間を
+       ゆったりとるだけで見栄えよくなる」── 押せる大きさ(min-height)は
+       変えないので、当たり判定は同じまま。 */
+    border-color: var(--color-border);
+  }
+
+  /* 押している / 済んでいるものは、いまも色で分かる。淡くしたぶん、
+     触れたときにだけ輪郭を戻して「押せる」を返す。 */
+  .chip:hover,
+  .chip:focus-visible {
+    border-color: var(--color-border-strong);
+  }
+
+  /* 指で押す行なので、押せる高さは 44px(ナビの戻るとそろえる)。
+     マウスの画面では今の詰まった高さのまま。 */
+  @media (pointer: coarse) {
+    .chip {
+      min-height: 2.75rem;
+    }
+  }
+
+  /* 狭い画面では、枠つきの丸が六つ並ぶと一件ぶんの縦をひとつ余分に食う
+     ので詰める。押せる大きさ(min-height)は変えない。 */
+  @media (max-width: 40rem) {
+    .status-actions {
+      margin-top: var(--space-2);
+      gap: var(--space-1);
+    }
+
+    .chip {
+      padding-inline: var(--space-2);
+    }
+  }
+
   .reactions {
     display: flex;
     flex-wrap: wrap;
@@ -400,18 +455,13 @@
   /* 押している状態は、地の色と字の濃さと、塗りつぶした星・栞で示す。
      グローバルの chip[aria-pressed] は地を暗く塗るので、ここで淡い行に
      合わせて上書きする ── 字が淡い地に溶けない(旧: 白字 on 薄灰 ≒1.3:1)。 */
-  .status-actions .chip.active {
+  .chip.active {
     color: var(--color-text);
     background: var(--fill-active);
     border-color: var(--fill-active-edge);
     font-weight: 600;
   }
-  /* 行の中のアイコンは本文より一回り小さく。字と同じ重さで並ぶように。 */
-  .status-actions :global(.nav-ico) {
-    width: 1.2em;
-    height: 1.2em;
-  }
-  .status-actions .bookmark {
+  .bookmark {
     margin-left: auto;
   }
   .picker-anchor {
@@ -445,6 +495,7 @@
     background: var(--color-surface);
   }
   .menu-item {
+    --nav-ico-size: 1.15em;
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -456,10 +507,6 @@
     color: inherit;
     text-align: left;
     cursor: pointer;
-  }
-  .menu-item :global(.nav-ico) {
-    width: 1.15em;
-    height: 1.15em;
   }
   .menu-item:hover:not(:disabled) {
     background: var(--fill-hover);

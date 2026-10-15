@@ -316,7 +316,7 @@
     color: var(--color-text);
   }
 
-  .reaction-chip :global(.emoji) {
+  .reaction-chip .emoji {
     display: inline-flex;
     width: 1.15em;
     height: 1.15em;
