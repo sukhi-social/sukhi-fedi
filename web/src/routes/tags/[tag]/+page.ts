@@ -1,7 +1,7 @@
 // タグタイムラインの初回取得を load に移す。ForesightJS の予測で
 // preloadData が走るので、本文中の #tag リンクへ向かう意図が生まれた時点で
 // 一枚を取りにいく。
-import { fetchTimeline, type Page, type Status } from '$lib/api';
+import { fetchTimeline, type Page, type Status } from '#lib/api.js';
 
 // 動的セグメント (tag) はビルド時のクロールでは見つからないので、この
 // ページだけ prerender を切る。adapter-static の fallback (index.html) が

@@ -5,11 +5,11 @@
   // cookie が立ったら、それでログインは終わり。
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { loginWithPassword, loginWithPasskey, saveLoginEmail, goToCheck } from '$lib/auth';
-  import { signedIn } from '$lib/api';
-  import { passkeySupported } from '$lib/webauthn';
-  import { t } from '$lib/i18n.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  import { loginWithPassword, loginWithPasskey, saveLoginEmail, goToCheck } from '#lib/auth.js';
+  import { signedIn } from '#lib/api.js';
+  import { passkeySupported } from '#lib/webauthn.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import PageHeader from '#lib/PageHeader.svelte';
 
   // メールのコードを先頭に ── 合言葉を持たないアカウントもあるので。
   let method = $state<'email' | 'password'>('email');

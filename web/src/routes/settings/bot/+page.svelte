@@ -2,9 +2,9 @@
   // 自分の鍵を足す(名前と期限つき)。鍵が見えるのは返事のその一回だけ。
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isLoggedIn } from '$lib/auth';
-  import { issuePersonalToken, type PersonalToken } from '$lib/api';
-  import { t } from '$lib/i18n';
+  import { isLoggedIn } from '#lib/auth.js';
+  import { issuePersonalToken, type PersonalToken } from '#lib/api.js';
+  import { t } from '#lib/i18n.js';
 
   let tokenName = $state('');
   let expiresInDays = $state(90);

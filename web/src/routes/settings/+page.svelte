@@ -10,16 +10,16 @@
     unblockAccount,
     unmuteAccount,
     type Account
-  } from '$lib/api';
-  import { clearToken, isLoggedIn, loadToken } from '$lib/auth';
-  import { hasAdmin, loadAdminChoices, type AdminChoice } from '$lib/adminPicker';
-  import AccountActionRow from '$lib/components/AccountActionRow.svelte';
-  import AccountPicker from '$lib/components/AccountPicker.svelte';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import ImageCrop from '$lib/components/ImageCrop.svelte';
-  import LangSwitch from '$lib/components/LangSwitch.svelte';
-  import PushToggle from '$lib/components/PushToggle.svelte';
-  import { t } from '$lib/i18n';
+  } from '#lib/api.js';
+  import { clearToken, isLoggedIn, loadToken } from '#lib/auth.js';
+  import { hasAdmin, loadAdminChoices, type AdminChoice } from '#lib/adminPicker.js';
+  import AccountActionRow from '#lib/components/AccountActionRow.svelte';
+  import AccountPicker from '#lib/components/AccountPicker.svelte';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import ImageCrop from '#lib/components/ImageCrop.svelte';
+  import LangSwitch from '#lib/components/LangSwitch.svelte';
+  import PushToggle from '#lib/components/PushToggle.svelte';
+  import { t } from '#lib/i18n.js';
 
   let me = $state<Account | null>(null);
   // admin の「管理ページへ」ボタンが /admin/login に POST する bearer。

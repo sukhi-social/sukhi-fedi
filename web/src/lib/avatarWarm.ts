@@ -9,9 +9,9 @@
 // 要素なので、ブラウザが選ぶ variant(avif / webp / 原本)と必ず同じ
 // URL が温まる ── 検出コードで当てにいくより、ずれない。
 
-import type { Status } from '$lib/api';
-import { isDefaultAvatar } from '$lib/avatar';
-import { proxyVariants } from '$lib/proxyImage';
+import type { Status } from '#lib/api.js';
+import { isDefaultAvatar } from '#lib/avatar.js';
+import { proxyVariants } from '#lib/proxyImage.js';
 
 // 一度に温める上限。1 ページ(20 投稿)の顔ぶれには十分で、
 // 変な API 応答が来ても際限なくリクエストを撒かない。

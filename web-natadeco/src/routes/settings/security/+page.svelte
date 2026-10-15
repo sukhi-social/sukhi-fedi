@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { signedIn } from '$lib/api';
+  import { signedIn } from '#lib/api.js';
   import {
     fetchAuthState,
     registerPasskey,
@@ -9,10 +9,10 @@
     requestReauthCode,
     type AuthState,
     type Passkey
-  } from '$lib/auth';
-  import { passkeySupported } from '$lib/webauthn';
-  import { t, getLang } from '$lib/i18n.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  } from '#lib/auth.js';
+  import { passkeySupported } from '#lib/webauthn.js';
+  import { t, getLang } from '#lib/i18n.svelte.js';
+  import PageHeader from '#lib/PageHeader.svelte';
 
   let auth = $state<AuthState | null>(null);
   let loading = $state(true);

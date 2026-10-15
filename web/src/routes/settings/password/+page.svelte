@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isLoggedIn, clearToken, changePassword, fetchAuthState } from '$lib/auth';
-  import { verifyCredentials } from '$lib/api';
-  import { t } from '$lib/i18n';
+  import { isLoggedIn, clearToken, changePassword, fetchAuthState } from '#lib/auth.js';
+  import { verifyCredentials } from '#lib/api.js';
+  import { t } from '#lib/i18n.js';
 
   // あいことばはレガシー・任意。まだ持っていない人がここに来たら
   // 「設定する」モード(いまの合言葉は要らない・セッションも生きた

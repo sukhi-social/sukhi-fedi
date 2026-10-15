@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { completeLogin } from '$lib/auth';
-  import { t } from '$lib/i18n';
+  import { completeLogin } from '#lib/auth.js';
+  import { t } from '#lib/i18n.js';
 
   let error = $state<string | null>(null);
 

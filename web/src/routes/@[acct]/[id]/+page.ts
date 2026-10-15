@@ -4,7 +4,7 @@
 //
 // 期待どおり失敗は throw せず種別を返す(load は予測でも走るので、ここで
 // ログアウト等の副作用を起こさない)。
-import { getStatus, getContext, type Status } from '$lib/api';
+import { getStatus, getContext, type Status } from '#lib/api.js';
 
 export async function load({ params }: { params: { id?: string } }) {
   const id = params.id ?? '';

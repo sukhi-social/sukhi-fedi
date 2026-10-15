@@ -1,7 +1,7 @@
+import type { Handle } from '@sveltejs/kit/hooks';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { Handle } from '@sveltejs/kit';
-import { siteOf } from '$lib/site';
-import { setServerCookieSource } from '$lib/api';
+import { siteOf } from '#lib/site.js';
+import { setServerCookieSource } from '#lib/api.js';
 
 // 請求の Cookie を、その請求を描いているあいだだけ api.ts に見せる。
 // load は await をまたぐので、module の変数では別の人の請求と混ざる ──

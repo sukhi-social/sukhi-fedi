@@ -1,13 +1,13 @@
 <script lang="ts">
   // SvelteKit が `_app/version.json` を kit.version.pollInterval ごと
   // に取りに行く。サーバ側で新しいビルドが配られて version 文字列が
-  // 変わると `$updated` (boolean ストア) が true になるので、その
+  // 変わると `updated.current` (`$app/state`) が true になるので、その
   // 瞬間に静かに「リロードしますか?」を出す。
   //
-  // 以前 `$updated.current` を見ていたが、`$app/stores` の updated は
-  // ただの boolean ストアで `.current` プロパティは無い。これに気付か
-  // ず本番にいて、新版が降りてもバナーが出ない状態がしばらく続いた。
-  // (`.current` 形は `$app/state` 側のもので、別の API。)
+  // kit 2 の `$app/stores` の updated はただの boolean ストアで `.current`
+  // が無く、これに気付かず本番で、新版が降りてもバナーが出ない状態が
+  // しばらく続いた。kit 3 で stores が無くなり、`$app/state` の `.current`
+  // 形に一本化された。
   //
   // 即時 reload で押し付けない理由:
   // - 入力中だったり読書中だったりすると失礼
@@ -16,9 +16,9 @@
   // 出したあと、ユーザがリロードを選ばないまま放っておくと、
   // SvelteKit はリンクを踏んだ瞬間に invalidateAll してくれるので、
   // バナーを無視しても通常操作で必ず追いつく(壊れる前に)。
-  import { updated } from '$app/stores';
-  import { swWaiting } from '$lib/pwa';
-  import { t } from '$lib/i18n';
+  import { updated } from '$app/state';
+  import { swWaiting } from '#lib/pwa.js';
+  import { t } from '#lib/i18n.js';
 
   // 「読み込みなおす」で、待っている service worker も一緒に代える。
   //
@@ -58,10 +58,10 @@
   }
 
   // 版が変わったとき、**または** worker だけが代わりを待っているとき。
-  // 後者は $updated が動かないので、これが無いと worker のふるまいの
+  // 後者は updated.current が動かないので、これが無いと worker のふるまいの
   // 直しは全部のタブが閉じるまで誰にも届かない。
   $effect(() => {
-    if ($updated || $swWaiting) show = true;
+    if (updated.current || $swWaiting) show = true;
   });
 </script>
 

@@ -9,9 +9,9 @@
   // 元居たところへ帰る。
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isLoggedIn } from '$lib/auth';
-  import Composer from '$lib/components/Composer.svelte';
-  import { t } from '$lib/i18n';
+  import { isLoggedIn } from '#lib/auth.js';
+  import Composer from '#lib/components/Composer.svelte';
+  import { t } from '#lib/i18n.js';
 
   onMount(() => {
     if (!isLoggedIn()) void goto('/');

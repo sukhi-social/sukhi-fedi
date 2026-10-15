@@ -13,9 +13,9 @@
     type AuthState,
     type Reauth,
     type CleanupPreview
-  } from '$lib/auth';
-  import ReauthField from '$lib/components/ReauthField.svelte';
-  import { t } from '$lib/i18n';
+  } from '#lib/auth.js';
+  import ReauthField from '#lib/components/ReauthField.svelte';
+  import { t } from '#lib/i18n.js';
 
   let auth = $state<AuthState | null>(null);
   let loading = $state(true);

@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goToCheck, saveSignupDraft, loadSignupDraft } from '$lib/auth';
-  import { getInviteRequired } from '$lib/api';
-  import { t, locale } from '$lib/i18n';
-  import LangSwitch from '$lib/components/LangSwitch.svelte';
+  import { goToCheck, saveSignupDraft, loadSignupDraft } from '#lib/auth.js';
+  import { getInviteRequired } from '#lib/api.js';
+  import { t, locale } from '#lib/i18n.js';
+  import LangSwitch from '#lib/components/LangSwitch.svelte';
 
   // フォームが家。はじめる前に「ここがどんな場所か」を読んでもらえるよう、
   // 上にそっと誘いを置き、利用規約のページ(/terms?signup=true ── 一番下に

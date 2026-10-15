@@ -2,7 +2,7 @@
 // クラッシュしても残る(セッションの中だけで消える sessionStorage は
 // signup の下書きで使ったが、こっちはもっと長生きしてほしい)。
 
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 export type Draft = { title: string; text: string; titleKo: string; textKo: string };
 

@@ -7,8 +7,8 @@
     type MediaAttachment,
     type Status,
     type Visibility
-  } from '$lib/api';
-  import { clearToken } from '$lib/auth';
+  } from '#lib/api.js';
+  import { clearToken } from '#lib/auth.js';
   import {
     loadComposeDraft,
     saveComposeDraft,
@@ -17,10 +17,10 @@
     loadDmDraft,
     saveDmDraft,
     clearDmDraft
-  } from '$lib/compose-draft';
+  } from '#lib/compose-draft.js';
   import { goto } from '$app/navigation';
-  import { t } from '$lib/i18n';
-  import { createAutocomplete, type AutocompleteItem } from '$lib/autocomplete.svelte';
+  import { t } from '#lib/i18n.js';
+  import { createAutocomplete, type AutocompleteItem } from '#lib/autocomplete.svelte.js';
   import AutocompleteDropdown from './AutocompleteDropdown.svelte';
   import Avatar from './Avatar.svelte';
   import NavIcon from './NavIcon.svelte';

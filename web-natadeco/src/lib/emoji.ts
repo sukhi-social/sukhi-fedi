@@ -6,7 +6,7 @@
 // よその家に取りに行かせない。`scripts/copy-twemoji.mjs` が
 // `@twemoji/svg` を build 前に `static/twemoji/svg` へ写す。
 
-import type { Emoji } from '$lib/api';
+import type { Emoji } from '#lib/api.js';
 import twemoji from '@twemoji/api';
 
 const TWEMOJI_OPTS = { base: '/twemoji/', folder: 'svg', ext: '.svg', className: 'twemoji' };

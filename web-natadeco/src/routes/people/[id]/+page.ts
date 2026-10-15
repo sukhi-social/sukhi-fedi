@@ -1,4 +1,4 @@
-import { getPerson, personPosts } from '$lib/api';
+import { getPerson, personPosts } from '#lib/api.js';
 import type { PageLoad } from './$types';
 
 // 人の頁は、誰が見ても同じ(追っているかどうかだけ、ブラウザ側で足す)。

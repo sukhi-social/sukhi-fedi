@@ -7,7 +7,7 @@
 // 期待どおり失敗するもの(未ログイン・見つからない)は throw せず、種別を
 // 返して頁に委ねる ── load は予測でも走るので、ここで副作用(ログアウト等)を
 // 起こさない。頁が onMount で拾う。
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import {
   lookupAccount,
   getAccountStatuses,
@@ -17,8 +17,8 @@ import {
   type Page,
   type Relationship,
   type Status
-} from '$lib/api';
-import { isLoggedIn } from '$lib/auth';
+} from '#lib/api.js';
+import { isLoggedIn } from '#lib/auth.js';
 
 const emptyPage: Page<Status> = { items: [], nextMaxId: null };
 

@@ -9,8 +9,8 @@
 // パスキーは、この下のほうに在る ── 合言葉を持たない人が多い場所なので、
 // 毎回メールのコードを待たなくていい道を、いちばん最初に足した。
 
-import { browser } from '$app/environment';
-import { TOKEN_KEY, cookieSignedIn } from '$lib/api';
+import { browser } from '$app/env';
+import { TOKEN_KEY, cookieSignedIn } from '#lib/api.js';
 
 // v2: push スコープを足したので、古い(read write だけの)登録済み
 // アプリを使い続けさせない ── キーを変えて再登録を強制する。
@@ -228,7 +228,7 @@ export async function signup(
     })
   });
   if (!ccRes.ok) throw new Error(`client_credentials failed: ${ccRes.status}`);
-  const appToken = (await ccRes.json()) as TokenSet;
+  const appToken = await ccRes.json() as TokenSet;
 
   const res = await fetch('/api/v1/accounts', {
     method: 'POST',
@@ -239,7 +239,7 @@ export async function signup(
     body: JSON.stringify({
       username,
       email_proof: emailProof,
-      ...(password ? { password } : {})
+      ...password ? { password } : {}
     })
   });
   const body = await res.json().catch(() => ({}));
@@ -362,7 +362,7 @@ export async function completeLogin(code: string, state: string): Promise<TokenS
   });
   if (!res.ok) throw new Error(`token exchange failed: ${res.status}`);
 
-  const t = (await res.json()) as TokenSet;
+  const t = await res.json() as TokenSet;
   saveToken(t);
   return t;
 }
@@ -462,7 +462,7 @@ export async function fetchAuthState(): Promise<AuthState | null> {
   });
   if (res.status === 401) return null;
   if (!res.ok) throw new Error(`auth_state_failed_${res.status}`);
-  return (await res.json()) as AuthState;
+  return await res.json() as AuthState;
 }
 
 // 本人確認のコードを、登録ずみの確認済みメールへ送る。
@@ -473,12 +473,7 @@ export async function requestReauthCode(): Promise<void> {
 // パスキー登録: options → 認証器 → 登録、まで。
 export async function registerPasskey(nickname: string): Promise<void> {
   const { createPasskey } = await import('./webauthn');
-
-  const { ref, publicKey } = (await settingsPost('/settings/passkeys/options', {})) as {
-    ref: string;
-    publicKey: Parameters<typeof createPasskey>[0];
-  };
-
+  const { ref, publicKey } = await settingsPost('/settings/passkeys/options', {}) as { ref: string; publicKey: Parameters<typeof createPasskey>[0] };
   const payload = await createPasskey(publicKey);
   await settingsPost('/settings/passkeys', { ref, nickname, ...payload });
 }

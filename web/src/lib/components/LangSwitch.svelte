@@ -1,6 +1,6 @@
 <script lang="ts">
   // ことばを選ぶ、ちいさなボタンの組。名前はその言語の文字で出す。
-  import { t, locale, setLocale, LOCALES, LOCALE_NAMES } from '$lib/i18n';
+  import { t, locale, setLocale, LOCALES, LOCALE_NAMES } from '#lib/i18n.js';
 </script>
 
 <div class="lang-switch" role="group" aria-label={$t('lang.switch')}>

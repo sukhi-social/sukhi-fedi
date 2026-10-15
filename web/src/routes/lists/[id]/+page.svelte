@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import {
     getList,
@@ -17,16 +17,16 @@
     type Status,
     type Account,
     type Relationship
-  } from '$lib/api';
-  import { isLoggedIn, clearToken } from '$lib/auth';
-  import { createPager } from '$lib/pager.svelte';
-  import StatusCard from '$lib/components/Status.svelte';
-  import TimelineFilter from '$lib/components/TimelineFilter.svelte';
-  import AccountActionRow from '$lib/components/AccountActionRow.svelte';
-  import { t } from '$lib/i18n';
-  import { refreshCircles } from '$lib/circles';
+  } from '#lib/api.js';
+  import { isLoggedIn, clearToken } from '#lib/auth.js';
+  import { createPager } from '#lib/pager.svelte.js';
+  import StatusCard from '#lib/components/Status.svelte';
+  import TimelineFilter from '#lib/components/TimelineFilter.svelte';
+  import AccountActionRow from '#lib/components/AccountActionRow.svelte';
+  import { t } from '#lib/i18n.js';
+  import { refreshCircles } from '#lib/circles.js';
 
-  let id = $derived($page.params.id ?? '');
+  let id = $derived(page.params.id ?? '');
 
   let list = $state<List | null>(null);
   // タイムライン部分の先読みページャ。closure は今の id / フィルタを見る。
@@ -316,7 +316,7 @@
       <StatusCard
         status={s}
         canReply
-        ondelete={(d) => (pager.items = pager.items.filter((it) => it.id !== d.id))}
+        ondelete={(d) => pager.items = pager.items.filter((it) => it.id !== d.id)}
       />
     {/each}
 

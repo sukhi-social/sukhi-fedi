@@ -8,7 +8,7 @@
 // waiting を促したりは **しない**。二重に「更新」が起きると、どちらが本当か
 // 分からなくなる。SW 側も skipWaiting() を呼ばない。
 
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import { writable } from 'svelte/store';
 
 /**
@@ -35,19 +35,19 @@ export function registerServiceWorker() {
       // もう待っている(前の訪問で降りてきていた)。
       if (reg.waiting) swWaiting.set(true);
 
-      // これから降りてくるぶん。installed になって、かつ既に誰かが動いて
-      // いるなら、それは「入れ替わり待ち」── 初めての登録ではない。
-      reg.addEventListener('updatefound', () => {
-        const next = reg.installing;
-        if (!next) return;
-        next.addEventListener('statechange', () => {
-          if (next.state === 'installed' && navigator.serviceWorker.controller) {
-            swWaiting.set(true);
-          }
-        });
+    // これから降りてくるぶん。installed になって、かつ既に誰かが動いて
+    // いるなら、それは「入れ替わり待ち」── 初めての登録ではない。
+    reg.addEventListener('updatefound', () => {
+      const next = reg.installing;
+      if (!next) return;
+      next.addEventListener('statechange', () => {
+        if (next.state === 'installed' && navigator.serviceWorker.controller) {
+          swWaiting.set(true);
+        }
       });
+    });
     })
     .catch(() => {
-      // 登録できなくてもアプリは動く(installable でなくなるだけ)。黙って諦める。
-    });
+    // 登録できなくてもアプリは動く(installable でなくなるだけ)。黙って諦める。
+  });
 }

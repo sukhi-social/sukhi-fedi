@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { langNames, getLang } from '$lib/i18n.svelte';
+  import { langNames, getLang } from '#lib/i18n.svelte.js';
 
   // 日本語・韓国語、どちらを主に書くかを切り替えるタブ ── どちらかが
   // 必須でどちらかが「なくてもいい」上乗せ、ではなく対等。データは

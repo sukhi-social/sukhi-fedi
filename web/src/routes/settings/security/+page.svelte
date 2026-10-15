@@ -21,11 +21,11 @@
     type AuthState,
     type Reauth,
     type Session
-  } from '$lib/auth';
-  import { currentAccount } from '$lib/api';
-  import { passkeySupported } from '$lib/webauthn';
-  import ReauthField from '$lib/components/ReauthField.svelte';
-  import { t } from '$lib/i18n';
+  } from '#lib/auth.js';
+  import { currentAccount } from '#lib/api.js';
+  import { passkeySupported } from '#lib/webauthn.js';
+  import ReauthField from '#lib/components/ReauthField.svelte';
+  import { t } from '#lib/i18n.js';
   import { renderSVG } from 'uqr';
 
   let auth = $state<AuthState | null>(null);

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
-  import Hinata from '$lib/Hinata.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
-  import { isRevealed, toggleRevealed } from '$lib/hinataVisibility.svelte';
+  import { t } from '#lib/i18n.svelte.js';
+  import Hinata from '#lib/Hinata.svelte';
+  import PageHeader from '#lib/PageHeader.svelte';
+  import { isRevealed, toggleRevealed } from '#lib/hinataVisibility.svelte.js';
 </script>
 
 <PageHeader title={t().hello.title} />

@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
-  import type { Status } from '$lib/api';
-  import { clearToken } from '$lib/auth';
-  import StatusCard from '$lib/components/Status.svelte';
-  import Composer from '$lib/components/Composer.svelte';
-  import { t } from '$lib/i18n';
+  import type { Status } from '#lib/api.js';
+  import { clearToken } from '#lib/auth.js';
+  import StatusCard from '#lib/components/Status.svelte';
+  import Composer from '#lib/components/Composer.svelte';
+  import { t } from '#lib/i18n.js';
   import type { PageProps } from './$types';
 
   // 記事のリーダーページ。スレッド表示と違い、本体を折りたたまず全文を出し、

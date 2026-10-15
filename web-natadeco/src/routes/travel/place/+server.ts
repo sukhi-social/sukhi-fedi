@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { resolvePlace } from '$lib/server/place';
+import { resolvePlace } from '#lib/server/place.js';
 import type { RequestHandler } from './$types';
 
 // 場所のリンクを、名前と座標にする口。ブラウザは他所の地図サイトに

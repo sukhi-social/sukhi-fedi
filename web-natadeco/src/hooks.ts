@@ -1,6 +1,6 @@
-import type { Reroute } from '@sveltejs/kit';
-import { browser } from '$app/environment';
-import { isTravelHost } from '$lib/site';
+import type { Reroute } from '@sveltejs/kit/hooks';
+import { browser } from '$app/env';
+import { isTravelHost } from '#lib/site.js';
 
 // travel.natadeco.com は「別の部屋」── 同じ家(同じ Node、同じ API)の
 // 中で、玄関だけが違う。host を見て、その部屋の頁に道をつなぎ替える。

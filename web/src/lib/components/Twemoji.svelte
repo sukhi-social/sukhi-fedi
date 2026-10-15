@@ -4,7 +4,7 @@
   // character when it isn't a recognised emoji (e.g. an odd reaction string),
   // so we never render a broken image. `label` overrides the alt text; it
   // defaults to the emoji itself (good for copy + screen readers).
-  import { twemojiUrl } from '$lib/emoji';
+  import { twemojiUrl } from '#lib/emoji.js';
 
   let { emoji, label = '' }: { emoji: string; label?: string } = $props();
 

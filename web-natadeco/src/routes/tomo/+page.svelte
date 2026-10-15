@@ -7,10 +7,10 @@
     startOfToday,
     type Post,
     type Person
-  } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
-  import Flow from '$lib/Flow.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  } from '#lib/api.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import Flow from '#lib/Flow.svelte';
+  import PageHeader from '#lib/PageHeader.svelte';
 
   // 友デコ ── 板の一覧に並ぶけれど、板ではない。ここに書く場所は無く、
   // 流れているのは追っている人が言ったこと。読めるのは自分だけ。

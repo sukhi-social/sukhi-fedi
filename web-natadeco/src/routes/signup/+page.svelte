@@ -3,11 +3,11 @@
   // 関所(/check)へ渡すだけ。コードの送信も、アカウントを作るのも、
   // 向こう側で。Anubis を通れた人の手でだけ、それが起こるように。
   import { goto } from '$app/navigation';
-  import { saveSignupDraft, loadSignupDraft, goToCheck } from '$lib/auth';
-  import { signedIn } from '$lib/api';
-  import { t, getLang } from '$lib/i18n.svelte';
-  import Hinata from '$lib/Hinata.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  import { saveSignupDraft, loadSignupDraft, goToCheck } from '#lib/auth.js';
+  import { signedIn } from '#lib/api.js';
+  import { t, getLang } from '#lib/i18n.svelte.js';
+  import Hinata from '#lib/Hinata.svelte';
+  import PageHeader from '#lib/PageHeader.svelte';
 
   let username = $state('');
   let email = $state('');

@@ -4,7 +4,7 @@
 // コンポーネントごとに読み直す作りだったが、こちらは辞書がページ全体に
 // 散らばるので、切り替えた瞬間に画面全体が動いてほしい)。
 
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 const KEY = 'nd.lang';
 

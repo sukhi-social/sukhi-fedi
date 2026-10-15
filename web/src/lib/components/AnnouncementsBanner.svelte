@@ -9,9 +9,9 @@
   // いても急かさない。
   import { onMount } from 'svelte';
   import { afterNavigate } from '$app/navigation';
-  import { isLoggedIn } from '$lib/auth';
-  import { getAnnouncements, dismissAnnouncement, type Announcement } from '$lib/api';
-  import { t } from '$lib/i18n';
+  import { isLoggedIn } from '#lib/auth.js';
+  import { getAnnouncements, dismissAnnouncement, type Announcement } from '#lib/api.js';
+  import { t } from '#lib/i18n.js';
 
   let queue = $state<Announcement[]>([]);
   let busy = $state(false);
@@ -33,7 +33,9 @@
   }
 
   onMount(() => void load());
-  afterNavigate(() => {
+
+  afterNavigate(({ shallow, type }) => {
+    if (shallow && type === 'goto') return;
     if (!loaded && isLoggedIn()) void load();
   });
 

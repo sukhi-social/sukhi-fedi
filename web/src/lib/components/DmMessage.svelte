@@ -10,17 +10,17 @@
   //   ・自分のは、左に細い線を引くだけで分ける(吹き出しにしない ──
   //     長い文が入るし、和文は左揃えのほうが読める)
   //   ・時刻は端に、薄く
-  import { renderEmojis } from '$lib/emoji';
-  import { phrase } from '$lib/phrase';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { phrase } from '#lib/phrase.js';
   import Avatar from './Avatar.svelte';
   import Twemoji from './Twemoji.svelte';
   import EmojiPicker from './EmojiPicker.svelte';
   import FileChip from './FileChip.svelte';
-  import * as api from '$lib/api';
-  import { toggled, willAdd, PIN_EMOJI } from '$lib/reactions';
-  import type { Reaction, Status } from '$lib/api';
-  import { splitLeadingMentions } from '$lib/preview';
-  import { t, locale, type Locale, type TranslationKey } from '$lib/i18n';
+  import * as api from '#lib/api.js';
+  import { toggled, willAdd, PIN_EMOJI } from '#lib/reactions.js';
+  import type { Reaction, Status } from '#lib/api.js';
+  import { splitLeadingMentions } from '#lib/preview.js';
+  import { t, locale, type Locale, type TranslationKey } from '#lib/i18n.js';
 
   let {
     status,

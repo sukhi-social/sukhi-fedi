@@ -1,15 +1,15 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getConversations, type Conversation } from '$lib/api';
-  import { isLoggedIn, clearToken } from '$lib/auth';
-  import { reconnect, slowPoll } from '$lib/connection';
-  import { createPager } from '$lib/pager.svelte';
-  import { renderEmojis } from '$lib/emoji';
-  import { phrase } from '$lib/phrase';
-  import { previewOf } from '$lib/preview';
-  import Avatar from '$lib/components/Avatar.svelte';
-  import { t, locale, type Locale, type TranslationKey } from '$lib/i18n';
+  import { getConversations, type Conversation } from '#lib/api.js';
+  import { isLoggedIn, clearToken } from '#lib/auth.js';
+  import { reconnect, slowPoll } from '#lib/connection.js';
+  import { createPager } from '#lib/pager.svelte.js';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { phrase } from '#lib/phrase.js';
+  import { previewOf } from '#lib/preview.js';
+  import Avatar from '#lib/components/Avatar.svelte';
+  import { t, locale, type Locale, type TranslationKey } from '#lib/i18n.js';
 
   const pager = createPager<Conversation>((maxId) => getConversations({ maxId }));
   let loading = $state(false);

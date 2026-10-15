@@ -11,10 +11,10 @@
     verifyCredentials,
     type Account,
     type FollowInvite
-  } from '$lib/api';
-  import { isLoggedIn, clearToken } from '$lib/auth';
-  import AccountRow from '$lib/components/AccountRow.svelte';
-  import { t } from '$lib/i18n';
+  } from '#lib/api.js';
+  import { isLoggedIn, clearToken } from '#lib/auth.js';
+  import AccountRow from '#lib/components/AccountRow.svelte';
+  import { t } from '#lib/i18n.js';
 
   let accounts = $state<Account[]>([]);
   let invites = $state<FollowInvite[]>([]);

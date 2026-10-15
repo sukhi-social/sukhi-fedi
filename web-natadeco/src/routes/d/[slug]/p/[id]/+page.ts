@@ -1,5 +1,5 @@
-import { browser } from '$app/environment';
-import { getPost } from '$lib/api';
+import { browser } from '$app/env';
+import { getPost } from '#lib/api.js';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ params }) => {

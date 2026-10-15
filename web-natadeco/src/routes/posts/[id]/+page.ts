@@ -1,5 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
-import { getPost } from '$lib/api';
+import { getPost } from '#lib/api.js';
 import type { PageLoad } from './$types';
 
 // id しか知らない人のための入り口(通知・友デコ・外に出た古いリンク)。

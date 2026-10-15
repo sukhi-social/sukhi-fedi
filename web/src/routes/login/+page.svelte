@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import {
     goToCheck,
     isLoggedIn,
@@ -10,10 +10,10 @@
     saveLoginEmail,
     submitTotp,
     type FirstFactorResult
-  } from '$lib/auth';
-  import { passkeySupported } from '$lib/webauthn';
-  import { t } from '$lib/i18n';
-  import LangSwitch from '$lib/components/LangSwitch.svelte';
+  } from '#lib/auth.js';
+  import { passkeySupported } from '#lib/webauthn.js';
+  import { t } from '#lib/i18n.js';
+  import LangSwitch from '#lib/components/LangSwitch.svelte';
 
   // 入りかたは二つから選べる: (確認済みの)メールに届くコード、または
   // パスワード。メールが既定で先頭 ─ 覚えるものが少ない道を正面に。
@@ -39,14 +39,14 @@
   // authorize URL が入っている。ホームの「入る」から来たときは next が
   // 無いので、Anubis の通り道 /check?intent=login を既定にする。
   let next = $derived.by(() => {
-    const n = $page.url.searchParams.get('next');
+    const n = page.url.searchParams.get('next');
     return n && n.startsWith('/') ? n : '/check?intent=login';
   });
 
   // startAddAccount() 発の「追加」入り口(マルチアカウント)。今すでに
   // ログイン済みでも弾かない ─ 別の資格情報を入れてもらうのが目的な
   // ので。パスワード・メール・パスキー、どの道からでも追加できる。
-  let addMode = $derived($page.url.searchParams.get('mode') === 'add');
+  let addMode = $derived(page.url.searchParams.get('mode') === 'add');
 
   onMount(() => {
     if (isLoggedIn() && !addMode) {
@@ -90,7 +90,7 @@
   // から弾かれて来た人は、その戻り先(?next)も一緒に持っていく。
   function goEmailCheck() {
     saveLoginEmail(email);
-    const raw = $page.url.searchParams.get('next');
+    const raw = page.url.searchParams.get('next');
     goToCheck('login-email', raw && raw.startsWith('/') ? raw : undefined, addMode);
   }
 
@@ -277,7 +277,7 @@
     gap: var(--space-2);
     margin-bottom: var(--space-4);
   }
-  .method-switch .chip[aria-selected='true'] {
+  .method-switch .chip[aria-selected="true"] {
     border-color: var(--color-text);
     font-weight: 600;
   }

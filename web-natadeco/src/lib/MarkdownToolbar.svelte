@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
+  import { t } from '#lib/i18n.svelte.js';
 
   // 本文の欄に、太字・斜体・リンク・リスト・引用を差し込む小さな道具。
   // マークダウン自体はサーバー側がもう通している(Earmark)ので、ここは

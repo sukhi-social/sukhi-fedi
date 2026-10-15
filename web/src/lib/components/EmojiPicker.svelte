@@ -9,9 +9,9 @@
   // 並びは、サーバのカテゴリ（無ければ「ほか」）ごとの区切り。
   // 最近使ったものは、この端末だけで先頭に出す（emoji-search.ts の履歴）。
   import { onMount } from 'svelte';
-  import { getCustomEmojis, type Emoji } from '$lib/api';
-  import { setCustomEmojisCache, getRecentEmojis, recordRecentEmoji } from '$lib/emoji-search';
-  import { t } from '$lib/i18n';
+  import { getCustomEmojis, type Emoji } from '#lib/api.js';
+  import { setCustomEmojisCache, getRecentEmojis, recordRecentEmoji } from '#lib/emoji-search.js';
+  import { t } from '#lib/i18n.js';
 
   let { onpick, onclose }: { onpick: (value: string) => void; onclose?: () => void } = $props();
 

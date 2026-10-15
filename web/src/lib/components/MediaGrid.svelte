@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { statusMediaProtected, type Status } from '$lib/api';
-  import { proxyVariants } from '$lib/proxyImage';
-  import { t } from '$lib/i18n';
+  import { statusMediaProtected, type Status } from '#lib/api.js';
+  import { proxyVariants } from '#lib/proxyImage.js';
+  import { t } from '#lib/i18n.js';
 
   // プロフィールの「写真」表示。メディアを持つ投稿を、サムネの壁にして
   // 一目で見渡せるようにする。タイルは投稿の詳細への入口(タップで一投稿に

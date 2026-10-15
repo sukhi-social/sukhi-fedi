@@ -1,6 +1,6 @@
-import { browser } from '$app/environment';
-import { listFlow, listDecoTags, getDeco } from '$lib/api';
-import { TRAVEL_SLUG } from '$lib/site';
+import { browser } from '$app/env';
+import { listFlow, listDecoTags, getDeco } from '#lib/api.js';
+import { TRAVEL_SLUG } from '#lib/site.js';
 import type { PageLoad } from './$types';
 
 // 旅の玄関。記録は話す板の流れ(新しい順)から、返事を除いたもの。

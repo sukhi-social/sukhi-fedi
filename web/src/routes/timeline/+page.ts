@@ -8,10 +8,10 @@
 // mount 後の取得は残す(タブ切替・フィルタ・接続が戻ったときの再試行)が、
 // 初回はここが受け持つ。prerender は切る ── load が localStorage の
 // ログイン状態と生の fetch を触るため、node で走らせない。
-import { fetchTimeline, type Page, type Status, type TimelineKind } from '$lib/api';
-import { isLoggedIn } from '$lib/auth';
-import { isConnectivityError } from '$lib/connection';
-import { warmAvatars } from '$lib/avatarWarm';
+import { fetchTimeline, type Page, type Status, type TimelineKind } from '#lib/api.js';
+import { isLoggedIn } from '#lib/auth.js';
+import { isConnectivityError } from '#lib/connection.js';
+import { warmAvatars } from '#lib/avatarWarm.js';
 
 export const prerender = false;
 export const ssr = false;

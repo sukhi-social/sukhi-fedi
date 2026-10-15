@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { browser } from '$app/environment';
+  import { browser } from '$app/env';
   import { page } from '$app/state';
   import '../app.css';
-  import { signOutServer } from '$lib/auth';
-  import { signedIn as isSignedIn } from '$lib/api';
-  import { currentTheme, toggleTheme } from '$lib/theme';
-  import { t, getLang, setLang, toggleLang, langNames } from '$lib/i18n.svelte';
-  import BoardNav from '$lib/BoardNav.svelte';
+  import { signOutServer } from '#lib/auth.js';
+  import { signedIn as isSignedIn } from '#lib/api.js';
+  import { currentTheme, toggleTheme } from '#lib/theme.js';
+  import { t, getLang, setLang, toggleLang, langNames } from '#lib/i18n.svelte.js';
+  import BoardNav from '#lib/BoardNav.svelte';
   import type { LayoutProps } from './$types';
 
   let { children, data }: LayoutProps = $props();
@@ -80,7 +80,10 @@
   }
 </script>
 
-<svelte:window onclick={onWindowClick} onkeydown={onWindowKeydown} />
+<svelte:window
+  onclick={onWindowClick}
+  onkeydown={onWindowKeydown}
+></svelte:window>
 
 <!-- タブに出る名前も、いま見ている言語で ── 韓国語で開いた人のタブだけ
      日本語のまま、にならないように。辞書から取るので、切り替えた瞬間に
@@ -101,10 +104,36 @@
         aria-label={t().nav.switchLanguage(langNames[getLang() === 'ja' ? 'ko' : 'ja'])}
       >
         <!-- 地球儀 -->
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-          <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.4" />
-          <ellipse cx="9" cy="9" rx="3" ry="7" stroke="currentColor" stroke-width="1.4" />
-          <path d="M2.2 9h13.6M3 5.5h12M3 12.5h12" stroke="currentColor" stroke-width="1.4" />
+
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 18 18"
+          fill="none"
+          aria-hidden="true"
+        >
+          <circle
+            cx="9"
+            cy="9"
+            r="7"
+            stroke="currentColor"
+            stroke-width="1.4"
+          ></circle>
+
+          <ellipse
+            cx="9"
+            cy="9"
+            rx="3"
+            ry="7"
+            stroke="currentColor"
+            stroke-width="1.4"
+          ></ellipse>
+
+          <path
+            d="M2.2 9h13.6M3 5.5h12M3 12.5h12"
+            stroke="currentColor"
+            stroke-width="1.4"
+          ></path>
         </svg>
       </button>
       <button
@@ -119,15 +148,30 @@
             <path
               d="M13.5 9.8A5.6 5.6 0 0 1 6.2 2.5a5.8 5.8 0 1 0 7.3 7.3Z"
               fill="currentColor"
-            />
+            ></path>
           </svg>
         {:else}
           <!-- 陽だまり -->
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <circle cx="8" cy="8" r="3.4" fill="currentColor" />
-            <g stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
-              <path d="M8 1.2v1.6M8 13.2v1.6M14.8 8h-1.6M2.8 8H1.2" />
-              <path d="M12.7 3.3l-1.1 1.1M4.4 11.6l-1.1 1.1M12.7 12.7l-1.1-1.1M4.4 4.4L3.3 3.3" />
+
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <circle cx="8" cy="8" r="3.4" fill="currentColor"></circle>
+
+            <g
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+            >
+              <path d="M8 1.2v1.6M8 13.2v1.6M14.8 8h-1.6M2.8 8H1.2"></path>
+
+              <path
+                d="M12.7 3.3l-1.1 1.1M4.4 11.6l-1.1 1.1M12.7 12.7l-1.1-1.1M4.4 4.4L3.3 3.3"
+              ></path>
             </g>
           </svg>
         {/if}
@@ -142,12 +186,25 @@
             aria-haspopup="true"
             aria-expanded={accountMenuOpen}
             aria-label={t().nav.account}
-            onclick={() => (accountMenuOpen = !accountMenuOpen)}
+            onclick={() => accountMenuOpen = !accountMenuOpen}
           >
             <!-- 人型 -->
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-              <circle cx="9" cy="6" r="3" fill="currentColor" />
-              <path d="M2.5 16c0.9-3.6 4-5.5 6.5-5.5s5.6 1.9 6.5 5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 18 18"
+              fill="none"
+              aria-hidden="true"
+            >
+              <circle cx="9" cy="6" r="3" fill="currentColor"></circle>
+
+              <path
+                d="M2.5 16c0.9-3.6 4-5.5 6.5-5.5s5.6 1.9 6.5 5.5"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+              ></path>
             </svg>
           </button>
           {#if accountMenuOpen}

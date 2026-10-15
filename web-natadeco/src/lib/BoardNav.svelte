@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { listDecos, localized, type Deco } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
+  import { listDecos, localized, type Deco } from '#lib/api.js';
+  import { t } from '#lib/i18n.svelte.js';
 
   // どの板からでも、他の板へすぐ移れるように。Zulip の左の stream 一覧
   // と同じ役目 ── 広い画面ではサイドバー、狭い画面では下のバーに

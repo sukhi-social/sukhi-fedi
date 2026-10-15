@@ -28,8 +28,8 @@
     clearSignupPassword,
     loadLoginEmail,
     clearLoginEmail
-  } from '$lib/auth';
-  import { t, type TranslationKey } from '$lib/i18n';
+  } from '#lib/auth.js';
+  import { t, type TranslationKey } from '#lib/i18n.js';
 
   let phase = $state<'working' | 'code' | 'totp' | 'error'>('working');
   let intent = $state<'login' | 'signup' | 'login-email' | null>(null);

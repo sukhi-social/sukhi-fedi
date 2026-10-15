@@ -14,9 +14,9 @@
     "shots": "pnpm run build && node shots/run.mjs"
   },
   "devDependencies": {
-    "@sveltejs/adapter-node": "5.5.7",
-    "@sveltejs/adapter-static": "^3.0.10",
-    "@sveltejs/kit": "^2.70.3",
+    "@sveltejs/adapter-node": "^6.0.0",
+    "@sveltejs/adapter-static": "^4.0.0",
+    "@sveltejs/kit": "^3.0.0",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^25.9.9",
@@ -32,5 +32,9 @@
     "@twemoji/svg": "^15.0.0",
     "leaflet": "^1.9.4"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.28.2",
+  "imports": {
+    "#lib": "./src/lib/index.js",
+    "#lib/*": "./src/lib/*"
+  }
 }

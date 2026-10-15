@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { t, locale } from '$lib/i18n';
+  import { t, locale } from '#lib/i18n.js';
 
   // この星の路線図。駅も線路も比喩だけれど、形は docs/ARCHITECTURE.md の
   // 実配線と一対一に対応させてある。数字は公開の `GET /api/map` から、

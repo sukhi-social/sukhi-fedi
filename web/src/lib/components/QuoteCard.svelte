@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { Status } from '$lib/api';
+  import type { Status } from '#lib/api.js';
   import Avatar from './Avatar.svelte';
-  import { renderEmojis } from '$lib/emoji';
-  import { phrase } from '$lib/phrase';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { phrase } from '#lib/phrase.js';
 
   // 引用された投稿を、小さなカードで添える。タイムラインでは
   // href を渡してその投稿へ飛べるリンクに、作成中のプレビューでは

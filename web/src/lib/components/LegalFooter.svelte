@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t, locale } from '$lib/i18n';
+  import { t, locale } from '#lib/i18n.js';
 
   // 頁のいちばん下に、利用規約とプライバシーへの静かな入り口。
   // ただ読むためのリンクなので signup=true は付けない。ko のときは

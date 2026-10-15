@@ -1,9 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { peekVeranda, signedIn, when, type Veranda } from '$lib/api';
-  import { renderEmojis } from '$lib/emoji';
-  import { t } from '$lib/i18n.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  import { peekVeranda, signedIn, when, type Veranda } from '#lib/api.js';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import PageHeader from '#lib/PageHeader.svelte';
 
   // ベランダ ── よその板を、追う前に見てみる場所。
   //

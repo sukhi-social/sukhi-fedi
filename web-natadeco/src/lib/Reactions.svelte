@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { react, unreact, signedIn, type Reaction } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
-  import { renderGlyph } from '$lib/emoji';
+  import { react, unreact, signedIn, type Reaction } from '#lib/api.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { renderGlyph } from '#lib/emoji.js';
 
   // 一件に付いた絵文字。返事を書くほど重くない「見たよ」を置ける場所。
   //

@@ -1,12 +1,12 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { listFlow, listDecoTags, signedIn, when, localized, type DecoTag, type Post } from '$lib/api';
-  import { TRAVEL_SLUG } from '$lib/site';
-  import { renderEmojis } from '$lib/emoji';
-  import { t } from '$lib/i18n.svelte';
-  import Author from '$lib/Author.svelte';
-  import Reactions from '$lib/Reactions.svelte';
-  import PageHeader from '$lib/PageHeader.svelte';
+  import { listFlow, listDecoTags, signedIn, when, localized, type DecoTag, type Post } from '#lib/api.js';
+  import { TRAVEL_SLUG } from '#lib/site.js';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import Author from '#lib/Author.svelte';
+  import Reactions from '#lib/Reactions.svelte';
+  import PageHeader from '#lib/PageHeader.svelte';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();

@@ -1,7 +1,7 @@
 // 明るい/暗いの明示切り替え。選ばなければ端末の設定のまま(app.html の
 // 先読みスクリプトと同じ鍵)。
 
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 const KEY = 'nd.theme';
 

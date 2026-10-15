@@ -13,15 +13,15 @@
     localized,
     type Post,
     type Visibility
-  } from '$lib/api';
-  import { renderEmojis } from '$lib/emoji';
-  import { t, getLang, langNames } from '$lib/i18n.svelte';
-  import Author from '$lib/Author.svelte';
-  import Reactions from '$lib/Reactions.svelte';
-  import LangTabs from '$lib/LangTabs.svelte';
-  import VisibilityPicker from '$lib/VisibilityPicker.svelte';
-  import MarkdownToolbar from '$lib/MarkdownToolbar.svelte';
-  import { autoresize, submitOnMetaEnter } from '$lib/textarea';
+  } from '#lib/api.js';
+  import { renderEmojis } from '#lib/emoji.js';
+  import { t, getLang, langNames } from '#lib/i18n.svelte.js';
+  import Author from '#lib/Author.svelte';
+  import Reactions from '#lib/Reactions.svelte';
+  import LangTabs from '#lib/LangTabs.svelte';
+  import VisibilityPicker from '#lib/VisibilityPicker.svelte';
+  import MarkdownToolbar from '#lib/MarkdownToolbar.svelte';
+  import { autoresize, submitOnMetaEnter } from '#lib/textarea.js';
   import type { PageProps } from './$types';
 
   const id = $derived(page.params.id ?? '');

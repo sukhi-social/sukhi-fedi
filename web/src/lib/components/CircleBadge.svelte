@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { circleTitles, ensureCircles } from '$lib/circles';
+  import { circleTitles, ensureCircles } from '#lib/circles.js';
 
   // 名前の右に出す、サークルの小さな印。accountId がどの exclusive サークルに
   // 入っているかを circleTitles から引いて、入っていれば淡いピルで名前を出す。

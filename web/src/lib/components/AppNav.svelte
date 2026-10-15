@@ -27,22 +27,22 @@
     removeAccount,
     startAddAccount,
     type StoredAccount
-  } from '$lib/auth';
+  } from '#lib/auth.js';
   import Avatar from './Avatar.svelte';
   import AccountPicker from './AccountPicker.svelte';
-  import { hasAdmin, loadAdminChoices, type AdminChoice } from '$lib/adminPicker';
-  import { currentAccount, type Account } from '$lib/api';
+  import { hasAdmin, loadAdminChoices, type AdminChoice } from '#lib/adminPicker.js';
+  import { currentAccount, type Account } from '#lib/api.js';
   import {
     directUnseen,
     ambientUnseen,
     refreshUnseen,
     startStream,
     stopStream
-  } from '$lib/notify';
-  import NavIcon, { type IconName } from '$lib/components/NavIcon.svelte';
-  import NavMenu from '$lib/components/NavMenu.svelte';
-  import NotifGlyph from '$lib/components/NotifGlyph.svelte';
-  import { t, type TranslationKey } from '$lib/i18n';
+  } from '#lib/notify.js';
+  import NavIcon, { type IconName } from '#lib/components/NavIcon.svelte';
+  import NavMenu from '#lib/components/NavMenu.svelte';
+  import NotifGlyph from '#lib/components/NotifGlyph.svelte';
+  import { t, type TranslationKey } from '#lib/i18n.js';
 
   type FlowItem = {
     key: TranslationKey;
@@ -79,7 +79,7 @@
   // 話している場所なので、流れの帯は畳んで、左上を戻る口にする ──
   // スマホのアプリが、話の画面でタブを消して ← を出すのと同じ約束。
   // (畳んだぶんの高さは、そのまま会話に返る。)
-  let inThread = $derived(/^\/messages\/[^/]+\/?$/.test(page.url.pathname));
+  let inThread = $derived((/^\/messages\/[^/]+\/?$/).test(page.url.pathname));
   let showBottomNav = $derived(loggedIn && !inThread);
   let showAdminEntry = $derived(loggedIn && hasAdmin(adminChoices));
 
@@ -142,7 +142,9 @@
     };
   });
 
-  afterNavigate(() => {
+  afterNavigate(({ shallow, type }) => {
+    if (shallow && type === 'goto') return;
+
     sync();
   });
 
@@ -179,22 +181,27 @@
 {#snippet flowLink(item: FlowItem)}
   {@const href = item.href}
   {@const isNotif = href === '/notifications'}
-    <a
-      class="nav-link nav-flow"
-      {href}
-      aria-current={page.url.pathname === href ? 'page' : undefined}
-      aria-label={isNotif && notifHint ? `${$t(item.key)} — ${notifHint}` : undefined}
-      title={isNotif ? (notifHint ?? undefined) : undefined}
-    >
-      <NavIcon name={item.icon} />
-      <span class="nav-text">
-        <span class="nav-label">{$t(item.key)}</span>
-        {#if isNotif}
-          {#if $directUnseen > 0}<span class="notif-count">{$directUnseen}</span>{/if}
-          {#if $ambientUnseen > 0}<NotifGlyph count={$ambientUnseen} />{/if}
+  <a
+    class="nav-link nav-flow"
+    href={href}
+    aria-current={page.url.pathname === href ? 'page' : undefined}
+    aria-label={isNotif && notifHint ? `${$t(item.key)} — ${notifHint}` : undefined}
+    title={isNotif ? notifHint ?? undefined : undefined}
+  >
+    <NavIcon name={item.icon} />
+    <span class="nav-text">
+      <span class="nav-label">{$t(item.key)}</span>
+      {#if isNotif}
+        {#if $directUnseen > 0}
+          <span class="notif-count">{$directUnseen}</span>
         {/if}
-      </span>
-    </a>
+
+        {#if $ambientUnseen > 0}
+          <NotifGlyph count={$ambientUnseen} />
+        {/if}
+      {/if}
+    </span>
+  </a>
 {/snippet}
 
 <!-- ドロップダウンの中の一行(行き先リンク)。 -->
@@ -202,7 +209,7 @@
   <a
     class="nav-menu-item"
     role="menuitem"
-    {href}
+    href={href}
     aria-current={page.url.pathname === href ? 'page' : undefined}
   >
     <NavIcon name={icon} />
@@ -304,6 +311,6 @@
     cancelLabel={$t('adminPicker.cancel')}
     action="/admin/login"
     accounts={adminChoices}
-    onclose={() => (adminPickerOpen = false)}
+    onclose={() => adminPickerOpen = false}
   />
 {/if}

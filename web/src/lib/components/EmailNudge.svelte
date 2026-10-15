@@ -11,15 +11,15 @@
   import { onMount } from 'svelte';
   import { afterNavigate } from '$app/navigation';
   import { page } from '$app/state';
-  import { browser } from '$app/environment';
+  import { browser } from '$app/env';
   import {
     isLoggedIn,
     fetchAuthState,
     requestEmailCode,
     confirmEmailCode,
     type AuthState
-  } from '$lib/auth';
-  import { t } from '$lib/i18n';
+  } from '#lib/auth.js';
+  import { t } from '#lib/i18n.js';
 
   const SNOOZE_KEY = 'sukhi.emailNudge.until';
   const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000;
@@ -70,7 +70,9 @@
   }
 
   onMount(() => void decide());
-  afterNavigate(() => {
+
+  afterNavigate(({ shallow, type }) => {
+    if (shallow && type === 'goto') return;
     if (!checkedWithToken && isLoggedIn()) void decide();
   });
 
@@ -137,7 +139,11 @@
     {#if done}
       <p>{$t('nudge.thanks')}</p>
       <div class="actions">
-        <button type="button" class="btn px-3 py-1" onclick={() => (show = false)}>{$t('nudge.close')}</button>
+        <button
+          type="button"
+          class="btn px-3 py-1"
+          onclick={() => show = false}
+        >{$t('nudge.close')}</button>
       </div>
     {:else}
       <p class="lead">

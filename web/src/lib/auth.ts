@@ -13,9 +13,9 @@
 // Server is reached relative to window.location.origin so the same
 // build runs against any sukhi-fedi instance.
 
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
-export type ClientCreds = {
+export type ClientCreds = { 
   client_id: string;
   client_secret: string;
   redirect_uri: string;
@@ -180,7 +180,7 @@ export async function resolveAccount(token: TokenSet): Promise<ResolvedAccount |
       headers: { authorization: `Bearer ${token.access_token}` }
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as {
+    const body = await res.json() as { 
       acct?: string;
       display_name?: string;
       avatar?: string | null;
@@ -347,7 +347,7 @@ async function doRefresh(): Promise<TokenSet | null> {
       })
     });
     if (!res.ok) return null;
-    const t = (await res.json()) as TokenSet;
+    const t = await res.json() as TokenSet;
     saveToken(t);
     return t;
   } catch {
@@ -510,7 +510,7 @@ export async function completeLogin(code: string, state: string): Promise<TokenS
     throw new Error(`token exchange failed: ${res.status}`);
   }
 
-  const t = (await res.json()) as TokenSet;
+  const t = await res.json() as TokenSet;
 
   if (adding) {
     const previous = loadToken();
@@ -602,7 +602,7 @@ export async function signup(
     throw new Error(`client_credentials failed: ${ccRes.status}`);
   }
 
-  const appToken = (await ccRes.json()) as TokenSet;
+  const appToken = await ccRes.json() as TokenSet;
 
   const res = await fetch('/api/v1/accounts', {
     method: 'POST',
@@ -666,11 +666,11 @@ export async function loginWithPassword(
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ username, password, ...(add ? { mode: 'add' } : {}) })
+    body: JSON.stringify({ username, password, ...add ? { mode: 'add' } : {} })
   });
   if (res.status === 401) throw new Error('invalid');
   if (!res.ok) throw new Error(`login_failed_${res.status}`);
-  return (await res.json()) as FirstFactorResult;
+  return await res.json() as FirstFactorResult;
 }
 
 // 二段目: /login で受け取った pending と、認証アプリの 6 桁。
@@ -680,7 +680,7 @@ export async function submitTotp(pending: string, code: string, add = false): Pr
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ pending, code, ...(add ? { mode: 'add' } : {}) })
+    body: JSON.stringify({ pending, code, ...add ? { mode: 'add' } : {} })
   });
   if (res.ok) return;
   const body = await res.json().catch(() => ({}));
@@ -712,14 +712,14 @@ export async function loginWithEmailCode(
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ email, code, ...(add ? { mode: 'add' } : {}) })
+    body: JSON.stringify({ email, code, ...add ? { mode: 'add' } : {} })
   });
   ensureJsonOrAnubis(res);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.error ?? `email_login_failed_${res.status}`);
   }
-  return (await res.json()) as FirstFactorResult;
+  return await res.json() as FirstFactorResult;
 }
 
 // パスキーでのログイン。options → ブラウザの認証器 → submit まで
@@ -743,7 +743,7 @@ export async function loginWithPasskey(add = false): Promise<void> {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ ref, ...assertion, ...(add ? { mode: 'add' } : {}) })
+    body: JSON.stringify({ ref, ...assertion, ...add ? { mode: 'add' } : {} })
   });
   if (!res.ok) throw new Error('passkey');
 }
@@ -837,7 +837,7 @@ export async function fetchAuthState(): Promise<AuthState | null> {
   });
   if (res.status === 401) return null;
   if (!res.ok) throw new Error(`auth_state_failed_${res.status}`);
-  return (await res.json()) as AuthState;
+  return await res.json() as AuthState;
 }
 
 // 本人確認コードを、登録ずみの確認済みメールへ送る。
@@ -848,7 +848,7 @@ export async function requestReauthCode(): Promise<void> {
 // メール登録/変更: コードを送る。すでに確認済みアドレスがある人が
 // 別のアドレスへ変えるときだけ reauth(password か reauth_code)が要る。
 export async function requestEmailCode(email: string, reauth?: Reauth): Promise<void> {
-  await settingsPost('/settings/email/request', { email, ...(reauth ?? {}) });
+  await settingsPost('/settings/email/request', { email, ...reauth ?? {} });
 }
 
 export async function confirmEmailCode(code: string): Promise<void> {
@@ -856,7 +856,7 @@ export async function confirmEmailCode(code: string): Promise<void> {
 }
 
 export async function totpSetup(): Promise<{ secret: string; otpauth: string }> {
-  return (await settingsPost('/settings/totp/setup', {})) as { secret: string; otpauth: string };
+  return await settingsPost('/settings/totp/setup', {}) as { secret: string; otpauth: string };
 }
 
 export async function totpEnable(code: string): Promise<void> {
@@ -876,12 +876,7 @@ export async function removePassword(password: string): Promise<void> {
 // パスキー登録: options → 認証器 → 登録、まで。
 export async function registerPasskey(nickname: string): Promise<void> {
   const { createPasskey } = await import('./webauthn');
-
-  const { ref, publicKey } = (await settingsPost('/settings/passkeys/options', {})) as {
-    ref: string;
-    publicKey: Parameters<typeof createPasskey>[0];
-  };
-
+  const { ref, publicKey } = await settingsPost('/settings/passkeys/options', {}) as { ref: string; publicKey: Parameters<typeof createPasskey>[0] };
   const payload = await createPasskey(publicKey);
   await settingsPost('/settings/passkeys', { ref, nickname, ...payload });
 }
@@ -910,7 +905,7 @@ export async function fetchSessions(): Promise<Session[]> {
   });
   if (res.status === 401) return [];
   if (!res.ok) throw new Error(`sessions_failed_${res.status}`);
-  const body = (await res.json()) as { sessions: Session[] };
+  const body = await res.json() as { sessions: Session[] };
   return body.sessions;
 }
 
@@ -933,21 +928,13 @@ export type CleanupPreview = {
 };
 
 export async function previewCleanup(olderThanDays: number): Promise<CleanupPreview> {
-  return (await settingsPost('/settings/cleanup/preview', {
-    older_than_days: olderThanDays
-  })) as CleanupPreview;
+  return await settingsPost('/settings/cleanup/preview', { older_than_days: olderThanDays }) as CleanupPreview;
 }
 
 // 実行: 本人確認(password か reauth コード)ごし。バックグラウンドの
 // 常時トグルではなく、毎回はっきり押してもらう一回きりの動作。
-export async function executeCleanup(
-  olderThanDays: number,
-  reauth: Reauth
-): Promise<CleanupPreview> {
-  return (await settingsPost('/settings/cleanup/execute', {
-    older_than_days: olderThanDays,
-    ...reauth
-  })) as CleanupPreview;
+export async function executeCleanup(olderThanDays: number, reauth: Reauth): Promise<CleanupPreview> {
+  return await settingsPost('/settings/cleanup/execute', { older_than_days: olderThanDays, ...reauth }) as CleanupPreview;
 }
 
 // Navigate to the shared check page. Anubis challenges this path; the
