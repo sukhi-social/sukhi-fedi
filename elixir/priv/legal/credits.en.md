@@ -14,7 +14,7 @@ Projects and communities whose work sukhi follows or learns from. They are not d
 
 ### People
 
-[ltlapy](https://k.lapy.link) was the first Korean Misskey server, and the one I decided to join because of its clean, comfortable-to-read terms of use. Many Korean Misskey users made it their home. I was there when the server shut down, and I want to say both how sorry I am and how grateful. Thank you, truly, for showing the fediverse to so many people, me included.
+[ltlapy](https://k.lapy.link) was the first Korean Misskey server, and the one I decided to join because of its clean, comfortable-to-read terms of use. Many Korean Misskey users made it their home. I was there when the server shut down, and I want to say both how sorry I am and how grateful. Thank you, truly, for spreading the word about the fediverse far and wide, to so many people, me included.
 
 I know hongminhee (홍민희) through [fedidev.kr](https://fedidev.kr/). Through Fedify, you support countless fediverse servers, and you keep up the infrastructure that contributes to standardization. I say this with respect.
 

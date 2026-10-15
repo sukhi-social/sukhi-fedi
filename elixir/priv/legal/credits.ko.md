@@ -14,7 +14,7 @@ sukhi가 따르거나 배우고 있는 프로젝트와 커뮤니티입니다. �
 
 ### 사람
 
-<p lang="ko">ltlapy <a href="https://k.lapy.link">https://k.lapy.link</a> 는 첫 한국 Misskey 서버이자, 깔끔하고 읽기 편안한 이용규약으로 가입을 결정한 서버입니다. 수많은 한국 Misskey 이용자가 터로 삼고 있었으며, 서버 종료 순간에 참여한 저로서 유감과 감사를 표합니다. 저를 포함한 수많은 분들에게 연합우주를 알려주셔서 진심으로 감사드립니다.</p>
+<p lang="ko">ltlapy <a href="https://k.lapy.link">https://k.lapy.link</a> 는 첫 한국 Misskey 서버이자, 깔끔하고 읽기 편안한 이용규약으로 가입을 결정한 서버입니다. 수많은 한국 Misskey 이용자가 터로 삼고 있었으며, 서버 종료 순간에 참여한 저로서 유감과 감사를 표합니다. 저를 포함한 수많은 분들에게 연합우주를 널리 알려 주셔서 진심으로 감사드립니다.</p>
 
 <p lang="ko">hongminhee 홍민희님은 <a href="https://fedidev.kr/">https://fedidev.kr/</a> 를 통해 알게된 분입니다. Fedify를 통해 수많은 연합우주 서버를 지탱해 주시고, 표준화에 기여하는 인프라를 유지하고 계셔, 존경의 뜻을 표합니다.</p>
 

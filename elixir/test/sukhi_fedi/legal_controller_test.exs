@@ -141,7 +141,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert ko =~ ~s(<html lang="ko">)
     assert ko =~ "크레딧"
     assert ko =~ "있는 그대로의 감사"
-    assert ko =~ "연합우주를 알려주셔서"
+    assert ko =~ "연합우주를 널리 알려 주셔서"
     assert ko =~ ~s(href="/credits")
     assert ko =~ ~s(href="/credits?lang=ja")
 
@@ -149,12 +149,12 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert en =~ ~s(href="/credits?lang=ko")
     assert en =~ ~s(href="/credits?lang=ja")
     # the thanks are translated on en/ja, the Korean original lives on ko
-    assert en =~ "showing the fediverse to so many people"
+    assert en =~ "spreading the word about the fediverse"
     refute en =~ "연합우주"
 
     ja = get("/credits?lang=ja") |> LegalController.credits() |> Map.get(:resp_body)
     assert ja =~ ~s(href="/credits?lang=ko")
-    assert ja =~ "連合宇宙を教えてくださって"
+    assert ja =~ "連合宇宙を広めてくださり"
     refute ja =~ "연합우주"
   end
 
