@@ -19,11 +19,23 @@
   --color-border: #d8d6c9;
   --color-border-strong: #b6b4a4;
 
+  /* control edge — the outline of something you press or type into (chip,
+   * button, input, composer capsule). WCAG 1.4.11 wants 3:1 against the
+   * paper it sits on; --color-border-strong was 1.8:1, so the controls
+   * read as text that happened to be boxed. Decorative hairlines keep
+   * --color-border / --color-border-strong. */
+  --color-control: #858376;
+
+  /* keyboard focus ring — ink, so it is always visible on paper. */
+  --color-focus: var(--color-text);
+
   /* lane colours — "use" and "build" stay distinct everywhere.
    * A catalog page sets --color-lane to whichever one it is showing, so
    * shared components (chips, marks) pick up the right hue automatically. */
   --color-use: #2f6d5a;
-  --color-build: #a85a29;
+  /* build is a little deeper than the first draft (was #a85a29, 4.3:1 on
+   * paper): it is used for small text in the lane doors and must clear 4.5:1. */
+  --color-build: #9a5024;
   --color-lane: var(--color-text);
 
   /* danger — the single functional red. Destructive actions (delete, remove)

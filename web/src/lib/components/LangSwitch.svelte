@@ -5,10 +5,11 @@
 
 <div class="lang-switch" role="group" aria-label={$t('lang.switch')}>
   {#each LOCALES as l (l)}
+    <!-- 今の言語は aria-pressed だけで示す。global の chip[aria-pressed] が
+         地を濃く塗るので、ここで地色を上書きすると白字が淡い灰に溶けていた。 -->
     <button
       type="button"
       class="chip"
-      class:active={$locale === l}
       aria-pressed={$locale === l}
       onclick={() => setLocale(l)}
     >{LOCALE_NAMES[l]}</button>
@@ -19,8 +20,5 @@
   .lang-switch {
     display: inline-flex;
     gap: var(--space-2);
-  }
-  .lang-switch .chip.active {
-    background: var(--fill-active);
   }
 </style>

@@ -33,10 +33,12 @@
       title={$t('landing.startTitle')}
       description={$t('landing.startDesc')}
     />
-    <a class="lane-door" data-lane="build" href="/login">
-      <h3>{$t('landing.enterTitle')}</h3>
-      <p>{$t('landing.enterDesc')}</p>
-    </a>
+    <LaneDoor
+      href="/login"
+      lane="build"
+      title={$t('landing.enterTitle')}
+      description={$t('landing.enterDesc')}
+    />
   </div>
 </section>
 
