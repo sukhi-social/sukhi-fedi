@@ -6,8 +6,6 @@
 .PHONY: help setup dev dev-web test test-shared test-elixir test-delivery test-api test-web \
         test-pglite test-e2e check check-presets env-audit script-tests need-tsubaki up down preflight \
         push-static push-styles clear-static static-status \
-        release release-natadeco release-images push-deployex-config \
-        push-natadeco-deployex-config \
         push-natadeco natadeco-images
 
 # The toolchain lives in mise.toml (elixir / erlang / node). mise puts
@@ -129,9 +127,9 @@ DOMAIN      ?= sukhi.f3liz.casa
 #
 # Which of the two trees answers is decided by *when each was built*, not
 # by file mtimes: `npm run build` leaves a .static-build.json behind and
-# it rides along in the rsync. So a later `make release` supersedes this
-# push, on purpose. To keep a push in place across releases, set
-# STATIC_OVERRIDE=prefer on the deployex accessory. See
+# it rides along in the rsync. So a later deploy (a newer image) supersedes
+# this push, on purpose. To keep a push in place across deploys, set
+# STATIC_OVERRIDE=prefer in the app's env (haloy.yaml). See
 # docs/static-override.md.
 #
 # `--chmod=D755,F644` も要る。ここに置くものは全部 HTTP で配る公開
@@ -173,8 +171,9 @@ push-styles:  ## rsync only the raw token CSS (server-rendered pages)
 
 # ── natadeco ────────────────────────────────────────────────────────────────
 # natadeco.com rides this repo's deco addon and its combined image, but has
-# a frontend of its own (web-natadeco/, brought in 2026-08-25). It is not on
-# DeployEx: its version still travels as an image.
+# a frontend of its own (web-natadeco/, brought in 2026-08-25). Like sukhi it
+# is deployed with haloy (sukhi-deploy/natadeco); its version travels as an
+# image.
 #
 # Built with npm, like web/ (it used to be bun; package-lock.json replaced
 # bun.lock on 2026-10-15).
@@ -195,40 +194,5 @@ push-natadeco:  ## build web-natadeco and rsync its client assets to natadeco's 
 natadeco-images:  ## (re)build natadeco's combined image on the box
 	IMAGE_PREFIX=natadeco bash bin/build-on-box.sh combined
 	@echo
-	@echo "next, in ~/repos/natadeco-deploy:"
-	@echo "  kamal deploy --skip-push --version=v0"
-
-# Bake a release tarball on the box and hand it to DeployEx, which swaps
-# the running BEAM for it. No image, no registry, no container restart —
-# the app version is data now. See bin/release-on-box.sh.
-release:  ## build a release on the box and deploy it (DeployEx)
-	@bash bin/release-on-box.sh
-
-# The same thing for natadeco.com. Its own build tree, its own dist dir,
-# its own frontend (web-natadeco, bun) — one script, switched by INSTANCE.
-release-natadeco:  ## build natadeco's release on the box and deploy it
-	@INSTANCE=natadeco bash bin/release-on-box.sh
-
-# The two images the box needs but that almost never change: the toolchain
-# that bakes releases, and DeployEx itself. Run after touching
-# infra/builder/, infra/deployex/Dockerfile, or the toolchain pins.
-release-images:  ## (re)build the builder + deployex images on the box
-	@bash bin/build-on-box.sh builder deployex
-
-# How the app runs — replicas, thresholds, paths — lives in a file on the
-# host, not in the image. DeployEx re-reads it and applies the reloadable
-# parts without a restart.
-DEPLOYEX_DIR ?= /var/lib/sukhi-fedi/deployex
-
-push-deployex-config:  ## rsync infra/deployex/deployex.yaml to the box
-	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(DEPLOYEX_DIR) && sudo chown $(DEPLOY_USER) $(DEPLOYEX_DIR)"
-	rsync -av infra/deployex/deployex.yaml $(DEPLOY_USER)@$(DEPLOY_HOST):$(DEPLOYEX_DIR)/
-
-# natadeco's own DeployEx reads the same filename out of its own
-# directory, so the source file carries the instance in its name and the
-# rsync drops the suffix on the way.
-NATADECO_DEPLOYEX_DIR ?= /var/lib/natadeco/deployex
-
-push-natadeco-deployex-config:  ## rsync deployex.natadeco.yaml to natadeco's config dir
-	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(NATADECO_DEPLOYEX_DIR) && sudo chown $(DEPLOY_USER) $(NATADECO_DEPLOYEX_DIR)"
-	rsync -av infra/deployex/deployex.natadeco.yaml $(DEPLOY_USER)@$(DEPLOY_HOST):$(NATADECO_DEPLOYEX_DIR)/deployex.yaml
+	@echo "next, in ~/repos/sukhi-deploy/natadeco:"
+	@echo "  haloy deploy -t natadeco"

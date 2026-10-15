@@ -4,7 +4,7 @@ CSS や SPA の小さな修正のたびに release を焼くのは辛いので�
 override dir を一枚かぶせている。仕組みは単純:
 
 ```
-deployex container（アプリの走る場所）
+app container（アプリの走る場所）
   ├── <release>/lib/sukhi_fedi-<vsn>/priv/static/   ← baked: release に焼かれたもの
   └── /app/priv/static-override/                    ← pushed: /var/lib/sukhi-fedi/static の read-only bind
 ```
@@ -40,7 +40,7 @@ release の tarball に入っても、rsync で箱に渡っても、ついてく
 比較は木ごと(ファイルごとではなく)なので、index.html とそれが名指す
 chunk が別のビルドから混ざることがない。
 
-だから既定では、`make release` は `make push-static` を上書きする。
+だから既定では、新しい image の deploy は `make push-static` を上書きする。
 それが正しい ── release のほうが新しく焼かれているので。
 
 `x-static-source` ヘッダにどちらを返したかが出る:
@@ -52,7 +52,7 @@ curl -sI https://sukhi.f3liz.casa/static/index.html | grep x-static-source
 
 ### 押し切りたいとき
 
-deployex accessory の env で:
+アプリの env(`haloy.yaml`)で:
 
 | `STATIC_OVERRIDE` | 動き |
 |---|---|
@@ -74,7 +74,7 @@ deployex accessory の env で:
 もともとは override 先勝ちだった。古い `push-static` の残骸が新しい
 deploy を覆い隠す事故があって、mtime が新しいほうを選ぶようにした。
 
-ところが DeployEx は deploy のたびに release の tarball を展開する。
+ところが当時の deploy(DeployEx)は、deploy のたびに release の tarball を展開していた。
 展開されたファイルの mtime は必ず「いま」になるので、**baked が永久に
 勝ち、push が二度と効かなくなった**。2026-08-24 に気づくまで、10 日ぶん
 効いていなかった ── しかも外から確かめる方法が無かったので、気づき
@@ -93,13 +93,14 @@ mtime は「どちらが新しいか」を答えているように見えて、�
 ssh rocky@host 'sudo mkdir -p /var/lib/sukhi-fedi/static && sudo chown rocky /var/lib/sukhi-fedi/static'
 ```
 
-deploy.yml の `accessories.deployex.volumes` がこの host path を bind
-している。
+`haloy.yaml` の volumes(`/var/lib/sukhi-fedi/static:/app/priv/static-override:ro`)
+がこの host path を bind している。
 
 ## いつ使わないか
 
-- `.ex` を触ったら、これでは反映されない ─ `make release`
-- migration を足したら同じく `make release`
+- `.ex` を触ったら、これでは反映されない ─ image を焼いて `haloy deploy`
+  (`bin/build-on-box.sh combined` → `haloy deploy -t sukhi-fedi-app`)
+- migration を足したら同じく image を焼き直す
 - `botPolicies.yaml` / `imprint.md` は anubis image に焼かれているので、
   Anubis 側で同じ override 機構を作るか image rebuild
 
@@ -117,7 +118,7 @@ host 側で `rocky` が持っているので、置くファイルは *others か
 ── クライアントには 502、ログには 200 が並ぶ。
 
 2026-08-24 に実際に起きた: 絵文字 983 個が zip から mode 0700 で入って
-いて、DeployEx への切り替えでアプリが root をやめた瞬間から 9 時間、
+いて、当時の DeployEx への切り替えでアプリが root をやめた瞬間から 9 時間、
 全部 502 だった。古い gateway は root だったので権限を無視できていた。
 
 いまは二重に防いである:

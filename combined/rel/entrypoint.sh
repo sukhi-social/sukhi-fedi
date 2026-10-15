@@ -6,8 +6,9 @@
 #
 # It is deliberately thin. The cookie, the fail-closed check and the
 # "the api plugin node is this node" defaults all moved to rel/env.sh.eex,
-# because DeployEx runs bin/combined without any entrypoint at all and
-# anything left here would silently not happen there.
+# because the release's own boot script sources env.sh for every way of
+# launching it (start, eval, rpc), and anything left here would silently
+# not happen on the ones that skip this entrypoint.
 set -eu
 
 # One BEAM, reachable only from inside this container. Long name, so the
@@ -30,6 +31,6 @@ if [ -d /run/secrets ]; then
 fi
 
 # Delivery never migrates — the schema stays gateway-owned even when the
-# apps share a VM. Under DeployEx this is a pre_command in current.json.
+# apps share a VM.
 /app/bin/combined eval 'SukhiFedi.Release.migrate_all()'
 exec /app/bin/combined start

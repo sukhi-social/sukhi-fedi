@@ -69,17 +69,19 @@ defmodule SukhiFedi.Application do
   # addons — is already up by the time we get here, so a boot that is
   # going to fail has failed before a single request could land on it.
   #
-  # Sharing, because DeployEx swaps versions by starting the new BEAM
-  # *before* stopping the old one. Without SO_REUSEPORT the newcomer
-  # dies on eaddrinuse and the deploy can never complete; with it, the
-  # kernel hands new connections to either instance during the seconds
-  # they overlap, and to the survivor after. Both are the same app
-  # against the same database, which is what running two replicas would
-  # mean anyway.
+  # Sharing (SO_REUSEPORT), so that two BEAMs on one host can overlap while
+  # a deploy swaps versions (start the new one before stopping the old one):
+  # without it the newcomer dies on eaddrinuse; with it, the kernel hands
+  # new connections to either instance during the seconds they overlap, and
+  # to the survivor after. Both are the same app against the same database,
+  # which is what running two replicas would mean anyway. (Under haloy each
+  # version is its own container, so the overlap is not on one port; the
+  # option is kept because it costs nothing there and the next deployer on
+  # a plain host will need it.)
   #
   # What it costs: a stale VM nobody reaped would quietly take a share
-  # of traffic instead of loudly refusing to start. DeployEx kills the
-  # process it replaces, so that would be a supervision failure rather
+  # of traffic instead of loudly refusing to start. The deployer stops
+  # the process it replaces, so that would be a supervision failure rather
   # than an ordinary day.
   defp endpoint do
     {Bandit,

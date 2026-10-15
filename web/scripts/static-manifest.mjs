@@ -6,9 +6,9 @@
 // into the release, and the one an operator pushed onto the host with
 // `make push-static`. Something has to decide which answers a request,
 // and for a while that something was the files' mtime — which turned out
-// to measure "last written to this disk", not "last built". DeployEx
-// unpacks a release tarball on every deploy, so the baked copy was always
-// stamped `now` and the pushed one could never win.
+// to measure "last written to this disk", not "last built". A deploy that
+// unpacks a release tarball stamps the baked copy `now`, so the pushed one
+// could never win.
 //
 // So the build says so itself, and travels with its own answer: whatever
 // copies `build/` — a Dockerfile, the on-box release build, an rsync —

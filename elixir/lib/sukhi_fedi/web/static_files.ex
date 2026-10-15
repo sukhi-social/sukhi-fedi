@@ -22,9 +22,9 @@ defmodule SukhiFedi.Web.StaticFiles do
   always come from the same build.
 
   It used to compare mtimes, and that was wrong in a way that took ten days
-  to notice: DeployEx unpacks a release tarball on every deploy, so every
-  baked file was stamped `now` and no push could ever win. mtime answers
-  "last written here", which is not the question.
+  to notice: a deploy that unpacks a release tarball stamps every baked
+  file `now`, so no push could ever win. mtime answers "last written
+  here", which is not the question.
 
   Missing manifest counts as the oldest possible build. So a tree that says
   when it was built beats one that doesn't, and when neither says, the

@@ -9,7 +9,7 @@
 #      the copies it makes inside the image.
 #   2. <release root>/runtime-configs — put there by the release's own
 #      copy_runtime_configs step (mix.exs). This is the one that makes an
-#      unpacked tarball work on its own, which is how DeployEx runs it.
+#      unpacked release work on its own, away from a checkout.
 #   3. the repo root — `make dev`, and anything else running from source.
 import Config
 

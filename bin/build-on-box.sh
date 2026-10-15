@@ -6,22 +6,16 @@
 # 127.0.0.1:5000 に push できないため ── techo で確認済み）。committed なツリーを
 # git archive で箱に送り、箱で docker build → loopback registry に push する。
 #
-# **sukhi のアプリの版は、もうここを通らない。** 2026-08-24 から
-# gateway/delivery/api は DeployEx の中の一つの release になって、版は tarball
-# で運ばれる ── `make release`(bin/release-on-box.sh)。sukhi についてこの script
-# に残っているのは「めったに変わらない土台」だけ。
-#
-# **natadeco はまだここを通る。** 同じ箱に相乗りしていて、web role が
-# natadeco-combined、accessory が natadeco-api。DeployEx へは移していない。
+# 焼いたあとの deploy は haloy（sukhi-deploy/ の haloy.yaml）。sukhi も natadeco も
+# 同じ型で、image はここで焼き、版は haloy が image で運ぶ:
 #
 # 使い方:
-#   bin/build-on-box.sh                  # 既定: builder deployex を焼く
+#   bin/build-on-box.sh combined         # sukhi の本体（IMAGE_PREFIX は既定 sukhi-fedi）
 #   bin/build-on-box.sh anubis           # config/anubis を変えたとき
-#   IMAGE_PREFIX=natadeco bin/build-on-box.sh combined api   # natadeco の版上げ
-# その後:
-#   kamal accessory reboot deployex      # deployex を焼き直したとき
-#   kamal deploy --skip-push --version=<いま動いている版>   # anubis / natadeco の web role
-#   kamal accessory reboot api           # natadeco の api
+#   IMAGE_PREFIX=natadeco bin/build-on-box.sh combined   # natadeco の版上げ
+# その後（トンネルを張ってから）:
+#   cd ~/repos/sukhi-deploy && haloy deploy -t sukhi-fedi-app
+#   cd ~/repos/sukhi-deploy/natadeco && haloy deploy -t natadeco
 #
 # gateway / delivery の entry は消した(旧 accessory も同日に削除)。戻したく
 # なったら sukhi-deploy 側の revert と一緒に、この case にも戻す ── image 自体は
@@ -48,11 +42,10 @@ PREFIX="${IMAGE_PREFIX:-sukhi-fedi}"
 build_one() {
   local name="$1" ctx file push=true
   case "$name" in
-    # natadeco がこの二枚で動いている(`IMAGE_PREFIX=natadeco`)。web role が
-    # combined、accessory が api ── あちらは DeployEx へ移していないので、版は
-    # いまも image で運ぶ。combined は compose で自前ホストする人の image でも
-    # ある。sukhi の gateway/delivery を消したときに api も落としてしまって、
-    # natadeco のビルド経路を一度壊した(2026-08-25 に気づいて戻した)。
+    # sukhi も natadeco も combined で動く(natadeco は `IMAGE_PREFIX=natadeco`)。
+    # combined と api は compose で自前ホストする人の image でもある。sukhi の
+    # gateway/delivery を消したときに api も落としてしまって、natadeco のビルド
+    # 経路を一度壊した(2026-08-25 に気づいて戻した)。
     combined)       ctx="."               file="combined/Dockerfile"        ;;
     api)            ctx="."               file="api/Dockerfile"             ;;
     # natadeco の頁を描く Node(2026-09-03)。Elixir が HTML の要求だけ
@@ -60,12 +53,6 @@ build_one() {
     ssr)            ctx="web-natadeco"    file="web-natadeco/Dockerfile"    ;;
     bun)            ctx="bun"             file="bun/Dockerfile"             ;;
     anubis)         ctx="config/anubis"   file="config/anubis/Dockerfile"   ;;
-    # DeployEx とその中で動くアプリの土台。年に数回しか変わらない ── アプリ
-    # の版は image ではなく tarball で運ぶ(bin/release-on-box.sh)。
-    deployex)       ctx="infra/deployex"  file="infra/deployex/Dockerfile"  ;;
-    # builder は kamal が触らない(箱の docker run から直に使う)ので registry
-    # に置かない。1GB 超を loopback registry に積む意味が無い。
-    builder)        ctx="infra/builder"   file="infra/builder/Dockerfile"   push=false ;;
     *) echo "unknown image: $name" >&2; return 1 ;;
   esac
   local img="$REG/$PREFIX-$name"
@@ -84,11 +71,10 @@ build_one() {
     && docker push '$img:$SHA'"
 }
 
-if [ "$#" -eq 0 ]; then set -- builder deployex; fi
+if [ "$#" -eq 0 ]; then echo "usage: $0 <combined|api|ssr|bun|anubis>..." >&2; exit 1; fi
 
-# image を焼くためのツリーは ~/sukhi-images。アプリの release を焼く
-# ~/sukhi-build とは別にする ── あちらは _build/deps が住み続ける場所で、
-# ここは毎回まるごと消して展開し直すから(bin/release-on-box.sh 参照)。
+# image を焼くためのツリーは ~/sukhi-images。
+# ここは毎回まるごと消して展開し直すから。
 echo "→ ship committed tree (HEAD=$SHA) to box"
 git archive HEAD | ssh "$BOX" 'rm -rf ~/sukhi-images && mkdir -p ~/sukhi-images && tar -x -C ~/sukhi-images'
 
@@ -97,4 +83,4 @@ echo "$REGPASS" | ssh "$BOX" "docker login $REG -u $REGUSER --password-stdin >/d
 
 for name in "$@"; do build_one "$name"; done
 
-echo "✓ pushed: $*  (next: kamal accessory reboot <name>)"
+echo "✓ pushed: $*  (next: haloy deploy -t <target>, in sukhi-deploy)"
