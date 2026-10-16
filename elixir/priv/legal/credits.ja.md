@@ -52,25 +52,19 @@ sukhi が認知していて、主な交流が行われるソフトウェアの�
 
 ### [Mastodon](https://joinmastodon.org/)
 
-<img src="logos/mastodon.svg" alt="Mastodon logo — © Mastodon GmbH (trademark), unmodified" height="48">
-
-ロゴ: Mastodon GmbH（商標）。変更せずに使っています.
+<img src="logos/mastodon.svg" alt="Mastodon logo" title="Mastodon logo — © Mastodon GmbH (trademark), unmodified" height="48">
 
 Thank you for supporting a lot of activity pub communities!
 
 ### [Misskey](https://misskey-hub.net/)
 
-<img src="logos/misskey.svg" alt="Misskey Mi icon — Misskey, CC BY-SA" height="48">
-
-アイコン: Misskey (単色の「Mi」), [CC BY-SA](https://misskey-hub.net/en/brand-assets/).
+<img src="logos/misskey.svg" alt="Misskey Mi icon" title="Misskey Mi icon — Misskey, CC BY-SA" height="48">
 
 日本のおもしろさを届けてくれてありがとう！
 
 ### [GoToSocial](https://gotosocial.org/)
 
-<img src="logos/gotosocial.png" alt="GoToSocial logo — Anna Abramek, CC BY-SA 4.0" height="48">
-
-ロゴ: Anna Abramek, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+<img src="logos/gotosocial.png" alt="GoToSocial logo" title="GoToSocial logo — Anna Abramek, CC BY-SA 4.0" height="48">
 
 Thank you for making Go-based activitypub server software! I'm referencing it for minimal implementation for activitypub.
 
@@ -84,9 +78,7 @@ Legend of fedify
 
 ### [hackers.pub](https://hackers.pub/)
 
-<img src="logos/hackerspub.svg" alt="Hackers' Pub logo — 박은지, CC BY-SA 4.0" height="48">
-
-ロゴ: 박은지, [CC BY-SA 4.0](https://github.com/hackers-pub/visual-identity).
+<img src="logos/hackerspub.svg" alt="Hackers' Pub logo" title="Hackers' Pub logo — 박은지, CC BY-SA 4.0" height="48">
 
 Great pub in the world of activitypub
 

@@ -280,7 +280,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     end
   end
 
-  test "/credits lists the software sukhi talks with, logos embedded, author and license in alt" do
+  test "/credits lists the software sukhi talks with, logos embedded, author and license in title" do
     bodies =
       for q <- ["", "?lang=ja", "?lang=ko"] do
         get("/credits" <> q) |> LegalController.credits() |> Map.get(:resp_body)
@@ -290,13 +290,13 @@ defmodule SukhiFedi.Web.LegalControllerTest do
       assert body =~ ~s(id="software")
       assert body =~ "Thank you for the maintaining ojak!"
 
-      for alt <- [
+      for title <- [
             "Mastodon logo — © Mastodon GmbH (trademark), unmodified",
             "Misskey Mi icon — Misskey, CC BY-SA",
             "GoToSocial logo — Anna Abramek, CC BY-SA 4.0",
             "Hackers' Pub logo — 박은지, CC BY-SA 4.0"
           ] do
-        assert body =~ ~s(alt="#{alt}")
+        assert body =~ ~s(title="#{title}")
       end
 
       # embedded, like the fonts: no path left over, no request of its own
