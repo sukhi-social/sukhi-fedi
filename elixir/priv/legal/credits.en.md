@@ -5,6 +5,7 @@ Standards that sukhi follows, and the projects it learns from. The software it u
 <nav class="index">
 <p class="index-title">Index</p>
 <a href="#credit">Credit</a>
+<a href="#software">Software</a>
 <a href="#standards">Standards</a>
 </nav>
 
@@ -42,6 +43,59 @@ Projects and communities sukhi follows or learns from.
 - [FEP-4ccd](https://fediverse.codeberg.page/fep/fep/4ccd/): Pending Followers Collection and Pending Following Collection
 - [FEP-7888](https://fediverse.codeberg.page/fep/fep/7888/): Demystifying the context property
 - [FEP-67ff](https://fediverse.codeberg.page/fep/fep/67ff/): FEDERATION.md
+
+<h2 id="software">Software</h2>
+
+The software sukhi knows and mainly exchanges with.
+
+Each logo belongs to its project. They do not mean affiliation or endorsement.
+
+### [Mastodon](https://joinmastodon.org/)
+
+<img src="logos/mastodon.svg" alt="Mastodon logo" title="Mastodon logo — © Mastodon GmbH (trademark), unmodified" height="48">
+
+Thank you for supporting a lot of activity pub communities!
+
+### [Misskey](https://misskey-hub.net/)
+
+<img src="logos/misskey.svg" alt="Misskey Mi icon" title="Misskey Mi icon — Misskey, CC BY-SA" height="48">
+
+日本のおもしろさを届けてくれてありがとう！
+
+### [GoToSocial](https://gotosocial.org/)
+
+<img src="logos/gotosocial.png" alt="GoToSocial logo" title="GoToSocial logo — Anna Abramek, CC BY-SA 4.0" height="48">
+
+Thank you for making Go-based activitypub server software! I'm referencing it for minimal implementation for activitypub.
+
+### [Bonfire](https://bonfirenetworks.org/)
+
+Thank you for the Circle!
+
+### [Hollo](https://github.com/fedify-dev/hollo)
+
+Legend of fedify
+
+### [hackers.pub](https://hackers.pub/)
+
+<img src="logos/hackerspub.svg" alt="Hackers' Pub logo" title="Hackers' Pub logo — 박은지, CC BY-SA 4.0" height="48">
+
+Great pub in the world of activitypub
+
+### [oeee-cafe](https://oeee.cafe/)
+
+OEEE
+
+### Eunha
+
+Thank you for the maintaining ojak!
+
+### Logos
+
+- Mastodon logo: Mastodon GmbH (trademark), unmodified.
+- Misskey icon (the single-colour “Mi”): Misskey, [CC BY-SA](https://misskey-hub.net/en/brand-assets/).
+- GoToSocial logo: Anna Abramek, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+- Hackers' Pub logo: 박은지, [CC BY-SA 4.0](https://github.com/hackers-pub/visual-identity).
 
 <h2 id="standards">Standards</h2>
 

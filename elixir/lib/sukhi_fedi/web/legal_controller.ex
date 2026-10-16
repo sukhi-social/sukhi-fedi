@@ -115,10 +115,24 @@ defmodule SukhiFedi.Web.LegalController do
   @credits_files ~w(credits.en.md credits.ja.md credits.ko.md)
   for file <- @credits_files, do: @external_resource(Path.join(@dir, file))
 
+  # The logos on /credits live in priv/legal/logos/ and are embedded as data
+  # URIs at compile time, like the fonts: the page makes no request of its
+  # own. A `src="logos/x"` with no such file fails the build.
+  @logo_files ~w(mastodon.svg misskey.svg gotosocial.png hackerspub.svg)
+  for file <- @logo_files, do: @external_resource(Path.join([@dir, "logos", file]))
+
+  embed_logos = fn html ->
+    Regex.replace(~r/src="logos\/([\w.-]+)"/, html, fn _, file ->
+      mime = if String.ends_with?(file, ".svg"), do: "image/svg+xml", else: "image/png"
+      data = [@dir, "logos", file] |> Path.join() |> File.read!() |> Base.encode64()
+      ~s(src="data:#{mime};base64,#{data}")
+    end)
+  end
+
   @credits %{
-    en: bake.(@dir, "credits.en.md") <> @closing_credits.en,
-    ja: bake.(@dir, "credits.ja.md") <> @closing_credits.ja,
-    ko: bake.(@dir, "credits.ko.md") <> @closing_credits.ko
+    en: embed_logos.(bake.(@dir, "credits.en.md")) <> @closing_credits.en,
+    ja: embed_logos.(bake.(@dir, "credits.ja.md")) <> @closing_credits.ja,
+    ko: embed_logos.(bake.(@dir, "credits.ko.md")) <> @closing_credits.ko
   }
 
   # /legal — the door to the four documents above. Hand-written, one short
@@ -216,6 +230,7 @@ defmodule SukhiFedi.Web.LegalController do
   .legal code { background: #f0f0f0; padding: .1rem .3rem; border-radius: 4px; font-size: .9em;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .legal pre code { background: none; padding: 0; }
+  .legal img { display: block; margin: .3rem 0 .6rem; }
   .legal h2 ~ p em { display: block; margin: -.2rem 0 0; font-size: .88rem; font-style: normal; color: #777; }
   .legal hr.thin ~ p em { display: inline; margin: 0; font-size: inherit; font-style: italic; color: inherit; }
   .legal .index { margin: 1.2rem 0 2rem; border-left: 3px solid #cbd5e1; }
