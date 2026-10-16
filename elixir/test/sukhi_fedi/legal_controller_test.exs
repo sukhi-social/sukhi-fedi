@@ -86,7 +86,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
 
     assert conn.status == 200
     assert conn.resp_body =~ "<h1>\nLicenses</h1>"
-    assert conn.resp_body =~ "Thank you for maintaining this project as open source"
+    assert conn.resp_body =~ "Thank you for maintaining these software projects as open source"
     assert conn.resp_body =~ "AS-IS “Thank you!”"
     assert conn.resp_body =~ "scroll-behavior: smooth"
     assert conn.resp_body =~ ~s(<p class="index-title">Index</p>)
@@ -126,7 +126,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     refute conn.resp_body =~ "<details open"
     assert conn.resp_body =~ "ed25519-dalek"
     assert conn.resp_body =~ "AS-IS “Thank you!”"
-    assert conn.resp_body =~ "Thank you for maintaining this project as open source"
+    assert conn.resp_body =~ "Thank you for maintaining these software projects as open source"
     refute conn.resp_body =~ "<script"
 
     ja = get("/licenses/rust?lang=ja") |> LegalController.rust() |> Map.get(:resp_body)
@@ -203,7 +203,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
 
   test "the open-source thanks closes /licenses but not /credits" do
     lic = get("/licenses") |> LegalController.licenses() |> Map.get(:resp_body)
-    assert lic =~ "maintaining this project as open source"
+    assert lic =~ "maintaining these software projects as open source"
     assert lic =~ "This thanks is non-transferable."
 
     for {path, lang} <- [
@@ -212,7 +212,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
           {"/credits?lang=ko", "ko"}
         ] do
       body = get(path) |> LegalController.credits() |> Map.get(:resp_body)
-      refute body =~ "maintaining this project as open source", lang
+      refute body =~ "maintaining these software projects as open source", lang
       refute body =~ "オープンソースとして", lang
       refute body =~ "오픈소스로서", lang
     end
@@ -234,6 +234,50 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert body =~ ".notes p:target"
     assert body =~ ~s(href="/licenses/rust")
     refute body =~ "ed25519-dalek"
+  end
+
+  test "/legal is the door to the four documents, in three languages" do
+    ja = get("/legal") |> LegalController.legal()
+
+    assert ja.status == 200
+    assert ja.resp_body =~ "規約・ライセンス"
+    refute ja.resp_body =~ "<script"
+
+    for href <- ~w(/terms /privacy /licenses?lang=ja /credits?lang=ja) do
+      assert ja.resp_body =~ ~s(href="#{href}")
+    end
+
+    ko = get("/legal?lang=ko") |> LegalController.legal() |> Map.get(:resp_body)
+    assert ko =~ "약관 및 라이선스"
+    assert ko =~ ~s(href="/terms?lang=ko")
+
+    en = get("/legal?lang=en") |> LegalController.legal() |> Map.get(:resp_body)
+    assert en =~ ~r{<h1>\s*Legal</h1>}
+    assert en =~ ~s(href="/credits")
+
+    assert ja.resp_body =~ ~s(href="/support")
+    assert ko =~ ~s(href="/support?lang=ko")
+    assert en =~ ~s(href="/support")
+  end
+
+  test "/support has the donation links in three languages, self-contained" do
+    ja = get("/support") |> LegalController.support()
+    assert ja.status == 200
+    refute ja.resp_body =~ "<script"
+
+    ko = get("/support?lang=ko") |> LegalController.support() |> Map.get(:resp_body)
+    en = get("/support?lang=en") |> LegalController.support() |> Map.get(:resp_body)
+
+    assert ko =~ "후원"
+    assert en =~ ~r{<h1>\s*Support</h1>}
+
+    for body <- [ja.resp_body, ko, en] do
+      assert body =~ ~s(href="https://liberapay.com/sukhi-social/donate")
+      assert body =~ ~s(href="https://fairy.hada.io/@sukhi-social")
+      assert body =~ ~s(href="https://github.com/sponsors/nyanrus")
+      assert body =~ ~s(href="mailto:hinata@natadeco.com")
+      assert body =~ "@kuro_admin@sukhi.f3liz.casa"
+    end
   end
 
   test "/terms?lang=ko serves the Korean version" do

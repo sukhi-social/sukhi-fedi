@@ -38,6 +38,8 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     # ── Legal pages (static HTML baked at compile time)
     "get /privacy",
     "get /terms",
+    "get /legal",
+    "get /support",
 
     # ── Password set / change / remove (session_token cookie required)
     "get /settings/password",
