@@ -7,13 +7,16 @@
 # tags and `latest` onto the public images. A branch build must never
 # move those, so this one writes a single immutable sha tag and nothing else.
 #
-# Triggers: a push to refactor/web-batches, or a manual run.
+# Triggers: a push to main (every commit builds its own sha tag; deploying it
+# is still a separate, manual step), a push to refactor/web-batches, or a
+# manual run.
 
 name: combined-sha
 
 on:
   push:
     branches:
+      - main
       - refactor/web-batches
   workflow_dispatch:
 
