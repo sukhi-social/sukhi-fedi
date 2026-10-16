@@ -150,7 +150,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert en =~ ~s(href="/credits?lang=ko")
     assert en =~ ~s(href="/credits?lang=ja")
     # the thanks are translated on en/ja, the Korean original lives on ko
-    assert en =~ "spreading the word about the fediverse"
+    assert en =~ "spread the word about the fediverse"
     refute en =~ "연합우주"
 
     ja = get("/credits?lang=ja") |> LegalController.credits() |> Map.get(:resp_body)
