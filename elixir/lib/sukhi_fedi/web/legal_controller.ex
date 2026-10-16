@@ -121,6 +121,28 @@ defmodule SukhiFedi.Web.LegalController do
     ko: bake.(@dir, "credits.ko.md") <> @closing_credits.ko
   }
 
+  # /legal — the door to the four documents above. Hand-written, one short
+  # list per language; no closing words (it is a signpost, not a document).
+  @legal_files ~w(legal.ja.md legal.ko.md legal.en.md)
+  for file <- @legal_files, do: @external_resource(Path.join(@dir, file))
+
+  @legal %{
+    ja: bake.(@dir, "legal.ja.md"),
+    ko: bake.(@dir, "legal.ko.md"),
+    en: bake.(@dir, "legal.en.md")
+  }
+
+  # /support — where to donate. Not a legal document either; hand-written,
+  # one short text per language, no closing words.
+  @support_files ~w(support.ja.md support.ko.md support.en.md)
+  for file <- @support_files, do: @external_resource(Path.join(@dir, file))
+
+  @support %{
+    ja: bake.(@dir, "support.ja.md"),
+    ko: bake.(@dir, "support.ko.md"),
+    en: bake.(@dir, "support.en.md")
+  }
+
   defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor, :sukhi)
   defp docs, do: Map.fetch!(@docs, flavor())
 
@@ -380,6 +402,88 @@ defmodule SukhiFedi.Web.LegalController do
           {"Licenses", "/licenses"},
           false,
           [{"日本語", "lang=ja"}, {"한국어", "lang=ko"}]
+        )
+    end
+  end
+
+  @spec legal(Plug.Conn.t()) :: Plug.Conn.t()
+  def legal(conn) do
+    case conn.query_params do
+      %{"lang" => "ko"} ->
+        render(
+          conn,
+          "ko",
+          "약관 및 라이선스",
+          @legal.ko,
+          "/legal",
+          {"이용약관", "/terms"},
+          false,
+          [{"日本語", nil}, {"English", "lang=en"}]
+        )
+
+      %{"lang" => "en"} ->
+        render(
+          conn,
+          "en",
+          "Legal",
+          @legal.en,
+          "/legal",
+          {"Terms", "/terms"},
+          false,
+          [{"日本語", nil}, {"한국어", "lang=ko"}]
+        )
+
+      _ ->
+        render(
+          conn,
+          "ja",
+          "規約・ライセンス",
+          @legal.ja,
+          "/legal",
+          {"利用規約", "/terms"},
+          false,
+          [{"한국어", "lang=ko"}, {"English", "lang=en"}]
+        )
+    end
+  end
+
+  @spec support(Plug.Conn.t()) :: Plug.Conn.t()
+  def support(conn) do
+    case conn.query_params do
+      %{"lang" => "ko"} ->
+        render(
+          conn,
+          "ko",
+          "후원",
+          @support.ko,
+          "/support",
+          {"약관 및 라이선스", "/legal"},
+          false,
+          [{"日本語", nil}, {"English", "lang=en"}]
+        )
+
+      %{"lang" => "en"} ->
+        render(
+          conn,
+          "en",
+          "Support",
+          @support.en,
+          "/support",
+          {"Legal", "/legal"},
+          false,
+          [{"日本語", nil}, {"한국어", "lang=ko"}]
+        )
+
+      _ ->
+        render(
+          conn,
+          "ja",
+          "サポート",
+          @support.ja,
+          "/support",
+          {"規約・ライセンス", "/legal"},
+          false,
+          [{"한국어", "lang=ko"}, {"English", "lang=en"}]
         )
     end
   end

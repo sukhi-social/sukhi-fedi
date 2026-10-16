@@ -14,7 +14,7 @@ sukhi が従ったり、学んだりしているプロジェクトとコミュ�
 
 ### 私に影響をくれた人たち
 
-[ltlapy](https://lapy.link/) の [k.lapy.link](https://k.lapy.link) は、初めての韓国の Misskey サーバーであり、すっきりして読みやすい利用規約に惹かれて、登録を決めたサーバーです。多くの韓国の Misskey 利用者が居場所にしていて、サーバーが終了する瞬間に居合わせた私として、残念な思いと感謝を表します。私を含む多くの人たちに、連合宇宙を広めてくださり、心から感謝します。
+[ltlapy](https://lapy.link/) の [k.lapy.link](https://k.lapy.link) は、韓国で最初の Misskey サーバーで、すっきりして読みやすい利用規約に惹かれて、私が登録を決めたサーバーです。多くの韓国の Misskey 利用者が居場所にしていて、サーバーが終了する瞬間に居合わせた私として、残念な思いと感謝を表します。私を含む多くの人たちに、連合宇宙を広めてくださり、心から感謝します。
 
 [hongminhee](https://hongminhee.org/) 홍민희さんは、[fedidev.kr](https://fedidev.kr/) を通して知った方です。Fedify を通して、数多くの連合宇宙のサーバーを支え、標準化に貢献するインフラを維持していらっしゃることに、敬意を表します。
 
@@ -22,7 +22,7 @@ sukhi が従ったり、学んだりしているプロジェクトとコミュ�
 
 ### Mastodon と Misskey
 
-- [Mastodon](https://joinmastodon.org/): Mastodon のクライアント API が、sukhi がアプリと話すときのおもな口です。
+- [Mastodon](https://joinmastodon.org/): Mastodon のクライアント API が、sukhi がアプリと話すときの、おもな窓口です。
 - [Misskey](https://misskey-hub.net/): sukhi は Misskey と連合していて、カスタム絵文字のリアクションと引用も扱います。
 
 ### FEP（Fediverse Enhancement Proposals）
