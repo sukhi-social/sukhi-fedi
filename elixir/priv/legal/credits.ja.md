@@ -5,6 +5,7 @@ sukhi が従っている規格と、学んでいるプロジェクトです。�
 <nav class="index">
 <p class="index-title">索引</p>
 <a href="#credit">クレジット</a>
+<a href="#software">ソフトウェア</a>
 <a href="#standards">規格</a>
 </nav>
 
@@ -42,6 +43,60 @@ sukhi が従ったり、学んだりしているプロジェクトとコミュ�
 - [FEP-4ccd](https://fediverse.codeberg.page/fep/fep/4ccd/): Pending Followers Collection and Pending Following Collection
 - [FEP-7888](https://fediverse.codeberg.page/fep/fep/7888/): Demystifying the context property
 - [FEP-67ff](https://fediverse.codeberg.page/fep/fep/67ff/): FEDERATION.md
+
+<h2 id="software">ソフトウェア</h2>
+
+sukhi が認知していて、主な交流が行われるソフトウェアのリストです。
+
+各ロゴは、それぞれのプロジェクトのものです。提携や承認を示すものではありません。
+
+### [Mastodon](https://joinmastodon.org/)
+
+<img src="logos/mastodon.svg" alt="Mastodon logo — © Mastodon GmbH (trademark), unmodified" height="48">
+
+ロゴ: Mastodon GmbH（商標）。変更せずに使っています.
+
+Thank you for supporting a lot of activity pub communities!
+
+### [Misskey](https://misskey-hub.net/)
+
+<img src="logos/misskey.svg" alt="Misskey Mi icon — Misskey, CC BY-SA" height="48">
+
+アイコン: Misskey (単色の「Mi」), [CC BY-SA](https://misskey-hub.net/en/brand-assets/).
+
+日本のおもしろさを届けてくれてありがとう！
+
+### [GoToSocial](https://gotosocial.org/)
+
+<img src="logos/gotosocial.png" alt="GoToSocial logo — Anna Abramek, CC BY-SA 4.0" height="48">
+
+ロゴ: Anna Abramek, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+
+Thank you for making Go-based activitypub server software! I'm referencing it for minimal implementation for activitypub.
+
+### [Bonfire](https://bonfirenetworks.org/)
+
+Thank you for the Circle!
+
+### [Hollo](https://github.com/fedify-dev/hollo)
+
+Legend of fedify
+
+### [hackers.pub](https://hackers.pub/)
+
+<img src="logos/hackerspub.svg" alt="Hackers' Pub logo — 박은지, CC BY-SA 4.0" height="48">
+
+ロゴ: 박은지, [CC BY-SA 4.0](https://github.com/hackers-pub/visual-identity).
+
+Great pub in the world of activitypub
+
+### [oeee-cafe](https://oeee.cafe/)
+
+OEEE
+
+### Eunha
+
+Thank you for the maintaining ojak!
 
 <h2 id="standards">規格</h2>
 

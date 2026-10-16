@@ -280,6 +280,34 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     end
   end
 
+  test "/credits lists the software sukhi talks with, logos embedded, author and license in alt" do
+    bodies =
+      for q <- ["", "?lang=ja", "?lang=ko"] do
+        get("/credits" <> q) |> LegalController.credits() |> Map.get(:resp_body)
+      end
+
+    for body <- bodies do
+      assert body =~ ~s(id="software")
+      assert body =~ "Thank you for the maintaining ojak!"
+
+      for alt <- [
+            "Mastodon logo — © Mastodon GmbH (trademark), unmodified",
+            "Misskey Mi icon — Misskey, CC BY-SA",
+            "GoToSocial logo — Anna Abramek, CC BY-SA 4.0",
+            "Hackers' Pub logo — 박은지, CC BY-SA 4.0"
+          ] do
+        assert body =~ ~s(alt="#{alt}")
+      end
+
+      # embedded, like the fonts: no path left over, no request of its own
+      assert body =~ "data:image/svg+xml;base64,"
+      assert body =~ "data:image/png;base64,"
+      refute body =~ ~s(src="logos/)
+      refute body =~ ~r/<img[^>]*src="http/
+      refute body =~ "<script"
+    end
+  end
+
   test "/terms?lang=ko serves the Korean version" do
     conn = get("/terms?lang=ko") |> LegalController.terms()
 
