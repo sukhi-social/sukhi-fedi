@@ -37,7 +37,13 @@ defmodule SukhiFedi.Web.LegalController do
   end
 
   bake = fn dir, file ->
-    dir |> Path.join(file) |> File.read!() |> Earmark.as_html!(@opts)
+    # U+200B is where BudouX put a phrase break (scripts/phrase_legal.mjs);
+    # Earmark would escape a literal <wbr>, so it is turned into one after.
+    dir
+    |> Path.join(file)
+    |> File.read!()
+    |> Earmark.as_html!(@opts)
+    |> String.replace("\u200B", "<wbr>")
   end
 
   docs =
@@ -57,14 +63,17 @@ defmodule SukhiFedi.Web.LegalController do
   # page is about open-source software) the thanks for keeping it open, then
   # the punchline. /credits is not about open-source software, so it leaves the
   # middle out.
-  @closing_files ~w(licenses-end.en.md licenses-end.ja.md licenses-end.ko.md licenses-end-oss.en.md licenses-end-oss.ja.md licenses-end-last.en.md licenses-end-last.ja.md licenses-end-last.ko.md)
+  @closing_files ~w(licenses-end.en.md licenses-end.ja.md licenses-end.ko.md licenses-end-oss.en.md licenses-end-oss.ja.md licenses-end-last.en.md licenses-end-last.ja.md licenses-end-last.ko.md licenses-end.ja.phrased.md licenses-end-oss.ja.phrased.md licenses-end-last.ja.phrased.md)
   for file <- @closing_files, do: @external_resource(Path.join(@dir, file))
 
+  # Japanese reads the BudouX-phrased copies (scripts/phrase_legal.mjs).
   closing = fn lang, oss? ->
+    sfx = if lang == "ja", do: "ja.phrased", else: lang
+
     parts =
-      ["licenses-end.#{lang}.md"] ++
-        if(oss?, do: ["licenses-end-oss.#{lang}.md"], else: []) ++
-        ["licenses-end-last.#{lang}.md"]
+      ["licenses-end.#{sfx}.md"] ++
+        if(oss?, do: ["licenses-end-oss.#{sfx}.md"], else: []) ++
+        ["licenses-end-last.#{sfx}.md"]
 
     Enum.map_join(parts, &bake.(@dir, &1))
   end
@@ -80,7 +89,7 @@ defmodule SukhiFedi.Web.LegalController do
   # document, so it has no flavor: one text per language (English is the
   # base; Korean readers get it too), plus the generated per-category list
   # (scripts/gen_licenses.mjs, one per language) baked in after the text.
-  @licenses_files ~w(licenses.en.md licenses.ja.md licenses-list.en.html licenses-list.ja.html)
+  @licenses_files ~w(licenses.en.md licenses.ja.phrased.md licenses-list.en.html licenses-list.ja.html)
   for file <- @licenses_files, do: @external_resource(Path.join(@dir, file))
 
   @licenses %{
@@ -88,14 +97,14 @@ defmodule SukhiFedi.Web.LegalController do
       bake.(@dir, "licenses.en.md") <>
         File.read!(Path.join(@dir, "licenses-list.en.html")) <> @closing.en,
     ja:
-      bake.(@dir, "licenses.ja.md") <>
+      bake.(@dir, "licenses.ja.phrased.md") <>
         File.read!(Path.join(@dir, "licenses-list.ja.html")) <> @closing.ja
   }
 
   # /licenses/rust — the Rust crates inside ojak, off the main page (see the
   # footnote there): their own text plus the generated list, then the same
   # closing words as the main page.
-  @rust_files ~w(licenses-rust.en.md licenses-rust.ja.md licenses-rust-list.en.html licenses-rust-list.ja.html)
+  @rust_files ~w(licenses-rust.en.md licenses-rust.ja.phrased.md licenses-rust-list.en.html licenses-rust-list.ja.html)
   for file <- @rust_files, do: @external_resource(Path.join(@dir, file))
 
   @rust %{
@@ -104,7 +113,7 @@ defmodule SukhiFedi.Web.LegalController do
         File.read!(Path.join(@dir, "licenses-rust-list.en.html")) <>
         @closing.en,
     ja:
-      bake.(@dir, "licenses-rust.ja.md") <>
+      bake.(@dir, "licenses-rust.ja.phrased.md") <>
         File.read!(Path.join(@dir, "licenses-rust-list.ja.html")) <>
         @closing.ja
   }
@@ -221,6 +230,7 @@ defmodule SukhiFedi.Web.LegalController do
   .legal h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; }
   .legal h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; }
   .legal a { color: #2563eb; text-underline-offset: 2px; word-break: break-word; }
+  .legal:has(wbr) { word-break: keep-all; overflow-wrap: break-word; }
   .legal hr { border: none; border-top: 1px solid #e3e3e3; margin: 2rem 0; }
   .legal table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .95rem; display: block; overflow-x: auto; }
   .legal th, .legal td { border: 1px solid #ddd; padding: .5rem .7rem; text-align: left; vertical-align: top; }
@@ -358,7 +368,7 @@ defmodule SukhiFedi.Web.LegalController do
         render(
           conn,
           "ja",
-          "ありがとう",
+          "ライセンス",
           @licenses.ja,
           "/licenses",
           {"利用規約", "/terms"},
@@ -539,7 +549,7 @@ defmodule SukhiFedi.Web.LegalController do
     end
   end
 
-  # {path, label, query} for the four documents, in the page's language. Terms
+  # {path, label, query} for the documents, in the page's language. Terms
   # and privacy are ja ⇄ ko; licenses are en ⇄ ja (Korean readers get en);
   # credits are all three.
   defp doc_nav("ko"),
@@ -547,7 +557,9 @@ defmodule SukhiFedi.Web.LegalController do
       {"/terms", "이용약관", "lang=ko"},
       {"/privacy", "개인정보 처리방침", "lang=ko"},
       {"/licenses", "라이선스", nil},
-      {"/credits", "크레딧", "lang=ko"}
+      {"/credits", "크레딧", "lang=ko"},
+      {"/legal", "약관 및 라이선스", "lang=ko"},
+      {"/support", "후원", "lang=ko"}
     ]
 
   defp doc_nav("en"),
@@ -555,7 +567,9 @@ defmodule SukhiFedi.Web.LegalController do
       {"/terms", "Terms", nil},
       {"/privacy", "Privacy Policy", nil},
       {"/licenses", "Licenses", nil},
-      {"/credits", "Credits", nil}
+      {"/credits", "Credits", nil},
+      {"/legal", "Legal", "lang=en"},
+      {"/support", "Support", "lang=en"}
     ]
 
   defp doc_nav(_ja),
@@ -563,7 +577,9 @@ defmodule SukhiFedi.Web.LegalController do
       {"/terms", "利用規約", nil},
       {"/privacy", "プライバシーポリシー", nil},
       {"/licenses", "ライセンス", "lang=ja"},
-      {"/credits", "クレジット", "lang=ja"}
+      {"/credits", "クレジット", "lang=ja"},
+      {"/legal", "規約・ライセンス", nil},
+      {"/support", "サポート", nil}
     ]
 
   # Join a path with the non-nil query parts, in order. [] -> bare path.
