@@ -90,6 +90,13 @@ OEEE
 
 Thank you for the maintaining ojak!
 
+### ロゴ
+
+- Mastodon のロゴ: Mastodon GmbH（商標）。変更せずに使っています。
+- Misskey のアイコン（単色の「Mi」）: Misskey, [CC BY-SA](https://misskey-hub.net/en/brand-assets/)。
+- GoToSocial のロゴ: Anna Abramek, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)。
+- Hackers' Pub のロゴ: 박은지, [CC BY-SA 4.0](https://github.com/hackers-pub/visual-identity)。
+
 <h2 id="standards">規格</h2>
 
 sukhi が従っている規格と仕様、そして書かれている言語の仕様です。

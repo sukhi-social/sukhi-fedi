@@ -90,6 +90,13 @@ OEEE
 
 Thank you for the maintaining ojak!
 
+### 로고
+
+- Mastodon 로고: Mastodon GmbH (상표). 변경하지 않고 사용했습니다.
+- Misskey 아이콘(단색 “Mi”): Misskey, [CC BY-SA](https://misskey-hub.net/en/brand-assets/).
+- GoToSocial 로고: Anna Abramek, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+- Hackers' Pub 로고: 박은지, [CC BY-SA 4.0](https://github.com/hackers-pub/visual-identity).
+
 <h2 id="standards">규격</h2>
 
 sukhi가 따르고 있는 규격과 사양, 그리고 쓰여 있는 언어의 사양입니다.

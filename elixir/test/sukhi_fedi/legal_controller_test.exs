@@ -299,6 +299,12 @@ defmodule SukhiFedi.Web.LegalControllerTest do
         assert body =~ ~s(title="#{title}")
       end
 
+      # the credit for each logo is also on the page, one line each
+      assert body =~ "Anna Abramek"
+      assert body =~ "박은지"
+      assert body =~ "Mastodon GmbH"
+      assert body =~ ~s(href="https://github.com/hackers-pub/visual-identity")
+
       # embedded, like the fonts: no path left over, no request of its own
       assert body =~ "data:image/svg+xml;base64,"
       assert body =~ "data:image/png;base64,"

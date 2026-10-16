@@ -90,6 +90,13 @@ OEEE
 
 Thank you for the maintaining ojak!
 
+### Logos
+
+- Mastodon logo: Mastodon GmbH (trademark), unmodified.
+- Misskey icon (the single-colour “Mi”): Misskey, [CC BY-SA](https://misskey-hub.net/en/brand-assets/).
+- GoToSocial logo: Anna Abramek, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+- Hackers' Pub logo: 박은지, [CC BY-SA 4.0](https://github.com/hackers-pub/visual-identity).
+
 <h2 id="standards">Standards</h2>
 
 The standards and specifications that sukhi follows, and the language it is written in.
