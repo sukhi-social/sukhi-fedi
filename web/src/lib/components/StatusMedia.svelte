@@ -3,6 +3,7 @@
   import { browser } from '$app/env';
   import { proxyVariants } from '#lib/proxyImage.js';
   import { t } from '#lib/i18n.js';
+  import { useOverlay } from '#lib/ux/overlay.svelte.js';
 
   // 動きを控えめにしたい人の合図。base.css の view-transition と同じ
   // prefers-reduced-motion を読んで、gifv の自動ループを止める。true の
@@ -24,6 +25,9 @@
   let mediaShown = $state(false);
   // 拡大表示中の画像 URL（null なら閉じている）。
   let lightbox = $state<string | null>(null);
+  // 拡大は窓。Esc でも、戻る(Android)でも閉じる ── 戻るでタイムラインごと
+  // 離れない。
+  useOverlay(() => lightbox !== null, () => (lightbox = null));
   // ぼかすのは「まだ表に出していない」添付だけ。
   let blurMedia = $derived(blur && !mediaShown);
 </script>
@@ -89,7 +93,6 @@
     class="lightbox"
     aria-label={$t('status.close')}
     onclick={() => lightbox = null}
-    onkeydown={(e) => e.key === 'Escape' && (lightbox = null)}
   >
     <picture>
       {#if v}

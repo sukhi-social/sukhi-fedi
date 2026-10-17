@@ -365,12 +365,12 @@
 
   /* 会話の面のときだけ、表札の場所に立つ「戻る」。矢だけにしない ──
      かたちだけで意味を負わせず、言葉も添える(色や図形に頼らない、の続き)。
-     指で押すので 44px。 */
+     指で押すので --tap-min。 */
   .app-nav-back {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    min-height: 44px;
+    min-height: var(--tap-min);
     margin-left: calc(var(--space-2) * -1);
     padding-inline: var(--space-2);
     font-weight: 700;

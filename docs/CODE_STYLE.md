@@ -249,3 +249,17 @@ and the drift is invisible until two screens disagree.
   (`.mt-N` …) aren't created yet — add to `base.css` in the same shape
   the first time one is needed, rather than reaching for an inline
   `margin`.
+
+## 11. Web client: the same rule, in behaviour
+
+What a press, a key or a back gesture does follows §0 as well: one place,
+structure routing every component through it. That place is
+`web/src/lib/ux/`; the contract it keeps, with sources, is
+[`UX_CONTRACT.md`](UX_CONTRACT.md).
+
+- **No literal press size.** A component reads `--tap-min` (`tokens.css`);
+  it never writes `44px`.
+- **No private Esc handler.** A modal calls `useOverlay`, a small menu
+  takes `{@attach dismissable(…)}`; both go through the one Esc stack.
+- **No `ctrlKey` / `metaKey` in a component.** Ask `isPrimaryMod` (and
+  `shortcutOf` for `aria-keyshortcuts`) in `ux/platform.ts`.

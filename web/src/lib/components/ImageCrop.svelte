@@ -9,6 +9,7 @@
   // 動く GIF を切ると、最初の一コマだけの静止画になる ─ 切り抜きは
   // どうしてもラスタライズなので、ここは諦める。
   import { t } from '#lib/i18n.js';
+  import { useOverlay } from '#lib/ux/overlay.svelte.js';
 
   let {
     file,
@@ -29,6 +30,9 @@
     ondone: (file: File) => void;
     oncancel: () => void;
   } = $props();
+
+  // 開いている間だけ在る窓。Esc でも、戻る(Android)でも取り消せる。
+  useOverlay(() => true, () => oncancel());
 
   // 読み込んだ画像。File から object URL を作って <img> に渡し、外したら revoke。
   let src = $state<string | null>(null);
@@ -175,7 +179,6 @@
   aria-modal="true"
   aria-label={title}
   tabindex="-1"
-  onkeydown={(e) => e.key === 'Escape' && oncancel()}
 >
   <div class="crop-panel">
     <p class="crop-title">{title}</p>
@@ -277,9 +280,9 @@
   .crop-zoom input {
     width: 100%;
     /* 指で掴めるように。素のままだと帯が 16px しかなくて、当たり判定が
-       指より小さい。上下に余白を足して 44px の帯にし、つまみ自体も
+       指より小さい。上下に余白を足して --tap-min の帯にし、つまみ自体も
        大きくする ── 動くようになっても、掴めなければ同じことなので。 */
-    height: 44px;
+    height: var(--tap-min);
     margin: 0;
     background: transparent;
     -webkit-appearance: none;

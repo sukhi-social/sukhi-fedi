@@ -8,6 +8,7 @@
   // トークンを JS で DOM に組み立てず、既存の貼り付けログインと同じ
   // 道を通す。
   import Avatar from './Avatar.svelte';
+  import { useOverlay } from '#lib/ux/overlay.svelte.js';
 
   type Choice = {
     acct: string;
@@ -34,6 +35,9 @@
     accounts: Choice[];
     onclose: () => void;
   } = $props();
+
+  // 開いている間だけ在る窓。Esc でも、戻る(Android)でも閉じる。
+  useOverlay(() => true, () => onclose());
 </script>
 
 <div
@@ -42,9 +46,6 @@
   aria-modal="true"
   aria-label={title}
   tabindex="-1"
-  onkeydown={(e) => {
-    if (e.key === 'Escape') onclose();
-  }}
 >
   <div class="picker-panel">
     <p class="picker-title">{title}</p>
