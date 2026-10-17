@@ -27,6 +27,7 @@
   import { renderEmojis } from '#lib/emoji.js';
   import LegalFooter from '#lib/components/LegalFooter.svelte';
   import { t } from '#lib/i18n.js';
+  import { dismissable } from '#lib/ux/dismiss.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
@@ -302,7 +303,7 @@
           <AddToListButton accountId={account.id} />
         {/if}
         {#if rel}
-          <div class="mod-menu">
+          <div class="mod-menu" {@attach dismissable(() => menuOpen, () => (menuOpen = false))}>
             <button
               type="button"
               class="chip"

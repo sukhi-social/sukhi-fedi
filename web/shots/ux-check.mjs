@@ -1,0 +1,231 @@
+// UX 契約(docs/UX_CONTRACT.md)の動作確認。
+//
+//   pnpm run ux-check          # build してから
+//
+// 実際の Chrome を、macOS / Windows / Android の姿(userAgent と端末)で
+// 動かして、窓とメニューの閉じかた、戻る、⌘/Ctrl+Enter、タップの大きさを
+// 見る。API は shots/mock.mjs が受け取る(箱もサーバも要らない)。
+// Chrome が無ければ、Playwright の Chromium を使う。
+// 最後の「under 44px」の棚卸しは合否ではなく、いま残っている小さな対象の
+// 一覧(文中のリンクは WCAG 2.5.8 の例外なので除く)。
+
+import path from 'node:path';
+import { chromium, devices } from '@playwright/test';
+import { installMocks, HOME } from './mock.mjs';
+import { serveBuild } from './serve.mjs';
+
+const WEB = process.cwd();
+const PORT = 4181;
+const BASE = `http://127.0.0.1:${PORT}`;
+const server = await serveBuild(path.join(WEB, 'build'), PORT);
+const browser = await chromium
+  .launch({ channel: 'chrome', headless: true })
+  .catch(() => chromium.launch({ headless: true }));
+
+const results = [];
+const check = (name, ok, detail = '') => {
+  results.push({ name, ok, detail });
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+};
+
+const MAC_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+const WIN_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+
+// 画像つきの投稿を一件まぜた home
+const homeWithImage = () => {
+  const rows = structuredClone(HOME);
+  rows[0].media_attachments = [
+    { id: 'm1', type: 'image', url: '/avatar-default.svg', preview_url: '/avatar-default.svg', description: 'test' }
+  ];
+  return rows;
+};
+
+async function open(context, url) {
+  const page = await context.newPage();
+  const unknown = new Set();
+  const posts = [];
+  await installMocks(page, { lang: 'ja', signedIn: true }, unknown);
+  await page.route('**/api/v1/timelines/home**', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(homeWithImage()) })
+  );
+  page.on('request', (req) => {
+    if (req.method() === 'POST' && /\/api\/v1\/statuses$/.test(new URL(req.url()).pathname)) posts.push(req.postData());
+  });
+  page.on('pageerror', (e) => console.log('  pageerror:', e.message));
+  await page.goto(`${BASE}/`);
+  await page.waitForLoadState('networkidle');
+  return { page, posts };
+}
+
+async function tapMin(page) {
+  return page.evaluate(() => {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:absolute;visibility:hidden;min-height:var(--tap-min)';
+    document.body.append(d);
+    const v = parseFloat(getComputedStyle(d).minHeight);
+    d.remove();
+    return v;
+  });
+}
+
+async function runDesktop(label, ua, modPress, wrongPress, expectPlatform) {
+  const context = await browser.newContext({ userAgent: ua, viewport: { width: 1280, height: 900 } });
+  const { page, posts } = await open(context);
+  const L = (s) => `[${label}] ${s}`;
+
+  const plat = await page.evaluate(() => document.documentElement.dataset.platform);
+  const uad = await page.evaluate(() => navigator.userAgentData?.platform ?? '(none)');
+  check(L(`data-platform = ${expectPlatform}`), plat === expectPlatform, `got ${plat}, userAgentData.platform=${uad}`);
+  check(L('--tap-min = 44px'), (await tapMin(page)) === 44, String(await tapMin(page)));
+
+  // ── タイムラインへ(クライアント遷移で履歴 '/' → '/timeline')
+  await page.goto(`${BASE}/timeline`);
+  await page.waitForSelector('.status-actions', { timeout: 8000 });
+
+  // メニュー: ブースト
+  const boost = page.locator('.status-actions .boost-wrap > button').first();
+  await boost.click();
+  check(L('boost menu opens'), await page.locator('.boost-menu').first().isVisible());
+  await page.keyboard.press('Escape');
+  check(L('boost menu: Esc closes'), !(await page.locator('.boost-menu').count()));
+  await boost.click();
+  await page.mouse.click(5, 450);
+  check(L('boost menu: outside click closes'), !(await page.locator('.boost-menu').count()));
+  await boost.click();
+  await boost.click();
+  check(L('boost menu: trigger toggles closed (not reopen)'), !(await page.locator('.boost-menu').count()));
+
+  // メニュー: …(more)
+  const more = page.locator('.status-actions button[aria-haspopup="menu"]').nth(1);
+  await more.click();
+  check(L('more menu opens'), (await page.locator('.menu[role=menu]:not(.boost-menu)').count()) === 1);
+  await more.click();
+  check(L('more menu: trigger toggles closed'), (await page.locator('.menu[role=menu]:not(.boost-menu)').count()) === 0);
+  await more.click();
+  await page.keyboard.press('Escape');
+  check(L('more menu: Esc closes'), (await page.locator('.menu[role=menu]:not(.boost-menu)').count()) === 0);
+  await more.click();
+  await page.mouse.click(5, 450);
+  check(L('more menu: outside click closes'), (await page.locator('.menu[role=menu]:not(.boost-menu)').count()) === 0);
+
+  // フィルター(タイムライン)
+  const filter = page.locator('.filter-bar > button').first();
+  if (await filter.count()) {
+    await filter.click();
+    const open1 = await page.locator('.filter-menu').count();
+    await page.keyboard.press('Escape');
+    check(L('timeline filter: opens then Esc closes'), open1 === 1 && (await page.locator('.filter-menu').count()) === 0);
+  }
+
+  // ── 拡大表示: Esc(履歴の位置は Navigation API の index で数える)
+  const idx = () => page.evaluate(() => navigation.currentEntry.index);
+  const before = page.url();
+  const i0 = await idx();
+  await page.locator('.media img').first().click();
+  check(L('lightbox opens'), await page.locator('.lightbox').isVisible());
+  check(L('lightbox: URL unchanged'), page.url() === before);
+  await page.waitForTimeout(200);
+  const i1 = await idx();
+  check(L('lightbox: adds exactly one history entry'), i1 === i0 + 1, `index ${i0} -> ${i1}`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  check(L('lightbox: Esc closes'), !(await page.locator('.lightbox').count()));
+  const i2 = await idx();
+  check(L('Esc-close takes the added entry back (no phantom entry)'), i2 === i0, `index ${i1} -> ${i2}`);
+
+  // ── 拡大表示: 戻る
+  await page.locator('.media img').first().click();
+  check(L('lightbox opens again'), await page.locator('.lightbox').isVisible());
+  await page.goBack();
+  await page.waitForTimeout(300);
+  check(L('lightbox: Back closes it'), !(await page.locator('.lightbox').count()));
+  check(L('lightbox: Back stays on /timeline'), new URL(page.url()).pathname === '/timeline', page.url());
+
+  // ── ⌘/Ctrl+Enter で投稿
+  await page.goto(`${BASE}/compose`);
+  const ta = page.locator('textarea').first();
+  await ta.waitFor({ timeout: 8000 });
+  await ta.fill('こんにちは');
+  const ks = await page.locator('button[type=submit][aria-keyshortcuts]').first().getAttribute('aria-keyshortcuts');
+  check(L('submit has aria-keyshortcuts'), ks === (expectPlatform === 'mac' ? 'Meta+Enter' : 'Control+Enter'), String(ks));
+  const n0 = posts.length;
+  await ta.press(wrongPress);
+  await page.waitForTimeout(300);
+  check(L(`${wrongPress} does NOT post`), posts.length === n0);
+  await ta.press(modPress);
+  await page.waitForTimeout(500);
+  check(L(`${modPress} posts`), posts.length === n0 + 1, `posts=${posts.length - n0}`);
+
+  await context.close();
+}
+
+async function runAndroid() {
+  const context = await browser.newContext({ ...devices['Pixel 7'] });
+  const { page } = await open(context);
+  const L = (s) => `[android] ${s}`;
+
+  const plat = await page.evaluate(() => document.documentElement.dataset.platform);
+  const uad = await page.evaluate(() => navigator.userAgentData?.platform ?? '(none)');
+  check(L('data-platform = android'), plat === 'android', `got ${plat}, userAgentData.platform=${uad}`);
+  check(L('--tap-min = 48px'), (await tapMin(page)) === 48, String(await tapMin(page)));
+
+  await page.goto(`${BASE}/timeline`);
+  await page.waitForSelector('.status-actions', { timeout: 8000 });
+
+  // 指で押す行の高さ
+  const chipH = await page.evaluate(() =>
+    [...document.querySelectorAll('.status-actions .chip')].map((e) => Math.round(e.getBoundingClientRect().height))
+  );
+  check(L('status action chips >= 48px'), chipH.length > 0 && chipH.every((h) => h >= 48), `heights=${[...new Set(chipH)].join(',')}`);
+
+  // 拡大 → 戻る
+  await page.locator('.media img').first().tap();
+  check(L('lightbox opens (tap)'), await page.locator('.lightbox').isVisible());
+  await page.goBack();
+  await page.waitForTimeout(300);
+  check(L('Back closes lightbox'), !(await page.locator('.lightbox').count()));
+  check(L('Back stays on /timeline'), new URL(page.url()).pathname === '/timeline', page.url());
+
+  // 小さな対象の棚卸し(文中リンクは WCAG の例外なので除く)
+  for (const p of ['/timeline', '/compose', '/notifications', '/search?q=x', '/settings', '/messages']) {
+    await page.goto(`${BASE}${p}`);
+    await page.waitForTimeout(700);
+    const small = await page.evaluate(() => {
+      const out = [];
+      const sel = 'button, a[href], input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea, [role=button], [role=menuitem]';
+      for (const el of document.querySelectorAll(sel)) {
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) continue;
+        // 文中のリンク(段落・本文の中の a)
+        if (el.tagName === 'A' && el.closest('p, li, .body, .status-content, .profile-note, dd, h1, h2, h3')) continue;
+        if (el.classList.contains('visually-hidden') || el.closest('.visually-hidden')) continue;
+        if (r.height < 44 || r.width < 44) {
+          out.push(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')} ${Math.round(r.width)}x${Math.round(r.height)} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 18)}"`);
+        }
+      }
+      return out;
+    });
+    console.log(`  [android] ${p}: ${small.length} target(s) under 44px`);
+    for (const s of small.slice(0, 12)) console.log('     ' + s);
+  }
+  await context.close();
+}
+
+try {
+  await runDesktop('mac', MAC_UA, 'Meta+Enter', 'Control+Enter', 'mac');
+  await runDesktop('windows', WIN_UA, 'Control+Enter', 'Meta+Enter', 'windows');
+  await runAndroid();
+} finally {
+  await browser.close();
+  server.close();
+}
+
+const failed = results.filter((r) => !r.ok);
+console.log(`\n${results.length - failed.length}/${results.length} passed`);
+if (failed.length) {
+  console.log('FAILED:');
+  for (const f of failed) console.log('  - ' + f.name + (f.detail ? ' — ' + f.detail : ''));
+  process.exitCode = 1;
+}

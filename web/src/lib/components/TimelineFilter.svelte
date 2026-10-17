@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '#lib/i18n.js';
+  import { dismissable } from '#lib/ux/dismiss.js';
 
   // タイムライン(home/public/tag/リスト)共通の表示フィルター。チェックを変えたら
   // onchange で親が頭から読み直す。hide_boosts は home でだけ意味があるので、
@@ -35,7 +36,11 @@
   );
 </script>
 
-<div class="filter-bar" class:in-tabs={tabbed}>
+<div
+  class="filter-bar"
+  class:in-tabs={tabbed}
+  {@attach dismissable(() => open, () => (open = false))}
+>
   <button
     type="button"
     class="chip"

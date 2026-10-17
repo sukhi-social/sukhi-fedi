@@ -2,6 +2,7 @@
   import { getLists, getListAccounts, addToList, removeFromList, type List } from '#lib/api.js';
   import { refreshCircles } from '#lib/circles.js';
   import { t } from '#lib/i18n.js';
+  import { dismissable } from '#lib/ux/dismiss.js';
 
   // フォローとは別の「この人を名簿(リスト/サークル)に入れる」口。開いたとき
   // リスト一覧と所属を読み、チェックでその場で add / remove する。フォローは
@@ -58,7 +59,7 @@
   }
 </script>
 
-<div class="add-to-list">
+<div class="add-to-list" {@attach dismissable(() => open, () => (open = false))}>
   <button type="button" class="chip" aria-haspopup="menu" aria-expanded={open} onclick={toggleOpen}>
     {$t('lists.addTo')}
   </button>

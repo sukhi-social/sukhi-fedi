@@ -470,6 +470,49 @@ textarea {
   }
 }
 
+/* 指で押す共有の部品は、--tap-min(tokens.css)を下回らない。床は WCAG 2.2
+   SC 2.5.8 の 24px、目安は Apple 44pt / Microsoft 40px / Google 48dp。
+   文中のリンクは WCAG の例外なので、ここには入れない。マウスの画面は
+   今の詰まった高さのまま。(docs/UX_CONTRACT.md の A) */
+@media (pointer: coarse) {
+  .nav-link,
+  .chip,
+  .btn,
+  .follow-btn,
+  .reaction-chip,
+  .account-row-link,
+  nav.tabs .tab,
+  select,
+  input[type='text'],
+  input[type='password'],
+  input[type='email'],
+  input[type='search'] {
+    min-height: var(--tap-min);
+  }
+
+  /* 絵だけのボタンは、幅も。 */
+  .chip,
+  .nav-menu-trigger,
+  nav.tabs .tab {
+    min-width: var(--tap-min);
+  }
+
+  /* chip は <a> や <label> にも付く。背が伸びたぶん、中身が上に寄らない
+     ように縦中央にそろえる(<button> は元から中央に寄る)。 */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 表札(サイト名のリンク)は、行の高さのままだと指より低い。 */
+  .app-nav-name {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-min);
+  }
+}
+
 /* 焦点の輪は :focus-visible (base.css) が一手に持つ。ここでは枠の色だけ。 */
 textarea:focus,
 select:focus,

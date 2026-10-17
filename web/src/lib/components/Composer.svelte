@@ -20,6 +20,7 @@
   } from '#lib/compose-draft.js';
   import { goto } from '$app/navigation';
   import { t } from '#lib/i18n.js';
+  import { isPrimaryMod, platform, shortcutOf } from '#lib/ux/platform.js';
   import { createAutocomplete, type AutocompleteItem } from '#lib/autocomplete.svelte.js';
   import AutocompleteDropdown from './AutocompleteDropdown.svelte';
   import Avatar from './Avatar.svelte';
@@ -199,8 +200,19 @@
   const sendsOnEnter = () =>
     typeof window === 'undefined' || !window.matchMedia('(pointer: coarse)').matches;
 
+  // ⌘+Enter(Apple)/ Ctrl+Enter(それ以外)で送る。本文でも DM でも、
+  // Enter を改行に使う画面(指で触る画面)でも、同じ。OS ごとの主の修飾が
+  // どちらかは、ux/platform.ts が知っている。
+  const sendKeys = shortcutOf('Enter', platform());
+
   function onComposerKey(e: KeyboardEvent) {
     if (e.isComposing) return;
+
+    if (e.key === 'Enter' && isPrimaryMod(e, platform())) {
+      e.preventDefault();
+      if (canPost) void submit();
+      return;
+    }
 
     if (!autocomplete.open) {
       if (dm && sendsOnEnter() && e.key === 'Enter' && !e.shiftKey) {
@@ -491,6 +503,7 @@
         disabled={!canPost}
         title={sendLabel()}
         aria-label={sendLabel()}
+        aria-keyshortcuts={sendKeys}
       >
         <NavIcon name="send" />
       </button>
@@ -604,7 +617,12 @@
         </select>
       </label>
 
-      <button type="submit" class="btn px-6 py-2" disabled={!canPost}>
+      <button
+        type="submit"
+        class="btn px-6 py-2"
+        disabled={!canPost}
+        aria-keyshortcuts={sendKeys}
+      >
         {sendLabel()}
       </button>
     </div>
@@ -762,8 +780,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
+    width: var(--tap-min);
+    height: var(--tap-min);
     padding: 0;
     background: transparent;
     border: 1px solid var(--color-control);

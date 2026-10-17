@@ -7,6 +7,7 @@
   import { devAutoLogin } from '#lib/auth.js';
   import { registerServiceWorker } from '#lib/pwa.js';
   import { installForesight } from '#lib/foresight.js';
+  import { applyPlatform } from '#lib/ux/platform.js';
   import type { Snippet } from 'svelte';
 
   // dev で VITE_DEV_TOKEN があれば、AppNav が mount する前にテストユーザー
@@ -19,6 +20,10 @@
   // リンクへ向かう「意図」でルートを先読みする。app.html の hover 先読みは
   // 外してあるので、リンクの温めはここが一手に引き受ける。
   installForesight();
+
+  // どの OS か(粗いヒント)を <html data-platform> に置く。CSS の --tap-min が
+  // これを読む。UX 契約の ── docs/UX_CONTRACT.md。
+  applyPlatform();
 
   let { children }: { children?: Snippet } = $props();
 </script>

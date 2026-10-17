@@ -5,6 +5,7 @@
   import NavIcon from './NavIcon.svelte';
   import Twemoji from './Twemoji.svelte';
   import { t } from '#lib/i18n.js';
+  import { dismissable } from '#lib/ux/dismiss.js';
 
   let {
     status,
@@ -43,6 +44,9 @@
   let deleting = $state(false);
   // ⋯ メニュー。低頻度・破壊的な操作（ピン留め・通報・削除）をしまっておく。
   let menuOpen = $state(false);
+  // 「…」の引き金。メニューの外にあるので、dismissable に教える(押したその
+  // クリックで閉じてしまわないように)。
+  let moreButton = $state<HTMLElement | null>(null);
   let reported = $state(false);
   // 🔁 を押すと、ブーストと引用の二択をそっと開く。即ブーストではなく、
   // 一拍おいて選んでもらう（Misskey/Fedibird と同じ作法）。
@@ -249,7 +253,10 @@
   <!-- 🔁 を押すと、ブースト/引用の小メニューがこのボタンの真下に吊るされる
        (相対ラッパ + 絶対配置)。行全体の下ではなくボタン直下に出すことで、
        どのボタンの選択肢かが目で追いやすい。 -->
-  <span class="boost-wrap">
+  <span
+    class="boost-wrap"
+    {@attach dismissable(() => boostMenuOpen, () => (boostMenuOpen = false))}
+  >
     <button
       type="button"
       class="chip"
@@ -288,6 +295,7 @@
   {/if}
   {#if mine || loggedIn}
     <button
+      bind:this={moreButton}
       type="button"
       class="chip"
       onclick={() => (menuOpen = !menuOpen)}
@@ -320,7 +328,11 @@
 {/if}
 
 {#if menuOpen}
-  <div class="menu" role="menu">
+  <div
+    class="menu"
+    role="menu"
+    {@attach dismissable(() => menuOpen, () => (menuOpen = false), () => moreButton)}
+  >
     {#if mine}
       <button type="button" class="menu-item" role="menuitem" onclick={togglePin}>
         <NavIcon name="pin" filled={pinned} />
@@ -390,7 +402,7 @@
      マウスの画面では今の詰まった高さのまま。 */
   @media (pointer: coarse) {
     .chip {
-      min-height: 2.75rem;
+      min-height: var(--tap-min);
     }
   }
 
