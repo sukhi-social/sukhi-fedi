@@ -10,6 +10,17 @@
 # Triggers: a push to main (every commit builds its own sha tag; deploying it
 # is still a separate, manual step), a push to refactor/web-batches, or a
 # manual run.
+#
+# The two small images that run beside `combined` are built here too, from
+# the same commit, under the same `sha-<commit>` tag, so "production is at
+# sha-abc1234" means all three. There is deliberately no path filter: with
+# one, a commit that didn't touch an image would have no tag for it, and
+# "the same sha everywhere" would stop being true.
+#   - sukhi-fedi-anubis       config/anubis (one image for sukhi and natadeco;
+#                              the imprint is picked by IMPRINT_FILE)
+#   - sukhi-fedi-natadeco-ssr web-natadeco (the SSR Node for natadeco.com;
+#                              its build/client must match the files served from
+#                              the override dir, which come from the same commit)
 
 name: combined-sha
 
@@ -65,3 +76,53 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-combined:${{ steps.tag.outputs.sha }}
           cache-from: type=gha,scope=combined-arm64
+
+  anubis:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3.10.0
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: tag
+        run: echo "sha=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      # Policy and imprints on top of a pinned Anubis base: a few COPY lines,
+      # so there is no layer cache worth keeping.
+      - uses: docker/build-push-action@v5
+        with:
+          context: config/anubis
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-anubis:${{ steps.tag.outputs.sha }}
+
+  ssr:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3.10.0
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: tag
+        run: echo "sha=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: web-natadeco
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-natadeco-ssr:${{ steps.tag.outputs.sha }}
+          cache-from: type=gha,scope=ssr-arm64
+          cache-to: type=gha,scope=ssr-arm64,mode=max,compression=zstd
