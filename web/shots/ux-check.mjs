@@ -236,6 +236,16 @@ async function runAndroid() {
   const navH = await page.evaluate(() => Math.round(document.querySelector('header.app-nav').getBoundingClientRect().height));
   check(L('top bar <= 58px (tap-min + 8 + border)'), navH <= 58, `height=${navH}`);
 
+  // 投稿は |アバター|名前の行・本文・操作| の二列。右の列の三つが、同じ左の縁にそろう。
+  const cols = await page.evaluate(() => {
+    const a = document.querySelector('article.status');
+    const L = (sel) => Math.round(a.querySelector(sel).getBoundingClientRect().left);
+    const av = a.querySelector('.avatar').getBoundingClientRect();
+    return { meta: L('.meta'), content: L('.content'), footer: L('footer.status-actions'), gap: Math.round(L('.meta') - av.right) };
+  });
+  check(L('post: name row, body and actions share one left edge'), cols.meta === cols.content && cols.content === cols.footer, JSON.stringify(cols));
+  check(L('post: avatar-to-text gap is 8-16px'), cols.gap >= 8 && cols.gap <= 16, `gap=${cols.gap}`);
+
   // 拡大 → 戻る
   await page.locator('.media img').first().tap();
   check(L('lightbox opens (tap)'), await page.locator('.lightbox').isVisible());

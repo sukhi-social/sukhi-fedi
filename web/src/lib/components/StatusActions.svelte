@@ -438,6 +438,13 @@
       transform: translate(-50%, -50%);
     }
 
+    /* 六つの枠つきの輪が一行に並ぶと、本文より先に目に入る。指の画面では、枠線を
+       消して淡い地で見せる(押している状態は .active の地が引き続き示す)。 */
+    .chip {
+      border-color: transparent;
+      background: var(--fill-soft);
+    }
+
     /* 絵だけの chip は、見た目の幅に床を置く(幅 + gap が --tap-min に届くように)。 */
     .chip {
       min-width: calc(var(--tap-min) - var(--space-2));

@@ -280,8 +280,10 @@
     min-width: 0;
     margin-left: var(--space-4);
   }
+  /* 名前の行と本文は、ひとまとまりに読ませる。名前の行はもう 1.6 の行送りぶんの
+     高さを持っているので、さらに 8px を空けると、別の塊に見えて間延びする。 */
   .content {
-    margin-top: var(--space-2);
+    margin-top: var(--space-1);
     overflow-wrap: anywhere;
   }
   /* 本文は {@html} なので、子の p は :global で拾う。 */
