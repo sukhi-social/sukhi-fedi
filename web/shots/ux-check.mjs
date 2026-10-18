@@ -232,6 +232,10 @@ async function runAndroid() {
   await page.setViewportSize({ width: 412, height: 915 });
   await page.waitForTimeout(150);
 
+  // 貼り付いた屋根が、画面を食いすぎない(中の操作 + 上下 4px ずつ。72px → 56px)。
+  const navH = await page.evaluate(() => Math.round(document.querySelector('header.app-nav').getBoundingClientRect().height));
+  check(L('top bar <= 58px (tap-min + 8 + border)'), navH <= 58, `height=${navH}`);
+
   // 拡大 → 戻る
   await page.locator('.media img').first().tap();
   check(L('lightbox opens (tap)'), await page.locator('.lightbox').isVisible());
