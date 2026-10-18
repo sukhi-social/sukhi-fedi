@@ -13,6 +13,7 @@ defmodule SukhiFedi.AP.Instructions do
       QuoteAuthorization) + Accept/Reject of our outbound request
     * `Instructions.DMs`       — non-public Create(Note) → conversations
     * `Instructions.Mirror`    — Create(Note) mirroring + Delete
+    * `Instructions.ActorUpdate` — Update(Person) re-fetches the shadow account
     * `Instructions.Reactions` — Like / EmojiReact + their Undos
     * `Instructions.Boosts`    — Announce (notify + materialise) +
       Undo(Announce)
@@ -25,6 +26,7 @@ defmodule SukhiFedi.AP.Instructions do
   """
 
   alias SukhiFedi.AP.Instructions.{
+    ActorUpdate,
     Boosts,
     DMs,
     Extract,
@@ -80,6 +82,7 @@ defmodule SukhiFedi.AP.Instructions do
       Pins.maybe_handle_pin_unpin(object_data)
       Mirror.maybe_handle_delete(object_data)
       Mirror.maybe_handle_update(object_data)
+      ActorUpdate.maybe_handle(object_data)
       Migrations.maybe_handle_move(object_data)
       maybe_handle_undo(object_data)
     else
