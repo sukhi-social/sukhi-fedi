@@ -280,8 +280,10 @@
     min-width: 0;
     margin-left: var(--space-4);
   }
+  /* 名前の行と本文は、ひとまとまりに読ませる。名前の行はもう 1.6 の行送りぶんの
+     高さを持っているので、さらに 8px を空けると、別の塊に見えて間延びする。 */
   .content {
-    margin-top: var(--space-2);
+    margin-top: var(--space-1);
     overflow-wrap: anywhere;
   }
   /* 本文は {@html} なので、子の p は :global で拾う。 */
@@ -297,27 +299,8 @@
       padding: var(--space-3) 0;
     }
 
-    /* アバターは名前の行の左に浮かせ、本文・画像・操作はその下で全幅に使う。
-       左に 36px + 余白(幅の約 15%)の列を持ち続けると、同じ文が縦に長くなる
-       (Mastodon は本文が全幅)。名前の行(.meta は flex なので浮きの横に収まる)
-       だけが、アバターのとなりに居る。 */
-    .status {
-      display: block;
-    }
-    .status::after {
-      content: '';
-      display: block;
-      clear: both;
-    }
-    .status :global(.avatar) {
-      float: left;
-      margin-right: var(--space-3);
-    }
     .body {
-      margin-left: 0;
-    }
-    .body > :global(:not(.meta):not(.reply-to)) {
-      clear: both;
+      margin-left: var(--space-3);
     }
 
     .meta {
