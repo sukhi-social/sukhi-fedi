@@ -82,7 +82,7 @@
     order: -1;
   }
 
-  .autocomplete-list li + li {
+  .autocomplete-list li:not(:first-child) {
     border-block-start: 1px solid var(--color-border);
   }
 

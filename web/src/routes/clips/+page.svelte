@@ -226,7 +226,7 @@
 
   // 測るのは入力欄の高さだけ。画面の底からの距離で測ると、スマホの下タブ
   // の帯ぶんを二重に数える ── その帯のぶんは、main が既に持っている余白
-  // (body.has-bottom-nav main)で空いているから。textarea が伸びたときは
+  // (全体の CSS が main に空ける)で空いているから。textarea が伸びたときは
   // ResizeObserver が拾う。
   $effect(() => {
     if (resolving || error || !me) return;

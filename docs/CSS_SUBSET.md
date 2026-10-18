@@ -76,12 +76,12 @@ iced・egui・Jetpack Compose・SwiftUI は、CSS のカスケードを持たな
 |---|---|---|
 | `no-important` | `!important` | 層と、低い詳細度 |
 | `no-id-selector` | `#id { … }` | クラス |
-| `no-global` | `:global(.x)` で別の部品を書き換える | カスタムプロパティを渡す |
+| `no-global` | 起点の無い `:global(…)`(`:global(body.x) main`、`:global(.chip)`)で、外へ手を伸ばす。自分の箱の下の `.x :global(p)` は、`{@html}` の中身のためで許す | カスタムプロパティを渡す。DOM に居るものは `:has()` で見る(JS で `<body>` に旗を立てない) |
 | `selector-depth` | `.a .b .c`、`.a > .b + .c` | クラス一つ |
 | `no-margin` | `margin-top: 1rem` など | 親の `gap` / `padding` |
 | `logical-only` | `margin-left`・`left`・`text-align: left`・`border-top-left-radius` | `margin-inline-start`・`inset-inline-start`・`text-align: start`・`border-start-start-radius` |
 | `no-float` | `float` / `clear` | `flex` / `grid` |
-| `viewport-width-query` | `@media (max-width: 40rem)` | `@container (width < 40rem)`(範囲構文)。`@media` は、**利用者の設定**(`prefers-*`・`hover`・`pointer`・`forced-colors`・`print`)だけ |
+| `viewport-width-query` | `@media (max-width: 40rem)` | 窓の幅の判断は範囲構文 `@media (width <= 40rem)`(Compose の WindowSizeClass と同じ「窓の大きさの段」)。**部品の中の判断**は `@container`。注意: `container-type: inline-size` は layout containment を伴い、`position: fixed` / `sticky` の子の基準を変える。`body` や `main` を container にしてはいけない |
 | `no-vendor-prefix` | `-webkit-` など | 接頭辞なし(例外: `-webkit-line-clamp`、`mask` の移行) |
 | `no-raw-color` | `#fff`・`rgb(…)` を部品に | `var(--color-…)` |
 | `font-size-unit` | `font-size: 14px` | `rem`・`clamp()` |
@@ -135,9 +135,26 @@ HTML は、**ネイティブの要素を先に**: `<button>`・`<a>`・`<dialog>
 検査は **ratchet**(`css-subset.baseline.json`)。いま有る違反は記録し、**新しい違反が
 増えると失敗する**。減ったぶんは `--update` で記録に反映する。
 
-- いまの違反(`pnpm run css-check -- --report`): 合計 501。多いもの: `logical-only` 123、
-  `inline-style-props` 110、`global-unlayered` 110(`src/styles/` の規則の数)、`no-margin` 77。
-- **`src/styles/` を `@layer` に入れるのは、見た目に効く**(いま、全体の CSS が、
-  部品の scoped な規則より詳細度で勝つ所が有る)。層を入れる前後で、`pnpm run shots` と
-  `ux-check` で見比べて、一つずつ進める。
-- 部品の `margin` は、親の `gap` に置き換えていく。投稿カードなど、触る部品から。
+**直した(501 → 138)**: 物理の向き(123)、`src/styles/` の層(110)、生の色・
+`z-index`・`font-size` の px・ベンダー接頭辞(34)、幅の `@media`(7)、起点の無い
+`:global`(4。`<body>` の旗は `:has()` に)、既知の inline style(67)。
+124 画面(ja/ko × デスクトップ/スマホ)の絵が、**画素のレベルで変わらない**ことを、
+`shots/compare.mjs` で確かめてから進めた。
+
+**残り(138)** — どれも「構造を変える」ので、機械では直せなかった:
+- `no-margin` 77、`inline-style-props` 44(その大半が `margin`): 兄弟どうしの間の
+  `margin-block-start` を、親の `gap` に置き換える仕事。**試したこと**: ① `margin` を
+  `padding` に機械で替えると、margin の相殺が無くなり 8 画面が動いた。② `.stack` /
+  `.stack-tight`(兄弟の間に margin を入れる「ふくろうの目」)を `display: grid; gap`
+  にすると、`main.wrap.stack` を通して、ほぼ全画面が動いた(子の margin の相殺と、
+  inline の子が全幅に伸びる)。→ 一つずつ、親ごとに、絵を見比べながら進める。
+- `selector-depth` 17: 主に `app.css` のフォーム(`.form label > span` など)。ラベルに
+  クラスを付ける、マークアップの変更を伴う。
+
+**安全な進め方**(このあいだ使った網):
+```
+pnpm run shots -- --out /tmp/a && pnpm run shots -- --out /tmp/a/m --mobile   # 直す前
+(直す)
+pnpm run shots -- --out /tmp/b && pnpm run shots -- --out /tmp/b/m --mobile   # 直した後
+node shots/compare.mjs /tmp/a /tmp/b                                            # 動いた画面
+```

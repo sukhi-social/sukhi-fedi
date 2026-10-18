@@ -122,23 +122,13 @@
     adminPickerOpen = true;
   }
 
-  // 下の帯のぶんの余白は、帯が出ているときだけ。畳んだ面で余白だけ残ると、
-  // 会話の下に理由のない空きができる。
-  $effect(() => {
-    document.body.classList.toggle('has-bottom-nav', showBottomNav);
-    // 会話の面では、返信箱が画面の底に貼りつく。その下に本文の下余白が
-    // 残ると、返事の下に理由のない空きができる(48px 実測)。
-    document.body.classList.toggle('in-thread', inThread);
-  });
-
+  // 下の帯のぶんの余白と、会話の面の下余白は、もう JS で <body> に旗を立てない。
+  // 全体の CSS(src/styles/app.css)が、帯(.nav-bottom)と戻る印(.app-nav-back)が
+  // DOM に居るかを :has() で見て決める。
   onMount(() => {
     sync();
     return () => {
       stopStream();
-      if (typeof document !== 'undefined') {
-        document.body.classList.remove('has-bottom-nav');
-        document.body.classList.remove('in-thread');
-      }
     };
   });
 
@@ -420,7 +410,7 @@
     display: none;
   }
 
-  @media (max-width: 40rem) {
+  @media (width <= 40rem) {
     /* 「流れ」は下の帯へ。上の帯には「棚」だけが、ことばを伏せて
        アイコンで残る(読み上げには .nav-label が生きている)。 */
     .nav-top .nav-flow {
@@ -471,23 +461,12 @@
       min-width: 0;
     }
 
-    /* 本文が帯の下に隠れないよう、ぶんだけ余白を空ける。
-       お知らせの類はもう浮いていない(流れの中＝main の先頭)ので、
-       帯の上に持ち上げる特別扱いは要らなくなった。 */
-    :global(body.has-bottom-nav) :global(main) {
-      padding-block-end: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
-    }
   }
 
   /* ── ナビのドロップダウン(ライブラリ / アバター) ───────────────
      棚を畳んだ二つの小さなメニュー。開くまで何も主張しない。面は
      StatusActions の .menu と同じ作法(枠だけ・影なし)で平らに。 */
 
-  /* アバターの引き金だけは、丸い画像にそって詰める。 */
-  :global(.nav-avatar-trigger) {
-    padding: var(--space-1);
-    border-radius: 999px;
-  }
   .nav-top :global(.nav-avatar) {
     width: 1.6rem;
     height: 1.6rem;
@@ -526,12 +505,5 @@
     height: 1px;
     margin: var(--space-1) 0;
     background: var(--color-border);
-  }
-
-  /* 会話の面では、返信箱が画面の底に貼りつく。その下に「底に付かないための
-     余白」が残ると、返事の下に理由のない空きになる ── 底に付くのが正しい
-     ものが、いちばん下にいるので。 */
-  :global(body.in-thread) :global(main.wrap) {
-    padding-block-end: 0;
   }
 </style>

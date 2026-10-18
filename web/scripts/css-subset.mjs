@@ -27,11 +27,11 @@ const TOKEN_FILES = new Set(['src/styles/tokens.css']);
 const RULES = {
   'no-important': '!important は使わない(打ち消しは、層と低い詳細度で要らなくする)',
   'no-id-selector': 'id セレクタは使わない(詳細度が跳ねる)',
-  'no-global': ':global() で、よその部品の中を書き換えない(環境の値を渡す)',
+  'no-global': '起点の無い :global()(body や、よその部品の class)で、外へ手を伸ばさない。自分の箱の下(`.x :global(p)`)は {@html} の中身のためで許す',
   'no-margin': 'margin で外の余白を持たない(外の余白は、親の gap と padding)',
   'logical-only': '物理の向き(left / right / top / bottom)ではなく、論理の向きを使う',
   'no-float': 'float / clear は使わない(flex / grid)',
-  'viewport-width-query': '幅の @media ではなく、@container と範囲構文を使う(利用者の設定だけ @media)',
+  'viewport-width-query': '窓の幅の判断は、範囲構文 (width <= 40rem) で(min-width / max-width は古い書き方)。部品の中の判断は @container',
   'no-vendor-prefix': 'ベンダー接頭辞は書かない(autoprefixer 不要の範囲だけ使う)',
   'no-raw-color': '色は tokens の外では、生の値で書かない(環境の値を読む)',
   'font-size-unit': 'font-size を px で固定しない(rem と clamp)',
@@ -111,7 +111,7 @@ function checkCss(file, css, offset) {
   }
 
   root.walkAtRules((at) => {
-    if (at.name === 'media' && /\b(min-|max-)?width\b/.test(at.params) && !/prefers-|hover|pointer|forced-colors|print/.test(at.params)) {
+    if (at.name === 'media' && /\b(min|max)-width\s*:/.test(at.params)) {
       add('viewport-width-query', file, L(at), `@media ${at.params}`);
     }
   });
@@ -123,7 +123,8 @@ function checkCss(file, css, offset) {
     }
     // id セレクタ(属性セレクタ内の # は除く)
     if (/(^|[\s>+~,(])#[A-Za-z_-]/.test(sel.replace(/\[[^\]]*\]/g, ''))) add('no-id-selector', file, L(rule), sel);
-    if (/:global\(/.test(sel)) add('no-global', file, L(rule), sel);
+    // 起点の無い :global(…): セレクタが :global( で始まる(外の body や、よその class を直接つかむ)
+    for (const one of sel.split(',')) if (/^\s*:global\(/.test(one)) add('no-global', file, L(rule), one.trim());
     // 部品の外へ手を伸ばす深さ: 結合子で分けた塊の数(:where() と :is() の中は 1 つと数える)
     const flat = sel.replace(/:(where|is|not|has)\([^)]*\)/g, ':$1()').replace(/\[[^\]]*\]/g, '[]');
     for (const one of flat.split(',')) {

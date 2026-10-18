@@ -401,7 +401,7 @@
 
   /* 狭い画面では、枠つきの丸が六つ並ぶと一件ぶんの縦をひとつ余分に食う
      ので詰める。押せる大きさ(min-height)は変えない。 */
-  @media (max-width: 40rem) {
+  @media (width <= 40rem) {
     .status-actions {
       margin-block-start: var(--space-2);
       gap: var(--space-1);

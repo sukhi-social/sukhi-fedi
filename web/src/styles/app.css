@@ -56,7 +56,7 @@ main.wrap {
   grid-template-columns: 1fr 1fr;
 }
 
-@media (max-width: 40rem) {
+@media (width <= 40rem) {
   .doors {
     grid-template-columns: 1fr;
   }
@@ -701,5 +701,33 @@ button:disabled {
 .settings-form input[type='text'],
 .settings-form textarea {
   width: 100%;
+}
+
+/* ── 下の帯と、会話の面(帯・戻る印が DOM に居るかを :has() で見る) ─────────
+   以前は AppNav が JS で <body> に has-bottom-nav / in-thread の旗を立てていた。
+   DOM に居るものを CSS が直接見れば、旗も、後始末も要らない。 */
+
+/* スマホでは、帯が画面の底に居る。本文が帯の下に隠れないよう、ぶんだけ余白を空け、
+   貼りつく返信箱は帯の上に載る(--dock-h / --dock-pad)。 */
+@media (width <= 40rem) {
+  body:has(.nav-bottom) {
+    --dock-h: var(--bottom-nav-h);
+    --dock-pad: var(--space-3);
+  }
+  body:has(.nav-bottom) main {
+    padding-block-end: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* 会話の面では、返信箱が画面の底に貼りつく。その下に「底に付かないための余白」が
+   残ると、返事の下に理由のない空きになる(戻る印が出ているのが、会話の面)。 */
+body:has(.app-nav-back) main.wrap {
+  padding-block-end: 0;
+}
+
+/* アバターの引き金だけは、丸い画像にそって詰める。 */
+.nav-avatar-trigger {
+  padding: var(--space-1);
+  border-radius: 999px;
 }
 }

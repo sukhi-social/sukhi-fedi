@@ -14,14 +14,6 @@
     "src/routes/signup/+page.svelte": 2,
     "src/routes/timeline/+page.svelte": 1
   },
-  "no-global": {
-    "src/lib/components/AnnouncementsBanner.svelte": 2,
-    "src/lib/components/AppNav.svelte": 5,
-    "src/lib/components/Composer.svelte": 1,
-    "src/lib/components/Status.svelte": 12,
-    "src/routes/@[acct]/+page.svelte": 1,
-    "src/routes/settings/security/+page.svelte": 1
-  },
   "no-margin": {
     "src/lib/components/AddToListButton.svelte": 1,
     "src/lib/components/AnnouncementsBanner.svelte": 1,
@@ -56,19 +48,10 @@
     "src/styles/base.css": 2
   },
   "selector-depth": {
-    "src/lib/components/AutocompleteDropdown.svelte": 1,
     "src/lib/components/Composer.svelte": 1,
     "src/lib/components/Status.svelte": 4,
     "src/routes/@[acct]/+page.svelte": 1,
     "src/styles/app.css": 10,
-    "src/styles/base.css": 1
-  },
-  "viewport-width-query": {
-    "src/lib/components/AppNav.svelte": 1,
-    "src/lib/components/Composer.svelte": 2,
-    "src/lib/components/Status.svelte": 1,
-    "src/lib/components/StatusActions.svelte": 1,
-    "src/styles/app.css": 1,
     "src/styles/base.css": 1
   }
 }

@@ -686,10 +686,12 @@
 
   /* スマホでは下に親指の帯があるので、その上に貼る。帯が縁の余白(safe-area)を
      もう持っているから、ここでは重ねて取らない。 */
-  @media (max-width: 40rem) {
-    :global(body.has-bottom-nav) .composer-dm {
-      inset-block-end: var(--bottom-nav-h);
-      padding-block-end: var(--space-3);
+  @media (width <= 40rem) {
+    /* 下の帯が出ているときは、その上に貼る(--dock-h / --dock-pad は、帯があるとき
+       だけ全体の CSS が置く環境の値)。 */
+    .composer-dm {
+      inset-block-end: var(--dock-h, 0px);
+      padding-block-end: var(--dock-pad, max(var(--space-3), env(safe-area-inset-bottom, 0px)));
     }
 
     /* 返信箱は、画面の端から端まで。.wrap の左右 gutter を負の margin で
@@ -904,7 +906,7 @@
 
   /* 固定したときは、親の .wrap の gutter を外へ抜ける必要がない(基準が
      画面になる)。ここで負の margin を重ねると、画面の両側へはみ出す。 */
-  @media (max-width: 40rem) {
+  @media (width <= 40rem) {
     .composer-dm.fixed-dock {
       margin-inline: 0;
     }

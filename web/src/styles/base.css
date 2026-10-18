@@ -108,7 +108,7 @@ h3 {
 }
 
 /* 狭い画面では左右の gutter を細くして、幅を本文に返す。 */
-@media (max-width: 40rem) {
+@media (width <= 40rem) {
   .wrap {
     padding-inline: var(--space-4);
   }
