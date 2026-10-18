@@ -343,6 +343,15 @@
     padding-block: var(--space-3);
   }
 
+  /* 指の画面では、中の操作がもう --tap-min の高さを持つ。そこへ上下 12px を
+     足すと 72px になり、貼り付いた屋根が画面の 1/11 を占める。上下 4px なら
+     Android 56dp / 同じ印の 44 + 8 = 52px に収まる(docs/UX_CONTRACT.md)。 */
+  @media (pointer: coarse) {
+    .app-nav-row {
+      padding-block: var(--space-1);
+    }
+  }
+
   .app-nav-name {
     font-weight: 700;
     text-decoration: none;

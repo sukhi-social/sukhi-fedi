@@ -398,13 +398,6 @@
     border-color: var(--color-border-strong);
   }
 
-  /* 指で押す行なので、押せる高さは 44px(ナビの戻るとそろえる)。
-     マウスの画面では今の詰まった高さのまま。 */
-  @media (pointer: coarse) {
-    .chip {
-      min-height: var(--tap-min);
-    }
-  }
 
   /* 狭い画面では、枠つきの丸が六つ並ぶと一件ぶんの縦をひとつ余分に食う
      ので詰める。押せる大きさ(min-height)は変えない。 */
@@ -416,6 +409,56 @@
 
     .chip {
       padding-inline: var(--space-2);
+    }
+  }
+
+  /* 指で押す行 ── 見える大きさと、指が拾う大きさを分ける。
+     人は見える形の真ん中を狙い、指は少しずれて落ちる(Holz & Baudisch 2011、
+     Henze ら 2011)。見た目は 2rem のまま、::after で押せる領域を --tap-min
+     まで広げる(WCAG 2.2 SC 2.5.8 の「対象」は操作を受ける領域)。
+     領域どうしは重ならないように、並びの間をそろえる:
+       横 … 見た目の幅 + gap ≥ --tap-min、縦 … 見た目の高さ + 行の間 ≥ --tap-min。
+     重なりと列の溢れは shots/ux-check.mjs が測る。 */
+  @media (pointer: coarse) {
+    .chip,
+    .reaction-chip {
+      position: relative;
+      min-height: 2rem;
+      min-width: 0;
+    }
+
+    .chip::after,
+    .reaction-chip::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: max(100%, var(--tap-min));
+      height: var(--tap-min);
+      transform: translate(-50%, -50%);
+    }
+
+    /* 絵だけの chip は、見た目の幅に床を置く(幅 + gap が --tap-min に届くように)。 */
+    .chip {
+      min-width: calc(var(--tap-min) - var(--space-2));
+      justify-content: center;
+    }
+
+    /* 見た目の左右の余白は詰める ── 押せる領域は ::after が持つので、
+       詰めても指に不利にならない。一列に収めるための余地になる。 */
+    .chip {
+      padding-inline: var(--space-1);
+    }
+
+    /* 狭い画面で六つが入りきらないときは、溢れさせず、栞が次の行へ回る。 */
+    .status-actions {
+      margin-top: calc(var(--tap-min) - 2rem);
+      gap: calc(var(--tap-min) - 2rem) var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .reactions {
+      gap: calc(var(--tap-min) - 2rem) var(--space-1);
     }
   }
 

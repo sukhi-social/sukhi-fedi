@@ -161,6 +161,48 @@ async function runDesktop(label, ua, modPress, wrongPress, expectPlatform) {
   await context.close();
 }
 
+
+// 指で押す行の、押せる領域(::after)を測る。::after は position:absolute で、
+// 中心は chip の中心(left/top 50% + translate -50%)。
+async function hitAreas(page) {
+  return page.evaluate(() => {
+    const tap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tap-min')) * 16 || 44;
+    const rects = [];
+    for (const el of document.querySelectorAll('.status-actions .chip, .status-actions ~ .reactions .reaction-chip, .reactions .reaction-chip')) {
+      const b = el.getBoundingClientRect();
+      if (!b.width) continue;
+      const cs = getComputedStyle(el, '::after');
+      const w = parseFloat(cs.width) || b.width;
+      const h = parseFloat(cs.height) || b.height;
+      const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+      rects.push({ el, l: cx - w / 2, r: cx + w / 2, t: cy - h / 2, b: cy + h / 2, w, h });
+    }
+    const name = (e) => `${e.tagName.toLowerCase()}.${[...e.classList].slice(0, 2).join('.')}`;
+    const overlaps = [];
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i], c = rects[j];
+        const ox = Math.min(a.r, c.r) - Math.max(a.l, c.l);
+        const oy = Math.min(a.b, c.b) - Math.max(a.t, c.t);
+        if (ox > 0.5 && oy > 0.5) overlaps.push(`${name(a.el)} x ${name(c.el)} (${ox.toFixed(1)}x${oy.toFixed(1)}px)`);
+      }
+    }
+    const vw = document.documentElement.clientWidth;
+    const overflow = [];
+    for (const f of document.querySelectorAll('.status-actions')) {
+      const fr = f.getBoundingClientRect();
+      for (const c of f.querySelectorAll('.chip')) {
+        const r = c.getBoundingClientRect();
+        if (r.right > fr.right + 0.5) overflow.push(`chip right=${r.right.toFixed(0)} > row right=${fr.right.toFixed(0)}`);
+      }
+    }
+    for (const r of rects) {
+      if (r.l < -0.5 || r.r > vw + 0.5) overflow.push(`hit area ${r.l.toFixed(0)}..${r.r.toFixed(0)} outside the ${vw}px screen`);
+    }
+    return { tap, count: rects.length, minHit: Math.round(Math.min(...rects.map((r) => Math.min(r.w, r.h))) * 10) / 10, overlaps, overflow };
+  });
+}
+
 async function runAndroid() {
   const context = await browser.newContext({ ...devices['Pixel 7'] });
   const { page } = await open(context);
@@ -174,11 +216,34 @@ async function runAndroid() {
   await page.goto(`${BASE}/timeline`);
   await page.waitForSelector('.status-actions', { timeout: 8000 });
 
-  // 指で押す行の高さ
-  const chipH = await page.evaluate(() =>
-    [...document.querySelectorAll('.status-actions .chip')].map((e) => Math.round(e.getBoundingClientRect().height))
-  );
-  check(L('status action chips >= 48px'), chipH.length > 0 && chipH.every((h) => h >= 48), `heights=${[...new Set(chipH)].join(',')}`);
+  // 指で押す行 ── 見える大きさと、指が拾う大きさは別。拾う側(::after)が
+  // --tap-min に届き、重ならず、列が溢れないこと。幅は 412(Pixel 7)と、
+  // より狭い 375 / 360 で。
+  for (const width of [412, 375, 360]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.waitForTimeout(150);
+    const m = await hitAreas(page);
+    const W = `${width}px`;
+    check(L(`${W}: action targets found`), m.count > 0, `count=${m.count}`);
+    check(L(`${W}: hit area >= --tap-min (${m.tap}px)`), m.minHit >= m.tap - 0.5, `min=${m.minHit}`);
+    check(L(`${W}: hit areas do not overlap`), m.overlaps.length === 0, m.overlaps.slice(0, 3).join(' | '));
+    check(L(`${W}: action row does not overflow`), m.overflow.length === 0, m.overflow.slice(0, 3).join(' | '));
+  }
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.waitForTimeout(150);
+
+  // 貼り付いた屋根が、画面を食いすぎない(中の操作 + 上下 4px ずつ。72px → 56px)。
+  const navH = await page.evaluate(() => Math.round(document.querySelector('header.app-nav').getBoundingClientRect().height));
+  check(L('top bar <= 58px (tap-min + 8 + border)'), navH <= 58, `height=${navH}`);
+
+  // 本文は全幅(左のアバターの列に押し込まれない)。同じ文が縦に長くならないように。
+  const col = await page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    const c = document.querySelector('.status .content');
+    const r = c.getBoundingClientRect();
+    return { vw, left: Math.round(r.left), width: Math.round(r.width) };
+  });
+  check(L('post body uses >= 90% of the width'), col.width >= col.vw * 0.9 - 1, `vw=${col.vw} left=${col.left} width=${col.width}`);
 
   // 拡大 → 戻る
   await page.locator('.media img').first().tap();
@@ -201,7 +266,10 @@ async function runAndroid() {
         // 文中のリンク(段落・本文の中の a)
         if (el.tagName === 'A' && el.closest('p, li, .body, .status-content, .profile-note, dd, h1, h2, h3')) continue;
         if (el.classList.contains('visually-hidden') || el.closest('.visually-hidden')) continue;
-        if (r.height < 44 || r.width < 44) {
+        const ph = parseFloat(getComputedStyle(el, '::after').height) || 0;
+        const pw = parseFloat(getComputedStyle(el, '::after').width) || 0;
+        const hitH = Math.max(r.height, ph), hitW = Math.max(r.width, pw);
+        if (hitH < 44 || hitW < 44) {
           out.push(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')} ${Math.round(r.width)}x${Math.round(r.height)} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 18)}"`);
         }
       }

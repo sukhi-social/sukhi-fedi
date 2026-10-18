@@ -12,7 +12,13 @@
 // 知らない口が来たら空を返しつつ名前を控える(run.mjs が最後に出す)
 // ── 空っぽの絵に気づかないまま docs に貼らないように。
 
-export const NOW = new Date('2026-08-28T12:00:00+09:00');
+// 絵を撮るときは、時計を止めて同じ絵にする(run.mjs が page.clock で止める)。
+// 本物のブラウザに出す偽サーバ(api-server.mjs)は、止められない時計の
+// ほうに合わせる ── 起動の時刻を SUKHI_MOCK_NOW で渡すと、「何分前」が
+// 起動したときを基準に並ぶ。
+export const NOW = process.env.SUKHI_MOCK_NOW
+  ? new Date(process.env.SUKHI_MOCK_NOW)
+  : new Date('2026-08-28T12:00:00+09:00');
 
 const ago = (mins) => new Date(NOW.getTime() - mins * 60_000).toISOString();
 
@@ -242,6 +248,28 @@ const TERMS_HTML =
 
 // ── 口ごとの返事 ──────────────────────────────────────────────────
 
+const statusById = (id) => [...HOME, ARTICLE].find((s) => s.id === id) ?? (id === '2001' ? ARTICLE : S1);
+
+// 押したあとの姿。数も、ひとつ動かす。
+const PRESS = {
+  favourite: { favourited: true, favourites_count: +1 },
+  unfavourite: { favourited: false, favourites_count: -1 },
+  reblog: { reblogged: true, reblogs_count: +1 },
+  unreblog: { reblogged: false, reblogs_count: -1 },
+  bookmark: { bookmarked: true },
+  unbookmark: { bookmarked: false },
+  pin: { pinned: true },
+  unpin: { pinned: false }
+};
+
+function pressed(s, verb) {
+  const next = { ...s };
+  for (const [key, to] of Object.entries(PRESS[verb])) {
+    next[key] = typeof to === 'number' ? Math.max(0, (s[key] ?? 0) + to) : to;
+  }
+  return next;
+}
+
 const ROUTES = [
   ['/api/v1/accounts/verify_credentials', () => ({ ...ME, source: { note: 'お茶と、古い本。', fields: [] } })],
   ['/api/v1/accounts/migration', () => ({ aliases: ['https://old.example/users/kuro'], moved_to: null })],
@@ -270,7 +298,13 @@ const ROUTES = [
   [/^\/api\/v1\/timelines\/(home|public)$/, () => HOME],
   [/^\/api\/v1\/timelines\/(tag|list)\/[^/]+$/, () => HOME.slice(0, 3)],
   [/^\/api\/v1\/statuses\/([^/]+)\/context$/, () => CONTEXT],
-  [/^\/api\/v1\/statuses\/([^/]+)$/, (m) => (m[1] === '2001' ? ARTICLE : S1)],
+  // ☆ や 🔁 を押したら、その投稿が「押した後の姿」で返る。
+  // 返事が空だと、画面は押す前に戻ってしまい、壊れて見える。
+  [/^\/api\/v1\/statuses\/([^/]+)\/(favourite|unfavourite|reblog|unreblog|bookmark|unbookmark|pin|unpin)$/, (m) =>
+    pressed(statusById(m[1]), m[2])],
+  [/^\/api\/v1\/statuses\/([^/]+)$/, (m) => statusById(m[1])],
+  // 投稿は、書いたものではなく、決まった一件が返る(中身は見ない)。
+  ['/api/v1/statuses', () => status('9100', ME, '<p>(mock) 投稿を受け取りました。</p>', 0)],
   ['/api/i/notes/drafts', () => NO_CONTENT],
   // 「読んだ」は、その会話そのものを返す ── ページはこの返り値を
   // 会話として持つので、空の {} を返すと相手の名前で落ちる。
@@ -349,6 +383,31 @@ function answer(pathname) {
   return undefined;
 }
 
+// 返事を決めるのは、ここ一か所。Playwright の route(installMocks)も、
+// 本物の HTTP サーバ(api-server.mjs)も、これを呼ぶ ── どちらにも
+// 同じデータと同じ形の返事が出る。
+//
+//   null              … この口はモックのものではない(素通し / 404)
+//   { status, contentType, body, keepOpen?, unknown? }
+//     keepOpen = 開いたまま保つべき口(SSE)。unknown = 返事を用意していない口(空で返した)
+export function respond(pathname, method) {
+  if (!isApiPath(pathname, method)) return null;
+
+  if (pathname.startsWith('/api/v1/streaming') || pathname === '/api/wt') {
+    return { status: 200, contentType: 'text/event-stream', body: STREAM_BODY, keepOpen: true };
+  }
+  if (pathname.startsWith('/terms') || pathname.startsWith('/privacy')) {
+    return { status: 200, contentType: 'text/html; charset=utf-8', body: TERMS_HTML };
+  }
+
+  const body = answer(pathname);
+  if (body === NO_CONTENT) return { status: 204, contentType: undefined, body: '' };
+  if (body === undefined) {
+    return { status: 200, contentType: 'application/json', body: '[]', unknown: true };
+  }
+  return { status: 200, contentType: 'application/json', body: JSON.stringify(body) };
+}
+
 export async function installMocks(page, opts, unknown) {
   await page.clock.setFixedTime(NOW);
 
@@ -386,26 +445,11 @@ export async function installMocks(page, opts, unknown) {
     async (route) => {
       const req = route.request();
       const pathname = new URL(req.url()).pathname;
-      if (!isApiPath(pathname, req.method())) return route.continue();
-
-      if (pathname.startsWith('/api/v1/streaming') || pathname === '/api/wt') {
-        return route.fulfill({ status: 200, contentType: 'text/event-stream', body: STREAM_BODY });
-      }
-      if (pathname.startsWith('/terms') || pathname.startsWith('/privacy')) {
-        return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: TERMS_HTML });
-      }
-
-      const body = answer(pathname);
-      if (body === NO_CONTENT) return route.fulfill({ status: 204, body: '' });
-      if (body === undefined) {
-        unknown?.add(`${req.method()} ${pathname}`);
-        return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
-      }
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(body)
-      });
+      const out = respond(pathname, req.method());
+      if (!out) return route.continue();
+      if (out.unknown) unknown?.add(`${req.method()} ${pathname}`);
+      // route.fulfill は応答を閉じるしかない(開いたままの SSE は api-server.mjs のほう)。
+      return route.fulfill({ status: out.status, contentType: out.contentType, body: out.body });
     }
   );
 }

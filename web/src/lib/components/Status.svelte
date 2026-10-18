@@ -297,8 +297,27 @@
       padding: var(--space-3) 0;
     }
 
+    /* アバターは名前の行の左に浮かせ、本文・画像・操作はその下で全幅に使う。
+       左に 36px + 余白(幅の約 15%)の列を持ち続けると、同じ文が縦に長くなる
+       (Mastodon は本文が全幅)。名前の行(.meta は flex なので浮きの横に収まる)
+       だけが、アバターのとなりに居る。 */
+    .status {
+      display: block;
+    }
+    .status::after {
+      content: '';
+      display: block;
+      clear: both;
+    }
+    .status :global(.avatar) {
+      float: left;
+      margin-right: var(--space-3);
+    }
     .body {
-      margin-left: var(--space-3);
+      margin-left: 0;
+    }
+    .body > :global(:not(.meta):not(.reply-to)) {
+      clear: both;
     }
 
     .meta {

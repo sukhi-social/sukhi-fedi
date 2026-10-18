@@ -102,3 +102,14 @@ pass/fail.
 - Touch screens now carry larger controls (the notification "×" is a 48px
   circle). That is the cost of 48 dp; look at it.
 - Consoles and Linux are not covered. `web-natadeco` is not covered.
+
+## 見える大きさと、押せる領域(指の画面)
+
+人は見える形の真ん中を狙い、指は少し、決まった向きにずれて落ちる(Holz & Baudisch 2011 /
+Henze ら 2011)。なので、`StatusActions` の chip は、見た目を 2rem に保ち、`::after` で
+押せる領域を `--tap-min` まで広げる。WCAG 2.2 SC 2.5.8 の「対象」は操作を受ける領域で、
+見えている絵ではない。
+
+- 領域どうしは重ならない: 横は 見た目の幅 + gap ≥ `--tap-min`、縦は 見た目の高さ + 行の間 ≥ `--tap-min`。
+- 六つが一列に入りきらないときは、溢れさせず次の行へ回る。
+- `shots/ux-check.mjs` が、412 / 375 / 360px で、領域の大きさ・重なり・溢れを測る。
