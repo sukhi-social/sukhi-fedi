@@ -68,6 +68,6 @@
     width: 0.9em;
     height: 0.9em;
     vertical-align: -0.1em;
-    margin-left: var(--space-1);
+    margin-inline-start: var(--space-1);
   }
 </style>

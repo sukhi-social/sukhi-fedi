@@ -296,7 +296,7 @@
 
     <div class="stack-tight">
       <span>{$t('settings.fields')}</span>
-      <p class="muted" style="font-size: var(--text-sm);">{$t('settings.fieldsHint')}</p>
+      <p class="muted text-sm">{$t('settings.fieldsHint')}</p>
       {#each fields as f, i (i)}
         <div class="field-row">
           <input
@@ -364,7 +364,7 @@
       <p class="muted">{$t('settings.searchConsentHint')}</p>
     </div>
 
-    <div style="display: flex; gap: var(--space-3); align-items: center;">
+    <div class="hstack" style="--gap: var(--space-3)">
       <button type="submit" class="btn px-6 py-2" disabled={saving}>
         {saving ? $t('settings.saving') : $t('settings.save')}
       </button>
@@ -391,7 +391,7 @@
   <PushToggle />
 
   <details class="rel-manage timeline" style="margin-top: var(--space-5);" ontoggle={onRelToggle}>
-    <summary style="font-size: var(--text-base); cursor: pointer;">{$t('settings.blockMute')}</summary>
+    <summary class="text-base clickable">{$t('settings.blockMute')}</summary>
 
     {#if relLoading}
       <p class="loading">{$t('common.loading')}</p>
@@ -424,7 +424,7 @@
          ── 貼り直しなしのまま、複数サインインでも admin を選べる。
          入り口は、admin の人がひとりでもいる間だけ出す。 -->
     <section class="admin-entry timeline" style="margin-top: var(--space-5);">
-      <h2 style="font-size: var(--text-base);">{$t('settings.admin')}</h2>
+      <h2 class="text-base">{$t('settings.admin')}</h2>
       <p class="muted">{$t('settings.adminDesc')}</p>
       <button type="button" class="chip" onclick={() => (adminPickerOpen = true)}>
         {$t('settings.adminEnter')}

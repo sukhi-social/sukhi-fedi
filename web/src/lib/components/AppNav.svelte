@@ -122,23 +122,13 @@
     adminPickerOpen = true;
   }
 
-  // 下の帯のぶんの余白は、帯が出ているときだけ。畳んだ面で余白だけ残ると、
-  // 会話の下に理由のない空きができる。
-  $effect(() => {
-    document.body.classList.toggle('has-bottom-nav', showBottomNav);
-    // 会話の面では、返信箱が画面の底に貼りつく。その下に本文の下余白が
-    // 残ると、返事の下に理由のない空きができる(48px 実測)。
-    document.body.classList.toggle('in-thread', inThread);
-  });
-
+  // 下の帯のぶんの余白と、会話の面の下余白は、もう JS で <body> に旗を立てない。
+  // 全体の CSS(src/styles/app.css)が、帯(.nav-bottom)と戻る印(.app-nav-back)が
+  // DOM に居るかを :has() で見て決める。
   onMount(() => {
     sync();
     return () => {
       stopStream();
-      if (typeof document !== 'undefined') {
-        document.body.classList.remove('has-bottom-nav');
-        document.body.classList.remove('in-thread');
-      }
     };
   });
 
@@ -328,10 +318,10 @@
        本文がこの下を流れるので不透明な地色を敷き、境界の罫線で「貼り付い
        ている」ことが分かるようにする。 */
     position: sticky;
-    top: 0;
-    z-index: 40;
+    inset-block-start: 0;
+    z-index: var(--layer-top-nav);
     background: var(--color-bg);
-    border-bottom: 1px solid var(--color-border);
+    border-block-end: 1px solid var(--color-border);
   }
 
   .app-nav-row {
@@ -365,7 +355,7 @@
     width: 1.25em;
     height: 1.25em;
     vertical-align: -0.3em;
-    margin-right: var(--space-2);
+    margin-inline-end: var(--space-2);
   }
 
   .app-nav-name:hover {
@@ -380,7 +370,7 @@
     align-items: center;
     gap: var(--space-1);
     min-height: var(--tap-min);
-    margin-left: calc(var(--space-2) * -1);
+    margin-inline-start: calc(var(--space-2) * -1);
     padding-inline: var(--space-2);
     font-weight: 700;
     text-decoration: none;
@@ -420,7 +410,7 @@
     display: none;
   }
 
-  @media (max-width: 40rem) {
+  @media (width <= 40rem) {
     /* 「流れ」は下の帯へ。上の帯には「棚」だけが、ことばを伏せて
        アイコンで残る(読み上げには .nav-label が生きている)。 */
     .nav-top .nav-flow {
@@ -447,10 +437,10 @@
       --nav-ico-size: 1.5rem;
       position: fixed;
       inset: auto 0 0 0;
-      z-index: 30;
+      z-index: var(--layer-bottom-nav);
       background: var(--color-surface);
-      border-top: 1px solid var(--color-border);
-      padding-bottom: env(safe-area-inset-bottom, 0px);
+      border-block-start: 1px solid var(--color-border);
+      padding-block-end: env(safe-area-inset-bottom, 0px);
       /* 遷移のたびにページ高さや URL バーが動くと、fixed のこの帯は
          再ラスタライズされて中の線画 SVG が一瞬飛ぶことがある。独立した
          合成レイヤーに固定して、描き直しの巻き添えにしない。 */
@@ -471,23 +461,12 @@
       min-width: 0;
     }
 
-    /* 本文が帯の下に隠れないよう、ぶんだけ余白を空ける。
-       お知らせの類はもう浮いていない(流れの中＝main の先頭)ので、
-       帯の上に持ち上げる特別扱いは要らなくなった。 */
-    :global(body.has-bottom-nav) :global(main) {
-      padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
-    }
   }
 
   /* ── ナビのドロップダウン(ライブラリ / アバター) ───────────────
      棚を畳んだ二つの小さなメニュー。開くまで何も主張しない。面は
      StatusActions の .menu と同じ作法(枠だけ・影なし)で平らに。 */
 
-  /* アバターの引き金だけは、丸い画像にそって詰める。 */
-  :global(.nav-avatar-trigger) {
-    padding: var(--space-1);
-    border-radius: 999px;
-  }
   .nav-top :global(.nav-avatar) {
     width: 1.6rem;
     height: 1.6rem;
@@ -510,7 +489,7 @@
     font: inherit;
     font-size: var(--text-sm);
     text-decoration: none;
-    text-align: left;
+    text-align: start;
     white-space: nowrap;
     cursor: pointer;
   }
@@ -526,12 +505,5 @@
     height: 1px;
     margin: var(--space-1) 0;
     background: var(--color-border);
-  }
-
-  /* 会話の面では、返信箱が画面の底に貼りつく。その下に「底に付かないための
-     余白」が残ると、返事の下に理由のない空きになる ── 底に付くのが正しい
-     ものが、いちばん下にいるので。 */
-  :global(body.in-thread) :global(main.wrap) {
-    padding-bottom: 0;
   }
 </style>

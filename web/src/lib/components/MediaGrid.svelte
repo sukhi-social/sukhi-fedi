@@ -80,8 +80,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.38);
-    color: #fff;
+    background: var(--color-scrim-soft);
+    color: var(--color-on-scrim);
     font-size: var(--text-sm);
   }
 </style>

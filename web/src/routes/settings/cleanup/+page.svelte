@@ -169,7 +169,7 @@
           }}
         >
           <ReauthField hasPassword={auth.has_password} bind:password bind:reauthCode />
-          <div style="display: flex; gap: var(--space-2); align-items: center;">
+          <div class="hstack">
             <button type="submit" class="btn danger-btn px-6 py-2" disabled={busy}>{$t('cleanup.execute')}</button>
             <button type="button" class="chip" disabled={busy} onclick={cancelPreview}>{$t('security.cancel')}</button>
           </div>

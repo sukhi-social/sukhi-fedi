@@ -653,7 +653,7 @@
               required
             />
           </label>
-          <div style="display: flex; gap: var(--space-2);">
+          <div class="hstack hstack-stretch">
             <button type="submit" class="btn px-6 py-2" disabled={pwBusy}>{$t('security.passwordRemove')}</button>
             <button
               type="button"
@@ -689,7 +689,7 @@
   }
   .sec h2 {
     font-size: var(--text-base);
-    margin-bottom: var(--space-2);
+    margin-block-end: var(--space-2);
   }
   .qr {
     max-width: 12rem;
@@ -711,7 +711,7 @@
     align-items: center;
     gap: var(--space-3);
     padding-block: var(--space-2);
-    border-bottom: 1px solid var(--color-border);
+    border-block-end: 1px solid var(--color-border);
   }
   .inline-delete {
     display: flex;

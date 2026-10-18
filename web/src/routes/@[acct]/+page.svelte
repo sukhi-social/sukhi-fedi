@@ -256,8 +256,8 @@
     {/if}
     <div class="profile-id">
       <Avatar class="avatar avatar-lg" src={account.avatar} name={account.display_name || account.username} />
-      <div class="stack-tight" style="flex: 1;">
-        <p class="display-name" style="font-size: var(--text-lg);">
+      <div class="stack-tight fill">
+        <p class="display-name text-lg">
           {@html renderEmojis(phrase(account.display_name || account.username), account.emojis)}
         </p>
         <p class="muted">@{account.acct}</p>
@@ -475,7 +475,7 @@
     gap: var(--space-2);
     flex-wrap: wrap;
     justify-content: flex-end;
-    margin-left: auto;
+    margin-inline-start: auto;
   }
   .mod-menu {
     position: relative;
@@ -483,9 +483,9 @@
   }
   .mod-menu-pop {
     position: absolute;
-    right: 0;
-    top: calc(100% + 0.25rem);
-    z-index: 10;
+    inset-inline-end: 0;
+    inset-block-start: calc(100% + 0.25rem);
+    z-index: var(--layer-menu);
     display: flex;
     flex-direction: column;
     min-width: 10rem;
@@ -495,7 +495,7 @@
     background: var(--color-surface);
   }
   .mod-menu-pop button {
-    text-align: left;
+    text-align: start;
     padding: 0.5rem 0.625rem;
     background: none;
     border: none;
@@ -517,14 +517,14 @@
      値を横に並べ、狭い幅では縦に折り返す。動かない、飾らない。 */
   .profile-fields {
     margin: 0;
-    border-top: 1px solid var(--color-border);
+    border-block-start: 1px solid var(--color-border);
   }
   .profile-field {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-1) var(--space-3);
     padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--color-border);
+    border-block-end: 1px solid var(--color-border);
     font-size: var(--text-sm);
   }
   .profile-field dt {
@@ -545,7 +545,7 @@
   .account-note-add {
     font-size: var(--text-sm);
     color: var(--color-text-muted);
-    text-align: left;
+    text-align: start;
     background: none;
     border: none;
     padding: 0;
@@ -577,20 +577,20 @@
   .profile-tabs {
     display: flex;
     gap: var(--space-1);
-    border-bottom: 1px solid var(--color-border);
+    border-block-end: 1px solid var(--color-border);
   }
   .profile-tabs .tab {
     padding: 0.5rem 0.9rem;
     background: none;
     border: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
+    border-block-end: 2px solid transparent;
+    margin-block-end: -1px;
     color: var(--color-text-muted);
     cursor: pointer;
   }
   .profile-tabs .tab.active {
     color: var(--color-text);
-    border-bottom-color: var(--color-text);
+    border-block-end-color: var(--color-text);
   }
   .profile-note {
     font-size: var(--text-base);
@@ -598,7 +598,7 @@
   }
 
   .profile-note :global(p) + :global(p) {
-    margin-top: var(--space-2);
+    margin-block-start: var(--space-2);
   }
 
   .profile-counts {

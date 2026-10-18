@@ -235,12 +235,12 @@
   .crop-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 50;
+    z-index: var(--layer-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: var(--space-4);
-    background: rgb(0 0 0 / 0.45);
+    background: var(--color-scrim);
   }
   .crop-panel {
     width: min(92vw, 360px);
@@ -270,8 +270,8 @@
   }
   .crop-frame img {
     position: absolute;
-    top: 0;
-    left: 0;
+    inset-block-start: 0;
+    inset-inline-start: 0;
     transform-origin: 0 0;
     user-select: none;
     -webkit-user-drag: none;
@@ -285,7 +285,7 @@
     height: var(--tap-min);
     margin: 0;
     background: transparent;
-    -webkit-appearance: none;
+    appearance: none;
     appearance: none;
   }
   .crop-zoom input::-webkit-slider-runnable-track {
@@ -299,11 +299,11 @@
     background: var(--color-border-strong);
   }
   .crop-zoom input::-webkit-slider-thumb {
-    -webkit-appearance: none;
+    appearance: none;
     appearance: none;
     width: 28px;
     height: 28px;
-    margin-top: -12px;
+    margin-block-start: -12px;
     border-radius: 999px;
     background: var(--color-surface);
     border: 1px solid var(--color-text);

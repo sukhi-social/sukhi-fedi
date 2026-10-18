@@ -4,6 +4,8 @@
  * colour, size or font lives in exactly one place. Keep it to :root variables
  * and the per-locale html[lang] overrides at the bottom. */
 
+@layer tokens {
+
 :root {
   /* color — ink on warm paper.
    * There is no decorative accent colour on purpose. Colour is functional:
@@ -101,6 +103,25 @@
   /* 下の親指の帯の高さ。帯と、その上に貼る返信箱が同じ数を使う。 */
   --bottom-nav-h: 3.75rem;
   --page: 64rem;
+
+  /* 重なりの順(z-index)。数字は、ここだけに書く。部品は名前で読む。 */
+  --layer-base: 0;
+  --layer-raised: 1; /* 同じ箱のなかで、ひとつ上(バッジ・ラベル) */
+  --layer-menu: 10; /* 小さなメニュー・ポップオーバー */
+  --layer-menu-above: 11;
+  --layer-bottom-nav: 30;
+  --layer-top-nav: 40;
+  --layer-overlay: 50; /* 選ぶ窓・切り抜き */
+  --layer-lightbox: 100;
+
+  /* 画像の上に載せる面と字(暗い幕)。生の色は、ここだけ。 */
+  --color-scrim: rgb(0 0 0 / 0.45);
+  --color-scrim-soft: rgb(0 0 0 / 0.38);
+  --color-scrim-strong: rgb(0 0 0 / 0.48);
+  --color-scrim-lightbox: rgb(0 0 0 / 0.85);
+  --color-on-scrim: #fff;
+  --shadow-popover: 0 4px 12px rgb(0 0 0 / 0.15);
+  --color-border-fallback: rgb(0 0 0 / 0.12);
 }
 
 html[lang='ja'] {
@@ -117,4 +138,5 @@ html[lang='ko'] {
  * <html data-platform> に置く。 */
 html[data-platform='android'] {
   --tap-min: 3rem;
+}
 }

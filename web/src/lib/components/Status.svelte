@@ -253,10 +253,10 @@
   .status {
     display: flex;
     padding: var(--space-4) 0;
-    border-bottom: 1px solid var(--color-border);
+    border-block-end: 1px solid var(--color-border);
   }
   .status:last-child {
-    border-bottom: 0;
+    border-block-end: 0;
   }
 
   .meta {
@@ -278,29 +278,29 @@
   .body {
     flex: 1;
     min-width: 0;
-    margin-left: var(--space-4);
+    margin-inline-start: var(--space-4);
   }
   /* 名前の行と本文は、ひとまとまりに読ませる。名前の行はもう 1.6 の行送りぶんの
      高さを持っているので、さらに 8px を空けると、別の塊に見えて間延びする。 */
   .content {
-    margin-top: var(--space-1);
+    margin-block-start: var(--space-1);
     overflow-wrap: anywhere;
   }
   /* 本文は {@html} なので、子の p は :global で拾う。 */
   .content :global(p) + :global(p) {
-    margin-top: var(--space-3);
+    margin-block-start: var(--space-3);
   }
 
   /* 投稿カード、手のなかで。狭い画面だと、長い `@user@host` が時刻を次の
      行に押し出して、外部リンクの印だけが取り残されていた。名前と時刻は残して、
      ハンドルのほうを縮める ── 誰か・いつ、が一行で読めるほうが役に立つ。 */
-  @media (max-width: 40rem) {
+  @media (width <= 40rem) {
     .status {
       padding: var(--space-3) 0;
     }
 
     .body {
-      margin-left: var(--space-3);
+      margin-inline-start: var(--space-3);
     }
 
     .meta {
@@ -335,11 +335,11 @@
     .timestamp,
     .orig {
       flex: none;
-      margin-left: auto;
+      margin-inline-start: auto;
     }
 
     .orig {
-      margin-left: 0;
+      margin-inline-start: 0;
     }
   }
 
@@ -360,12 +360,12 @@
   }
   .content-wrap.reader :global(.content h2:first-child) {
     font-size: 1.4rem;
-    margin-top: 0;
+    margin-block-start: 0;
   }
 
   .read-more {
     display: inline-block;
-    margin-top: 0.25rem;
+    margin-block-start: 0.25rem;
     padding: 0.2rem 0.7rem;
     font-size: var(--text-sm);
     color: var(--color-text-muted);
@@ -401,8 +401,8 @@
   }
   .content :global(blockquote) {
     margin: var(--space-2) 0;
-    padding-left: var(--space-3);
-    border-left: 2px solid var(--color-border);
+    padding-inline-start: var(--space-3);
+    border-inline-start: 2px solid var(--color-border);
     color: var(--color-text-muted);
   }
   .content :global(code) {
@@ -449,7 +449,7 @@
      (Self)の article なので、:global で指す(scoped のままだと、この親からは
      見えず、規則ごと消える)。見出しと投稿の間が二重に空かないよう、上の余白を詰める。 */
   .boost > :global(.status) {
-    padding-top: var(--space-2);
+    padding-block-start: var(--space-2);
   }
 
   .boost-by:hover {
@@ -467,11 +467,11 @@
     /* 畳んだ行も、タイムラインの一件と同じく罫線で区切る。罫線が無いと、
        行が次の投稿の上に浮いて、空きだけが残って見える。左右は投稿と同じ
        0 にして、アバターの縦の列をそろえる。 */
-    border-bottom: 1px solid var(--color-border);
+    border-block-end: 1px solid var(--color-border);
     padding: 0.4rem 0;
     background: none;
     border: none;
-    text-align: left;
+    text-align: start;
     font: inherit;
     color: var(--color-text-muted);
     cursor: pointer;
@@ -500,7 +500,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    margin-bottom: 0.15rem;
+    margin-block-end: 0.15rem;
     font-size: 0.8rem;
     color: var(--color-text-muted);
     text-decoration: none;

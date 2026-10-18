@@ -85,24 +85,24 @@
 </section>
 
 {#if phase === 'ok'}
-  <section class="section" style="text-align: center;">
+  <section class="section text-center">
     <p class="prose-small">{$t('invite.intro')}</p>
     <button type="button" class="btn px-6 py-2" onclick={join} style="margin-top: var(--space-3);"
       >{$t('invite.join')}</button
     >
   </section>
-  <p class="prose-small" style="text-align: center;">
+  <p class="prose-small text-center">
     {$t('signup.haveAccountPre')}<a href="/login">{$t('signup.haveAccountLink')}</a>{$t(
       'signup.haveAccountPost'
     )}
   </p>
 {:else if phase === 'dead'}
-  <p class="prose-small" style="text-align: center;">{$t('invite.deadHelp')}</p>
-  <p class="prose-small" style="text-align: center;">
+  <p class="prose-small text-center">{$t('invite.deadHelp')}</p>
+  <p class="prose-small text-center">
     <a href="/signup">{$t('invite.toSignup')}</a>
   </p>
 {:else if phase === 'error'}
-  <section class="section" style="text-align: center;">
+  <section class="section text-center">
     <button type="button" class="btn px-6 py-2" onclick={() => location.reload()}
       >{$t('invite.retry')}</button
     >

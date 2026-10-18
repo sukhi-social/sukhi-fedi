@@ -193,11 +193,11 @@
 {:else}
   {#if list}
     <details class="timeline" style="margin-bottom: var(--space-4);">
-      <summary style="cursor: pointer;">{$t('listDetail.homeGateTitle')}</summary>
+      <summary class="clickable">{$t('listDetail.homeGateTitle')}</summary>
       <p class="prose-small">{$t('listDetail.homeGateHint')}</p>
 
       <!-- 出さない(never): ゲートのいちばん端。選ぶと他の条件は効かない。 -->
-      <label style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0;">
+      <label class="hstack row-item">
         <input
           type="checkbox"
           checked={list.exclusive}
@@ -208,7 +208,7 @@
 
       {#if !list.exclusive}
         <p class="prose-small" style="margin-top: var(--space-2);">{$t('listDetail.gateConditionsHint')}</p>
-        <label style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0;">
+        <label class="hstack row-item">
           <input
             type="checkbox"
             checked={list.filter_only_media}
@@ -216,7 +216,7 @@
           />
           <span>{$t('timeline.onlyMedia')}</span>
         </label>
-        <label style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0;">
+        <label class="hstack row-item">
           <input
             type="checkbox"
             checked={list.filter_hide_boosts}
@@ -224,7 +224,7 @@
           />
           <span>{$t('timeline.hideBoosts')}</span>
         </label>
-        <label style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0;">
+        <label class="hstack row-item">
           <input
             type="checkbox"
             checked={list.filter_hide_sensitive}
@@ -233,18 +233,18 @@
           <span>{$t('timeline.hideSensitive')}</span>
         </label>
 
-        <label style="display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-1) 0;">
+        <label class="hstack hstack-wrap row-item">
           <span>{$t('listDetail.gateKeyword')}</span>
-          <input
+          <input class="fill"
             type="text"
             bind:value={keyword}
             placeholder={$t('listDetail.gateKeywordPlaceholder')}
-            onchange={() => patchGate({ filterKeyword: keyword.trim() })}
-            style="flex: 1; min-width: 8rem;"
+            onchange={() => patchGate({ filterKeyword: keyword.trim() })} style="--min: 8rem"
+           
           />
         </label>
 
-        <label style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0;">
+        <label class="hstack row-item">
           <span>{$t('listDetail.gateReplies')}</span>
           <select
             value={list.filter_replies}
@@ -260,7 +260,7 @@
   {/if}
 
   <details class="timeline" ontoggle={onMembersToggle} style="margin-bottom: var(--space-4);">
-    <summary style="cursor: pointer;">{$t('listDetail.members')}</summary>
+    <summary class="clickable">{$t('listDetail.members')}</summary>
 
     <form
       onsubmit={(e) => {
@@ -269,11 +269,11 @@
       }}
       style="display: flex; gap: var(--space-2); margin: var(--space-3) 0;"
     >
-      <input
+      <input class="fill"
         type="text"
         bind:value={addAcct}
         placeholder={$t('listDetail.addPlaceholder')}
-        style="flex: 1;"
+       
       />
       <button type="submit" class="btn px-6 py-2" disabled={addPending || !addAcct.trim()}>{$t('listDetail.add')}</button>
     </form>
@@ -345,6 +345,6 @@
     text-decoration: underline;
   }
   .back-row + .page-head {
-    margin-top: var(--space-1);
+    margin-block-start: var(--space-1);
   }
 </style>

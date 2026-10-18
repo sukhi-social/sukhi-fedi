@@ -79,13 +79,13 @@
     }}
     style="margin-bottom: var(--space-4);"
   >
-    <div style="display: flex; gap: var(--space-2);">
-      <input
+    <div class="hstack hstack-stretch">
+      <input class="fill"
         type="text"
         bind:value={newTitle}
         placeholder={$t('lists.newPlaceholder')}
         maxlength="60"
-        style="flex: 1;"
+       
       />
       <button type="submit" class="btn px-6 py-2" disabled={creating || !newTitle.trim()}>{$t('lists.create')}</button>
     </div>
@@ -114,7 +114,7 @@
     justify-content: space-between;
     gap: var(--space-3);
     padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--color-border);
+    border-block-end: 1px solid var(--color-border);
   }
   /* 下線を消さない。この面のリンクは下線で分かる約束(@user@host も時刻も
      そう)なのに、ここだけ消して hover のときだけ戻していた ── 指で触る

@@ -107,7 +107,7 @@
 <style>
   /* 添付の並び。Status の中では横に並べ、画像は枠をはめて切る。 */
   .media {
-    margin-top: var(--space-3);
+    margin-block-start: var(--space-3);
     display: grid;
     gap: var(--space-2);
     grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
@@ -130,7 +130,7 @@
   }
   .media-fallback {
     display: inline-block;
-    margin-top: 0.25rem;
+    margin-block-start: 0.25rem;
     font-size: var(--text-sm);
   }
 
@@ -149,21 +149,21 @@
   .media-reveal {
     position: absolute;
     inset: 0;
-    z-index: 1;
+    z-index: var(--layer-raised);
     display: flex;
     align-items: center;
     justify-content: center;
     width: 100%;
     border: none;
     border-radius: var(--radius-sm);
-    background: rgba(0, 0, 0, 0.38);
-    color: #fff;
+    background: var(--color-scrim-soft);
+    color: var(--color-on-scrim);
     font: inherit;
     font-size: var(--text-sm);
     cursor: pointer;
   }
   .media-reveal:hover {
-    background: rgba(0, 0, 0, 0.48);
+    background: var(--color-scrim-strong);
   }
 
   /* サムネイルを包むボタン。クリックでライトボックス。 */
@@ -181,13 +181,13 @@
   .lightbox {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    z-index: var(--layer-lightbox);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 1rem;
     border: 0;
-    background: rgba(0, 0, 0, 0.85);
+    background: var(--color-scrim-lightbox);
     cursor: zoom-out;
   }
   .lightbox img {

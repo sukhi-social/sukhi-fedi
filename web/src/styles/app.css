@@ -4,11 +4,15 @@
  * またいで使い回す共有の部品(ホームの hero/lane-door、どこにでも出る
  * chip ピル、本文に差し込む絵文字)、そのあとに各画面ごとのレイアウト
  * (タイムライン、Status カード、フォーム、プロフィール…)。コンポーネント
- * 固有の細部は各 .svelte の scoped <style> に置く。 */
+ * 固有の細部は各 .svelte の scoped \3c style> に置く。 */
+
+@layer tokens, base, components, primitives;
 
 @import './tokens.css';
 @import './base.css';
+@import './primitives.css';
 
+@layer components {
 /* どのページも上にひと呼吸ぶん余白を持たせる。homepage の hero
  * などはこの上に自前の padding を重ねるので、視覚的にはほんの
  * 少し下がるくらい。timeline のように hero を持たないページが
@@ -43,7 +47,7 @@ main.wrap {
 }
 
 .section {
-  margin-top: var(--space-12);
+  margin-block-start: var(--space-12);
 }
 
 .doors {
@@ -52,7 +56,7 @@ main.wrap {
   grid-template-columns: 1fr 1fr;
 }
 
-@media (max-width: 40rem) {
+@media (width <= 40rem) {
   .doors {
     grid-template-columns: 1fr;
   }
@@ -247,7 +251,7 @@ nav.tabs {
   align-items: center;
   gap: var(--space-4);
   padding-block: 0 var(--space-2);
-  border-bottom: 1px solid var(--color-border);
+  border-block-end: 1px solid var(--color-border);
 }
 
 nav.tabs .tab {
@@ -258,24 +262,24 @@ nav.tabs .tab {
   text-decoration: none;
   font: inherit;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+  border-block-end: 2px solid transparent;
 }
 
 nav.tabs .tab[aria-current='true'],
 nav.tabs .tab[aria-pressed='true'] {
   color: var(--color-text);
-  border-bottom-color: var(--color-text);
+  border-block-end-color: var(--color-text);
 }
 
 /* ブーストは .boost 枠が top-level の項目。中の .status は枠の唯一の子＝
    :last-child なので、Status 側の border 除去が誤爆して線が消える。だから分離線は
    枠側に持たせる（中の status の線は消えたままでいい＝二重線にならない）。 */
 .boost {
-  border-bottom: 1px solid var(--color-border);
+  border-block-end: 1px solid var(--color-border);
 }
 
 .boost:last-child {
-  border-bottom: 0;
+  border-block-end: 0;
 }
 
 /* フォーム要素 — atfedi-de には無いので最小限を足す。 */
@@ -290,7 +294,7 @@ nav.tabs .tab[aria-pressed='true'] {
 
 .form label > span {
   display: block;
-  margin-bottom: var(--space-1);
+  margin-block-end: var(--space-1);
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
@@ -314,7 +318,7 @@ nav.tabs .tab[aria-pressed='true'] {
   background: var(--color-surface);
   border: 1px solid var(--color-control);
   border-radius: var(--radius-sm);
-  padding-left: var(--space-3);
+  padding-inline-start: var(--space-3);
 }
 .handle-field:focus-within {
   border-color: var(--color-text);
@@ -333,7 +337,7 @@ nav.tabs .tab[aria-pressed='true'] {
 }
 
 .stack-tight > * + * {
-  margin-top: var(--space-1);
+  margin-block-start: var(--space-1);
 }
 
 .form .help {
@@ -533,8 +537,8 @@ button:disabled {
    色ではなく囲いと言葉で言う。点滅も、数字も、しない。 */
 .new-messages {
   position: sticky;
-  bottom: 5.5rem;
-  z-index: 11;
+  inset-block-end: 5.5rem;
+  z-index: var(--layer-menu-above);
   display: block;
   margin: 0 auto;
   font: inherit;
@@ -587,11 +591,11 @@ button:disabled {
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-border);
+  border-block-end: 1px solid var(--color-border);
 }
 
 .account-row:last-child {
-  border-bottom: 0;
+  border-block-end: 0;
 }
 
 .account-row-link {
@@ -699,3 +703,31 @@ button:disabled {
   width: 100%;
 }
 
+/* ── 下の帯と、会話の面(帯・戻る印が DOM に居るかを :has() で見る) ─────────
+   以前は AppNav が JS で <body> に has-bottom-nav / in-thread の旗を立てていた。
+   DOM に居るものを CSS が直接見れば、旗も、後始末も要らない。 */
+
+/* スマホでは、帯が画面の底に居る。本文が帯の下に隠れないよう、ぶんだけ余白を空け、
+   貼りつく返信箱は帯の上に載る(--dock-h / --dock-pad)。 */
+@media (width <= 40rem) {
+  body:has(.nav-bottom) {
+    --dock-h: var(--bottom-nav-h);
+    --dock-pad: var(--space-3);
+  }
+  body:has(.nav-bottom) main {
+    padding-block-end: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* 会話の面では、返信箱が画面の底に貼りつく。その下に「底に付かないための余白」が
+   残ると、返事の下に理由のない空きになる(戻る印が出ているのが、会話の面)。 */
+body:has(.app-nav-back) main.wrap {
+  padding-block-end: 0;
+}
+
+/* アバターの引き金だけは、丸い画像にそって詰める。 */
+.nav-avatar-trigger {
+  padding: var(--space-1);
+  border-radius: 999px;
+}
+}

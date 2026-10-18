@@ -232,23 +232,23 @@
     /* 自分のぶんだけ、左に細い線。吹き出しにはしない ── 長い文も入るし、
        和文は左揃えのほうが読める。色ではなく形で分けるので、色が見え
        にくい人にも同じように分かる。 */
-    border-left: 2px solid transparent;
+    border-inline-start: 2px solid transparent;
   }
 
   .dm.mine {
-    border-left-color: var(--color-border-strong);
+    border-inline-start-color: var(--color-border-strong);
   }
 
   /* 続けて喋ったぶんは、名前を出さないので上を詰める。 */
   .dm.grouped {
-    padding-top: 0;
+    padding-block-start: 0;
   }
 
   .dm-head {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-bottom: var(--space-1);
+    margin-block-end: var(--space-1);
   }
 
   .dm-name {
@@ -259,7 +259,7 @@
   }
 
   .dm-when {
-    margin-left: auto;
+    margin-inline-start: auto;
     flex: none;
     font-size: var(--text-sm);
     color: var(--color-text-muted);
@@ -292,7 +292,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-1);
-    margin-top: var(--space-1);
+    margin-block-start: var(--space-1);
   }
 
   .reaction-chip {
@@ -389,13 +389,13 @@
     border-radius: 1.1rem;
     background: var(--fill-soft);
     padding: var(--space-2) var(--space-4);
-    margin-bottom: var(--space-2);
+    margin-block-end: var(--space-2);
   }
 
   /* グループ化で上詰めにする効果は、バブルでは要らない ── 一枚ずつ
      独立したカードなので、続きだからと詰める理由が無い。 */
   .dm.clips.grouped {
-    padding-top: var(--space-2);
+    padding-block-start: var(--space-2);
   }
 
   .dm-media {

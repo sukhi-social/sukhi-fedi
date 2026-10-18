@@ -1,0 +1,67 @@
+/* 部品の素(docs/CSS_SUBSET.md §2)。iced の Row / Column、SwiftUI の HStack /
+ * VStack / Spacer にならう。外の余白(margin)は持たず、間は gap、まわりは padding。
+ * 値は tokens.css の環境(カスタムプロパティ)から読む。置き場は @layer primitives
+ * ── 画面全体の CSS より後ろで、でも部品の scoped な CSS(層の外)には負ける。 */
+
+@layer primitives {
+  /* 横に並べる。真ん中をそろえ、間は --gap(既定 space-2)。 */
+  .hstack {
+    display: flex;
+    align-items: center;
+    gap: var(--gap, var(--space-2));
+  }
+  .hstack-stretch {
+    align-items: stretch;
+  }
+  .hstack-wrap {
+    flex-wrap: wrap;
+  }
+  /* 一覧の一行ぶんの、上下のゆとり。 */
+  .row-item {
+    padding-block: var(--space-1);
+  }
+
+  /* 縦に積む。 */
+  .vstack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap, var(--space-2));
+  }
+
+  /* 残りを使う(iced の Length::Fill)。--min で、これ以上は縮めない幅を渡せる。 */
+  .fill {
+    flex: 1;
+    min-inline-size: var(--min, 0);
+  }
+
+  .text-center {
+    text-align: center;
+  }
+  .text-sm {
+    font-size: var(--text-sm);
+  }
+  .text-base {
+    font-size: var(--text-base);
+  }
+  .text-lg {
+    font-size: var(--text-lg);
+  }
+  .clickable {
+    cursor: pointer;
+  }
+  .max-16rem {
+    max-inline-size: 16rem;
+  }
+
+  /* まわりの余白は padding で。 */
+  .pt-2 { padding-block-start: var(--space-2); }
+  .pt-3 { padding-block-start: var(--space-3); }
+  .pt-4 { padding-block-start: var(--space-4); }
+  .pt-5 { padding-block-start: var(--space-5); }
+  .pt-6 { padding-block-start: var(--space-6); }
+  .pb-2 { padding-block-end: var(--space-2); }
+  .pb-3 { padding-block-end: var(--space-3); }
+  .pb-4 { padding-block-end: var(--space-4); }
+  .py-3 { padding-block: var(--space-3); }
+  .py-4 { padding-block: var(--space-4); }
+}

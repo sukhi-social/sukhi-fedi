@@ -12,7 +12,7 @@
 // (web-natadeco/shots にも同じ形のものが在る。二つは別の package で、
 //  撮る画面も口も違うので、まとめずにそれぞれ持たせている。)
 
-import { chromium } from 'playwright';
+import { chromium } from '@playwright/test';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { installMocks } from './mock.mjs';
@@ -115,7 +115,7 @@ try {
   // ための旗なので、それで他の 60 枚が消えては困る。
   if (!only) await rm(outRoot, { recursive: true, force: true });
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ channel: 'chrome' });
 
   for (const lang of langs) {
     const dir = path.join(outRoot, lang);

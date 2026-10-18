@@ -118,10 +118,10 @@
 
 <style>
   .reply-open {
-    margin-top: var(--space-3);
+    margin-block-start: var(--space-3);
   }
   .replies {
-    margin-top: var(--space-3);
-    border-top: 1px solid var(--color-border);
+    margin-block-start: var(--space-3);
+    border-block-start: 1px solid var(--color-border);
   }
 </style>

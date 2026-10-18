@@ -487,8 +487,8 @@
           type="file"
           {accept}
           multiple
-          onchange={onFiles}
-          style="display: none;"
+          onchange={onFiles} hidden
+         
         />
       </label>
 
@@ -587,8 +587,8 @@
           type="file"
           {accept}
           multiple
-          onchange={onFiles}
-          style="display: none;"
+          onchange={onFiles} hidden
+         
         />
       </label>
 
@@ -641,10 +641,10 @@
 
   .composer-picker-anchor {
     position: absolute;
-    bottom: 100%;
-    left: 0;
-    margin-bottom: 0.25rem;
-    z-index: 50;
+    inset-block-end: 100%;
+    inset-inline-start: 0;
+    margin-block-end: 0.25rem;
+    z-index: var(--layer-overlay);
   }
 
   .composer {
@@ -673,23 +673,25 @@
      (スマホの SNS がどれも下に固定しているのは、そういう理由。) */
   .composer-dm {
     position: sticky;
-    bottom: 0;
-    z-index: 10;
-    margin-bottom: 0;
+    inset-block-end: 0;
+    z-index: var(--layer-menu);
+    margin-block-end: 0;
     background: var(--color-bg);
     border: 0;
-    border-top: 1px solid var(--color-border);
+    border-block-start: 1px solid var(--color-border);
     border-radius: 0;
     padding: var(--space-3) var(--space-4);
-    padding-bottom: max(var(--space-3), env(safe-area-inset-bottom, 0px));
+    padding-block-end: max(var(--space-3), env(safe-area-inset-bottom, 0px));
   }
 
   /* スマホでは下に親指の帯があるので、その上に貼る。帯が縁の余白(safe-area)を
      もう持っているから、ここでは重ねて取らない。 */
-  @media (max-width: 40rem) {
-    :global(body.has-bottom-nav) .composer-dm {
-      bottom: var(--bottom-nav-h);
-      padding-bottom: var(--space-3);
+  @media (width <= 40rem) {
+    /* 下の帯が出ているときは、その上に貼る(--dock-h / --dock-pad は、帯があるとき
+       だけ全体の CSS が置く環境の値)。 */
+    .composer-dm {
+      inset-block-end: var(--dock-h, 0px);
+      padding-block-end: var(--dock-pad, max(var(--space-3), env(safe-area-inset-bottom, 0px)));
     }
 
     /* 返信箱は、画面の端から端まで。.wrap の左右 gutter を負の margin で
@@ -804,7 +806,7 @@
   .composer-page {
     border: 0;
     padding: 0;
-    margin-bottom: var(--space-6);
+    margin-block-end: var(--space-6);
   }
 
   /* 「書く」は短い一言のための場所。白紙を大きく開けると「たくさん書け」に
@@ -824,7 +826,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-4);
-    margin-top: var(--space-2);
+    margin-block-start: var(--space-2);
   }
 
   .composer-more-row label.stack-tight {
@@ -868,7 +870,7 @@
   }
 
   .composer-row > button[type='submit'] {
-    margin-left: auto;
+    margin-inline-start: auto;
   }
 
   .composer-media {
@@ -898,13 +900,13 @@
      fixed で頼む(親が :global で触るのをやめる)。 */
   .composer-dm.fixed-dock {
     position: fixed;
-    left: 0;
-    right: 0;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
   }
 
   /* 固定したときは、親の .wrap の gutter を外へ抜ける必要がない(基準が
      画面になる)。ここで負の margin を重ねると、画面の両側へはみ出す。 */
-  @media (max-width: 40rem) {
+  @media (width <= 40rem) {
     .composer-dm.fixed-dock {
       margin-inline: 0;
     }

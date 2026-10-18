@@ -80,12 +80,12 @@
   .picker-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 50;
+    z-index: var(--layer-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: var(--space-4);
-    background: rgb(0 0 0 / 0.45);
+    background: var(--color-scrim);
   }
   .picker-panel {
     width: min(92vw, 360px);
@@ -125,7 +125,7 @@
     gap: var(--space-3);
     padding: var(--space-2) var(--space-3);
     font: inherit;
-    text-align: left;
+    text-align: start;
     color: var(--color-text-muted);
     background: transparent;
     border: 1px solid transparent;
@@ -155,7 +155,7 @@
     font-weight: 400;
   }
   .picker-badge {
-    margin-left: auto;
+    margin-inline-start: auto;
     flex-shrink: 0;
     font-size: var(--text-sm);
     font-weight: 600;

@@ -223,6 +223,10 @@ one place, structure routing all elements through it. The analogue of a
 copied predicate (§3) is a literal hex/px/rem in a component: it drifts,
 and the drift is invisible until two screens disagree.
 
+Which HTML/CSS features are allowed (and which are banned because they
+force overrides) is `docs/CSS_SUBSET.md`; `pnpm run css-check` in `web/`
+holds the line with a ratchet baseline.
+
 - **Tokens are the one place for value.** Colour, space, type and shape
   live in `web/src/styles/tokens.css` and nowhere else. Functional
   colour included: the single danger red is `--color-danger`

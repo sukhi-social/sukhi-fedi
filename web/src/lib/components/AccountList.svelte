@@ -78,7 +78,7 @@
 {:else if initial && loading}
   <p class="loading">{$t('common.loading')}</p>
 {:else if owner}
-  <header class="profile-head" style="padding-bottom: var(--space-3);">
+  <header class="profile-head pb-3">
     <p class="muted">
       <a href={`/@${owner.acct}`}>@{owner.acct}</a> {$t(
         kind === 'followers' ? 'accountList.possFollowers' : 'accountList.possFollowing'

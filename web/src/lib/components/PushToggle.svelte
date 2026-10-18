@@ -55,7 +55,7 @@
 
 <style>
   .push-toggle {
-    margin-top: var(--space-5);
+    margin-block-start: var(--space-5);
   }
 
   .push-toggle h2 {
@@ -66,6 +66,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    margin-top: var(--space-3);
+    margin-block-start: var(--space-3);
   }
 </style>
