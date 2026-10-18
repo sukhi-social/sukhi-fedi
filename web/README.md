@@ -14,6 +14,26 @@ gateway 側は repo ルートで `make dev`（Docker 要らず）。node は `mi
 dev server は `/api`, `/oauth`, `/login`, `/.well-known` を `http://localhost:4000`
 （Elixir gateway）に proxy する。gateway 側の起動は repo のルート README を参照。
 
+### gateway なしで、入った状態を見る
+
+```
+pnpm run dev:mock      # http://localhost:5173 — 偽の API(:4000)と vite dev がいっしょに立つ
+```
+
+`shots/mock.mjs` の返事を、そのまま HTTP で出す小さなサーバ(`shots/api-server.mjs`)
+が :4000 に立ち、vite には `VITE_DEV_TOKEN=mock` が渡る(`devAutoLogin()` が dev でだけ
+効いて、入った状態から始まる)。Playwright の外 ── 普通のブラウザ、組み込みブラウザ、
+スマホ ── でも、入った状態が開ける。ここで押した ☆ や 投稿は、どこにも届かない。
+
+- 返事を決めるのは `mock.mjs` の `respond()` の一か所。絵を撮る Playwright(`pnpm run shots`)も、
+  この偽サーバも、それを呼ぶ。
+- 時刻は起動を基準に並ぶ(絵のほうは固定)。返事を用意していない口は、空で返して一度だけ
+  名前を出す。
+- 本物の gateway と同じ :4000 を取るので、どちらかしか同時には立てない。
+- DM の WebSocket は、vite の proxy に `ws: true` が無いので、本物のときも届かない。
+  アプリは静かに繋ぎ直す。
+- 偽サーバだけなら `pnpm run mock:api`。
+
 ## ビルドして gateway から配る
 
 ```
