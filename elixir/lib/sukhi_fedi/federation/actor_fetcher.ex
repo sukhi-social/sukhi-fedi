@@ -24,6 +24,17 @@ defmodule SukhiFedi.Federation.ActorFetcher do
     end
   end
 
+  @doc """
+  Fetch from the origin, ignoring (and replacing) the cached copy. For
+  when we have been told the actor changed (`Update`): the hour-old cache
+  entry is exactly the stale document we must not read back.
+  """
+  @spec refresh(String.t()) :: {:ok, map()} | {:error, term()}
+  def refresh(actor_uri) when is_binary(actor_uri) do
+    Ets.delete(:actor_remote, actor_uri)
+    do_fetch(actor_uri)
+  end
+
   defp do_fetch(actor_uri) do
     case FedifyClient.fetch(actor_uri, SukhiFedi.Accounts.signing_identity()) do
       {:ok, %{"document" => actor}} when is_map(actor) ->
