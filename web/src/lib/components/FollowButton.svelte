@@ -90,6 +90,6 @@
     {pending ? '…' : label}
   </button>
   {#if error}
-    <span class="error" style="font-size: var(--text-sm);">{error}</span>
+    <span class="error text-sm">{error}</span>
   {/if}
 {/if}

@@ -256,8 +256,8 @@
     {/if}
     <div class="profile-id">
       <Avatar class="avatar avatar-lg" src={account.avatar} name={account.display_name || account.username} />
-      <div class="stack-tight" style="flex: 1;">
-        <p class="display-name" style="font-size: var(--text-lg);">
+      <div class="stack-tight fill">
+        <p class="display-name text-lg">
           {@html renderEmojis(phrase(account.display_name || account.username), account.emojis)}
         </p>
         <p class="muted">@{account.acct}</p>

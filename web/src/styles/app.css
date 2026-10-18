@@ -6,9 +6,13 @@
  * (タイムライン、Status カード、フォーム、プロフィール…)。コンポーネント
  * 固有の細部は各 .svelte の scoped \3c style> に置く。 */
 
+@layer tokens, base, components, primitives;
+
 @import './tokens.css';
 @import './base.css';
+@import './primitives.css';
 
+@layer components {
 /* どのページも上にひと呼吸ぶん余白を持たせる。homepage の hero
  * などはこの上に自前の padding を重ねるので、視覚的にはほんの
  * 少し下がるくらい。timeline のように hero を持たないページが
@@ -698,4 +702,4 @@ button:disabled {
 .settings-form textarea {
   width: 100%;
 }
-
+}

@@ -4,6 +4,8 @@
  * colour, size or font lives in exactly one place. Keep it to :root variables
  * and the per-locale html[lang] overrides at the bottom. */
 
+@layer tokens {
+
 :root {
   /* color — ink on warm paper.
    * There is no decorative accent colour on purpose. Colour is functional:
@@ -136,4 +138,5 @@ html[lang='ko'] {
  * <html data-platform> に置く。 */
 html[data-platform='android'] {
   --tap-min: 3rem;
+}
 }

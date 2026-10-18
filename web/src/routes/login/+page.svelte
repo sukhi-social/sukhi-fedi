@@ -147,7 +147,7 @@
 
   {#if phase === 'totp'}
     <section class="section">
-      <h2 style="font-size: var(--text-base);">{$t('login.totpTitle')}</h2>
+      <h2 class="text-base">{$t('login.totpTitle')}</h2>
       <p class="prose-small">{$t('login.totpHelp')}</p>
     </section>
 

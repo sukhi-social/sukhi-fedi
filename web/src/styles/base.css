@@ -1,5 +1,11 @@
 /* Base — reset, element defaults, layout helpers. */
 
+@view-transition {
+  navigation: auto;
+}
+
+@layer base {
+
 *,
 *::before,
 *::after {
@@ -18,9 +24,6 @@ html {
  * on the language switch, where the root font-size differs per locale, so a
  * hard jump in size felt abrupt. Pure CSS, no client JS; browsers without
  * cross-document view transitions just navigate as before. */
-@view-transition {
-  navigation: auto;
-}
 
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
@@ -162,4 +165,5 @@ h3 {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
 }

@@ -53,7 +53,7 @@
   </p>
 </section>
 
-<section class="section" style="text-align: center;">
+<section class="section text-center">
   <LangSwitch />
 </section>
 

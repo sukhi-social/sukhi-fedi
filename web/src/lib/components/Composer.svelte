@@ -487,8 +487,8 @@
           type="file"
           {accept}
           multiple
-          onchange={onFiles}
-          style="display: none;"
+          onchange={onFiles} hidden
+         
         />
       </label>
 
@@ -587,8 +587,8 @@
           type="file"
           {accept}
           multiple
-          onchange={onFiles}
-          style="display: none;"
+          onchange={onFiles} hidden
+         
         />
       </label>
 

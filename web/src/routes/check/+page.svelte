@@ -471,7 +471,7 @@
   </section>
   <p class="error">{error}</p>
   <div class="stack">
-    <button class="lane-door" onclick={retry} style="max-width: 16rem;">
+    <button class="lane-door max-16rem" onclick={retry}>
       <h3>{$t('check.retry')}</h3>
     </button>
     {#if intent === 'signup'}

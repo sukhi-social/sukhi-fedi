@@ -131,8 +131,8 @@
     {/if}
 
     <div class="stack-tight" style="margin-top: var(--space-5);">
-      <h2 style="font-size: var(--text-base);">{$t('migration.aliasesTitle')}</h2>
-      <p class="muted" style="font-size: var(--text-sm);">{$t('migration.aliasesHelp')}</p>
+      <h2 class="text-base">{$t('migration.aliasesTitle')}</h2>
+      <p class="muted text-sm">{$t('migration.aliasesHelp')}</p>
 
       {#if aliases.length === 0}
         <p class="prose-small">{$t('migration.aliasesNone')}</p>
@@ -157,7 +157,7 @@
         <button type="button" class="chip" onclick={addAlias}>{$t('migration.aliasAdd')}</button>
       {/if}
 
-      <div style="display: flex; gap: var(--space-3); align-items: center;">
+      <div class="hstack" style="--gap: var(--space-3)">
         <button type="button" class="btn px-6 py-2" disabled={savingAliases} onclick={saveAliases}>
           {savingAliases ? $t('settings.saving') : $t('settings.save')}
         </button>
@@ -173,8 +173,8 @@
 
     {#if !movedTo}
       <div class="stack-tight" style="margin-top: var(--space-6);">
-        <h2 style="font-size: var(--text-base);">{$t('migration.moveTitle')}</h2>
-        <p class="muted" style="font-size: var(--text-sm);">{$t('migration.moveHelp')}</p>
+        <h2 class="text-base">{$t('migration.moveTitle')}</h2>
+        <p class="muted text-sm">{$t('migration.moveHelp')}</p>
         <input
           type="url"
           bind:value={moveTarget}

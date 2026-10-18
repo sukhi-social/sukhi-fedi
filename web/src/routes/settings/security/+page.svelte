@@ -653,7 +653,7 @@
               required
             />
           </label>
-          <div style="display: flex; gap: var(--space-2);">
+          <div class="hstack hstack-stretch">
             <button type="submit" class="btn px-6 py-2" disabled={pwBusy}>{$t('security.passwordRemove')}</button>
             <button
               type="button"
