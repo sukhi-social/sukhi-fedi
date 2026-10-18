@@ -668,7 +668,7 @@
 
   /* ── 発車標 ── */
   .asof {
-    margin-left: var(--space-2);
+    margin-inline-start: var(--space-2);
     font-size: var(--text-sm);
     font-weight: 400;
     color: var(--color-text-muted);
@@ -686,10 +686,10 @@
   }
   .board-list li {
     padding: var(--space-3) 0;
-    border-top: 1px solid var(--color-border);
+    border-block-start: 1px solid var(--color-border);
   }
   .board-list li:first-child {
-    border-top: none;
+    border-block-start: none;
   }
   .board-list p {
     margin: var(--space-1) 0 0;
@@ -713,7 +713,7 @@
   }
 
   .status {
-    margin-left: var(--space-2);
+    margin-inline-start: var(--space-2);
     font-size: var(--text-sm);
     color: var(--color-text-muted);
   }
@@ -728,6 +728,6 @@
 
   /* 解説の段落は、息つぎの間をあける(.stack は section 間にしか効かない) */
   .prose-small + .prose-small {
-    margin-top: var(--space-3);
+    margin-block-start: var(--space-3);
   }
 </style>

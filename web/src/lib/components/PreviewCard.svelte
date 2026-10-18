@@ -29,8 +29,8 @@
   .preview-card {
     display: flex;
     flex-direction: column;
-    margin-top: var(--space-2);
-    border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+    margin-block-start: var(--space-2);
+    border: 1px solid var(--color-border, var(--color-border-fallback));
     border-radius: var(--radius, 8px);
     overflow: hidden;
     text-decoration: none;

@@ -1,7 +1,4 @@
 {
-  "font-size-unit": {
-    "src/routes/map/+page.svelte": 4
-  },
   "global-unlayered": {
     "src/styles/app.css": 83,
     "src/styles/base.css": 23,
@@ -27,43 +24,6 @@
     "src/routes/settings/security/+page.svelte": 5,
     "src/routes/signup/+page.svelte": 2,
     "src/routes/timeline/+page.svelte": 1
-  },
-  "logical-only": {
-    "src/lib/components/AccountPicker.svelte": 2,
-    "src/lib/components/AddToListButton.svelte": 1,
-    "src/lib/components/AnnouncementsBanner.svelte": 1,
-    "src/lib/components/AppNav.svelte": 7,
-    "src/lib/components/AutocompleteDropdown.svelte": 3,
-    "src/lib/components/CircleBadge.svelte": 1,
-    "src/lib/components/Composer.svelte": 10,
-    "src/lib/components/DmMessage.svelte": 7,
-    "src/lib/components/EmojiPicker.svelte": 1,
-    "src/lib/components/ImageCrop.svelte": 1,
-    "src/lib/components/LegalFooter.svelte": 3,
-    "src/lib/components/NavMenu.svelte": 1,
-    "src/lib/components/NotifGlyph.svelte": 1,
-    "src/lib/components/PreviewCard.svelte": 1,
-    "src/lib/components/PushToggle.svelte": 2,
-    "src/lib/components/QuoteCard.svelte": 2,
-    "src/lib/components/Status.svelte": 15,
-    "src/lib/components/StatusActions.svelte": 11,
-    "src/lib/components/StatusMedia.svelte": 2,
-    "src/lib/components/StatusPoll.svelte": 1,
-    "src/lib/components/TimelineFilter.svelte": 3,
-    "src/routes/@[acct]/[id]/+page.svelte": 2,
-    "src/routes/@[acct]/+page.svelte": 11,
-    "src/routes/articles/[id]/+page.svelte": 3,
-    "src/routes/lists/[id]/+page.svelte": 1,
-    "src/routes/lists/+page.svelte": 1,
-    "src/routes/login/+page.svelte": 1,
-    "src/routes/map/+page.svelte": 5,
-    "src/routes/messages/+page.svelte": 1,
-    "src/routes/notifications/+page.svelte": 4,
-    "src/routes/requests/+page.svelte": 2,
-    "src/routes/settings/security/+page.svelte": 2,
-    "src/routes/signup/+page.svelte": 3,
-    "src/styles/app.css": 10,
-    "src/styles/base.css": 1
   },
   "no-global": {
     "src/lib/components/AnnouncementsBanner.svelte": 2,
@@ -105,32 +65,6 @@
     "src/routes/signup/+page.svelte": 3,
     "src/styles/app.css": 7,
     "src/styles/base.css": 2
-  },
-  "no-numeric-z-index": {
-    "src/lib/components/AccountPicker.svelte": 1,
-    "src/lib/components/AddToListButton.svelte": 1,
-    "src/lib/components/AppNav.svelte": 2,
-    "src/lib/components/Composer.svelte": 2,
-    "src/lib/components/ImageCrop.svelte": 1,
-    "src/lib/components/NavMenu.svelte": 1,
-    "src/lib/components/StatusActions.svelte": 1,
-    "src/lib/components/StatusMedia.svelte": 2,
-    "src/lib/components/StatusPoll.svelte": 2,
-    "src/lib/components/TimelineFilter.svelte": 1,
-    "src/routes/@[acct]/+page.svelte": 1,
-    "src/styles/app.css": 1
-  },
-  "no-raw-color": {
-    "src/lib/components/AccountPicker.svelte": 1,
-    "src/lib/components/EmojiPicker.svelte": 1,
-    "src/lib/components/ImageCrop.svelte": 1,
-    "src/lib/components/MediaGrid.svelte": 2,
-    "src/lib/components/PreviewCard.svelte": 1,
-    "src/lib/components/StatusMedia.svelte": 4
-  },
-  "no-vendor-prefix": {
-    "src/lib/components/ImageCrop.svelte": 3,
-    "src/styles/base.css": 1
   },
   "selector-depth": {
     "src/lib/components/AutocompleteDropdown.svelte": 1,

@@ -275,7 +275,7 @@
   .method-switch {
     display: flex;
     gap: var(--space-2);
-    margin-bottom: var(--space-4);
+    margin-block-end: var(--space-4);
   }
   .method-switch .chip[aria-selected="true"] {
     border-color: var(--color-text);

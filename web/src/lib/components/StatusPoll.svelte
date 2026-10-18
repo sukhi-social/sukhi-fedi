@@ -86,7 +86,7 @@
 
 <style>
   .poll {
-    margin-top: 0.5rem;
+    margin-block-start: 0.5rem;
     display: flex;
     flex-direction: column;
     gap: 0.375rem;
@@ -111,7 +111,7 @@
     position: absolute;
     inset: 0 auto 0 0;
     background: var(--fill-active);
-    z-index: 0;
+    z-index: var(--layer-base);
   }
   .poll-result.mine .poll-bar {
     background: var(--fill-active-edge);
@@ -119,7 +119,7 @@
   .poll-label,
   .poll-pct {
     position: relative;
-    z-index: 1;
+    z-index: var(--layer-raised);
   }
   .poll-label {
     flex: 1;

@@ -43,12 +43,23 @@ const RULES = {
 };
 
 // 規則の例外(論理でなく、現状の限界のため)。理由を書く。
+// ファイルごとの例外(理由つき)。
+const ALLOW_FILE = {
+  // 地図は SVG の図。文字の大きさは viewBox の座標(user unit)で、図のなかで
+  // 収まるように置いてある。rem にすると、言語ごとの root の大きさで図が崩れる。
+  'font-size-unit': ['src/routes/map/+page.svelte']
+};
+
 const ALLOW = {
   // 複数行の省略は、-webkit-line-clamp しか道が無い(line-clamp は Baseline に未到達)
   'no-vendor-prefix': (prop, value) =>
     /^-webkit-(line-clamp|box-orient)$/.test(prop) ||
     value.includes('-webkit-box') ||
-    /^-webkit-(mask|mask-image)$/.test(prop) // mask は接頭辞なしが Baseline。移行まで
+    /^-webkit-(mask|mask-image)$/.test(prop) || // mask は接頭辞なしが Baseline。移行まで
+    // iOS Safari は、接頭辞なしの text-size-adjust を持たない(横向きで字が膨らむのを止める)
+    prop === '-webkit-text-size-adjust' ||
+    // 画像のドラッグを止める道は、この接頭辞つきしかない(標準の user-drag は無い)
+    prop === '-webkit-user-drag'
 };
 
 const found = []; // { rule, file, line, text }
@@ -144,7 +155,7 @@ function checkCss(file, css, offset) {
     if (!TOKEN_FILES.has(file) && /#[0-9a-fA-F]{3,8}\b|\b(rgb|rgba|hsl|hsla)\(/.test(value) && !prop.startsWith('--')) {
       add('no-raw-color', file, line, `${prop}: ${value}`);
     }
-    if (prop === 'font-size' && /^\d+(\.\d+)?px$/.test(value.trim())) add('font-size-unit', file, line, `${prop}: ${value}`);
+    if (prop === 'font-size' && /^\d+(\.\d+)?px$/.test(value.trim()) && !ALLOW_FILE['font-size-unit'].includes(file)) add('font-size-unit', file, line, `${prop}: ${value}`);
     if (prop === 'z-index' && /^-?\d+$/.test(value.trim())) add('no-numeric-z-index', file, line, `${prop}: ${value}`);
   });
 }
@@ -195,6 +206,13 @@ if (argv.has('--report')) {
   }
   console.log(`\n合計 ${found.length}`);
   if (counts['parse-error']) console.log('\n読めなかったもの:', counts['parse-error']);
+  process.exit(0);
+}
+
+if (argv.has('--list')) {
+  // --list 規則id: その規則の違反を、ファイルと行つきで全部出す
+  const want = process.argv[process.argv.indexOf('--list') + 1];
+  for (const f of found.filter((x) => x.rule === want)) console.log(`${f.file}:${f.line}  ${f.text}`);
   process.exit(0);
 }
 

@@ -169,7 +169,7 @@
     background: var(--fill-soft);
     border-radius: var(--radius);
     padding: var(--space-3) var(--space-4);
-    margin-bottom: var(--space-8);
+    margin-block-end: var(--space-8);
     font-size: 0.95rem;
     line-height: 1.8;
   }
@@ -184,12 +184,12 @@
     color: var(--color-text);
   }
   .agree input[type='checkbox'] {
-    margin-top: 0.2rem;
+    margin-block-start: 0.2rem;
     flex: 0 0 auto;
   }
 
   /* 「作る」と、その下の副リンク(ログイン・表のページへ)の間にひと呼吸。 */
   .after-form {
-    margin-top: var(--space-6);
+    margin-block-start: var(--space-6);
   }
 </style>

@@ -184,10 +184,10 @@
   .request-actions {
     display: flex;
     gap: var(--space-3);
-    padding-left: var(--space-3);
+    padding-inline-start: var(--space-3);
   }
   .invites {
-    margin-top: var(--space-6);
+    margin-block-start: var(--space-6);
   }
   .invite-row {
     display: flex;

@@ -4,7 +4,7 @@
  * またいで使い回す共有の部品(ホームの hero/lane-door、どこにでも出る
  * chip ピル、本文に差し込む絵文字)、そのあとに各画面ごとのレイアウト
  * (タイムライン、Status カード、フォーム、プロフィール…)。コンポーネント
- * 固有の細部は各 .svelte の scoped <style> に置く。 */
+ * 固有の細部は各 .svelte の scoped \3c style> に置く。 */
 
 @import './tokens.css';
 @import './base.css';
@@ -43,7 +43,7 @@ main.wrap {
 }
 
 .section {
-  margin-top: var(--space-12);
+  margin-block-start: var(--space-12);
 }
 
 .doors {
@@ -247,7 +247,7 @@ nav.tabs {
   align-items: center;
   gap: var(--space-4);
   padding-block: 0 var(--space-2);
-  border-bottom: 1px solid var(--color-border);
+  border-block-end: 1px solid var(--color-border);
 }
 
 nav.tabs .tab {
@@ -258,24 +258,24 @@ nav.tabs .tab {
   text-decoration: none;
   font: inherit;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+  border-block-end: 2px solid transparent;
 }
 
 nav.tabs .tab[aria-current='true'],
 nav.tabs .tab[aria-pressed='true'] {
   color: var(--color-text);
-  border-bottom-color: var(--color-text);
+  border-block-end-color: var(--color-text);
 }
 
 /* ブーストは .boost 枠が top-level の項目。中の .status は枠の唯一の子＝
    :last-child なので、Status 側の border 除去が誤爆して線が消える。だから分離線は
    枠側に持たせる（中の status の線は消えたままでいい＝二重線にならない）。 */
 .boost {
-  border-bottom: 1px solid var(--color-border);
+  border-block-end: 1px solid var(--color-border);
 }
 
 .boost:last-child {
-  border-bottom: 0;
+  border-block-end: 0;
 }
 
 /* フォーム要素 — atfedi-de には無いので最小限を足す。 */
@@ -290,7 +290,7 @@ nav.tabs .tab[aria-pressed='true'] {
 
 .form label > span {
   display: block;
-  margin-bottom: var(--space-1);
+  margin-block-end: var(--space-1);
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
@@ -314,7 +314,7 @@ nav.tabs .tab[aria-pressed='true'] {
   background: var(--color-surface);
   border: 1px solid var(--color-control);
   border-radius: var(--radius-sm);
-  padding-left: var(--space-3);
+  padding-inline-start: var(--space-3);
 }
 .handle-field:focus-within {
   border-color: var(--color-text);
@@ -333,7 +333,7 @@ nav.tabs .tab[aria-pressed='true'] {
 }
 
 .stack-tight > * + * {
-  margin-top: var(--space-1);
+  margin-block-start: var(--space-1);
 }
 
 .form .help {
@@ -533,8 +533,8 @@ button:disabled {
    色ではなく囲いと言葉で言う。点滅も、数字も、しない。 */
 .new-messages {
   position: sticky;
-  bottom: 5.5rem;
-  z-index: 11;
+  inset-block-end: 5.5rem;
+  z-index: var(--layer-menu-above);
   display: block;
   margin: 0 auto;
   font: inherit;
@@ -587,11 +587,11 @@ button:disabled {
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-border);
+  border-block-end: 1px solid var(--color-border);
 }
 
 .account-row:last-child {
-  border-bottom: 0;
+  border-block-end: 0;
 }
 
 .account-row-link {

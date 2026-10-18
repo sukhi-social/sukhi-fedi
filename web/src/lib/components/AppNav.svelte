@@ -328,10 +328,10 @@
        本文がこの下を流れるので不透明な地色を敷き、境界の罫線で「貼り付い
        ている」ことが分かるようにする。 */
     position: sticky;
-    top: 0;
-    z-index: 40;
+    inset-block-start: 0;
+    z-index: var(--layer-top-nav);
     background: var(--color-bg);
-    border-bottom: 1px solid var(--color-border);
+    border-block-end: 1px solid var(--color-border);
   }
 
   .app-nav-row {
@@ -365,7 +365,7 @@
     width: 1.25em;
     height: 1.25em;
     vertical-align: -0.3em;
-    margin-right: var(--space-2);
+    margin-inline-end: var(--space-2);
   }
 
   .app-nav-name:hover {
@@ -380,7 +380,7 @@
     align-items: center;
     gap: var(--space-1);
     min-height: var(--tap-min);
-    margin-left: calc(var(--space-2) * -1);
+    margin-inline-start: calc(var(--space-2) * -1);
     padding-inline: var(--space-2);
     font-weight: 700;
     text-decoration: none;
@@ -447,10 +447,10 @@
       --nav-ico-size: 1.5rem;
       position: fixed;
       inset: auto 0 0 0;
-      z-index: 30;
+      z-index: var(--layer-bottom-nav);
       background: var(--color-surface);
-      border-top: 1px solid var(--color-border);
-      padding-bottom: env(safe-area-inset-bottom, 0px);
+      border-block-start: 1px solid var(--color-border);
+      padding-block-end: env(safe-area-inset-bottom, 0px);
       /* 遷移のたびにページ高さや URL バーが動くと、fixed のこの帯は
          再ラスタライズされて中の線画 SVG が一瞬飛ぶことがある。独立した
          合成レイヤーに固定して、描き直しの巻き添えにしない。 */
@@ -475,7 +475,7 @@
        お知らせの類はもう浮いていない(流れの中＝main の先頭)ので、
        帯の上に持ち上げる特別扱いは要らなくなった。 */
     :global(body.has-bottom-nav) :global(main) {
-      padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+      padding-block-end: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
     }
   }
 
@@ -510,7 +510,7 @@
     font: inherit;
     font-size: var(--text-sm);
     text-decoration: none;
-    text-align: left;
+    text-align: start;
     white-space: nowrap;
     cursor: pointer;
   }
@@ -532,6 +532,6 @@
      余白」が残ると、返事の下に理由のない空きになる ── 底に付くのが正しい
      ものが、いちばん下にいるので。 */
   :global(body.in-thread) :global(main.wrap) {
-    padding-bottom: 0;
+    padding-block-end: 0;
   }
 </style>

@@ -83,7 +83,7 @@
   }
 
   .autocomplete-list li + li {
-    border-top: 1px solid var(--color-border);
+    border-block-start: 1px solid var(--color-border);
   }
 
   .autocomplete-list button {
@@ -95,7 +95,7 @@
     padding: var(--space-2) var(--space-3);
     background: transparent;
     border: 0;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
     color: inherit;
   }
@@ -128,7 +128,7 @@
   }
 
   .autocomplete-badge {
-    margin-left: auto;
+    margin-inline-start: auto;
     font-size: var(--text-xs);
     color: var(--color-text-muted);
     background: var(--color-bg);

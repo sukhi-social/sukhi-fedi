@@ -22,9 +22,9 @@
   .legal-foot {
     max-width: var(--measure);
     margin-inline: auto;
-    margin-top: var(--space-8);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--color-border);
+    margin-block-start: var(--space-8);
+    padding-block-start: var(--space-4);
+    border-block-start: 1px solid var(--color-border);
     text-align: center;
     font-size: var(--text-sm);
     color: var(--color-text-muted);

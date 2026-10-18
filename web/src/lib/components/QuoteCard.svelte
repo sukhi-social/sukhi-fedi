@@ -36,7 +36,7 @@
 <style>
   .quote-card {
     display: block;
-    margin-top: 0.5rem;
+    margin-block-start: 0.5rem;
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
@@ -50,7 +50,7 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    margin-bottom: 0.25rem;
+    margin-block-end: 0.25rem;
     font-size: var(--text-sm);
     /* 子(名前・ハンドル)が中身の幅で踏ん張らず、行に収まるよう縮める
        のを許す。長い連合ハンドルがカードを突き破るのを止める。 */

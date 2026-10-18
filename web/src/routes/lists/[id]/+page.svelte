@@ -345,6 +345,6 @@
     text-decoration: underline;
   }
   .back-row + .page-head {
-    margin-top: var(--space-1);
+    margin-block-start: var(--space-1);
   }
 </style>

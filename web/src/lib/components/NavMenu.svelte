@@ -67,9 +67,9 @@
 
   .nav-menu-panel {
     position: absolute;
-    top: calc(100% + var(--space-1));
-    right: 0;
-    z-index: 40;
+    inset-block-start: calc(100% + var(--space-1));
+    inset-inline-end: 0;
+    z-index: var(--layer-top-nav);
     min-width: 11rem;
     display: flex;
     flex-direction: column;

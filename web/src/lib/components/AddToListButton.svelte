@@ -93,9 +93,9 @@
   }
   .menu {
     position: absolute;
-    right: 0;
-    z-index: 10;
-    margin-top: 0.25rem;
+    inset-inline-end: 0;
+    z-index: var(--layer-menu);
+    margin-block-start: 0.25rem;
     min-width: 12rem;
     max-width: calc(100vw - 2rem);
     padding: 0.25rem;

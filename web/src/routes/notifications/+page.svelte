@@ -218,14 +218,14 @@
 
 <style>
   .notif {
-    border-top: 1px solid var(--color-border);
-    padding-top: var(--space-3);
+    border-block-start: 1px solid var(--color-border);
+    padding-block-start: var(--space-3);
   }
   .notif-head {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-bottom: var(--space-2);
+    margin-block-end: var(--space-2);
   }
   /* 名前が長いと、この行は「◯◯」+「から返信がきました」で一文になる。
      名前を折り返させると文が二行に割れて、何が起きたのかが読みにくい。
@@ -249,7 +249,7 @@
     font-size: var(--text-sm);
   }
   .notif-dismiss {
-    margin-left: auto;
+    margin-inline-start: auto;
   }
 
   /* 新着の境い目の棒。「──── 新しい通知は、ここまで ────」。 */

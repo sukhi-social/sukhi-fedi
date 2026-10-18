@@ -19,7 +19,7 @@
   .circle-badge {
     display: inline-flex;
     align-items: center;
-    margin-left: 0.35em;
+    margin-inline-start: 0.35em;
     padding: 0 0.45em;
     border-radius: 999px;
     background: var(--fill-soft);

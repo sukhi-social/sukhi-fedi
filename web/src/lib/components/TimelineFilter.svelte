@@ -103,7 +103,7 @@
   /* タブの行の中では、右端へ寄せて、chip の枠は淡く消す(タブの下線と
      紛れないように。ホバーでも枠は出さない)。 */
   .filter-bar.in-tabs {
-    margin-left: auto;
+    margin-inline-start: auto;
   }
   .in-tabs .chip,
   .in-tabs .chip:hover {
@@ -111,10 +111,10 @@
   }
   .filter-menu {
     position: absolute;
-    top: 100%; /* ボタンの下に。指定しないと static 位置=ボタンに重なる */
-    right: 0;
-    z-index: 10;
-    margin-top: 0.25rem;
+    inset-block-start: 100%; /* ボタンの下に。指定しないと static 位置=ボタンに重なる */
+    inset-inline-end: 0;
+    z-index: var(--layer-menu);
+    margin-block-start: 0.25rem;
     min-width: 14rem;
     max-width: calc(100vw - 2rem);
     padding: 0.25rem;

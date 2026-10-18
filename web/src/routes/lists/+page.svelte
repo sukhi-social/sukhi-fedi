@@ -114,7 +114,7 @@
     justify-content: space-between;
     gap: var(--space-3);
     padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--color-border);
+    border-block-end: 1px solid var(--color-border);
   }
   /* 下線を消さない。この面のリンクは下線で分かる約束(@user@host も時刻も
      そう)なのに、ここだけ消して hover のときだけ戻していた ── 指で触る

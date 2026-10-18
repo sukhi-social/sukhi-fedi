@@ -202,7 +202,7 @@
     background: var(--color-surface);
     border: 1px solid var(--color-border-strong);
     border-radius: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-popover);
   }
 
   .search-row {
@@ -241,7 +241,7 @@
     display: flex;
     gap: 0.25rem;
     overflow-x: auto;
-    padding-bottom: 0.25rem;
+    padding-block-end: 0.25rem;
     scrollbar-width: thin;
   }
 

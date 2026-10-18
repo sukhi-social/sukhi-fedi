@@ -366,7 +366,7 @@
 <style>
   /* Status カードの下に、返信・ブースト等の操作の列。 */
   .status-actions {
-    margin-top: var(--space-3);
+    margin-block-start: var(--space-3);
     display: flex;
     align-items: center;
     gap: var(--space-2);
@@ -403,7 +403,7 @@
      ので詰める。押せる大きさ(min-height)は変えない。 */
   @media (max-width: 40rem) {
     .status-actions {
-      margin-top: var(--space-2);
+      margin-block-start: var(--space-2);
       gap: var(--space-1);
     }
 
@@ -431,8 +431,8 @@
     .reaction-chip::after {
       content: '';
       position: absolute;
-      left: 50%;
-      top: 50%;
+      inset-inline-start: 50%;
+      inset-block-start: 50%;
       width: max(100%, var(--tap-min));
       height: var(--tap-min);
       transform: translate(-50%, -50%);
@@ -459,7 +459,7 @@
 
     /* 狭い画面で六つが入りきらないときは、溢れさせず、栞が次の行へ回る。 */
     .status-actions {
-      margin-top: calc(var(--tap-min) - 2rem);
+      margin-block-start: calc(var(--tap-min) - 2rem);
       gap: calc(var(--tap-min) - 2rem) var(--space-2);
       flex-wrap: wrap;
     }
@@ -473,7 +473,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem;
-    margin-top: 0.5rem;
+    margin-block-start: 0.5rem;
   }
   .reaction-chip {
     display: inline-flex;
@@ -524,11 +524,11 @@
     font-weight: 600;
   }
   .bookmark {
-    margin-left: auto;
+    margin-inline-start: auto;
   }
   .picker-anchor {
     position: relative;
-    margin-top: 0.25rem;
+    margin-block-start: 0.25rem;
   }
 
   /* 🔁 ボタンとその小メニューの入れもの。メニューをこのボタンの
@@ -539,9 +539,9 @@
   }
   .boost-menu {
     position: absolute;
-    top: 100%;
-    left: 0;
-    z-index: 10;
+    inset-block-start: 100%;
+    inset-inline-start: 0;
+    z-index: var(--layer-menu);
   }
 
   .menu {
@@ -549,7 +549,7 @@
     flex-direction: column;
     align-items: stretch;
     gap: 0.125rem;
-    margin-top: 0.25rem;
+    margin-block-start: 0.25rem;
     padding: 0.25rem;
     width: max-content;
     border: 1px solid var(--color-border);
@@ -567,7 +567,7 @@
     background: none;
     font: inherit;
     color: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
   }
   .menu-item:hover:not(:disabled) {

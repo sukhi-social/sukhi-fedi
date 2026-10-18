@@ -120,9 +120,9 @@
 <style>
   /* スレッドの中で、いま見ているノートだけ、そっと際立たせる。 */
   .focused {
-    border-left: 3px solid var(--color-text);
+    border-inline-start: 3px solid var(--color-text);
   }
   .reply-open {
-    margin-top: var(--space-3);
+    margin-block-start: var(--space-3);
   }
 </style>
