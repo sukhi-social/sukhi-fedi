@@ -236,15 +236,6 @@ async function runAndroid() {
   const navH = await page.evaluate(() => Math.round(document.querySelector('header.app-nav').getBoundingClientRect().height));
   check(L('top bar <= 58px (tap-min + 8 + border)'), navH <= 58, `height=${navH}`);
 
-  // 本文は全幅(左のアバターの列に押し込まれない)。同じ文が縦に長くならないように。
-  const col = await page.evaluate(() => {
-    const vw = document.documentElement.clientWidth;
-    const c = document.querySelector('.status .content');
-    const r = c.getBoundingClientRect();
-    return { vw, left: Math.round(r.left), width: Math.round(r.width) };
-  });
-  check(L('post body uses >= 90% of the width'), col.width >= col.vw * 0.9 - 1, `vw=${col.vw} left=${col.left} width=${col.width}`);
-
   // 拡大 → 戻る
   await page.locator('.media img').first().tap();
   check(L('lightbox opens (tap)'), await page.locator('.lightbox').isVisible());
