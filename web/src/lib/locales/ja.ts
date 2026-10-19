@@ -726,7 +726,19 @@ export const ja = {
   // T3: email nudge
   'nudge.longOffer': '3 日たったら、またそっとお知らせします。もっと静かにしたいときは、30 日お休みもできます。設定の「セキュリティ」から、いつでも登録できます。',
   'nudge.longQuiet': 'しばらく静かにする',
-  'nudge.longKeep': '3 日後でいい'
+  'nudge.longKeep': '3 日後でいい',
+  // T2b: feedback
+  'feedback.open': '意見を送る',
+  'feedback.title': 'ご意見・ひとこと',
+  'feedback.hint': 'うまくいかなかったこと、あったらいいなと思うこと、なんでも。返事は返せませんが、ちゃんと読みます。画面の名前と言語と版だけが一緒に届きます。',
+  'feedback.label': 'ご意見',
+  'feedback.send': '送る',
+  'feedback.close': '閉じる',
+  'feedback.thanks': '届きました。ありがとう。',
+  'feedback.empty': '何か書いてから送ってくださいね。',
+  'feedback.tooLong': '2000 文字までです。少し短くしてもらえますか。',
+  'feedback.rateLimited': '続けて送られたようです。少し待ってから、もう一度どうぞ。書いたものは残してあります。',
+  'feedback.failed': 'うまく届きませんでした。書いたものは残してあります。少し待って、もう一度送ってみてください。'
 } as const;
 
 export type TranslationKey = keyof typeof ja;

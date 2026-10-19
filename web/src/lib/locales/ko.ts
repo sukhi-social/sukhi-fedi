@@ -717,5 +717,17 @@ export const ko: Dict = {
   // T3: email nudge
   'nudge.longOffer': '3일 뒤에 다시 살며시 알려 드릴게요. 더 조용히 있고 싶다면 30일 동안 쉴 수도 있어요. 설정의 「보안」에서 언제든 등록할 수 있어요.',
   'nudge.longQuiet': '한동안 조용히 있기',
-  'nudge.longKeep': '3일 뒤면 괜찮아요'
+  'nudge.longKeep': '3일 뒤면 괜찮아요',
+  // T2b: feedback
+  'feedback.open': '의견 보내기',
+  'feedback.title': '의견 · 한마디',
+  'feedback.hint': '잘 안 됐던 일, 있으면 좋겠다 싶은 것, 뭐든 좋아요. 답장은 드리지 못하지만 꼭 읽어요. 화면 이름과 언어, 버전만 함께 전해져요.',
+  'feedback.label': '의견',
+  'feedback.send': '보내기',
+  'feedback.close': '닫기',
+  'feedback.thanks': '잘 전해졌어요. 고마워요.',
+  'feedback.empty': '내용을 적은 뒤에 보내 주세요.',
+  'feedback.tooLong': '2000자까지예요. 조금만 줄여 주시겠어요?',
+  'feedback.rateLimited': '연달아 보내신 것 같아요. 조금 기다렸다가 다시 보내 주세요. 적어 두신 내용은 그대로 남아 있어요.',
+  'feedback.failed': '잘 전해지지 않았어요. 적어 두신 내용은 그대로 남아 있어요. 잠시 뒤에 다시 보내 주세요.'
 };

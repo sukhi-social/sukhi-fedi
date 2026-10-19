@@ -2,6 +2,17 @@ import adapter from '@sveltejs/adapter-static';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
+
+// リポジトリ直下の VERSION を、ビルドに焼く(「意見を送る」が添える版)。
+// 読めなければ 'unknown' ── ビルドは止めない。
+const appVersion = (() => {
+  try {
+    return readFileSync(new URL('../VERSION', import.meta.url), 'utf8').trim() || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+})();
 
 // /login と /settings/password は GET=SPA ページ・POST=バックエンド、と
 // メソッドで持ち主が分かれる。dev プロキシは path 単位なので、GET は
@@ -10,6 +21,7 @@ const getToSpa = (req: { method?: string; url?: string }) =>
   req.method === 'GET' ? req.url : undefined;
 
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [
     // SSG single-page mode: every client route resolves to `index.html`, the
     // SvelteKit runtime then renders the right page. The Elixir gateway is
