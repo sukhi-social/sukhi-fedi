@@ -230,7 +230,7 @@ export const ja = {
   'settings.saving': '保存しています…',
   'settings.save': '保存',
   'settings.saved': '保存しました。',
-  'settings.saveFailed': 'うまく保存できませんでした。',
+  'settings.saveFailed': '保存できませんでした。入力はそのままです。すこし待って、もう一度どうぞ。',
   'settings.blockMute': 'ブロック・ミュート',
   'settings.blocking': 'ブロック中',
   'settings.muting': 'ミュート中',
@@ -265,7 +265,7 @@ export const ja = {
     'このブラウザで、お知らせが断られています。ブラウザの設定から許可すると、ここでまた選べます。',
   'push.reauth':
     '知らせを受け取るには、一度ログインし直してください。この端末の合鍵に、まだお知らせの許しが入っていません。',
-  'push.failed': 'うまくいきませんでした。もう一度どうぞ。',
+  'push.failed': '通知の設定を変えられませんでした。すこし待って、もう一度どうぞ。',
   'settings.emojiCreditPre': '絵文字は ',
   'settings.emojiCreditParenOpen': '（',
   'settings.emojiCreditParenClose': '）。',
@@ -430,7 +430,7 @@ export const ja = {
   'bot.title': 'トークン発行',
   'bot.help': 'パスワードも画面ログインも無く、鍵（token）だけで使えるアカウントの、鍵をつくります。',
   'bot.tokenOnce': 'この鍵は、いまここにしか出ません。閉じる前に控えてください。',
-  'bot.failed': 'うまくいきませんでした。もう一度。',
+  'bot.failed': 'ボットの設定を変えられませんでした。すこし待って、もう一度どうぞ。',
   'bot.mineTitle': '自分の鍵をつくる',
   'bot.mineHelp': 'いまのアカウントで使える鍵を一本、足します。いまの鍵やログインは、そのままです。',
   'bot.tokenName': '名前（どこで使うか）',
@@ -509,7 +509,7 @@ export const ja = {
   'check.err.token_mint_failed': 'アカウントは作れたのに、入れる札が出ませんでした。',
   'check.err.gateway_not_connected': 'サーバに、まだ届いていません。すこし待ってみて、もう一度。',
   'check.err.gateway_rpc_failed': 'サーバに、まだ届いていません。すこし待ってみて、もう一度。',
-  'check.err.internal_error': 'サーバの中で、なにかが転びました。',
+  'check.err.internal_error': 'サーバの中で、なにかが転びました。あなたのせいではありません。すこし待って、もう一度ためしてください。',
   'check.err.no_draft': '下書きが見つかりませんでした。もう一度はじめからお願いします。',
   'check.err.email_proof_invalid': 'メールの確認が古くなってしまいました。もう一度、コードからお願いします。',
   'check.field.username': 'ハンドル',
@@ -674,7 +674,7 @@ export const ja = {
   'requests.empty': 'いま、待っている人はいません。',
   'requests.approve': '迎える',
   'requests.reject': 'そっと、お断りする',
-  'requests.failed': 'うまくいきませんでした。もういちど試してね。',
+  'requests.failed': '承認の操作が届きませんでした。すこし待って、もう一度どうぞ。',
   'invites.heading': '招待リンク',
   'invites.hint':
     '鍵をかけていても、「この子だけは」と思う相手に。リンクを渡すと、待たずに迎えられます。',
@@ -715,7 +715,14 @@ export const ja = {
   // ── スレッド ─────────────────────────────────────────
   'thread.noteNotFound': 'そのノートは、見つかりませんでした。',
   'thread.note': 'ノート',
-  'thread.reply': '返信する'
+  'thread.reply': '返信する',
+
+  // T1: failure copy
+  'compose.err.network': 'ネットワークにつながっていないようです。接続を確かめて、もう一度どうぞ。書いたものは、そのまま残っています。',
+  'compose.err.busy': 'サーバがいま混み合っているようです。すこし待って、もう一度どうぞ。書いたものは、そのまま残っています。',
+  'compose.err.tooLarge': 'ファイルが大きすぎて、受け取れませんでした。小さくしてから、もう一度どうぞ。',
+  'compose.err.rateLimited': '短いあいだに、続けて送りました。すこし待って、もう一度どうぞ。',
+  'compose.err.invalid': '内容がサーバに合いませんでした。長さや形式を見直して、もう一度どうぞ。'
 } as const;
 
 export type TranslationKey = keyof typeof ja;
