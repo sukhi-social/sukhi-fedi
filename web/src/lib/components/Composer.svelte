@@ -411,6 +411,15 @@
       void goto('/');
       return $t('compose.reauth');
     }
+    // api.ts が投げる Error から読み取れる原因だけを分ける。fetch が届かない
+    // ときは TypeError、サーバが error を返さなかったときの message は
+    // `<label>_failed_<status>`。それ以外は、ひとつの汎用の文面に落とす。
+    if (e instanceof TypeError) return $t('compose.err.network');
+    const status = Number(/_failed_(\d{3})$/.exec(msg)?.[1]);
+    if (status === 413) return $t('compose.err.tooLarge');
+    if (status === 422) return $t('compose.err.invalid');
+    if (status === 429) return $t('compose.err.rateLimited');
+    if (status >= 500) return $t('compose.err.busy');
     return fallback;
   }
 </script>

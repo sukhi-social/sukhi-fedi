@@ -753,6 +753,25 @@ defmodule SukhiFedi.Web.Router do
     SukhiFedi.Web.PluginPlug.call(conn, SukhiFedi.Web.PluginPlug.init([]))
   end
 
+  # The feedback inbox (docs/FEEDBACK.md) is open to anonymous callers, so
+  # it is the one `/api/v1` door with its own, much tighter limit: 5 a
+  # quarter-hour per peer, on top of the global bucket above. The limit
+  # lives here and only here; the peer id is held in the in-memory
+  # bucket and never stored with the feedback. Must precede the
+  # `/api/v1/*_` forwarder.
+  post "/api/v1/feedback" do
+    limited =
+      SukhiFedi.Web.RateLimitPlug.call(
+        conn,
+        SukhiFedi.Web.RateLimitPlug.init(bucket: "feedback", limit: 5, scale_ms: 900_000)
+      )
+
+    case limited do
+      %Plug.Conn{halted: true} -> limited
+      %Plug.Conn{halted: false} -> SukhiFedi.Web.PluginPlug.call(limited, SukhiFedi.Web.PluginPlug.init([]))
+    end
+  end
+
   match "/api/v1/*_" do
     SukhiFedi.Web.PluginPlug.call(conn, SukhiFedi.Web.PluginPlug.init([]))
   end

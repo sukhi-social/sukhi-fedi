@@ -1061,3 +1061,17 @@ export async function fetchListTimeline(
   const path = `/api/v1/timelines/list/${encodeURIComponent(id)}?${qs}`;
   return page<Status>(await req('GET', path, 'list_timeline'));
 }
+
+// ── feedback ─────────────────────────────────────────────────────────
+// 「意見を送る」。匿名でも送れる(token があれば添えるだけ)。送るのは
+// 本文と、画面の名前・言語・版だけ ── 契約は POST /api/v1/feedback。
+// 429 は `feedback_failed_429`、422 はサーバの `error` が message になる。
+
+export async function sendFeedback(input: {
+  body: string;
+  screen: string;
+  lang: string;
+  version: string;
+}): Promise<{ id: string }> {
+  return json<{ id: string }>(await req('POST', '/api/v1/feedback', 'feedback', { auth: 'optional', json: input }));
+}

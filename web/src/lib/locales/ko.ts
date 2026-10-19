@@ -231,7 +231,7 @@ export const ko: Dict = {
   'settings.saving': '저장하고 있어요…',
   'settings.save': '저장',
   'settings.saved': '저장했어요.',
-  'settings.saveFailed': '잘 저장하지 못했어요.',
+  'settings.saveFailed': '저장하지 못했어요. 입력한 내용은 그대로예요. 잠시 후 다시 해 주세요.',
   'settings.blockMute': '차단・뮤트',
   'settings.blocking': '차단 중',
   'settings.muting': '뮤트 중',
@@ -265,7 +265,7 @@ export const ko: Dict = {
     '이 브라우저에서 알림이 거부되어 있어요. 브라우저 설정에서 허용하면 여기서 다시 고를 수 있어요.',
   'push.reauth':
     '알림을 받으려면 한 번 다시 로그인해 주세요. 이 기기의 열쇠에 알림 권한이 아직 없어요.',
-  'push.failed': '잘되지 않았어요. 다시 한번 해 주세요.',
+  'push.failed': '알림 설정을 바꾸지 못했어요. 잠시 후 다시 해 주세요.',
   'settings.emojiCreditPre': '이모지는 ',
   'settings.emojiCreditParenOpen': ' (',
   'settings.emojiCreditParenClose': ').',
@@ -430,7 +430,7 @@ export const ko: Dict = {
   'bot.title': '토큰 발급',
   'bot.help': '비밀번호도 화면 로그인도 없이, 키(token) 하나로만 쓰는 계정의 키를 만들어요.',
   'bot.tokenOnce': '이 키는 지금 여기에만 보여요. 닫기 전에 꼭 적어 두세요.',
-  'bot.failed': '잘 되지 않았어요. 다시 한번.',
+  'bot.failed': '봇 설정을 바꾸지 못했어요. 잠시 후 다시 해 주세요.',
   'bot.mineTitle': '내 키 만들기',
   'bot.mineHelp': '지금 계정에서 쓸 수 있는 키를 하나 더해요. 지금의 키나 로그인은 그대로예요.',
   'bot.tokenName': '이름 (어디에 쓰는지)',
@@ -509,7 +509,7 @@ export const ko: Dict = {
   'check.err.token_mint_failed': '계정은 만들어졌는데 들어갈 표가 나오지 않았어요.',
   'check.err.gateway_not_connected': '서버에 아직 닿지 않았어요. 조금 기다렸다가 다시 한번.',
   'check.err.gateway_rpc_failed': '서버에 아직 닿지 않았어요. 조금 기다렸다가 다시 한번.',
-  'check.err.internal_error': '서버 안에서 무언가 넘어졌어요.',
+  'check.err.internal_error': '서버 안에서 무언가 넘어졌어요. 당신 탓이 아니에요. 잠시 기다렸다가 다시 해 보세요.',
   'check.err.no_draft': '초안을 찾을 수 없었어요. 다시 처음부터 부탁해요.',
   'check.err.email_proof_invalid': '메일 확인이 오래되어 버렸어요. 다시 한번 코드부터 부탁해요.',
   'check.field.username': '핸들',
@@ -666,7 +666,7 @@ export const ko: Dict = {
   'requests.empty': '지금 기다리는 사람은 없어요.',
   'requests.approve': '맞이하기',
   'requests.reject': '조용히 거절하기',
-  'requests.failed': '잘 되지 않았어요. 다시 시도해 주세요.',
+  'requests.failed': '승인 조작이 전달되지 않았어요. 잠시 후 다시 해 주세요.',
   'invites.heading': '초대 링크',
   'invites.hint': '잠금을 걸어 두어도, "이 사람만은" 싶은 상대에게. 링크를 건네면 기다리지 않고 맞이할 수 있어요.',
   'invites.create': '초대 링크 만들기',
@@ -706,5 +706,28 @@ export const ko: Dict = {
   // ── 스레드 ───────────────────────────────────────────
   'thread.noteNotFound': '그 글은 찾을 수 없었어요.',
   'thread.note': '글',
-  'thread.reply': '답장하기'
+  'thread.reply': '답장하기',
+
+  // T1: failure copy
+  'compose.err.network': '네트워크에 연결되지 않은 것 같아요. 연결을 확인하고 다시 해 주세요. 쓴 내용은 그대로 남아 있어요.',
+  'compose.err.busy': '서버가 지금 붐비는 것 같아요. 잠시 후 다시 해 주세요. 쓴 내용은 그대로 남아 있어요.',
+  'compose.err.tooLarge': '파일이 너무 커서 받지 못했어요. 작게 줄인 뒤 다시 해 주세요.',
+  'compose.err.rateLimited': '짧은 시간에 연달아 보내셨어요. 잠시 후 다시 해 주세요.',
+  'compose.err.invalid': '내용이 서버에 맞지 않았어요. 길이나 형식을 살펴보고 다시 해 주세요.',
+  // T3: email nudge
+  'nudge.longOffer': '3일 뒤에 다시 살며시 알려 드릴게요. 더 조용히 있고 싶다면 30일 동안 쉴 수도 있어요. 설정의 「보안」에서 언제든 등록할 수 있어요.',
+  'nudge.longQuiet': '한동안 조용히 있기',
+  'nudge.longKeep': '3일 뒤면 괜찮아요',
+  // T2b: feedback
+  'feedback.open': '의견 보내기',
+  'feedback.title': '의견 · 한마디',
+  'feedback.hint': '잘 안 됐던 일, 있으면 좋겠다 싶은 것, 뭐든 좋아요. 답장은 드리지 못하지만 꼭 읽어요. 화면 이름과 언어, 버전만 함께 전해져요.',
+  'feedback.label': '의견',
+  'feedback.send': '보내기',
+  'feedback.close': '닫기',
+  'feedback.thanks': '잘 전해졌어요. 고마워요.',
+  'feedback.empty': '내용을 적은 뒤에 보내 주세요.',
+  'feedback.tooLong': '2000자까지예요. 조금만 줄여 주시겠어요?',
+  'feedback.rateLimited': '연달아 보내신 것 같아요. 조금 기다렸다가 다시 보내 주세요. 적어 두신 내용은 그대로 남아 있어요.',
+  'feedback.failed': '잘 전해지지 않았어요. 적어 두신 내용은 그대로 남아 있어요. 잠시 뒤에 다시 보내 주세요.'
 };

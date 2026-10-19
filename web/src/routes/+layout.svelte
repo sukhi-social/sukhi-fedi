@@ -2,6 +2,7 @@
   import '../styles/app.css';
   import AppNav from '#lib/components/AppNav.svelte';
   import EmailNudge from '#lib/components/EmailNudge.svelte';
+  import Feedback from '#lib/components/Feedback.svelte';
   import UpdateBanner from '#lib/components/UpdateBanner.svelte';
   import AnnouncementsBanner from '#lib/components/AnnouncementsBanner.svelte';
   import { devAutoLogin } from '#lib/auth.js';
@@ -40,4 +41,6 @@
   <UpdateBanner />
 
   {@render children?.()}
+
+  <Feedback />
 </main>

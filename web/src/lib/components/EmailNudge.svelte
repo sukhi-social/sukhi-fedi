@@ -2,7 +2,8 @@
   // メールアドレスのお願いポップアップ。ログイン中で、確認済みの
   // メールが無い人にだけ、そっと出る。UpdateBanner と同じ、下に
   // 浮かぶ非モーダルのカード ─ 画面は塞がない。「あとで」で 3 日
-  // 静かになる。
+  // 静かになる。二度目の「あとで」のときだけ、「しばらく静かにする」
+  // (30 日)も選べる。
   //
   // 状態は /auth/state(bearer でも読める)で見る。変更系は session
   // cookie 専用なので、cookie が無い人(ずっと前にログインした人や、
@@ -22,7 +23,38 @@
   import { t } from '#lib/i18n.js';
 
   const SNOOZE_KEY = 'sukhi.emailNudge.until';
-  const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000;
+  const COUNT_KEY = 'sukhi.emailNudge.count';
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const SNOOZE_MS = 3 * DAY_MS;
+  const LONG_SNOOZE_MS = 30 * DAY_MS;
+
+  // 静かにする記録(until と回数)の読み書きは、ここだけ。storage は
+  // 使えないことがあるので、どれも try/catch。読めなければ「静かに
+  // していない」・書けなければ黙って諦める(次回また出るだけ)。
+  const quietStore = {
+    until(): number {
+      try {
+        return Number(localStorage.getItem(SNOOZE_KEY) ?? '0') || 0;
+      } catch {
+        return 0;
+      }
+    },
+    count(): number {
+      try {
+        return Number(localStorage.getItem(COUNT_KEY) ?? '0') || 0;
+      } catch {
+        return 0;
+      }
+    },
+    set(ms: number, count: number) {
+      try {
+        localStorage.setItem(SNOOZE_KEY, String(Date.now() + ms));
+        localStorage.setItem(COUNT_KEY, String(count));
+      } catch {
+        // 保存できない環境。そのまま閉じるだけ。
+      }
+    }
+  };
 
   // ログイン前後の導線と法的ページでは出さない。/settings/security に
   // 居る人には言うまでもない。
@@ -50,8 +82,7 @@
 
   function snoozed(): boolean {
     if (!browser) return true;
-    const until = Number(localStorage.getItem(SNOOZE_KEY) ?? '0');
-    return Date.now() < until;
+    return Date.now() < quietStore.until();
   }
 
   async function decide() {
@@ -76,8 +107,26 @@
     if (!checkedWithToken && isLoggedIn()) void decide();
   });
 
+  // 二度目以降の「あとで」: いつも通り 3 日あけたうえで、もっと静かに
+  // する選択肢を見せる(閉じずに、カードの中身だけ入れ替える)。
+  let offerLong = $state(false);
+
   function later() {
-    if (browser) localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
+    if (!browser) return;
+    const n = quietStore.count() + 1;
+    quietStore.set(SNOOZE_MS, n);
+    if (n >= 2) offerLong = true;
+    else show = false;
+  }
+
+  function quietLonger() {
+    quietStore.set(LONG_SNOOZE_MS, quietStore.count());
+    offerLong = false;
+    show = false;
+  }
+
+  function closeAfterOffer() {
+    offerLong = false;
     show = false;
   }
 
@@ -144,6 +193,12 @@
           class="btn px-3 py-1"
           onclick={() => show = false}
         >{$t('nudge.close')}</button>
+      </div>
+    {:else if offerLong}
+      <p class="lead">{$t('nudge.longOffer')}</p>
+      <div class="actions">
+        <button type="button" class="btn px-3 py-1" onclick={quietLonger}>{$t('nudge.longQuiet')}</button>
+        <button type="button" class="btn secondary px-3 py-1" onclick={closeAfterOffer}>{$t('nudge.longKeep')}</button>
       </div>
     {:else}
       <p class="lead">
