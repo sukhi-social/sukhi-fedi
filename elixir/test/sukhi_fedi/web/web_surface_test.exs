@@ -168,6 +168,12 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     #    serves; lists endpoints and the scope each needs, no data)
     "get /api/docs",
     "get /api/docs.json",
+    # The feedback inbox: anonymous callers are welcome by design (a person
+    # who has not signed in can still say something is wrong). Held by its
+    # own per-peer limit (5 / 15 min) at the route, a 2000-char cap in the
+    # changeset, and storage that keeps no IP. Reading it is admin-only
+    # (`/api/v1/admin/feedback`, behind the `match` below).
+    "post /api/v1/feedback",
     "match /api/v1/*_",
     "match /api/admin/*_",
     "match /api/v2/*_",
