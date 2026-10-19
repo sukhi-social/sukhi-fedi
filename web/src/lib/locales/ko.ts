@@ -713,5 +713,9 @@ export const ko: Dict = {
   'compose.err.busy': '서버가 지금 붐비는 것 같아요. 잠시 후 다시 해 주세요. 쓴 내용은 그대로 남아 있어요.',
   'compose.err.tooLarge': '파일이 너무 커서 받지 못했어요. 작게 줄인 뒤 다시 해 주세요.',
   'compose.err.rateLimited': '짧은 시간에 연달아 보내셨어요. 잠시 후 다시 해 주세요.',
-  'compose.err.invalid': '내용이 서버에 맞지 않았어요. 길이나 형식을 살펴보고 다시 해 주세요.'
+  'compose.err.invalid': '내용이 서버에 맞지 않았어요. 길이나 형식을 살펴보고 다시 해 주세요.',
+  // T3: email nudge
+  'nudge.longOffer': '3일 뒤에 다시 살며시 알려 드릴게요. 더 조용히 있고 싶다면 30일 동안 쉴 수도 있어요. 설정의 「보안」에서 언제든 등록할 수 있어요.',
+  'nudge.longQuiet': '한동안 조용히 있기',
+  'nudge.longKeep': '3일 뒤면 괜찮아요'
 };

@@ -722,7 +722,11 @@ export const ja = {
   'compose.err.busy': 'サーバがいま混み合っているようです。すこし待って、もう一度どうぞ。書いたものは、そのまま残っています。',
   'compose.err.tooLarge': 'ファイルが大きすぎて、受け取れませんでした。小さくしてから、もう一度どうぞ。',
   'compose.err.rateLimited': '短いあいだに、続けて送りました。すこし待って、もう一度どうぞ。',
-  'compose.err.invalid': '内容がサーバに合いませんでした。長さや形式を見直して、もう一度どうぞ。'
+  'compose.err.invalid': '内容がサーバに合いませんでした。長さや形式を見直して、もう一度どうぞ。',
+  // T3: email nudge
+  'nudge.longOffer': '3 日たったら、またそっとお知らせします。もっと静かにしたいときは、30 日お休みもできます。設定の「セキュリティ」から、いつでも登録できます。',
+  'nudge.longQuiet': 'しばらく静かにする',
+  'nudge.longKeep': '3 日後でいい'
 } as const;
 
 export type TranslationKey = keyof typeof ja;
