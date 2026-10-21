@@ -23,6 +23,11 @@ defmodule SukhiDelivery.AP.ActorJsonTest do
     :ok
   end
 
+  test "build_person/1 publishes type Organization for an organization account" do
+    org = %Account{username: "club", actor_type: "Organization", public_key_pem: "PEM"}
+    assert ActorJson.build_person(org)["type"] == "Organization"
+  end
+
   test "build_person/1 emits the contracted shape" do
     account = %Account{
       username: "alice",

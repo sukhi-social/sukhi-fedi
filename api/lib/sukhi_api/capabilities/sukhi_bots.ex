@@ -7,8 +7,13 @@ defmodule SukhiApi.Capabilities.SukhiBots do
   から書く手、のような用途。
 
       POST /api/v1/sukhi/bots            {username, display_name}   write:accounts + admin
+      POST /api/v1/sukhi/organizations   {username, display_name}   write:accounts + admin
       POST /api/v1/sukhi/bots/:id/token                             write:accounts + admin
       POST /api/v1/sukhi/tokens          {name, expires_in_days}    write:accounts
+
+  organizations は ActivityPub の Organization actor ── bot では無く、
+  ひとまとまりの人たちが一つの声で話す共有垢。入口は bot と同じ鍵一本。
+  鍵の取り替えも `/bots/:id/token` をそのまま使う。
 
   最後の一本だけ admin では無く、いま入っている本人が、自分の垢の鍵を
   一本足す。名前と期限(1〜365日)は必須で、古い鍵は閉じない。
@@ -33,6 +38,7 @@ defmodule SukhiApi.Capabilities.SukhiBots do
   def routes do
     [
       {:post, "/api/v1/sukhi/bots", &create/1, scope: "write:accounts"},
+      {:post, "/api/v1/sukhi/organizations", &create_organization/1, scope: "write:accounts"},
       {:post, "/api/v1/sukhi/bots/:id/token", &rotate_token/1, scope: "write:accounts"},
       {:post, "/api/v1/sukhi/tokens", &issue_token/1, scope: "write:accounts"}
     ]
@@ -43,6 +49,15 @@ defmodule SukhiApi.Capabilities.SukhiBots do
       body = decode_body(req)
       attrs = Map.take(body, ["username", "display_name"])
       call(:create_bot, [admin.id, attrs], &ok(201, render(&1)))
+    else
+      {:error, :forbidden} -> ok(403, %{error: "admin_required"})
+    end
+  end
+
+  def create_organization(req) do
+    with {:ok, admin} <- AdminAuth.require_admin(req) do
+      attrs = Map.take(decode_body(req), ["username", "display_name"])
+      call(:create_organization, [admin.id, attrs], &ok(201, render(&1)))
     else
       {:error, :forbidden} -> ok(403, %{error: "admin_required"})
     end

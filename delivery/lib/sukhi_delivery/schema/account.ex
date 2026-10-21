@@ -17,6 +17,9 @@ defmodule SukhiDelivery.Schema.Account do
     # out Update(Actor), mirroring the gateway.
     field :fields, {:array, :map}, default: []
     field :public_key_pem, :string
+    # AP actor `type` ("Person" | "Organization"); ActorJson.build_person/1
+    # reads it so Update(Actor) keeps the same type the gateway serves.
+    field :actor_type, :string, default: "Person"
     field :avatar_url, :string
     field :banner_url, :string
     field :private_key_jwk, :map

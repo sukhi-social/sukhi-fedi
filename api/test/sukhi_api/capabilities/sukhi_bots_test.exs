@@ -99,6 +99,19 @@ defmodule SukhiApi.Capabilities.SukhiBotsTest do
              JSON.decode!(resp.body)
   end
 
+  test "admin は Organization を作れる ── gateway の create_organization へ" do
+    signed_in_as(@admin)
+
+    stub([
+      {{:create_organization, [9, %{"username" => "club"}]},
+       {:ok, %{account: @bot, token: "k3y"}}}
+    ])
+
+    {:ok, resp} = post("/api/v1/sukhi/organizations", %{username: "club", is_admin: true})
+    assert resp.status == 201
+    assert %{"token" => "k3y"} = JSON.decode!(resp.body)
+  end
+
   test "admin でなければ 403(トークンは有効でも)" do
     {:ok, resp} = post("/api/v1/sukhi/bots", %{username: "shiro"})
     assert resp.status == 403
