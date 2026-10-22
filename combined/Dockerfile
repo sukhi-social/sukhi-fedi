@@ -8,7 +8,7 @@
 # combined release serves the same web UI on :4000.
 
 # ── SPA build ─────────────────────────────────────────────────────────────
-FROM node:24-alpine AS spa-deps
+FROM node:24.22.1-alpine AS spa-deps
 
 WORKDIR /spa
 RUN corepack enable
