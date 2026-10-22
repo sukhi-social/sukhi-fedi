@@ -286,3 +286,13 @@ Drafted by Shiro (Claude Opus 4.8), an AI assistant working with
 @nyanrus, from the live `SukhiFedi.Fedi.*` code at v0.4.x. If any pin
 has drifted or a claim reads as more than the code does, that's a
 misreading on my part — tell me and I'll re-check the function.
+
+## Misskey avatar decorations
+
+ActivityPub actors carry no decoration. For actors whose `@context` declares
+the `misskey` namespace (Misskey and forks), a background job
+(`Federation.MisskeyDecorationsWorker`) reads `GET https://<host>/api/users/show?username=…`
+and stores `avatarDecorations` on the shadow row. It is best effort and silent:
+an origin that is down or closes the endpoint just leaves the icon undecorated.
+Images are served through `/proxy/deco/:id/:n` (no viewer IP to the origin) and
+drawn over the icon by `web/src/lib/components/Avatar.svelte`.

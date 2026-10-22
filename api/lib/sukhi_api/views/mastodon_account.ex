@@ -102,6 +102,7 @@ defmodule SukhiApi.Views.MastodonAccount do
       statuses_count: Map.get(counts, :statuses, 0),
       last_status_at: nil,
       emojis: Map.get(account, :emojis) || [],
+      avatar_decorations: avatar_decorations(account, remote?),
       fields: fields(account),
       # Account migration. `moved` is Mastodon's "this account has moved"
       # marker, rendered quietly as a link to the new identity (no number,
@@ -110,6 +111,35 @@ defmodule SukhiApi.Views.MastodonAccount do
       moved: moved(Map.get(account, :moved_to_uri)),
       aliases: Map.get(account, :aliases) || []
     }
+  end
+
+  # Misskey 系の飾り。Mastodon の仕様外の拡張キーで、知らないクライアント
+  # は読み飛ばす。リモートの画像は avatar と同じく proxy 経由(閲覧者の IP を
+  # 相手に渡さない)。無い人は空配列。
+  defp avatar_decorations(account, remote?) do
+    case Map.get(account, :avatar_decorations) do
+      rows when is_list(rows) ->
+        rows
+        |> Enum.with_index()
+        |> Enum.flat_map(fn
+          {%{"url" => url} = row, n} when is_binary(url) ->
+            [
+              %{
+                url: if(remote?, do: SukhiApi.Views.ProxyUrl.decoration(account.id, n, url), else: url),
+                angle: row["angle"] || 0.0,
+                flip_h: row["flip_h"] == true,
+                offset_x: row["offset_x"] || 0.0,
+                offset_y: row["offset_y"] || 0.0
+              }
+            ]
+
+          _ ->
+            []
+        end)
+
+      _ ->
+        []
+    end
   end
 
   # A minimal account-shaped object pointing at the new identity. We don't

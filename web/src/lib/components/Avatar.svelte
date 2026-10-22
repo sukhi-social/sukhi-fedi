@@ -1,6 +1,7 @@
 <script lang="ts">
   import { isDefaultAvatar, avatarInitial, avatarColor } from '#lib/avatar.js';
   import { proxyVariants } from '#lib/proxyImage.js';
+  import type { AvatarDecoration } from '#lib/api.js';
 
   // class はサイズを決める既存のクラス(avatar / avatar-sm / avatar-lg /
   // nav-avatar / quote-avatar)をそのまま受け取る。頭文字のときも同じ
@@ -9,12 +10,14 @@
     src,
     name,
     class: klass = 'avatar',
-    alt = ''
+    alt = '',
+    decorations = []
   }: {
     src: string | null | undefined;
     name: string;
     class?: string;
     alt?: string;
+    decorations?: AvatarDecoration[] | null;
   } = $props();
 
   let fallback = $derived(isDefaultAvatar(src));
@@ -22,6 +25,7 @@
   let color = $derived(avatarColor(name));
 </script>
 
+{#snippet face()}
 {#if fallback}
   <!-- 名前のとなりに本名が出ているので、頭文字は飾り扱い(aria-hidden)。 -->
   <span
@@ -42,8 +46,46 @@
     <img class={klass} {src} {alt} loading="lazy" />
   </picture>
 {/if}
+{/snippet}
+
+<!-- Misskey 系の飾り。アイコンの 2 倍の枠をアイコンの中心に重ね、
+     角度・反転・ずらしは Misskey の持つ値のまま当てる。pointer-events:none
+     なので押す・選ぶの邪魔をしない。飾りの無い人は包まず、これまでと同じ。 -->
+{#if decorations && decorations.length > 0}
+  <span class="deco-wrap">
+    {@render face()}
+    {#each decorations as d (d.url)}
+      <img
+        class="deco"
+        src={d.url}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        style="transform: rotate({d.angle * 360}deg) scaleX({d.flip_h ? -1 : 1}) translate({d.offset_x * 100}%, {d.offset_y * 100}%);"
+      />
+    {/each}
+  </span>
+{:else}
+  {@render face()}
+{/if}
 
 <style>
+  .deco-wrap {
+    position: relative;
+    display: inline-block;
+    flex-shrink: 0;
+    line-height: 0;
+  }
+  .deco {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    pointer-events: none;
+    user-select: none;
+  }
+
   /* 頭文字を中央に。font-size は自分の幅基準(cqw)なので、どのサイズ
      クラスでも比率が揃う ─ サイズごとに値を書かなくていい。 */
   [data-avatar-fallback] {

@@ -60,6 +60,20 @@ defmodule SukhiFedi.Web.MediaProxyController do
   def avatar(conn, id_str), do: profile_image(conn, id_str, :avatar_url)
   def header(conn, id_str), do: profile_image(conn, id_str, :banner_url)
 
+  # アバターデコレーション(Misskey 系の飾り)の n 番目。APNG などの動く
+  # 画像が多いので、変換(avif/webp)には回さず、そのまま通す。
+  def deco(conn, id_str, n_str) do
+    with {:ok, id, _} <- parse_id(id_str),
+         {:ok, n, _} <- parse_id(n_str),
+         %Account{domain: domain, avatar_decorations: decos} when is_binary(domain) <-
+           Repo.get(Account, id),
+         %{"url" => url} when is_binary(url) <- Enum.at(decos || [], n) do
+      fetch(conn, url, @profile_cache, nil, @max_redirects)
+    else
+      _ -> send_resp(conn, 404, "")
+    end
+  end
+
   # リモートアカウント(domain あり)の画像だけ。ローカルの avatar は
   # /uploads/ 直なのでここへは来ない(来ても 404 でいい)。
   defp profile_image(conn, id_str, field) do
