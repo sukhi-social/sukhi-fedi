@@ -554,13 +554,8 @@ defmodule SukhiFedi.CustomEmojis do
 
   defp invalidate(%CustomEmoji{domain: nil}), do: invalidate(:local)
   defp invalidate(%CustomEmoji{shortcode: sc, domain: d}), do: invalidate({sc, d})
-  defp invalidate({_sc, nil} = key), do: invalidate_key(key) && invalidate(:local)
-  defp invalidate({_sc, _domain} = key), do: invalidate_key(key)
-
-  defp invalidate_key(key) do
-    drop({:key, key})
-    true
-  end
+  defp invalidate({_sc, nil}), do: invalidate(:local)
+  defp invalidate({_sc, _domain} = key), do: drop({:key, key})
 
   defp clear_keys do
     :ets.match_delete(@cache, {{:key, :_}, :_, :_})
