@@ -19,6 +19,19 @@ defmodule SukhiFedi.Federation.MisskeyDecorationsTest do
              MisskeyDecorations.parse(body)
   end
 
+  test "parse accepts the shape misskey.kyu.sh really sends (angle/flipH omitted when default)" do
+    body = %{
+      "avatarDecorations" => [
+        %{"id" => "anum7ex39pq7008z", "offsetX" => -0.075, "offsetY" => 0.075, "url" => "https://misskey.kyu.sh/files/2599e6b6"}
+      ]
+    }
+
+    [row] = MisskeyDecorations.parse(body)
+    [clean] = Ecto.Changeset.get_change(Account.changeset_decorations(%Account{}, [row]), :avatar_decorations) |> List.wrap()
+
+    assert %{"angle" => +0.0, "flip_h" => false, "offset_x" => -0.075, "offset_y" => 0.075} = clean
+  end
+
   test "parse is empty for a body without decorations" do
     assert [] = MisskeyDecorations.parse(%{"id" => "x"})
     assert [] = MisskeyDecorations.parse("not json")

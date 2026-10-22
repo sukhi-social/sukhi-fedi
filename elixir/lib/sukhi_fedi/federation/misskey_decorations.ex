@@ -5,7 +5,7 @@ defmodule SukhiFedi.Federation.MisskeyDecorations do
   and other forks).
 
   ActivityPub carries no decoration: the Person document has `icon` only. The
-  origin's own API does — `users/show` returns `avatarDecorations`, a list of
+  origin's own API does — `POST /api/users/show` returns `avatarDecorations`, a list of
   `{id, url, angle, flipH, offsetX, offsetY}`. So this is a Misskey-API read,
   not federation, and it is strictly best effort: an origin that is not
   Misskey-shaped, is down, or has the endpoint closed simply leaves the
@@ -13,7 +13,7 @@ defmodule SukhiFedi.Federation.MisskeyDecorations do
 
   `parse/1` is pure and tolerant (forks differ in which keys they send);
   `refresh/1` is the only network path and passes `UrlGuard.safe?/1` before
-  the request, with the body capped by `HttpFetch.capped_get/2`. Storage goes
+  the request, with the body capped by `HttpFetch.capped_post/2`. Storage goes
   through `Account.changeset_decorations/2`, the one gate.
   """
 
@@ -56,10 +56,10 @@ defmodule SukhiFedi.Federation.MisskeyDecorations do
   @spec refresh(Account.t()) :: :ok | {:error, term()}
   def refresh(%Account{domain: domain, username: username} = account)
       when is_binary(domain) and domain != "" do
-    url = "https://#{domain}/api/users/show?" <> URI.encode_query(%{"username" => username})
+    url = "https://#{domain}/api/users/show"
 
     with true <- UrlGuard.safe?(url) || {:error, :unsafe_url},
-         {:ok, %{status: 200, body: body}} when is_binary(body) <- get(url),
+         {:ok, %{status: 200, body: body}} when is_binary(body) <- post(url, username),
          {:ok, json} <- JSON.decode(body),
          {:ok, _} <- account |> Account.changeset_decorations(parse(json)) |> Repo.update() do
       :ok
@@ -77,8 +77,10 @@ defmodule SukhiFedi.Federation.MisskeyDecorations do
 
   def refresh(_), do: {:error, :not_remote}
 
-  defp get(url) do
-    HttpFetch.capped_get(url,
+  # users/show answers POST only (GET is 405); `host: nil` = a user of that origin.
+  defp post(url, username) do
+    HttpFetch.capped_post(url,
+      json: %{"username" => username},
       headers: %{"accept" => "application/json"},
       redirect: false,
       finch: SukhiFedi.Finch,
