@@ -97,6 +97,29 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
       assert id == bot.id
     end
 
+    test "Organization は bot では無く、同じ鍵一本の口で、鍵も取り替えられる", %{admin: admin} do
+      name = "org_#{System.unique_integer([:positive])}"
+
+      assert {:ok, %{account: org, token: old}} =
+               LocalAccounts.create_organization(admin.id, %{"username" => name})
+
+      assert org.actor_type == "Organization"
+      refute org.is_bot
+      assert is_nil(org.password_hash)
+      assert {:ok, %{account: %{id: id}}} = SukhiFedi.OAuth.verify_bearer(old)
+      assert id == org.id
+
+      assert Repo.exists?(
+               from(a in SukhiFedi.Schema.AdminAudit,
+                 where: a.action == "organization_created" and a.target_account_id == ^org.id
+               )
+             )
+
+      assert {:ok, %{token: new}} = LocalAccounts.rotate_bot_token(admin.id, org.id)
+      assert {:error, :revoked} = SukhiFedi.OAuth.verify_bearer(old)
+      assert {:ok, _} = SukhiFedi.OAuth.verify_bearer(new)
+    end
+
     test "人の垢の鍵は、この口では取り替えられない", %{admin: admin} do
       assert {:error, :not_found} = LocalAccounts.rotate_bot_token(admin.id, admin.id)
     end

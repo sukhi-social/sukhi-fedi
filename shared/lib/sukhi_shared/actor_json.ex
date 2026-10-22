@@ -50,7 +50,7 @@ defmodule SukhiShared.ActorJson do
         }
       ],
       "id" => actor_uri,
-      "type" => "Person",
+      "type" => actor_type(account),
       # **人が読む頁のありか。** `id` とは別のもの ── `id` は機械の識別子で、
       # `url` は「この人を見に行くならここ」。これが無いので、actor を引いた
       # 道具(fedify lookup など)はプロフィールへのリンクを出しようがなかった。
@@ -84,6 +84,11 @@ defmodule SukhiShared.ActorJson do
     |> maybe_put_moved_to(account.moved_to_uri)
     |> maybe_put_pending_collections(account, actor_uri)
   end
+
+  # Only "Organization" departs from Person; anything else (nil from a
+  # struct without the column, an unknown string) stays Person.
+  defp actor_type(%{actor_type: "Organization"}), do: "Organization"
+  defp actor_type(_), do: "Person"
 
   # FEP-4ccd: a locked actor advertises where its pending follow requests
   # live. The collections themselves are owner-only; here we only publish

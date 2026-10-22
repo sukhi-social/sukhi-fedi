@@ -164,6 +164,25 @@ defmodule SukhiFedi.LocalAccounts do
           | {:error, {:validation, map()}}
           | {:error, term()}
   def create_bot(admin_id, attrs) when is_integer(admin_id) and is_map(attrs) do
+    create_token_only(admin_id, attrs, %{is_bot: true}, "bot_created")
+  end
+
+  @doc """
+  Create an Organization actor (AP `type: "Organization"`) — a shared
+  account for a group of people speaking as one. Same door as a bot: no
+  password, no email, one bearer token returned exactly once. It is not
+  a bot (`is_bot` stays false); only `actor_type` differs. Admin-only,
+  audited as `organization_created`.
+  """
+  @spec create_organization(integer(), map()) ::
+          {:ok, %{account: Account.t(), token: String.t()}}
+          | {:error, {:validation, map()}}
+          | {:error, term()}
+  def create_organization(admin_id, attrs) when is_integer(admin_id) and is_map(attrs) do
+    create_token_only(admin_id, attrs, %{actor_type: "Organization"}, "organization_created")
+  end
+
+  defp create_token_only(admin_id, attrs, flags, audit_action) do
     username =
       (attrs["username"] || attrs[:username] || "") |> String.trim() |> String.downcase()
 
@@ -181,8 +200,9 @@ defmodule SukhiFedi.LocalAccounts do
         ed25519_private_key_jwk: keys.ed25519_private_jwk,
         ed25519_public_multibase: keys.ed25519_public_multibase
       })
-      # put_change, not cast: an ordinary signup can't declare itself a bot.
-      |> Ecto.Changeset.put_change(:is_bot, true)
+      # change/2, not cast: an ordinary signup can't declare itself a bot
+      # or an organization.
+      |> Ecto.Changeset.change(flags)
 
     Multi.new()
     |> Multi.insert(:account, changeset)
@@ -202,7 +222,7 @@ defmodule SukhiFedi.LocalAccounts do
     end)
     |> Multi.insert(:audit, fn %{account: a} ->
       AdminAudit.changeset(%{
-        action: "bot_created",
+        action: audit_action,
         admin_account_id: admin_id,
         target_account_id: a.id
       })
@@ -225,14 +245,15 @@ defmodule SukhiFedi.LocalAccounts do
   and one new one minted, in a single transaction, so there is never a
   moment with two keys or none. Audited as `bot_token_rotated`.
 
-  Only accounts made by `create_bot/2` qualify — the monitor's bot
+  Only accounts made by `create_bot/2` or `create_organization/2` qualify — the monitor's bot
   actors have `is_bot` too, but no app of their own, and answer
   `:not_found` here.
   """
   @spec rotate_bot_token(integer(), integer()) ::
           {:ok, %{account: Account.t(), token: String.t()}} | {:error, :not_found | term()}
   def rotate_bot_token(admin_id, bot_id) when is_integer(admin_id) and is_integer(bot_id) do
-    with %Account{is_bot: true, domain: nil} = bot <- Repo.get(Account, bot_id),
+    with %Account{domain: nil} = bot <- Repo.get(Account, bot_id),
+         true <- bot.is_bot or bot.actor_type == "Organization",
          %OauthApp{} = app <- Repo.get_by(OauthApp, owner_account_id: bot.id) do
       Multi.new()
       |> Multi.run(:revoked, fn _repo, _ -> {:ok, OAuth.revoke_account_tokens(bot.id)} end)

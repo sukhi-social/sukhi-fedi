@@ -27,6 +27,10 @@ defmodule SukhiFedi.Schema.Account do
     field :ed25519_public_multibase, :string
     # Auto-created actors for the NodeInfo monitor bot.
     field :is_bot, :boolean, default: false
+    # AP actor `type` this local account publishes: "Person" (default) or
+    # "Organization". Set only by admin-side creators, never cast from
+    # user input.
+    field :actor_type, :string, default: "Person"
     field :monitored_domain, :string
     field :avatar_url, :string
     field :banner_url, :string
