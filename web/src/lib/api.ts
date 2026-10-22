@@ -944,6 +944,20 @@ export async function clearNotifications(): Promise<void> {
   await req('POST', '/api/v1/notifications/clear', 'clear', { json: {} });
 }
 
+// 「どこまで見たか」のサーバ側の控え(Mastodon の markers)。端末をまたいで
+// 同じ通知を「新着」と数えないための正本。取れなければ null。
+export async function getNotificationMarker(): Promise<string | null> {
+  const res = await req('GET', '/api/v1/markers?timeline[]=notifications', 'marker_get');
+  const body = await json<{ notifications?: { last_read_id?: string } }>(res);
+  return body.notifications?.last_read_id ?? null;
+}
+
+export async function setNotificationMarker(lastReadId: string): Promise<void> {
+  await req('POST', '/api/v1/markers', 'marker_set', {
+    json: { notifications: { last_read_id: lastReadId } }
+  });
+}
+
 // ── moderation: block / mute ─────────────────────────────────────────
 // block/unblock/mute/unmute はどれも更新後の Relationship を返す。
 
