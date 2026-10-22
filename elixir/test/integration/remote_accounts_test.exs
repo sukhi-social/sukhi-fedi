@@ -48,6 +48,25 @@ defmodule SukhiFedi.Integration.RemoteAccountsTest do
     assert refetched.public_key_pem == "PEMDATA"
   end
 
+  test "a remote bio is sanitized HTML and its emoji tags are mirrored" do
+    actor =
+      full_actor()
+      |> Map.put("summary", "<p>hi <script>alert(1)</script><br>:blobcat:</p>")
+      |> Map.put("tag", [
+        %{
+          "type" => "Emoji",
+          "name" => ":blobcat:",
+          "icon" => %{"type" => "Image", "url" => "https://remote.example/blobcat.png"}
+        }
+      ])
+
+    {:ok, a} = RemoteAccounts.upsert_from_actor_json(actor)
+
+    refute a.summary =~ "<script"
+    assert a.summary =~ "<br"
+    assert [%{"shortcode" => "blobcat", "url" => "https://remote.example/blobcat.png"}] = a.emojis
+  end
+
   test "a refetch still applies a genuinely-changed field" do
     {:ok, _} = RemoteAccounts.upsert_from_actor_json(full_actor())
 

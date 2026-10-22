@@ -44,6 +44,7 @@ defmodule SukhiShared.ActorJson do
           "discoverable" => "toot:discoverable",
           "indexable" => "toot:indexable",
           "toot" => "http://joinmastodon.org/ns#",
+          "Emoji" => "toot:Emoji",
           "pending" => "https://purl.archive.org/socialweb/pending#",
           "pendingFollowers" => %{"@id" => "pending:pendingFollowers", "@type" => "@id"},
           "pendingFollowing" => %{"@id" => "pending:pendingFollowing", "@type" => "@id"}
@@ -80,6 +81,7 @@ defmodule SukhiShared.ActorJson do
     |> maybe_put_image("icon", account.avatar_url)
     |> maybe_put_image("image", account.banner_url)
     |> maybe_put_fields(account.fields)
+    |> maybe_put_emoji_tags(Map.get(account, :emojis))
     |> maybe_put_also_known_as(account.aliases)
     |> maybe_put_moved_to(account.moved_to_uri)
     |> maybe_put_pending_collections(account, actor_uri)
@@ -106,6 +108,26 @@ defmodule SukhiShared.ActorJson do
   end
 
   defp maybe_put_fields(map, _), do: map
+
+  # The custom emoji the name / bio / fields wear, as AP `Emoji` tags — the
+  # same shape notes carry — so a remote viewer swaps `:blobcat:` for the
+  # image. Rows without a url can't be drawn there, so they are dropped.
+  defp maybe_put_emoji_tags(map, [_ | _] = emojis) do
+    tags =
+      for %{"shortcode" => sc, "url" => url} <- emojis,
+          is_binary(sc) and sc != "" and is_binary(url) and url != "" do
+        %{
+          "id" => url,
+          "type" => "Emoji",
+          "name" => ":#{sc}:",
+          "icon" => %{"type" => "Image", "url" => url}
+        }
+      end
+
+    if tags == [], do: map, else: Map.put(map, "tag", tags)
+  end
+
+  defp maybe_put_emoji_tags(map, _), do: map
 
   defp property_value(%{"name" => name, "value" => value}) do
     %{"type" => "PropertyValue", "name" => name, "value" => value}

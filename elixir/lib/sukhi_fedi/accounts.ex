@@ -273,7 +273,7 @@ defmodule SukhiFedi.Accounts do
   end
 
   defp do_update(%Account{} = account, attrs) do
-    cs = Account.changeset_credentials(account, attrs)
+    cs = account |> Account.changeset_credentials(attrs) |> put_emojis()
 
     Multi.new()
     |> Multi.update(:account, cs)
@@ -295,6 +295,27 @@ defmodule SukhiFedi.Accounts do
 
       {:error, _step, reason, _} ->
         {:error, reason}
+    end
+  end
+
+  # The custom emoji the profile wears — name, bio and field rows — resolved
+  # once on write and stored, so the view and the federated actor just echo
+  # the list (same as `notes.emojis`). Only when one of those texts changed;
+  # a avatar-only edit leaves the stored list alone.
+  defp put_emojis(cs) do
+    if Enum.any?([:display_name, :summary, :summary_source, :fields], &Map.has_key?(cs.changes, &1)) do
+      field_text =
+        cs
+        |> Ecto.Changeset.get_field(:fields)
+        |> Enum.map(fn row -> "#{row["name"]} #{row["value"]}" end)
+
+      text =
+        [Ecto.Changeset.get_field(cs, :display_name), Ecto.Changeset.get_field(cs, :summary_source) | field_text]
+        |> Enum.join(" ")
+
+      Ecto.Changeset.put_change(cs, :emojis, SukhiFedi.CustomEmojis.extract_from_text(text))
+    else
+      cs
     end
   end
 

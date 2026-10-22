@@ -38,6 +38,8 @@ export type Account = {
   header_static?: string | null;
   url: string;
   note?: string;
+  // verify_credentials のみ。自己紹介を書いたままの Markdown 原文。
+  source?: { note?: string };
   locked?: boolean;
   bot?: boolean;
   discoverable?: boolean;

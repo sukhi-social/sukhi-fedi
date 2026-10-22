@@ -345,10 +345,33 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert is_list(errors[:display_name])
     end
 
-    test "Mastodon's `note` is mapped to `summary`" do
+    test "Mastodon's `note` is mapped to `summary`, rendered as Markdown" do
       a = create_account!("alice_note")
-      assert {:ok, updated} = Accounts.update_credentials(a.id, %{"note" => "new bio"})
-      assert updated.summary == "new bio"
+      assert {:ok, updated} = Accounts.update_credentials(a.id, %{"note" => "new **bio**"})
+      assert updated.summary =~ "new <strong>bio</strong>"
+      assert updated.summary_source == "new **bio**"
+    end
+
+    test "the bio keeps the custom emoji it wears" do
+      a = create_account!("alice_emoji")
+
+      {:ok, _} =
+        SukhiFedi.CustomEmojis.register(%{
+          shortcode: "blobcat",
+          image_url: "https://e.example/blobcat.png"
+        })
+
+      assert {:ok, updated} = Accounts.update_credentials(a.id, %{"note" => "hi :blobcat:"})
+      assert [%{"shortcode" => "blobcat", "url" => "https://e.example/blobcat.png"}] = updated.emojis
+    end
+
+    test "script in a bio is scrubbed" do
+      a = create_account!("alice_xss")
+
+      assert {:ok, updated} =
+               Accounts.update_credentials(a.id, %{"note" => "<script>alert(1)</script>ok"})
+
+      refute updated.summary =~ "<script"
     end
   end
 

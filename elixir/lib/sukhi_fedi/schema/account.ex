@@ -7,6 +7,8 @@ defmodule SukhiFedi.Schema.Account do
     field :username, :string
     field :display_name, :string
     field :summary, :string
+    # Local bios only: the Markdown as typed. `summary` is its rendered HTML.
+    field :summary_source, :string
     field :emojis, {:array, :map}, default: []
     # Profile fields: a person's own static key/value rows (Mastodon
     # `fields` / AP `attachment` PropertyValue). They federate, so a
@@ -166,10 +168,26 @@ defmodule SukhiFedi.Schema.Account do
       :discoverable,
       :indexable
     ])
-    |> update_change(:summary, &SukhiFedi.HTML.sanitize/1)
     |> update_change(:fields, &cast_fields/1)
     |> validate_length(:display_name, max: 100)
     |> validate_length(:summary, max: 1024)
+    |> render_summary()
+  end
+
+  # A local bio is Markdown, rendered once at write time through the same
+  # `Markdown.to_html/1` a note takes (which sanitises last), so the bio gets
+  # exactly the notes' formatting and `summary` stays the one HTML every
+  # reader and every federated peer sees. The source rides along for editing.
+  defp render_summary(changeset) do
+    case get_change(changeset, :summary) do
+      source when is_binary(source) ->
+        changeset
+        |> put_change(:summary_source, source)
+        |> put_change(:summary, SukhiFedi.Markdown.to_html(source))
+
+      _ ->
+        changeset
+    end
   end
 
   @doc """

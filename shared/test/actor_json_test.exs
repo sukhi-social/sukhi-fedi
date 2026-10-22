@@ -59,6 +59,20 @@ defmodule SukhiShared.ActorJsonTest do
     assert [%{"type" => "Multikey"}] = full["assertionMethod"]
   end
 
+  test "the custom emoji a profile wears ride as AP Emoji tags" do
+    emojis = [
+      %{"shortcode" => "blobcat", "url" => "https://a.example/blobcat.png"},
+      %{"shortcode" => "nourl", "url" => nil}
+    ]
+
+    p = ActorJson.build_person("a.example", account(%{emojis: emojis}))
+
+    assert [%{"type" => "Emoji", "name" => ":blobcat:", "icon" => %{"url" => "https://a.example/blobcat.png"}}] =
+             p["tag"]
+
+    refute Map.has_key?(ActorJson.build_person("a.example", account()), "tag")
+  end
+
   test "build_update wraps the person for followers" do
     u = ActorJson.build_update("a.example", account())
     assert u["type"] == "Update"
