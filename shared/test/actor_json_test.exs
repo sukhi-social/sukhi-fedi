@@ -73,6 +73,16 @@ defmodule SukhiShared.ActorJsonTest do
     refute Map.has_key?(ActorJson.build_person("a.example", account()), "tag")
   end
 
+  test "location and birthday ride as vcard keys, and only when set" do
+    p = ActorJson.build_person("a.example", account(%{location: "Seoul", birthday: ~D[2000-01-02]}))
+    assert p["vcard:Address"] == "Seoul"
+    assert p["vcard:bday"] == "2000-01-02"
+
+    bare = ActorJson.build_person("a.example", account())
+    refute Map.has_key?(bare, "vcard:Address")
+    refute Map.has_key?(bare, "vcard:bday")
+  end
+
   test "build_update wraps the person for followers" do
     u = ActorJson.build_update("a.example", account())
     assert u["type"] == "Update"

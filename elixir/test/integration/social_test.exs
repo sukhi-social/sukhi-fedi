@@ -407,6 +407,21 @@ defmodule SukhiFedi.Integration.SocialTest do
       refute value =~ "<script"
     end
 
+    test "location and birthday are kept" do
+      a = create_account!("misskey_style")
+
+      assert {:ok, updated} =
+               Accounts.update_credentials(a.id, %{"location" => "Seoul", "birthday" => "2000-01-02"})
+
+      assert updated.location == "Seoul"
+      assert updated.birthday == ~D[2000-01-02]
+
+      assert {:error, {:validation, errors}} =
+               Accounts.update_credentials(a.id, %{"location" => String.duplicate("x", 200)})
+
+      assert is_list(errors[:location])
+    end
+
     test "script in a bio is scrubbed" do
       a = create_account!("alice_xss")
 

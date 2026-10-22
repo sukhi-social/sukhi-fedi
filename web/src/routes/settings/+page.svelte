@@ -33,6 +33,8 @@
   let adminPickerOpen = $state(false);
   let displayName = $state('');
   let note = $state('');
+  let place = $state('');
+  let birthday = $state('');
   let locked = $state(false);
   let bot = $state(false);
   // 検索インデックスへの同意(FEP-5feb)。どちらも、はじめは「しない」。
@@ -102,6 +104,8 @@
       // それを開く。原文のない古い行だけ、note(HTML)から雑にタグを落とす
       // 最小処理で近づける。サーバが正本。
       note = me.source?.note ?? stripTags(me.note ?? '');
+      place = me.location ?? '';
+      birthday = me.birthday ?? '';
       locked = !!me.locked;
       bot = !!me.bot;
       discoverable = !!me.discoverable;
@@ -235,6 +239,8 @@
       const updated = await updateCredentials({
         display_name: displayName,
         note,
+        location: place,
+        birthday,
         locked,
         bot,
         discoverable,
@@ -296,6 +302,16 @@
       <span>{$t('settings.bio')}</span>
       <textarea bind:value={note} rows="4" maxlength="500"></textarea>
       <small class="text-muted">{$t('settings.bioHint')}</small>
+    </label>
+
+    <label class="stack-tight">
+      <span>{$t('settings.location')}</span>
+      <input type="text" bind:value={place} maxlength="128" />
+    </label>
+
+    <label class="stack-tight">
+      <span>{$t('settings.birthday')}</span>
+      <input type="date" bind:value={birthday} />
     </label>
 
     <div class="stack-tight">

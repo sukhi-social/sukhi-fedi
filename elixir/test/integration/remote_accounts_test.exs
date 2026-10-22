@@ -67,6 +67,29 @@ defmodule SukhiFedi.Integration.RemoteAccountsTest do
     assert [%{"shortcode" => "blobcat", "url" => "https://remote.example/blobcat.png"}] = a.emojis
   end
 
+  test "a remote's vcard location and birthday are mirrored, and cleared when dropped" do
+    actor =
+      full_actor()
+      |> Map.put("vcard:Address", "Seoul")
+      |> Map.put("vcard:bday", "2026-06-23")
+
+    {:ok, a} = RemoteAccounts.upsert_from_actor_json(actor)
+    assert a.location == "Seoul"
+    assert a.birthday == ~D[2026-06-23]
+
+    # A degraded doc (no inbox) leaves them alone…
+    {:ok, a} = RemoteAccounts.upsert_from_actor_json(%{"id" => @uri, "preferredUsername" => "bob"})
+    assert a.location == "Seoul"
+
+    # …a complete one that dropped them clears them.
+    {:ok, a} = RemoteAccounts.upsert_from_actor_json(full_actor())
+    assert a.location == nil
+    assert a.birthday == nil
+
+    {:ok, a} = RemoteAccounts.upsert_from_actor_json(Map.put(full_actor(), "vcard:bday", "nope"))
+    assert a.birthday == nil
+  end
+
   test "a refetch still applies a genuinely-changed field" do
     {:ok, _} = RemoteAccounts.upsert_from_actor_json(full_actor())
 

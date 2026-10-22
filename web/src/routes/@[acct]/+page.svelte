@@ -345,6 +345,32 @@
       <div class="profile-note">{@html renderEmojis(account.note, account.emojis)}</div>
     {/if}
 
+    {#if account.location || account.birthday || account.created_at}
+      <!-- Misskey 式の項目。場所と誕生日は本人が置いたもの(連合で届く)、
+           日付は、ローカルなら登録日、リモートならこのサーバーが知った日。
+           誕生日は日付そのままを出す(時差で一日ずれないように)。 -->
+      <dl class="profile-fields">
+        {#if account.location}
+          <div class="profile-field">
+            <dt>{$t('profile.location')}</dt>
+            <dd>{account.location}</dd>
+          </div>
+        {/if}
+        {#if account.birthday}
+          <div class="profile-field">
+            <dt>{$t('profile.birthday')}</dt>
+            <dd>{account.birthday.replaceAll('-', '/')}</dd>
+          </div>
+        {/if}
+        {#if account.created_at}
+          <div class="profile-field">
+            <dt>{account.acct.includes('@') ? $t('profile.firstSeen') : $t('profile.joined')}</dt>
+            <dd>{new Date(account.created_at).toLocaleDateString()}</dd>
+          </div>
+        {/if}
+      </dl>
+    {/if}
+
     {#if account.fields && account.fields.length > 0}
       <!-- プロフィールのひとこと欄。本人が自分で選んで置いた、静かな
            key/value の行。連合するので、どの画面でも同じものが見える。
