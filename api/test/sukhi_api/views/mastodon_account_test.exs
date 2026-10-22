@@ -42,4 +42,24 @@ defmodule SukhiApi.Views.MastodonAccountTest do
       assert missing.avatar == "https://localhost:4000/static/avatar-default.svg"
     end
   end
+
+  describe "avatar decorations" do
+    test "remote ones go through /proxy/deco, in order; none renders as []" do
+      out =
+        MastodonAccount.render(
+          account(%{
+            domain: "remote.example",
+            avatar_decorations: [
+              %{"url" => "https://remote.example/files/a.webp", "offset_x" => -0.075, "offset_y" => 0.075}
+            ]
+          })
+        )
+
+      assert [%{url: url, angle: 0.0, flip_h: false, offset_x: -0.075, offset_y: 0.075}] =
+               out.avatar_decorations
+
+      assert url =~ ~r"^https://localhost:4000/proxy/deco/3/0\.webp\?v=\d+$"
+      assert MastodonAccount.render(account(%{})).avatar_decorations == []
+    end
+  end
 end

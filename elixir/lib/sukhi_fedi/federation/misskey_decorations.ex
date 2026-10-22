@@ -17,8 +17,6 @@ defmodule SukhiFedi.Federation.MisskeyDecorations do
   through `Account.changeset_decorations/2`, the one gate.
   """
 
-  require Logger
-
   alias SukhiFedi.Fedi.HttpFetch
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account

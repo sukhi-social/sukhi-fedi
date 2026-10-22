@@ -9,6 +9,7 @@ defmodule SukhiFedi.Web.MediaProxyController do
     * `/proxy/media/:id`  — リモート note の添付 (`media.remote_url`)
     * `/proxy/avatar/:id` — リモートアカウントの avatar
     * `/proxy/header/:id` — リモートアカウントの banner
+    * `/proxy/deco/:id/:n` — リモートアカウントのアバターデコレーション n 番目
 
   取得は `UrlGuard`(webfinger と同じ SSRF guard)を通し、redirect も
   一 hop ごとに再検査する。content-type は image / video / audio だけ、
