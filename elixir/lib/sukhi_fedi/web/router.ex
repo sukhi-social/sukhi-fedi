@@ -1041,7 +1041,7 @@ defmodule SukhiFedi.Web.Router do
         put_resp_header(conn, "cache-control", "public, max-age=86400")
 
       String.starts_with?(relative, "emojis/") ->
-        put_resp_header(conn, "cache-control", "public, max-age=86400, stale-while-revalidate=604800")
+        put_resp_header(conn, "cache-control", "public, max-age=2592000, stale-while-revalidate=604800")
 
       true ->
         conn
@@ -1049,7 +1049,7 @@ defmodule SukhiFedi.Web.Router do
   end
 
   # カスタム絵文字(`emojis/`)は同じ名前で差し替えられうる(取り込み直し)
-  # ので immutable にはできない。代わりに丸一日は問い合わせなしで使わせ、
+  # ので immutable にはできない。代わりに一か月は問い合わせなしで使わせ、
   # 切れたあとは ETag(mtime+size)で 304 にする ─ 画像の本体は再送しない。
   defp send_static(conn, "emojis/" <> _, full) do
     case File.stat(full, time: :posix) do
