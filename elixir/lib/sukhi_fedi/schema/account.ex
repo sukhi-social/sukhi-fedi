@@ -214,7 +214,7 @@ defmodule SukhiFedi.Schema.Account do
       :discoverable,
       :indexable
     ])
-    |> update_change(:fields, &cast_fields(&1, @max_fields))
+    |> update_change(:fields, &cast_local_fields/1)
     |> validate_length(:display_name, max: 100)
     |> validate_length(:summary, max: 1024)
     |> render_summary()
@@ -305,6 +305,47 @@ defmodule SukhiFedi.Schema.Account do
   end
 
   defp cast_fields(_, _max), do: []
+
+  # Our own users write a row's value as Markdown, like a bio or a note: it is
+  # cut to length as typed (cutting rendered HTML would leave a tag open),
+  # rendered once through `Markdown.to_html/1` (mentions linked, sanitised
+  # last), and the source rides along as `value_source` for the edit box.
+  # A one-paragraph value loses its <p> wrapper — a row is a line, not a block.
+  defp cast_local_fields(rows) when is_list(rows) do
+    rows
+    |> Enum.map(&one_local_field/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.take(@max_fields)
+  end
+
+  defp cast_local_fields(_), do: []
+
+  defp one_local_field(row) when is_map(row) do
+    name = row |> field_str("name") |> String.slice(0, @max_field_name)
+    source = row |> field_str("value_source") |> then(&if(&1 == "", do: field_str(row, "value"), else: &1))
+    source = String.slice(source, 0, @max_field_value)
+
+    case String.trim(name) do
+      "" ->
+        nil
+
+      _ ->
+        %{
+          "name" => SukhiFedi.HTML.escape(name),
+          "value" => source |> SukhiFedi.Markdown.to_html() |> unwrap_paragraph(),
+          "value_source" => source
+        }
+    end
+  end
+
+  defp one_local_field(_), do: nil
+
+  defp unwrap_paragraph(html) do
+    case Regex.run(~r/\A<p>\s*(.*?)\s*<\/p>\z/s, html) do
+      [_, inner] -> if String.contains?(inner, "<p>"), do: html, else: inner
+      _ -> html
+    end
+  end
 
   defp one_field(row) when is_map(row) do
     name = row |> field_str("name") |> String.slice(0, @max_field_name)

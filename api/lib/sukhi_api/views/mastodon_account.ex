@@ -187,6 +187,40 @@ defmodule SukhiApi.Views.MastodonAccount do
     end
   end
 
+  # `source.fields`: the value as typed (Markdown) when we have it, so the edit
+  # box reopens what was written. Rows without a source (remote, or written
+  # before it existed) fall back to the stored HTML.
+  defp source_fields(account) do
+    case Map.get(account, :fields) do
+      rows when is_list(rows) ->
+        Enum.map(rows, fn row ->
+          %{
+            name: Map.get(row, "name", ""),
+            value: Map.get(row, "value_source") || plain(Map.get(row, "value", "")),
+            verified_at: nil
+          }
+        end)
+
+      _ ->
+        []
+    end
+  end
+
+  # Stored HTML → the plain text a person would have typed, near enough for an
+  # edit box: <br> back to a newline, tags dropped, entities undone.
+  defp plain(html) when is_binary(html) do
+    html
+    |> String.replace(~r/<br\s*\/?>/i, "\n")
+    |> String.replace(~r/<[^>]+>/, "")
+    |> String.replace("&lt;", "<")
+    |> String.replace("&gt;", ">")
+    |> String.replace("&quot;", "\"")
+    |> String.replace("&#39;", "'")
+    |> String.replace("&amp;", "&")
+  end
+
+  defp plain(other), do: other
+
   defp proxy_image(true, kind, id, url) when is_binary(url) do
     SukhiApi.Views.ProxyUrl.profile_image(kind, id, url)
   end
@@ -209,7 +243,7 @@ defmodule SukhiApi.Views.MastodonAccount do
         # The Markdown as typed when we have it; older bios fall back to
         # the stored HTML (the client strips it for the edit box).
         note: Map.get(account, :summary_source) || Map.get(account, :summary) || "",
-        fields: fields(account),
+        fields: source_fields(account),
         follow_requests_count: 0
       },
       role:

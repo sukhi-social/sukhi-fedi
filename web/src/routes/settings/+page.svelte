@@ -106,9 +106,12 @@
       bot = !!me.bot;
       discoverable = !!me.discoverable;
       indexable = !!me.indexable;
-      // 値は HTML で返ってくる(リンクを含むことがある)。編集はテキストで
-      // 扱いたいので、note と同じ最小処理でタグを落とす。サーバが正本。
-      fields = (me.fields ?? []).map((f) => ({ name: stripTags(f.name), value: stripTags(f.value) }));
+      // 値も Markdown で書く。source.fields が書いたままの原文(原文のない
+      // 古い行はサーバが平文に戻して返す)。名前は HTML のままなので落とす。
+      fields = (me.source?.fields ?? me.fields ?? []).map((f) => ({
+        name: stripTags(f.name),
+        value: f.value
+      }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       if (msg === 'unauthorized') {

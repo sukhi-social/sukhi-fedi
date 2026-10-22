@@ -215,7 +215,7 @@ export const ja = {
   'settings.headerNew': '新しいヘッダ画像（保存前）',
   'settings.headerNow': 'いまのヘッダ画像',
   'settings.fields': 'プロフィールのひとこと欄',
-  'settings.fieldsHint': '自分で選んで置く、静かな項目。連合するので、どの画面でも同じものが見えます。4 つまで。',
+  'settings.fieldsHint': '自分で選んで置く、静かな項目。連合するので、どの画面でも同じものが見えます。内容は Markdown と @メンション が使えます。4 つまで。',
   'settings.fieldName': '項目名',
   'settings.fieldValue': '内容',
   'settings.fieldAdd': '項目を足す',

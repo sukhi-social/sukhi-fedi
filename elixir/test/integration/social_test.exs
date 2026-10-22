@@ -365,6 +365,48 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert [%{"shortcode" => "blobcat", "url" => "https://e.example/blobcat.png"}] = updated.emojis
     end
 
+    test "a bio and a field value link @mentions of accounts we know" do
+      a = create_account!("mention_author")
+      _ = create_account!("mention_target")
+
+      assert {:ok, updated} =
+               Accounts.update_credentials(a.id, %{
+                 "note" => "friend of @mention_target",
+                 "fields" => [%{"name" => "mate", "value" => "@mention_target"}]
+               })
+
+      assert updated.summary =~ ~s(class="u-url mention")
+      assert [%{"value" => value}] = updated.fields
+      assert value =~ ~s(class="u-url mention")
+    end
+
+    test "a field value is Markdown, one line, with its source kept" do
+      a = create_account!("field_md")
+
+      assert {:ok, updated} =
+               Accounts.update_credentials(a.id, %{
+                 "fields" => [%{"name" => "SNS", "value" => "[X](https://x.com/me) … **b**"}]
+               })
+
+      assert [%{"name" => "SNS", "value" => value, "value_source" => src}] = updated.fields
+      assert src == "[X](https://x.com/me) … **b**"
+      assert value =~ ~s(href="https://x.com/me")
+      assert value =~ "<strong>b</strong>"
+      refute value =~ "<p>"
+    end
+
+    test "script in a field value is scrubbed" do
+      a = create_account!("field_xss")
+
+      assert {:ok, updated} =
+               Accounts.update_credentials(a.id, %{
+                 "fields" => [%{"name" => "x", "value" => "<script>alert(1)</script>hi"}]
+               })
+
+      assert [%{"value" => value}] = updated.fields
+      refute value =~ "<script"
+    end
+
     test "script in a bio is scrubbed" do
       a = create_account!("alice_xss")
 

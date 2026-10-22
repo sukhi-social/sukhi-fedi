@@ -216,7 +216,7 @@ export const ko: Dict = {
   'settings.headerNew': '새 헤더 이미지 (저장 전)',
   'settings.headerNow': '지금 헤더 이미지',
   'settings.fields': '프로필 한마디 칸',
-  'settings.fieldsHint': '직접 골라 두는 조용한 항목이에요. 연합되니 어느 화면에서나 같은 게 보여요. 4개까지.',
+  'settings.fieldsHint': '직접 골라 두는 조용한 항목이에요. 연합되니 어느 화면에서나 같은 게 보여요. 내용에는 Markdown과 @멘션을 쓸 수 있어요. 4개까지.',
   'settings.fieldName': '항목 이름',
   'settings.fieldValue': '내용',
   'settings.fieldAdd': '항목 더하기',

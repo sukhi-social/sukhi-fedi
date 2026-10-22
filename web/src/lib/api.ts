@@ -39,7 +39,7 @@ export type Account = {
   url: string;
   note?: string;
   // verify_credentials のみ。自己紹介を書いたままの Markdown 原文。
-  source?: { note?: string };
+  source?: { note?: string; fields?: { name: string; value: string }[] };
   // 管理者が渡した公開バッジ（Moderator など）。color は #hex か空。
   roles?: { id: string; name: string; color: string }[];
   locked?: boolean;
