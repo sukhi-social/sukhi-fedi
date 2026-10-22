@@ -70,6 +70,28 @@ defmodule SukhiFedi.Web.Admin.UsersController do
     end
   end
 
+  # One text box, names separated by commas — the common case. Colors
+  # stay whatever each badge already wears (a name kept keeps its color);
+  # the API takes the full shape.
+  def roles(conn, id) do
+    with {:ok, account} <- find_local(id) do
+      current = Map.new(account.roles, &{SukhiFedi.HTML.unescape(&1["name"]), &1["color"]})
+
+      rows =
+        (conn.body_params["roles"] || "")
+        |> String.split(",", trim: true)
+        |> Enum.map(&String.trim/1)
+        |> Enum.map(&%{"name" => &1, "color" => Map.get(current, &1, "")})
+
+      case SukhiFedi.Accounts.set_roles(account.id, conn.assigns.admin.id, rows) do
+        {:ok, updated} -> Render.send_fragment(conn, "users/_row.html.eex", user: updated)
+        _ -> send_resp(conn, 404, "")
+      end
+    else
+      _ -> send_resp(conn, 404, "")
+    end
+  end
+
   defp find_local(id) do
     case Integer.parse(to_string(id)) do
       {n, ""} ->

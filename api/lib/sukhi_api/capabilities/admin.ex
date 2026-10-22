@@ -29,6 +29,7 @@ defmodule SukhiApi.Capabilities.Admin do
       {:post, "/api/admin/accounts/:id/unsuspend", &unsuspend_account/1, scope: "admin:write"},
       {:post, "/api/admin/accounts/:id/promote", &promote_account/1, scope: "admin:write"},
       {:post, "/api/admin/accounts/:id/demote", &demote_account/1, scope: "admin:write"},
+      {:put, "/api/admin/accounts/:id/roles", &set_roles/1, scope: "admin:write"},
 
       # reports
       {:get, "/api/admin/reports", &list_reports/1, scope: "admin:read"},
@@ -130,6 +131,24 @@ defmodule SukhiApi.Capabilities.Admin do
     with {:ok, admin} <- AdminAuth.require_admin(req),
          {:ok, id} <- parse_int(req[:path_params]["id"]) do
       case GatewayRpc.run(SukhiFedi.Accounts, :set_admin, [id, admin.id, flag]) do
+        {:ok, account} -> ok(200, AdminAccount.render(account))
+        {:error, :not_found} -> ok(404, %{error: "account_not_found"})
+        other -> rpc_error(other)
+      end
+    else
+      {:error, :forbidden} -> ok(403, %{error: "admin_required"})
+      {:error, :bad_int} -> ok(400, %{error: "invalid_id"})
+    end
+  end
+
+  # Body: `{"roles": [{"name": "Moderator", "color": "#e5484d"}, ...]}`. The
+  # list replaces what the account wears; the gate trims and caps it.
+  def set_roles(req) do
+    with {:ok, admin} <- AdminAuth.require_admin(req),
+         {:ok, id} <- parse_int(req[:path_params]["id"]) do
+      rows = Map.get(decode_body(req), "roles")
+
+      case GatewayRpc.run(SukhiFedi.Accounts, :set_roles, [id, admin.id, rows]) do
         {:ok, account} -> ok(200, AdminAccount.render(account))
         {:error, :not_found} -> ok(404, %{error: "account_not_found"})
         other -> rpc_error(other)

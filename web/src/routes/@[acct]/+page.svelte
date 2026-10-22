@@ -333,6 +333,14 @@
       {/if}
     </div>
 
+    {#if account.roles && account.roles.length > 0}
+      <p class="profile-roles">
+        {#each account.roles as r (r.id)}
+          <span class="role-badge" style:--role-color={r.color || null}>{@html r.name}</span>
+        {/each}
+      </p>
+    {/if}
+
     {#if account.note}
       <div class="profile-note">{@html renderEmojis(account.note, account.emojis)}</div>
     {/if}
@@ -591,6 +599,23 @@
   .profile-tabs .tab.active {
     color: var(--color-text);
     border-block-end-color: var(--color-text);
+  }
+  .profile-roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+  }
+  .role-badge {
+    --role-color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--role-color);
+    border-radius: 999px;
+    color: var(--role-color);
+    font-size: var(--text-sm);
+    line-height: 1.7;
   }
   .profile-note {
     font-size: var(--text-base);

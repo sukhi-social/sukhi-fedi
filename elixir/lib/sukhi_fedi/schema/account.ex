@@ -41,6 +41,9 @@ defmodule SukhiFedi.Schema.Account do
     # `%{"url", "angle", "flip_h", "offset_x", "offset_y"}`.
     field :avatar_decorations, {:array, :map}, default: []
     field :is_admin, :boolean, default: false
+    # Public badges an admin gave this local account. Each row is
+    # `%{"name" => String.t(), "color" => String.t()}`; see `changeset_roles/2`.
+    field :roles, {:array, :map}, default: []
     # Manual follow approval (Mastodon `locked` / AP
     # `manuallyApprovesFollowers`). For remote rows this mirrors the
     # value from the upstream actor JSON.
@@ -137,6 +140,46 @@ defmodule SukhiFedi.Schema.Account do
     |> update_change(:fields, &cast_fields(&1, @max_remote_fields))
     |> validate_required([:username, :domain, :actor_uri])
   end
+
+  @doc """
+  Changeset for the badges an admin hands to a local account. The one gate
+  for what reaches `roles`: at most 3 rows, each name plain text (escaped,
+  1..30 chars), each color a `#rgb` / `#rrggbb` hex or "" (the client picks
+  its default). Remote rows never pass through here.
+  """
+  def changeset_roles(account, rows) do
+    account
+    |> cast(%{roles: rows}, [:roles])
+    |> update_change(:roles, &cast_roles/1)
+  end
+
+  @max_roles 3
+  @max_role_name 30
+  defp cast_roles(rows) when is_list(rows) do
+    rows |> Enum.flat_map(&one_role/1) |> Enum.take(@max_roles)
+  end
+
+  defp cast_roles(_), do: []
+
+  defp one_role(%{} = row) do
+    name = row |> field_str("name") |> String.trim() |> String.slice(0, @max_role_name)
+    color = row |> field_str("color") |> String.trim()
+
+    case name do
+      "" ->
+        []
+
+      _ ->
+        [
+          %{
+            "name" => SukhiFedi.HTML.escape(name),
+            "color" => if(Regex.match?(~r/\A#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\z/, color), do: color, else: "")
+          }
+        ]
+    end
+  end
+
+  defp one_role(_), do: []
 
   @doc """
   Changeset for the decorations mirrored from a remote Misskey-family
