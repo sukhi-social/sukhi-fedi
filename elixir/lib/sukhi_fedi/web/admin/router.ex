@@ -72,6 +72,10 @@ defmodule SukhiFedi.Web.Admin.Router do
     Auth.with_admin(conn, &UsersController.suspend(&1, id))
   end
 
+  post "/users/:id/roles" do
+    Auth.with_admin(conn, &UsersController.roles(&1, id))
+  end
+
   post "/users/:id/unsuspend" do
     Auth.with_admin(conn, &UsersController.unsuspend(&1, id))
   end

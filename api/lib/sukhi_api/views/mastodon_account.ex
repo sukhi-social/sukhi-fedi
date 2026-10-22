@@ -104,6 +104,7 @@ defmodule SukhiApi.Views.MastodonAccount do
       emojis: Map.get(account, :emojis) || [],
       avatar_decorations: avatar_decorations(account, remote?),
       fields: fields(account),
+      roles: roles(account),
       # Account migration. `moved` is Mastodon's "this account has moved"
       # marker, rendered quietly as a link to the new identity (no number,
       # no banner — the truthful state, nothing more). `null` when not
@@ -163,6 +164,22 @@ defmodule SukhiApi.Views.MastodonAccount do
       rows when is_list(rows) ->
         Enum.map(rows, fn row ->
           %{name: Map.get(row, "name", ""), value: Map.get(row, "value", ""), verified_at: nil}
+        end)
+
+      _ ->
+        []
+    end
+  end
+
+  # Public badges (Mastodon `roles`: id / name / color). Names are stored
+  # escaped, so a client may set them as HTML-safe text.
+  defp roles(account) do
+    case Map.get(account, :roles) do
+      rows when is_list(rows) ->
+        rows
+        |> Enum.with_index()
+        |> Enum.map(fn {row, n} ->
+          %{id: "#{n}", name: Map.get(row, "name", ""), color: Map.get(row, "color", "")}
         end)
 
       _ ->

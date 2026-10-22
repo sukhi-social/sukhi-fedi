@@ -459,6 +459,37 @@ defmodule SukhiFedi.Accounts do
     end
   end
 
+  @doc """
+  Replace a local account's public badges with `rows` (`[%{"name", "color"}]`,
+  cleaned by `Account.changeset_roles/2`). Recorded in the audit trail with the
+  resulting names. Remote accounts are refused: their roles are not ours.
+  """
+  @spec set_roles(integer(), integer(), list()) ::
+          {:ok, Account.t()} | {:error, :not_found}
+  def set_roles(account_id, by_id, rows) when is_integer(account_id) and is_integer(by_id) do
+    case Repo.get(Account, account_id) do
+      %Account{domain: nil} = account ->
+        Multi.new()
+        |> Multi.update(:account, Account.changeset_roles(account, rows))
+        |> Multi.insert(:audit, fn %{account: a} ->
+          SukhiFedi.Schema.AdminAudit.changeset(%{
+            action: "roles_changed",
+            admin_account_id: by_id,
+            target_account_id: a.id,
+            metadata: %{roles: Enum.map(a.roles, & &1["name"])}
+          })
+        end)
+        |> Repo.transaction()
+        |> case do
+          {:ok, %{account: a}} -> {:ok, a}
+          {:error, _step, reason, _} -> {:error, reason}
+        end
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
   # ── statuses by account ──────────────────────────────────────────────────
 
   @doc """
