@@ -5,7 +5,7 @@
 # 中身のハッシュは一致する(Vite のハッシュは中身から決まる)。
 #
 #   IMAGE_PREFIX=natadeco bin/build-on-box.sh ssr
-FROM node:24-alpine AS build
+FROM node:24.22.1-alpine AS build
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
@@ -14,7 +14,7 @@ COPY . .
 RUN pnpm run build \
   && pnpm prune --prod
 
-FROM node:24-alpine
+FROM node:24.22.1-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0
 COPY --from=build /app/build ./build

@@ -6,7 +6,7 @@
 # passes `context: .` and `file: ./elixir/Dockerfile`.
 
 # ── SPA build ─────────────────────────────────────────────────────────────
-FROM node:24-alpine AS spa
+FROM node:24.22.1-alpine AS spa
 
 WORKDIR /spa
 RUN corepack enable
