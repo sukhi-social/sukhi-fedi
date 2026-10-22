@@ -102,6 +102,35 @@
     onclose?.();
   }
 
+  // 置かれた場所から画面の外へはみ出していたら、内側へ寄せる。
+  // 置き場所（ボタンの上・下・左右）は呼ぶ側ごとに違うので、ここでは
+  // 「見えている範囲に収まる」ことだけを一か所で引き受ける。
+  const MARGIN = 8;
+  function keepInViewport(node: HTMLElement) {
+    function fit() {
+      node.style.translate = '';
+      const r = node.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth;
+      const vh = window.innerHeight;
+      let dx = 0;
+      let dy = 0;
+      if (r.right > vw - MARGIN) dx = vw - MARGIN - r.right;
+      if (r.left + dx < MARGIN) dx = MARGIN - r.left;
+      if (r.bottom > vh - MARGIN) dy = vh - MARGIN - r.bottom;
+      if (r.top + dy < MARGIN) dy = MARGIN - r.top;
+      if (dx || dy) node.style.translate = `${dx}px ${dy}px`;
+    }
+    fit();
+    // 読み込みが終わると高さが変わるので、大きさの変化にもついていく。
+    const ro = new ResizeObserver(fit);
+    ro.observe(node);
+    window.addEventListener('resize', fit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', fit);
+    };
+  }
+
   function onKeydown(ev: KeyboardEvent) {
     if (ev.key === 'Escape') {
       ev.preventDefault();
@@ -112,7 +141,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="emoji-picker" role="dialog" aria-label={$t('reaction.pick')}>
+<div class="emoji-picker" role="dialog" {@attach keepInViewport} aria-label={$t('reaction.pick')}>
   <div class="search-row">
     <input
       type="search"
@@ -196,8 +225,10 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    box-sizing: border-box;
     width: 320px;
-    max-width: 90vw;
+    max-width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem);
     padding: 0.5rem;
     background: var(--color-surface);
     border: 1px solid var(--color-border-strong);
@@ -269,7 +300,10 @@
     font-weight: 600;
   }
 
+  /* 画面が低いときは、枠の高さに合わせて中身だけが縮んでスクロールする。 */
   .body {
+    flex: 1 1 auto;
+    min-height: 0;
     max-height: 260px;
     overflow-y: auto;
     display: flex;
