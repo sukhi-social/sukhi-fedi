@@ -12,13 +12,29 @@ defmodule SukhiFedi.CustomEmojis do
   - Remote emoji caching from inbound AP activities (`upsert_from_tag/3`).
   - Extracting custom emojis used in text content (`extract_from_text/1`).
   - Reaction namespacing and resolution (`namespaced/2`, `split/1`, `lookup_many/1`).
+
+  ## Caching
+
+  Reads are served from `Cache.Ets` (`:custom_emojis`); this module is the
+  one place that fills it and the one place that empties it. The local
+  directory is cached whole (one list plus a shortcode/alias index, so
+  `list_local/1`, `get_local/1` and `extract_from_text/1` never touch the
+  DB when warm); remote and local reaction lookups are cached per key.
+  Every write path ends in `invalidate/1`, after its transaction commits.
+  The TTLs are only a backstop for writers in another VM (mix tasks).
   """
 
   import Ecto.Query
 
   alias Ecto.Multi
+  alias SukhiFedi.Cache.Ets, as: Cache
   alias SukhiFedi.{Outbox, Repo}
   alias SukhiFedi.Schema.{AdminAudit, CustomEmoji}
+
+  @cache :custom_emojis
+  @local_key :local
+  @local_ttl 300
+  @key_ttl 300
 
   # One request, one transaction: bound it so a runaway client cannot hold a
   # long write open. A pack of ~1000 emoji fits with room to spare.
@@ -65,7 +81,11 @@ defmodule SukhiFedi.CustomEmojis do
   """
   @spec register(map()) :: {:ok, %CustomEmoji{}} | {:error, term()}
   def register(attrs) when is_map(attrs) do
-    with {:ok, changes} <- prepare(attrs), do: upsert(changes)
+    with {:ok, changes} <- prepare(attrs),
+         {:ok, emoji} <- upsert(changes) do
+      invalidate(emoji)
+      {:ok, emoji}
+    end
   end
 
   # The one place an emoji's attributes are read and normalised. Pure: no
@@ -200,8 +220,12 @@ defmodule SukhiFedi.CustomEmojis do
       {:ok, summary(checked, dry_run?)}
     else
       case write_many(valid, admin_id) do
-        {:ok, _} -> {:ok, summary(checked, false)}
-        {:error, reason} -> {:error, reason}
+        {:ok, _} ->
+          invalidate(:local)
+          {:ok, summary(checked, false)}
+
+        {:error, reason} ->
+          {:error, reason}
       end
     end
   end
@@ -287,13 +311,8 @@ defmodule SukhiFedi.CustomEmojis do
   """
   @spec get_local(String.t()) :: %CustomEmoji{} | nil
   def get_local(name) when is_binary(name) do
-    clean = normalize_shortcode(name)
-
-    from(e in CustomEmoji,
-      where: is_nil(e.domain) and (e.shortcode == ^clean or ^clean in e.aliases),
-      limit: 1
-    )
-    |> Repo.one()
+    {_list, index} = local_directory()
+    Map.get(index, normalize_shortcode(name))
   end
 
   def get_local(_), do: nil
@@ -332,6 +351,10 @@ defmodule SukhiFedi.CustomEmojis do
         on_conflict: {:replace, [:image_url, :static_url, :last_fetched_at]},
         conflict_target: [:shortcode, :domain]
       )
+      |> case do
+        {:ok, _} -> invalidate({shortcode, domain})
+        _ -> :ok
+      end
     end
 
     :ok
@@ -346,22 +369,12 @@ defmodule SukhiFedi.CustomEmojis do
   """
   @spec list_local(keyword()) :: [%CustomEmoji{}]
   def list_local(opts \\ []) do
-    query =
-      from(e in CustomEmoji,
-        where: is_nil(e.domain),
-        order_by: [asc_nulls_last: e.category, asc: e.shortcode]
-      )
+    {list, _index} = local_directory()
 
-    query =
-      case Keyword.get(opts, :category) do
-        cat when is_binary(cat) and cat != "" ->
-          from(e in query, where: e.category == ^cat)
-
-        _ ->
-          query
-      end
-
-    Repo.all(query)
+    case Keyword.get(opts, :category) do
+      cat when is_binary(cat) and cat != "" -> Enum.filter(list, &(&1.category == cat))
+      _ -> list
+    end
   end
 
   @doc """
@@ -369,13 +382,13 @@ defmodule SukhiFedi.CustomEmojis do
   """
   @spec list_categories() :: [String.t()]
   def list_categories do
-    from(e in CustomEmoji,
-      where: is_nil(e.domain) and not is_nil(e.category) and e.category != "",
-      distinct: true,
-      select: e.category,
-      order_by: [asc: e.category]
-    )
-    |> Repo.all()
+    {list, _index} = local_directory()
+
+    list
+    |> Enum.map(& &1.category)
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 
   @doc """
@@ -397,10 +410,17 @@ defmodule SukhiFedi.CustomEmojis do
     if matches == [] do
       []
     else
-      from(e in CustomEmoji,
-        where: is_nil(e.domain) and e.shortcode in ^matches
-      )
-      |> Repo.all()
+      {_list, index} = local_directory()
+
+      # Shortcodes only, not aliases: an alias is a search handle for the
+      # picker, not something a post can spell.
+      matches
+      |> Enum.flat_map(fn sc ->
+        case Map.get(index, sc) do
+          %CustomEmoji{shortcode: ^sc} = e -> [e]
+          _ -> []
+        end
+      end)
       |> Enum.map(fn e ->
         %{
           "shortcode" => e.shortcode,
@@ -431,27 +451,127 @@ defmodule SukhiFedi.CustomEmojis do
     if pairs == [] do
       %{}
     else
-      shortcodes = pairs |> Enum.map(fn {_, {sc, _}} -> sc end) |> Enum.uniq()
+      keys = pairs |> Enum.map(fn {_, parsed} -> parsed end) |> Enum.uniq()
+      by_key = resolve_keys(keys)
 
-      rows =
+      pairs
+      |> Enum.map(fn {emoji_key, parsed} -> {emoji_key, Map.get(by_key, parsed)} end)
+      |> Enum.reject(fn {_, v} -> is_nil(v) end)
+      |> Map.new()
+    end
+  end
+
+  @doc """
+  Empty the emoji cache. For tests, whose rolled-back sandbox rows must not
+  outlive them, and for a maintenance script that edits the table by hand.
+  """
+  @spec clear_cache() :: :ok
+  def clear_cache do
+    invalidate(:local)
+    :ok
+  end
+
+  ## ── cache ────────────────────────────────────────────────────────────
+
+  # The whole local directory, ordered, plus a lookup index. Shortcodes are
+  # inserted after aliases so a shortcode beats an alias spelled the same.
+  defp local_directory do
+    cached(@local_key, @local_ttl, fn ->
+      list =
+        Repo.all(
+          from(e in CustomEmoji,
+            where: is_nil(e.domain),
+            order_by: [asc_nulls_last: e.category, asc: e.shortcode]
+          )
+        )
+
+      aliased = for e <- list, a <- e.aliases || [], do: {a, e}
+      named = for e <- list, do: {e.shortcode, e}
+      {list, Map.new(aliased ++ named)}
+    end)
+  end
+
+  # `{shortcode, domain}` => `%{url, static_url}`, one DB trip for the misses.
+  defp resolve_keys(keys) do
+    {hits, misses} =
+      Enum.reduce(keys, {%{}, []}, fn key, {hits, misses} ->
+        case Cache.get(@cache, {:key, key}) do
+          {:ok, {:found, v}} -> {Map.put(hits, key, v), misses}
+          _ -> {hits, [key | misses]}
+        end
+      end)
+
+    if misses == [] do
+      hits
+    else
+      shortcodes = misses |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
+
+      fetched =
         from(e in CustomEmoji,
           where: e.shortcode in ^shortcodes,
           select: {e.shortcode, e.domain, e.image_url, e.static_url}
         )
         |> Repo.all()
-
-      by_key =
-        Map.new(rows, fn {sc, d, url, static_url} ->
+        |> Map.new(fn {sc, d, url, static_url} ->
           {{sc, d}, %{url: url, static_url: static_url}}
         end)
 
-      pairs
-      |> Enum.map(fn {emoji_key, {sc, d}} ->
-        {emoji_key, Map.get(by_key, {sc, d})}
-      end)
-      |> Enum.reject(fn {_, v} -> is_nil(v) end)
-      |> Map.new()
+      # Only hits are kept: an unknown shortcode may be registered a moment
+      # later, and a remote one is upserted on the very reaction that names it.
+      for {key, v} <- fetched, key in misses, do: put(@cache, {:key, key}, {:found, v}, @key_ttl)
+
+      Map.merge(hits, Map.take(fetched, misses))
     end
+  end
+
+  defp cached(key, ttl, fun) do
+    case Cache.get(@cache, key) do
+      {:ok, value} ->
+        value
+
+      :miss ->
+        value = fun.()
+        put(@cache, key, value, ttl)
+        value
+    end
+  rescue
+    # No table (unit tests run with --no-start): behave as an empty cache.
+    ArgumentError -> fun.()
+  end
+
+  defp put(table, key, value, ttl) do
+    Cache.put(table, key, value, ttl)
+  rescue
+    ArgumentError -> true
+  end
+
+  # The single point where a write empties the cache. A local row also
+  # shapes the directory; any row shapes the per-key entries.
+  defp invalidate(:local) do
+    drop(@local_key)
+    clear_keys()
+  end
+
+  defp invalidate(%CustomEmoji{domain: nil}), do: invalidate(:local)
+  defp invalidate(%CustomEmoji{shortcode: sc, domain: d}), do: invalidate({sc, d})
+  defp invalidate({_sc, nil} = key), do: invalidate_key(key) && invalidate(:local)
+  defp invalidate({_sc, _domain} = key), do: invalidate_key(key)
+
+  defp invalidate_key(key) do
+    drop({:key, key})
+    true
+  end
+
+  defp clear_keys do
+    :ets.match_delete(@cache, {{:key, :_}, :_, :_})
+  rescue
+    ArgumentError -> true
+  end
+
+  defp drop(key) do
+    Cache.delete(@cache, key)
+  rescue
+    ArgumentError -> true
   end
 
   defp normalize_shortcode(nil), do: ""

@@ -1023,7 +1023,7 @@ defmodule SukhiFedi.Web.Router do
           |> put_resp_content_type(content_type_for(full))
           |> put_static_cache_control(relative)
           |> put_static_source(source)
-          |> send_file(200, full)
+          |> send_static(relative, full)
       end
     end
   end
@@ -1040,10 +1040,35 @@ defmodule SukhiFedi.Web.Router do
       String.starts_with?(relative, "twemoji/") ->
         put_resp_header(conn, "cache-control", "public, max-age=86400")
 
+      String.starts_with?(relative, "emojis/") ->
+        put_resp_header(conn, "cache-control", "public, max-age=86400, stale-while-revalidate=604800")
+
       true ->
         conn
     end
   end
+
+  # カスタム絵文字(`emojis/`)は同じ名前で差し替えられうる(取り込み直し)
+  # ので immutable にはできない。代わりに丸一日は問い合わせなしで使わせ、
+  # 切れたあとは ETag(mtime+size)で 304 にする ─ 画像の本体は再送しない。
+  defp send_static(conn, "emojis/" <> _, full) do
+    case File.stat(full, time: :posix) do
+      {:ok, %File.Stat{mtime: mtime, size: size}} ->
+        etag = ~s(W/"#{Integer.to_string(mtime, 16)}-#{Integer.to_string(size, 16)}")
+        conn = put_resp_header(conn, "etag", etag)
+
+        if etag in get_req_header(conn, "if-none-match") do
+          send_resp(conn, 304, "")
+        else
+          send_file(conn, 200, full)
+        end
+
+      {:error, _} ->
+        send_file(conn, 200, full)
+    end
+  end
+
+  defp send_static(conn, _relative, full), do: send_file(conn, 200, full)
 
   # どちらの木が答えたかを一目で見えるように。今回の取り違えが 10 日
   # 見つからなかったのは、外から確かめる方法が無かったからでもある。
