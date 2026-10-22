@@ -127,6 +127,25 @@ defmodule SukhiFedi.Integration.RemoteAccountsTest do
     assert length(acct.fields) == 16
   end
 
+  test "a plain-text remote field value reads like Misskey's MFM: links become links" do
+    actor =
+      full_actor()
+      |> Map.put("attachment", [
+        %{"type" => "PropertyValue", "name" => "SNS", "value" => "[X](https://x.com/me) … https://bsky.app/p/me"},
+        # The origin's own HTML is sanitised and left alone.
+        %{"type" => "PropertyValue", "name" => "web", "value" => ~s(<a href="https://w.example">w</a>)}
+      ])
+
+    {:ok, acct} = RemoteAccounts.upsert_from_actor_json(actor)
+
+    assert [%{"value" => sns}, %{"value" => web}] = acct.fields
+    assert sns =~ ~s(href="https://x.com/me")
+    assert sns =~ ~s(href="https://bsky.app/p/me")
+    assert sns =~ ~s(rel="me nofollow noopener")
+    refute sns =~ "["
+    assert web =~ ~s(href="https://w.example")
+  end
+
   test "a brand-new sparse actor still gets the handle as display_name" do
     {:ok, acct} =
       RemoteAccounts.upsert_from_actor_json(%{

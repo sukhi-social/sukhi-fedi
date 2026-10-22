@@ -347,13 +347,28 @@ defmodule SukhiFedi.Schema.Account do
       _ ->
         %{
           "name" => SukhiFedi.HTML.escape(name),
-          "value" => source |> SukhiFedi.Markdown.to_html() |> unwrap_paragraph(),
+          "value" => render_value(source, &SukhiFedi.Linkify.known_account/1),
           "value_source" => source
         }
     end
   end
 
   defp one_local_field(_), do: nil
+
+  # One row's value → the HTML a reader gets: Markdown (so `[label](url)` and a
+  # bare URL both become links, the way Misskey's MFM does), a <p>-less line,
+  # and every link marked `rel="me nofollow noopener"` — Misskey's own mark on
+  # a profile link, so the link is a rel=me claim and never passes rank.
+  defp render_value(source, lookup) do
+    source
+    |> SukhiFedi.Markdown.to_html(lookup)
+    |> unwrap_paragraph()
+    |> mark_links()
+  end
+
+  defp mark_links(html) do
+    Regex.replace(~r/<a (?![^>]*\brel=)/, html, ~s(<a rel="me nofollow noopener" ))
+  end
 
   defp unwrap_paragraph(html) do
     case Regex.run(~r/\A<p>\s*(.*?)\s*<\/p>\z/s, html) do
@@ -364,7 +379,7 @@ defmodule SukhiFedi.Schema.Account do
 
   defp one_field(row) when is_map(row) do
     name = row |> field_str("name") |> String.slice(0, @max_field_name)
-    value = row |> field_str("value") |> SukhiFedi.HTML.sanitize() |> String.slice(0, @max_field_value)
+    value = row |> field_str("value") |> remote_value()
 
     case String.trim(name) do
       "" -> nil
@@ -373,6 +388,19 @@ defmodule SukhiFedi.Schema.Account do
   end
 
   defp one_field(_), do: nil
+
+  # A remote value with no markup in it is plain text — what Misskey sends
+  # for anything that isn't a bare URL, and what it then reads as MFM, links
+  # and all. Read it the same way (Markdown), minus the account lookup: this
+  # runs on ingest and must not reach the DB per row. Anything with markup is
+  # the origin's own HTML, sanitised as before and left to say what it says.
+  defp remote_value(value) do
+    if String.contains?(value, "<") do
+      value |> SukhiFedi.HTML.sanitize() |> String.slice(0, @max_field_value)
+    else
+      value |> String.slice(0, @max_field_value) |> render_value(fn _ -> nil end)
+    end
+  end
 
   # At most 4 decorations; the url must be http(s) (it is later proxied, never
   # fetched by a viewer's browser directly); angle is a turn (-0.5..0.5),

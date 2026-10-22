@@ -392,6 +392,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert src == "[X](https://x.com/me) … **b**"
       assert value =~ ~s(href="https://x.com/me")
       assert value =~ "<strong>b</strong>"
+      assert value =~ ~s(rel="me nofollow noopener")
       refute value =~ "<p>"
     end
 
