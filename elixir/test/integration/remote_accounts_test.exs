@@ -94,6 +94,16 @@ defmodule SukhiFedi.Integration.RemoteAccountsTest do
     assert bio =~ "safe"
   end
 
+  test "a remote actor keeps up to 16 profile rows, not our own 4" do
+    rows =
+      for n <- 1..20,
+          do: %{"type" => "PropertyValue", "name" => "row#{n}", "value" => "v#{n}"}
+
+    {:ok, acct} = RemoteAccounts.upsert_from_actor_json(Map.put(full_actor(), "attachment", rows))
+
+    assert length(acct.fields) == 16
+  end
+
   test "a brand-new sparse actor still gets the handle as display_name" do
     {:ok, acct} =
       RemoteAccounts.upsert_from_actor_json(%{
