@@ -45,7 +45,7 @@ defmodule SukhiFedi.Maintenance.WipeRemote do
   import Ecto.Query
   require Logger
 
-  alias SukhiFedi.Maintenance.RebuildRemoteNotes
+  alias SukhiFedi.Maintenance.{Progress, RebuildRemoteNotes}
   alias SukhiFedi.{Notes, Repo}
   alias SukhiFedi.Schema.{Account, Note}
 
@@ -68,7 +68,14 @@ defmodule SukhiFedi.Maintenance.WipeRemote do
         %{mode: :dry_run, domain: domain, remote_notes: count, cascades: cascades}
 
       :execute ->
-        {deleted, _} = Repo.delete_all(scope)
+        # One statement, so there is no mid-way count to report; the run row
+        # still tells the admin page "this is happening" while it executes.
+        %{deleted: deleted} =
+          Progress.track("wipe_remote", mode, count, "deleting", fn run ->
+            {deleted, _} = Repo.delete_all(scope)
+            {%{deleted: deleted}, %{run | done: deleted}}
+          end)
+
         Logger.info("wipe_remote done: deleted #{deleted} remote note(s)")
         %{mode: :execute, domain: domain, deleted: deleted, cascades: cascades}
     end

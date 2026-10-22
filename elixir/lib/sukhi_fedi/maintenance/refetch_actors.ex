@@ -22,6 +22,7 @@ defmodule SukhiFedi.Maintenance.RefetchActors do
   require Logger
 
   alias SukhiFedi.Federation.{ActorFetcher, RemoteAccounts}
+  alias SukhiFedi.Maintenance.Progress
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
 
@@ -30,17 +31,19 @@ defmodule SukhiFedi.Maintenance.RefetchActors do
     uris = remote_actor_uris()
     Logger.info("refetch_actors: #{length(uris)} remote actor(s), mode=#{mode}")
 
-    results =
+    summary =
       case mode do
         :dry_run ->
           for uri <- uris, do: Logger.info("  would refetch #{uri}")
-          List.duplicate(:would_refetch, length(uris))
+          tally(List.duplicate(:would_refetch, length(uris)))
 
         :execute ->
-          Enum.map(uris, &refetch/1)
+          Progress.track("refetch_actors", mode, length(uris), "fetching", fn run ->
+            {results, run} = Progress.map(run, uris, &refetch/1)
+            {tally(results), run}
+          end)
       end
 
-    summary = tally(results)
     Logger.info("refetch_actors done: #{inspect(summary)}")
     Map.put(summary, :mode, mode)
   end

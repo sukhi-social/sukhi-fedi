@@ -28,6 +28,7 @@ defmodule SukhiFedi.Maintenance.RebuildDirectVisibility do
 
   alias SukhiFedi.AP.Instructions.Extract
   alias SukhiFedi.Federation.FedifyClient
+  alias SukhiFedi.Maintenance.Progress
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Note
 
@@ -36,7 +37,9 @@ defmodule SukhiFedi.Maintenance.RebuildDirectVisibility do
     targets = target_notes()
     Logger.info("rebuild_direct_visibility: mode=#{mode}, candidates=#{length(targets)}")
 
-    results = Enum.map(targets, fn n -> {n, classify(n)} end)
+    # The origin fetch happens in both modes, so both are worth showing.
+    run = Progress.start("rebuild_direct_visibility", mode, length(targets), "checking")
+    {results, run} = Progress.map(run, targets, fn n -> {n, classify(n)} end, fn _ -> :ok end)
 
     for {n, {:rewrite, v}} <- results do
       Logger.info("  ##{n.id} #{n.ap_id}: direct -> #{v}")
@@ -48,12 +51,20 @@ defmodule SukhiFedi.Maintenance.RebuildDirectVisibility do
       end
     end
 
-    %{
+    summary = %{
       mode: mode,
       candidates: length(targets),
       rewrites: for({n, {:rewrite, v}} <- results, do: {n.id, v}),
       kept_direct: for({n, :keep} <- results, do: n.id)
     }
+
+    Progress.finish(run, %{
+      candidates: summary.candidates,
+      rewrites: length(summary.rewrites),
+      kept_direct: length(summary.kept_direct)
+    })
+
+    summary
   end
 
   @doc "Remote notes currently stored as `direct`."

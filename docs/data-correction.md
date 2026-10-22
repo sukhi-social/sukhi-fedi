@@ -52,6 +52,16 @@ note の id を振り直す系（`RebuildRemoteNotes` / `RebuildRemoteNoteIds`�
 新 id の行を入れて FK を付け替えてから旧行を消すので、reaction / boost /
 スレッドは保たれる。スレッドは `ap_id` で繋がっていて id に依らない。
 
+## 走っているあいだの進み具合
+
+`:execute` で走らせると、`RebuildFromArchive` / `RefetchActors` / `RebuildRemoteNotes` /
+`RebuildRemoteNoteIds` / `RebuildDirectVisibility` / `WipeRemote` は、
+`maintenance_runs` に進み（対象件数・済んだ件数・うまくいかなかった件数・段階・開始時刻）を
+約1秒に1回だけ書く（`Maintenance.Progress`）。`/admin` のトップが数秒おきに読んで見せる。
+`:dry_run` は読むだけなので載らない（`RebuildDirectVisibility` は origin を引くので載る）。
+進みの報告が途絶えた run は「止まったかもしれない」と表示し、断定はしない。
+新しいスクリプトを足すときは `Progress.track/5`（または `start` / `map` / `finish`）で包む。
+
 ## 外部を捨てて作り直す（WipeRemote → Rebuild）
 
 ピアが壊れた note データを送ってきて、列の上書きでは直しきれないとき。

@@ -15,7 +15,7 @@ defmodule SukhiFedi.Web.Admin.Render do
 
   # Prepended to every template body before EEx evaluation so the `h/1`
   # helper is in scope without templates having to write the full name.
-  @helpers_prelude "<% import SukhiFedi.Web.Admin.Render, only: [h: 1] %>"
+  @helpers_prelude "<% import SukhiFedi.Web.Admin.Render, only: [h: 1, ago: 1, span: 1] %>"
 
   @doc "HTML-escape a value for safe interpolation in templates."
   def h(nil), do: ""
@@ -28,6 +28,36 @@ defmodule SukhiFedi.Web.Admin.Render do
     |> String.replace(">", "&gt;")
     |> String.replace("\"", "&quot;")
     |> String.replace("'", "&#39;")
+  end
+
+  @doc """
+  "3秒前" / "12分前" / "2時間前" for a past instant (relative to now); "—" for nil.
+  """
+  def ago(nil), do: "—"
+  def ago(%NaiveDateTime{} = at), do: at |> DateTime.from_naive!("Etc/UTC") |> ago()
+  def ago(%DateTime{} = at), do: DateTime.diff(DateTime.utc_now(), at, :second) |> ago()
+
+  def ago(s) when is_integer(s) do
+    s = max(s, 0)
+
+    cond do
+      s < 5 -> "いま"
+      s < 60 -> "#{s}秒前"
+      s < 3600 -> "#{div(s, 60)}分前"
+      s < 86_400 -> "#{div(s, 3600)}時間前"
+      true -> "#{div(s, 86_400)}日前"
+    end
+  end
+
+  @doc "Length of a duration in seconds, as \"45秒\" / \"12分\" / \"2時間30分\"."
+  def span(s) when is_integer(s) do
+    s = max(s, 0)
+
+    cond do
+      s < 60 -> "#{s}秒"
+      s < 3600 -> "#{div(s, 60)}分"
+      true -> "#{div(s, 3600)}時間#{div(rem(s, 3600), 60)}分"
+    end
   end
 
   @doc "Render a template wrapped in the admin layout."

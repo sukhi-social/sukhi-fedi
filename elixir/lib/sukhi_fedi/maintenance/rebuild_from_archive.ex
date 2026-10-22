@@ -31,6 +31,7 @@ defmodule SukhiFedi.Maintenance.RebuildFromArchive do
   require Logger
 
   alias SukhiFedi.AP.{Emojis, Instructions, MediaIngest, Published}
+  alias SukhiFedi.Maintenance.Progress
   alias SukhiFedi.{Polls, Repo}
   alias SukhiFedi.Schema.{InboundEvent, Note}
 
@@ -45,19 +46,40 @@ defmodule SukhiFedi.Maintenance.RebuildFromArchive do
     events = note_events()
     Logger.info("rebuild_from_archive: #{length(events)} Create/Update event(s), mode=#{mode}")
 
-    results =
-      Enum.map(events, fn ev ->
-        case fetch_inner_note(ev) do
-          {:ok, note} ->
-            {rebuild_note(note, mode), backfill_media(note, mode), backfill_poll(note, mode)}
+    # Only :execute is a long write run worth reporting; a dry run is a
+    # read-only pass and stays out of the admin page.
+    summary =
+      case mode do
+        :execute ->
+          Progress.track("rebuild_from_archive", mode, length(events), "replaying", fn run ->
+            {results, run} = Progress.map(run, events, &replay_event(&1, mode), &elem(&1, 0))
+            {summarize(notes, results, mode), run}
+          end)
 
-          {:error, reason} ->
-            Logger.warning("  skip #{ev.object_key}: #{inspect(reason)}")
-            {:error, :error, :error}
-        end
-      end)
+        :dry_run ->
+          summarize(notes, Enum.map(events, &replay_event(&1, mode)), mode)
+      end
 
-    summary = %{
+    Logger.info("rebuild_from_archive done: #{inspect(summary)}")
+    summary
+  end
+
+  # One archived Create/Update → the three passes. A note that cannot be
+  # read back out of the archive reports `{:error, :error, :error}`, which
+  # `Progress` counts as one failed item.
+  defp replay_event(ev, mode) do
+    case fetch_inner_note(ev) do
+      {:ok, note} ->
+        {rebuild_note(note, mode), backfill_media(note, mode), backfill_poll(note, mode)}
+
+      {:error, reason} ->
+        Logger.warning("  skip #{ev.object_key}: #{inspect(reason)}")
+        {:error, :error, :error}
+    end
+  end
+
+  defp summarize(notes, results, mode) do
+    %{
       notes: notes,
       fields: tally(Enum.map(results, &elem(&1, 0))),
       media: tally(Enum.map(results, &elem(&1, 1))),
@@ -65,9 +87,6 @@ defmodule SukhiFedi.Maintenance.RebuildFromArchive do
       boosts: backfill_boosts(mode),
       mode: mode
     }
-
-    Logger.info("rebuild_from_archive done: #{inspect(summary)}")
-    summary
   end
 
   @doc """
