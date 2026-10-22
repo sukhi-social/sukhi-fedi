@@ -57,12 +57,13 @@ async function mockJoinBackend(
 // browser". Missing-backend/resource noise is forgiven.
 const CONSOLE_NOISE = /favicon|failed to load resource|net::err|err_|\b404\b|version\.json|\/api\//i;
 
-// The one pageerror we forgive: the browser's own CSS `@view-transition`
+// The one pageerror we forgive (Chromium words it "skipped" or "aborted
+// because of invalid state", depending on timing): the browser's own CSS `@view-transition`
 // (base.css) gets skipped when the join flow's hard navigation
 // (window.location.assign → /check) is interrupted by the next one. The
 // navigation still completes; this is a Chromium view-transition artifact,
 // not app breakage, and there's no app-level promise to catch.
-const PAGEERROR_NOISE = /Transition was skipped/i;
+const PAGEERROR_NOISE = /Transition was (skipped|aborted because of invalid state)/i;
 
 function watchForJsErrors(page: Page) {
   const pageErrors: string[] = [];
