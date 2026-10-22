@@ -3,10 +3,15 @@ defmodule SukhiFedi.Schema.Account do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @max_fields 4
+  @max_remote_fields 16
+
   schema "accounts" do
     field :username, :string
     field :display_name, :string
     field :summary, :string
+    # Local bios only: the Markdown as typed. `summary` is its rendered HTML.
+    field :summary_source, :string
     field :emojis, {:array, :map}, default: []
     # Profile fields: a person's own static key/value rows (Mastodon
     # `fields` / AP `attachment` PropertyValue). They federate, so a
@@ -129,7 +134,7 @@ defmodule SukhiFedi.Schema.Account do
       :last_fetched_at
     ])
     |> update_change(:summary, &SukhiFedi.HTML.sanitize/1)
-    |> update_change(:fields, &cast_fields/1)
+    |> update_change(:fields, &cast_fields(&1, @max_remote_fields))
     |> validate_required([:username, :domain, :actor_uri])
   end
 
@@ -166,10 +171,26 @@ defmodule SukhiFedi.Schema.Account do
       :discoverable,
       :indexable
     ])
-    |> update_change(:summary, &SukhiFedi.HTML.sanitize/1)
-    |> update_change(:fields, &cast_fields/1)
+    |> update_change(:fields, &cast_fields(&1, @max_fields))
     |> validate_length(:display_name, max: 100)
     |> validate_length(:summary, max: 1024)
+    |> render_summary()
+  end
+
+  # A local bio is Markdown, rendered once at write time through the same
+  # `Markdown.to_html/1` a note takes (which sanitises last), so the bio gets
+  # exactly the notes' formatting and `summary` stays the one HTML every
+  # reader and every federated peer sees. The source rides along for editing.
+  defp render_summary(changeset) do
+    case get_change(changeset, :summary) do
+      source when is_binary(source) ->
+        changeset
+        |> put_change(:summary_source, source)
+        |> put_change(:summary, SukhiFedi.Markdown.to_html(source))
+
+      _ ->
+        changeset
+    end
   end
 
   @doc """
@@ -225,22 +246,22 @@ defmodule SukhiFedi.Schema.Account do
   end
 
   # The one gate for profile `fields`, walked by both the local edit and
-  # the remote mirror (so a remote actor's `attachment` is held to the
-  # same caps as our own users'). Keeps at most 4 rows; each name is
-  # plain text (escaped, like local note content) and each value is run
-  # through the shared bio scrubber `HTML.sanitize/1` — never an inline
-  # second scrubber (CODE_STYLE §0/§3). Blank-named rows are dropped.
-  @max_fields 4
+  # the remote mirror. Our own users keep at most 4 rows; a remote actor
+  # keeps up to 16 (what Misskey allows — cutting it to our 4 hid the links
+  # and handles the person put there). Each name is plain text (escaped,
+  # like local note content) and each value is run through the shared bio
+  # scrubber `HTML.sanitize/1` — never an inline second scrubber
+  # (CODE_STYLE §0/§3). Blank-named rows are dropped.
   @max_field_name 255
   @max_field_value 512
-  defp cast_fields(rows) when is_list(rows) do
+  defp cast_fields(rows, max) when is_list(rows) do
     rows
     |> Enum.map(&one_field/1)
     |> Enum.reject(&is_nil/1)
-    |> Enum.take(@max_fields)
+    |> Enum.take(max)
   end
 
-  defp cast_fields(_), do: []
+  defp cast_fields(_, _max), do: []
 
   defp one_field(row) when is_map(row) do
     name = row |> field_str("name") |> String.slice(0, @max_field_name)

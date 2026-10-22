@@ -98,10 +98,10 @@
       adminToken = loadToken()?.access_token ?? '';
       adminChoices = await loadAdminChoices(me, adminToken);
       displayName = me.display_name ?? '';
-      // note は HTML で返ってくる。編集はテキストとして扱いたいので、
-      // 雑だけど <br> を改行、その他のタグを落とす最小処理。
-      // 自分が前に入れた素のテキストに近づけるだけで、サーバが正本。
-      note = stripTags(me.note ?? '');
+      // 自己紹介は Markdown で書く。source.note が書いたままの原文なので
+      // それを開く。原文のない古い行だけ、note(HTML)から雑にタグを落とす
+      // 最小処理で近づける。サーバが正本。
+      note = me.source?.note ?? stripTags(me.note ?? '');
       locked = !!me.locked;
       bot = !!me.bot;
       discoverable = !!me.discoverable;
@@ -292,6 +292,7 @@
     <label class="stack-tight">
       <span>{$t('settings.bio')}</span>
       <textarea bind:value={note} rows="4" maxlength="500"></textarea>
+      <small class="text-muted">{$t('settings.bioHint')}</small>
     </label>
 
     <div class="stack-tight">

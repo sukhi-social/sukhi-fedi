@@ -189,7 +189,9 @@ defmodule SukhiApi.Views.MastodonAccount do
         privacy: "public",
         sensitive: false,
         language: nil,
-        note: Map.get(account, :summary) || "",
+        # The Markdown as typed when we have it; older bios fall back to
+        # the stored HTML (the client strips it for the edit box).
+        note: Map.get(account, :summary_source) || Map.get(account, :summary) || "",
         fields: fields(account),
         follow_requests_count: 0
       },
