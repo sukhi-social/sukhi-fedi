@@ -209,6 +209,8 @@ export const ja = {
   'settings.title': '設定',
   'settings.displayName': '表示名',
   'settings.bio': '自己紹介',
+  'settings.location': '場所',
+  'settings.birthday': '誕生日',
   'settings.bioHint': '投稿と同じ Markdown と、:絵文字: が使えます。',
   'settings.avatarNew': '新しいアイコン（保存前）',
   'settings.avatarNow': 'いまのアイコン',
@@ -694,6 +696,10 @@ export const ja = {
 
   // ── プロフィール ─────────────────────────────────────
   'profile.edit': '編集',
+  'profile.location': '場所',
+  'profile.birthday': '誕生日',
+  'profile.joined': '登録日',
+  'profile.firstSeen': '取得日',
   'profile.unmute': 'ミュートを解く',
   'profile.mute': 'ミュートする',
   'profile.unblock': 'ブロックを解く',

@@ -105,6 +105,9 @@ defmodule SukhiApi.Views.MastodonAccount do
       avatar_decorations: avatar_decorations(account, remote?),
       fields: fields(account),
       roles: roles(account),
+      # Misskey-style entries; extension keys other clients skip.
+      location: Map.get(account, :location),
+      birthday: birthday(Map.get(account, :birthday)),
       # Account migration. `moved` is Mastodon's "this account has moved"
       # marker, rendered quietly as a link to the new identity (no number,
       # no banner — the truthful state, nothing more). `null` when not
@@ -170,6 +173,9 @@ defmodule SukhiApi.Views.MastodonAccount do
         []
     end
   end
+
+  defp birthday(%Date{} = d), do: Date.to_iso8601(d)
+  defp birthday(_), do: nil
 
   # Public badges (Mastodon `roles`: id / name / color). Names are stored
   # escaped, so a client may set them as HTML-safe text.

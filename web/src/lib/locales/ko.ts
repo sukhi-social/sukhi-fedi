@@ -210,6 +210,8 @@ export const ko: Dict = {
   'settings.title': '설정',
   'settings.displayName': '표시 이름',
   'settings.bio': '자기소개',
+  'settings.location': '장소',
+  'settings.birthday': '생일',
   'settings.bioHint': '게시물과 같은 Markdown과 :이모지: 를 쓸 수 있어요.',
   'settings.avatarNew': '새 아이콘 (저장 전)',
   'settings.avatarNow': '지금 아이콘',
@@ -685,6 +687,10 @@ export const ko: Dict = {
 
   // ── 프로필 ───────────────────────────────────────────
   'profile.edit': '편집',
+  'profile.location': '장소',
+  'profile.birthday': '생일',
+  'profile.joined': '등록일',
+  'profile.firstSeen': '확인한 날',
   'profile.unmute': '뮤트 풀기',
   'profile.mute': '뮤트하기',
   'profile.unblock': '차단 풀기',

@@ -41,6 +41,9 @@ export type Account = {
   // verify_credentials のみ。自己紹介を書いたままの Markdown 原文。
   source?: { note?: string };
   // 管理者が渡した公開バッジ（Moderator など）。color は #hex か空。
+  // Misskey 式のプロフィール項目。birthday は YYYY-MM-DD。
+  location?: string | null;
+  birthday?: string | null;
   roles?: { id: string; name: string; color: string }[];
   locked?: boolean;
   bot?: boolean;
@@ -659,6 +662,8 @@ export function setCurrentAccount(account: Account): void {
 export type CredentialsUpdate = {
   display_name?: string;
   note?: string;
+  location?: string;
+  birthday?: string;
   avatar?: File | null;
   header?: File | null;
   locked?: boolean;
@@ -677,6 +682,8 @@ export async function updateCredentials(input: CredentialsUpdate): Promise<Accou
   const fd = new FormData();
   if (input.display_name !== undefined) fd.set('display_name', input.display_name);
   if (input.note !== undefined) fd.set('note', input.note);
+  if (input.location !== undefined) fd.set('location', input.location);
+  if (input.birthday !== undefined) fd.set('birthday', input.birthday);
   if (input.locked !== undefined) fd.set('locked', input.locked ? 'true' : 'false');
   if (input.bot !== undefined) fd.set('bot', input.bot ? 'true' : 'false');
   if (input.discoverable !== undefined)
