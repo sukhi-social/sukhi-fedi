@@ -104,6 +104,7 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     "get /proxy/media/:id",
     "get /proxy/avatar/:id",
     "get /proxy/header/:id",
+    "get /proxy/deco/:id/:n",
 
     # ── Human-facing HTML + JSON proxy for nodeinfo lookup
     "get /",

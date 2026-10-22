@@ -16,6 +16,15 @@ export type Emoji = {
   visible_in_picker?: boolean;
 };
 
+// Misskey 系の飾り。angle は一周=1、offset はアイコンの大きさに対する割合。
+export type AvatarDecoration = {
+  url: string;
+  angle: number;
+  flip_h: boolean;
+  offset_x: number;
+  offset_y: number;
+};
+
 export type Account = {
   id: string;
   username: string;
@@ -24,6 +33,7 @@ export type Account = {
   emojis?: Emoji[];
   avatar: string | null;
   avatar_static?: string | null;
+  avatar_decorations?: AvatarDecoration[];
   header?: string | null;
   header_static?: string | null;
   url: string;

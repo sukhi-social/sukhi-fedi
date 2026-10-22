@@ -255,7 +255,7 @@
       </picture>
     {/if}
     <div class="profile-id">
-      <Avatar class="avatar avatar-lg" src={account.avatar} name={account.display_name || account.username} />
+      <Avatar class="avatar avatar-lg" src={account.avatar} name={account.display_name || account.username} decorations={account.avatar_decorations} />
       <div class="stack-tight fill">
         <p class="display-name text-lg">
           {@html renderEmojis(phrase(account.display_name || account.username), account.emojis)}

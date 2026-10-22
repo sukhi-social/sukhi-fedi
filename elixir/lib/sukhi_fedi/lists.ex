@@ -96,7 +96,8 @@ defmodule SukhiFedi.Lists do
               domain: a.domain,
               actor_uri: a.actor_uri,
               avatar_url: a.avatar_url,
-              banner_url: a.banner_url
+              banner_url: a.banner_url,
+              avatar_decorations: a.avatar_decorations
             }
         )
 

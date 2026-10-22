@@ -25,6 +25,12 @@ defmodule SukhiApi.Views.ProxyUrl do
     "https://#{SukhiApi.Config.domain!()}/proxy/#{kind}/#{id}#{cache_ext(url)}?v=#{:erlang.phash2(url)}"
   end
 
+  @doc "リモートのアバターデコレーション(n 番目)の proxy URL。"
+  @spec decoration(integer(), non_neg_integer(), String.t()) :: String.t()
+  def decoration(id, n, url) do
+    "https://#{SukhiApi.Config.domain!()}/proxy/deco/#{id}/#{n}#{cache_ext(url)}?v=#{:erlang.phash2(url)}"
+  end
+
   # 変な拡張子は付けない ─ 無くても壊れない、edge に乗らないだけ。
   defp cache_ext(url) do
     ext =

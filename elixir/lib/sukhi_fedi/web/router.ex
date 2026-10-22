@@ -404,6 +404,10 @@ defmodule SukhiFedi.Web.Router do
     MediaProxyController.header(conn, id)
   end
 
+  get "/proxy/deco/:id/:n" do
+    MediaProxyController.deco(conn, id, n)
+  end
+
   # ── Human-facing HTML + JSON proxy for nodeinfo lookup ──────────────────
   # Gated on the :nodeinfo_monitor addon: this is the watcher UI surface
   # (dashboard at /, register/list watchers, host stats SSE). A deployment

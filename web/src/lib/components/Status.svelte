@@ -157,7 +157,7 @@
   {/if}
 {:else}
 <article class="status">
-  <Avatar class="avatar" src={avatar} {name} />
+  <Avatar class="avatar" src={avatar} {name} decorations={status.account.avatar_decorations} />
 
   <div class="body">
     {#if status.in_reply_to_id}

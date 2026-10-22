@@ -30,6 +30,11 @@ defmodule SukhiFedi.Schema.Account do
     field :monitored_domain, :string
     field :avatar_url, :string
     field :banner_url, :string
+    # Misskey-family avatar decorations (the ornament drawn over the icon).
+    # ActivityPub actors don't carry them, so remote rows get them from the
+    # origin's own API (`Federation.MisskeyDecorations`). Each row is
+    # `%{"url", "angle", "flip_h", "offset_x", "offset_y"}`.
+    field :avatar_decorations, {:array, :map}, default: []
     field :is_admin, :boolean, default: false
     # Manual follow approval (Mastodon `locked` / AP
     # `manuallyApprovesFollowers`). For remote rows this mirrors the
@@ -126,6 +131,16 @@ defmodule SukhiFedi.Schema.Account do
     |> update_change(:summary, &SukhiFedi.HTML.sanitize/1)
     |> update_change(:fields, &cast_fields/1)
     |> validate_required([:username, :domain, :actor_uri])
+  end
+
+  @doc """
+  Changeset for the decorations mirrored from a remote Misskey-family
+  origin. The one gate for what reaches `avatar_decorations`.
+  """
+  def changeset_decorations(account, rows) do
+    account
+    |> cast(%{avatar_decorations: rows}, [:avatar_decorations])
+    |> update_change(:avatar_decorations, &cast_decorations/1)
   end
 
   @doc """
@@ -238,6 +253,43 @@ defmodule SukhiFedi.Schema.Account do
   end
 
   defp one_field(_), do: nil
+
+  # At most 4 decorations; the url must be http(s) (it is later proxied, never
+  # fetched by a viewer's browser directly); angle is a turn (-0.5..0.5),
+  # offsets a fraction of the icon size (-1..1), as Misskey defines them.
+  @max_decorations 4
+  defp cast_decorations(rows) when is_list(rows) do
+    rows |> Enum.flat_map(&one_decoration/1) |> Enum.take(@max_decorations)
+  end
+
+  defp cast_decorations(_), do: []
+
+  defp one_decoration(%{} = row) do
+    url = Map.get(row, "url")
+
+    case URI.parse(to_string(url)) do
+      %URI{scheme: s, host: h} when s in ["http", "https"] and is_binary(h) and h != "" ->
+        [
+          %{
+            "url" => url,
+            "angle" => num(row, "angle", -0.5, 0.5),
+            "flip_h" => Map.get(row, "flip_h") == true,
+            "offset_x" => num(row, "offset_x", -1.0, 1.0),
+            "offset_y" => num(row, "offset_y", -1.0, 1.0)
+          }
+        ]
+
+      _ ->
+        []
+    end
+  end
+
+  defp one_decoration(_), do: []
+
+  defp num(row, key, lo, hi) do
+    v = Map.get(row, key)
+    if is_number(v), do: v |> max(lo) |> min(hi) |> Kernel.*(1.0), else: 0.0
+  end
 
   defp field_str(row, key) do
     case Map.get(row, key) || Map.get(row, String.to_existing_atom(key)) do

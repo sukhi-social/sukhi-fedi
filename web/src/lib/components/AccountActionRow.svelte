@@ -29,7 +29,7 @@
 
 <article class="account-row">
   <a class="account-row-link" href={`/@${account.acct}`}>
-    <Avatar class="avatar" src={account.avatar} {name} />
+    <Avatar class="avatar" src={account.avatar} {name} decorations={account.avatar_decorations} />
     <span class="stack-tight">
       <span class="display-name">{@html renderEmojis(phrase(name), account.emojis)}</span>
       <span class="muted">@{account.acct}</span>

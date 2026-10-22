@@ -72,17 +72,45 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
           # New row: blanks are fine; restore the historical defaults so a
           # nameless actor still shows its handle and summary is "" not nil.
           attrs = Map.merge(identity, insert_defaults(mergeable, username))
-          %Account{} |> Account.changeset_remote(attrs) |> Repo.insert()
+          %Account{} |> Account.changeset_remote(attrs) |> Repo.insert() |> then_decorate(actor_json)
 
         %Account{} = existing ->
           # Merge only the fields the fetched doc actually carries.
           attrs = Map.merge(identity, present_only(mergeable))
-          existing |> Account.changeset_remote(attrs) |> Repo.update()
+          existing |> Account.changeset_remote(attrs) |> Repo.update() |> then_decorate(actor_json)
       end
     end
   end
 
   def upsert_from_actor_json(_, _), do: {:error, :invalid_actor}
+
+  # Avatar decorations are not in the Person document; a Misskey-family origin
+  # serves them from its own API. Read them in the background, only for actors
+  # that say they are Misskey-family (so no other server is ever asked).
+  defp then_decorate({:ok, %Account{id: id}} = ok, actor_json) do
+    if misskey_family?(actor_json) do
+      %{account_id: id}
+      |> SukhiFedi.Federation.MisskeyDecorationsWorker.new()
+      |> then(&Oban.insert(SukhiFedi.Oban, &1))
+    end
+
+    ok
+  end
+
+  defp then_decorate(other, _actor_json), do: other
+
+  # Misskey and its forks declare the `misskey` namespace in `@context`
+  # (`"misskey": "https://misskey-hub.net/ns#"`) and publish `isCat`.
+  @doc false
+  def misskey_family?(%{"@context" => ctx}) when is_list(ctx) do
+    Enum.any?(ctx, fn
+      %{"misskey" => _} -> true
+      _ -> false
+    end)
+  end
+
+  def misskey_family?(%{"@context" => %{"misskey" => _}}), do: true
+  def misskey_family?(_), do: false
 
   defp check_expected_host(_actor_uri, nil), do: :ok
 

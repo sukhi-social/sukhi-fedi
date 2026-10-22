@@ -31,10 +31,19 @@ defmodule SukhiFedi.Fedi.HttpFetch do
   sent more than the cap, or whatever `Req.get/2` would return otherwise.
   """
   @spec capped_get(String.t(), keyword()) :: {:ok, Req.Response.t()} | {:error, term()}
-  def capped_get(url, opts) when is_binary(url) and is_list(opts) do
-    opts = Keyword.merge([decode_body: false, into: &cap_body/2], opts)
+  def capped_get(url, opts) when is_binary(url) and is_list(opts), do: capped(:get, url, opts)
 
-    case Req.get(url, opts) do
+  @doc """
+  Like `capped_get/2` for a POST — for the few read-only JSON APIs that only
+  answer POST (Misskey's `users/show`). Same cap, same return shape.
+  """
+  @spec capped_post(String.t(), keyword()) :: {:ok, Req.Response.t()} | {:error, term()}
+  def capped_post(url, opts) when is_binary(url) and is_list(opts), do: capped(:post, url, opts)
+
+  defp capped(method, url, opts) do
+    opts = Keyword.merge([method: method, url: url, decode_body: false, into: &cap_body/2], opts)
+
+    case Req.request(opts) do
       {:ok, %Req.Response{body: :too_large}} -> {:error, :document_too_large}
       other -> other
     end
