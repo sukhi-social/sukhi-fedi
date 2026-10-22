@@ -52,7 +52,14 @@ defmodule SukhiFedi.Schema.Note do
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end
 
-  def changeset(note, attrs) do
+  @doc """
+  `allow_blank_content: true` lets a note carry no text — a local post that is
+  only attached media. `cast/3` reads `""` as nil, so the blank is put back as
+  `""` (the column is NOT NULL). The caller owns the "has media" check.
+  """
+  def changeset(note, attrs, opts \\ []) do
+    allow_blank? = Keyword.get(opts, :allow_blank_content, false)
+
     note
     |> cast(attrs, [
       :content,
@@ -69,13 +76,14 @@ defmodule SukhiFedi.Schema.Note do
       :mfm,
       :emojis
     ])
+    |> default_blank_content(allow_blank?)
     # Render before escaping — Markdown needs the source as typed, and
     # `escape/1` would turn every `<` into `&lt;` for Earmark to escape
     # a second time.
     |> put_content_html()
     |> sanitize_or_escape_content()
     |> put_domain()
-    |> validate_required([:content, :account_id])
+    |> validate_required(if allow_blank?, do: [:account_id], else: [:content, :account_id])
     # Cap content length (the only schema field that lacked one): bounds
     # unbounded storage + tag-row amplification from a multi-MB local post
     # or federated note. Oversized federated inserts simply fail the
@@ -85,6 +93,14 @@ defmodule SukhiFedi.Schema.Note do
     |> validate_length(:content, max: 100_000)
     |> validate_inclusion(:visibility, ["public", "followers", "direct"])
   end
+
+  defp default_blank_content(changeset, true) do
+    if is_nil(get_field(changeset, :content)),
+      do: put_change(changeset, :content, ""),
+      else: changeset
+  end
+
+  defp default_blank_content(changeset, false), do: changeset
 
   # Local notes arrive as plaintext (Mastodon's `status`); remote notes arrive
   # as HTML (AP `content`). Escaping plaintext keeps `x<y` / `List<String>`

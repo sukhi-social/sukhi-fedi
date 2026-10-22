@@ -8,6 +8,22 @@ defmodule SukhiFedi.NoteContentTest do
   import Ecto.Changeset, only: [get_change: 2]
   alias SukhiFedi.Schema.Note
 
+  describe "changeset/3 allow_blank_content" do
+    test "blank content is invalid by default" do
+      refute Note.changeset(%Note{}, %{content: "", account_id: 1}).valid?
+    end
+
+    test "blank content is valid and stored as \"\" when allowed" do
+      cs = Note.changeset(%Note{}, %{content: "", account_id: 1}, allow_blank_content: true)
+      assert cs.valid?
+      assert get_change(cs, :content) == ""
+    end
+
+    test "allowing blank content still requires an account" do
+      refute Note.changeset(%Note{}, %{content: ""}, allow_blank_content: true).valid?
+    end
+  end
+
   describe "changeset/2 escapes local plaintext but sanitizes remote HTML" do
     test "local plaintext keeps tag-shaped text (escaped, not dropped)" do
       cs = Note.changeset(%Note{}, %{content: "I love x<y and List<String>", account_id: 1})
