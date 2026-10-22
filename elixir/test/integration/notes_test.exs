@@ -229,6 +229,34 @@ defmodule SukhiFedi.Integration.NotesTest do
       assert Enum.map(reloaded.media, & &1.id) == [m.id]
     end
 
+    test "media-only post (blank status) is accepted and stores an empty body" do
+      a = create_account!("alice_media_only")
+      m = create_media!(a)
+
+      for blank <- ["", "   ", nil] do
+        assert {:ok, note} =
+                 Notes.create_status(a, %{"status" => blank, "media_ids" => [to_string(m.id)]})
+
+        assert note.content == ""
+      end
+    end
+
+    test "blank status without media is still rejected" do
+      a = create_account!("alice_blank")
+
+      assert {:error, {:validation, %{content: _}}} =
+               Notes.create_status(a, %{"status" => ""})
+    end
+
+    test "blank status with someone else's media is :media_not_owned" do
+      a = create_account!("alice_blank_foreign")
+      b = create_account!("bob_blank_foreign")
+      m = create_media!(b)
+
+      assert {:error, :media_not_owned} =
+               Notes.create_status(a, %{"status" => "", "media_ids" => [to_string(m.id)]})
+    end
+
     test "quote_id sets quote_of_ap_id + carries it in sns.outbox.note.created" do
       a = create_account!("alice_quote")
       {:ok, quoted} = Notes.create_status(a, %{"status" => "original", "visibility" => "public"})

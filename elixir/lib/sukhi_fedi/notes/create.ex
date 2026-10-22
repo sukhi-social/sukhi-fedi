@@ -139,8 +139,10 @@ defmodule SukhiFedi.Notes.Create do
       media_ids = list_media_ids(params)
       media = attachment_descriptors(media_ids, account_id)
 
+      # 画像だけの投稿: 本文が空でも、添付があれば通す。添付が自分のもの
+      # かは `attach_media` が同じ transaction の中で確かめる。
       Multi.new()
-      |> Multi.insert(:note, Note.changeset(%Note{}, attrs))
+      |> Multi.insert(:note, Note.changeset(%Note{}, attrs, allow_blank_content: media_ids != []))
       |> stamp_local_ap_id()
       |> attach_media(media_ids, account_id)
       |> Multi.run(:tags, fn _repo, %{note: n} ->
