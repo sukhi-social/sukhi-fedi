@@ -2,6 +2,8 @@
 defmodule SukhiFedi.Integration.MaintenanceProgressTest do
   use SukhiFedi.IntegrationCase, async: false
 
+  import Ecto.Query
+
   @moduletag :integration
 
   alias SukhiFedi.Maintenance.Progress
@@ -46,6 +48,23 @@ defmodule SukhiFedi.Integration.MaintenanceProgressTest do
     end
 
     assert %{state: "failed", last_error: "boom"} = hd(Progress.recent(1))
+  end
+
+  test "start は 90 日より古い終了済みの行だけを掃除する" do
+    old = DateTime.add(DateTime.utc_now(), -91 * 86_400, :second) |> DateTime.truncate(:second)
+    gone = Progress.start("old", :execute, 1)
+    Progress.finish(gone)
+    kept_running = Progress.start("old_running", :execute, 1)
+    Repo.update_all(MaintenanceRun, set: [finished_at: old, started_at: old])
+    # 古くても running のままの行は、掃除の対象にならない
+    Repo.update_all(from(r in MaintenanceRun, where: r.id == ^kept_running.id),
+      set: [finished_at: nil]
+    )
+
+    _ = Progress.start("new", :execute, 1)
+
+    names = Repo.all(from(r in MaintenanceRun, select: r.name)) |> Enum.sort()
+    assert names == ["new", "old_running"]
   end
 
   test "ServerActivity.snapshot: 動いている run と終わった run を分ける" do

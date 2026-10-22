@@ -31,6 +31,8 @@ defmodule SukhiFedi.Maintenance.Progress do
 
   @flush_ms 1_000
   @max_error_len 500
+  # Finished rows are history, not a log: drop them after this long.
+  @keep_days 90
 
   defstruct [:id, :done, :failed, :last_error, :flushed_at]
 
@@ -40,6 +42,7 @@ defmodule SukhiFedi.Maintenance.Progress do
   @spec start(String.t(), atom(), non_neg_integer(), String.t() | nil) :: t()
   def start(name, mode, total, stage \\ nil) when is_binary(name) do
     now = now()
+    prune(now)
 
     {:ok, row} =
       Repo.insert(%MaintenanceRun{
@@ -129,6 +132,22 @@ defmodule SukhiFedi.Maintenance.Progress do
   end
 
   # ── internals ───────────────────────────────────────────────────────────
+
+  # Once per run (runs are rare), so the table stays small without a cron.
+  # Only finished rows go; a `running` row is never touched here.
+  defp prune(now) do
+    cutoff = DateTime.add(now, -@keep_days * 86_400, :second)
+
+    try do
+      Repo.delete_all(
+        from(r in MaintenanceRun, where: r.state != "running" and r.finished_at < ^cutoff)
+      )
+    rescue
+      e -> Logger.warning("maintenance progress prune failed: #{Exception.message(e)}")
+    end
+
+    :ok
+  end
 
   defp tally(run, outcome) do
     case failure_reason(outcome) do
