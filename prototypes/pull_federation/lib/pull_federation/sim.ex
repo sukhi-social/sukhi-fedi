@@ -24,6 +24,8 @@ defmodule PullFederation.Sim do
 
     case Puller.next_pull(puller, now, busy?) do
       {:pull, ^origin_domain, cursors} ->
+        puller = Puller.begin_pull(puller, origin_domain)
+
         case Origin.open_stream(origin, domain, cursors, now) do
           {:ok, origin, events, announced} ->
             puller =

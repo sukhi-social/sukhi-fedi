@@ -14,7 +14,7 @@ defmodule PullFederation.Origin do
     * `recovered/2`   "Server Status Broadcast": notify everyone, spread by jitter
   """
 
-  alias PullFederation.{Snapshot, Visibility}
+  alias PullFederation.{Cursors, Etag, Snapshot, Visibility}
 
   defstruct log: %{},
             seqs: %{},
@@ -26,9 +26,17 @@ defmodule PullFederation.Origin do
             notify_quiet_ms: 3_000,
             decline_retry_ms: 5_000,
             bucket_versions: %{},
-            inline_max: 5
+            inline_max: 5,
+            secret: "dev-secret",
+            resyncs: 0
 
-  @type event :: %{actor: String.t(), key: String.t(), seq: pos_integer, activity: map}
+  @type event :: %{
+          actor: String.t(),
+          key: String.t(),
+          seq: pos_integer,
+          etag: String.t(),
+          activity: map
+        }
 
   def new(opts \\ []), do: struct!(__MODULE__, opts)
 
@@ -53,7 +61,15 @@ defmodule PullFederation.Origin do
       index ->
         key = Visibility.key(actor, index)
         seq = Map.get(o.seqs, key, 0) + 1
-        event = %{actor: actor, key: key, seq: seq, activity: activity}
+
+        event = %{
+          actor: actor,
+          key: key,
+          seq: seq,
+          etag: Etag.token(o.secret, key, seq),
+          activity: activity
+        }
+
         domains = Map.get(o.followers, actor, MapSet.new())
 
         dirty =
@@ -87,7 +103,7 @@ defmodule PullFederation.Origin do
   @doc """
   Notifications whose quiet period has elapsed: `[{domain, notification}]`.
 
-  A notification is either the changed sequences inline (`%{key => seq}`,
+  A notification is either the changed ETags inline (`%{key => etag}`,
   when at most `inline_max` public actors changed), or
   `{:buckets, %{bucket => version}, inline_followers}` pointing at the
   snapshot buckets to fetch. Followers-only counters are always inline.
@@ -131,17 +147,17 @@ defmodule PullFederation.Origin do
 
   @doc """
   The static document at `Snapshot.bucket_path/1`: the bucket's version
-  and the public seq of every actor in it that has remote followers,
+  and the public ETag of every actor in it that has remote followers,
   keyed by `Snapshot.hash/1`. Rendered from the sequence index; in a real
   deployment it is written once per version and served from a cache.
   """
   def bucket_doc(%__MODULE__{} = o, bucket) do
     entries =
-      for {key, seq} <- o.seqs,
+      for {key, _seq} <- o.seqs,
           Snapshot.public_key?(key),
           Snapshot.bucket(key) == bucket,
           into: %{},
-          do: {Snapshot.hash(key), seq}
+          do: {Snapshot.hash(key), etag_of(o, key)}
 
     %{version: Map.get(o.bucket_versions, bucket, 0), entries: entries}
   end
@@ -156,8 +172,10 @@ defmodule PullFederation.Origin do
         {:error, {:busy, o.decline_retry_ms}}
 
       true ->
-        events = events_for(o, domain, cursors)
-        {:ok, %{o | active_streams: o.active_streams + 1}, events, announced_for(o, domain)}
+        {events, resyncs} = events_for(o, domain, cursors)
+
+        {:ok, %{o | active_streams: o.active_streams + 1, resyncs: o.resyncs + resyncs}, events,
+         announced_for(o, domain)}
     end
   end
 
@@ -171,23 +189,38 @@ defmodule PullFederation.Origin do
     for d <- Enum.sort(domains), do: {jitter.(d), d, announced_for(o, d)}
   end
 
+  defp etag_of(o, key), do: Etag.token(o.secret, key, Map.fetch!(o.seqs, key))
+
   defp announced_for(o, domain) do
     for {actor, domains} <- o.followers,
         MapSet.member?(domains, domain),
         index <- [:public, :followers],
         key = Visibility.key(actor, index),
-        seq = o.seqs[key],
+        Map.has_key?(o.seqs, key),
         into: %{} do
-      {key, seq}
+      {key, etag_of(o, key)}
     end
   end
 
+  # Only keys whose token differs from the receiver's are served. A token
+  # we do not recognise (too old, forged, from before a restart) means
+  # "replay what you still keep"; applying events is idempotent.
   defp events_for(o, domain, cursors) do
-    for {key, announced} <- announced_for(o, domain),
-        announced > Map.get(cursors, key, 0),
-        event <- Enum.reverse(Map.fetch!(o.log, key)),
-        event.seq > Map.get(cursors, key, 0) do
-      event
-    end
+    changed = Cursors.changed(cursors, announced_for(o, domain))
+
+    Enum.reduce(Enum.sort(changed), {[], 0}, fn {key, _new}, {acc, resyncs} ->
+      log = Enum.reverse(Map.fetch!(o.log, key))
+
+      case Map.fetch(cursors, key) do
+        :error ->
+          {acc ++ log, resyncs}
+
+        {:ok, token} ->
+          case Enum.split_while(log, &(&1.etag != token)) do
+            {_all, []} -> {acc ++ log, resyncs + 1}
+            {_before, [_known | after_it]} -> {acc ++ after_it, resyncs}
+          end
+      end
+    end)
   end
 end

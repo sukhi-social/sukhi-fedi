@@ -2,10 +2,12 @@
 defmodule PullFederationTest do
   use ExUnit.Case, async: true
 
-  alias PullFederation.{Origin, Puller, Seq, Sim}
+  alias PullFederation.{Cursors, Etag, Origin, Puller, Sim}
 
   @a "https://a.example/users/alice"
   @b "https://a.example/users/bob"
+
+  defp t(key, n), do: Etag.token("dev-secret", key, n)
 
   defp note(id, vis \\ :public), do: %{type: :create, id: id, visibility: vis}
 
@@ -19,16 +21,33 @@ defmodule PullFederationTest do
     {origin, puller}
   end
 
-  describe "Seq" do
-    test "behind/2 returns only actors that moved ahead" do
-      assert %{"b" => 124} == Seq.behind(%{"a" => 123, "b" => 122}, %{"a" => 123, "b" => 124})
-      assert %{"c" => 1} == Seq.behind(%{}, %{"c" => 1})
+  describe "Cursors" do
+    test "changed/2 returns only keys whose token differs, missing counts as different" do
+      assert %{"b" => "y"} ==
+               Cursors.changed(%{"a" => "x", "b" => "z"}, %{"a" => "x", "b" => "y"})
+
+      assert %{"c" => "1"} == Cursors.changed(%{}, %{"c" => "1"})
+    end
+
+    test "a token cannot be ordered: an older one looks exactly like a newer one" do
+      assert Cursors.changed(%{"a" => t("a", 5)}, %{"a" => t("a", 4)}) == %{"a" => t("a", 4)}
     end
 
     test "parse/1 rejects garbage" do
-      assert :error = Seq.parse(%{"a" => -1})
-      assert :error = Seq.parse(%{1 => 1})
-      assert :error = Seq.parse("nope")
+      assert {:ok, _} = Cursors.parse(%{"a" => "tok"})
+      assert :error = Cursors.parse(%{"a" => -1})
+      assert :error = Cursors.parse(%{"a" => String.duplicate("x", 65)})
+      assert :error = Cursors.parse(%{1 => "x"})
+      assert :error = Cursors.parse("nope")
+    end
+  end
+
+  describe "etag" do
+    test "tokens are fixed length, per key and per state, and say nothing about the count" do
+      assert byte_size(t(@a, 1)) == 16
+      assert t(@a, 1) != t(@a, 2)
+      assert t(@a, 1) != t(@b, 1)
+      assert t(@a, 1) != Etag.token("other", @a, 1)
     end
   end
 
@@ -45,18 +64,20 @@ defmodule PullFederationTest do
       {o, {:pull, 1}} = Origin.publish(o, @a, note("f1", :followers))
       {o, {:pull, 2}} = Origin.publish(o, @a, note("p2", :unlisted))
       {_, [{"b.example", announced}]} = Origin.due_notifications(o, 0)
-      assert announced == %{@a => 2, (@a <> "#followers") => 1}
+      assert announced == %{@a => t(@a, 2), (@a <> "#followers") => t(@a <> "#followers", 1)}
     end
 
     test "notifications are coalesced within the quiet window" do
       {o, _} = setup_pair()
       {o, _} = Origin.publish(o, @a, note("1"))
-      {o, [{"b.example", %{@a => 1}}]} = Origin.due_notifications(o, 0)
+      {o, [{"b.example", first}]} = Origin.due_notifications(o, 0)
+      assert first == %{@a => t(@a, 1)}
 
       {o, _} = Origin.publish(o, @a, note("2"))
       {o, _} = Origin.publish(o, @a, note("3"))
       assert {o, []} = Origin.due_notifications(o, 1_000)
-      assert {_, [{"b.example", %{@a => 3}}]} = Origin.due_notifications(o, 3_000)
+      assert {_, [{"b.example", later}]} = Origin.due_notifications(o, 3_000)
+      assert later == %{@a => t(@a, 3)}
     end
 
     test "declines when all stream slots are taken" do
@@ -82,39 +103,39 @@ defmodule PullFederationTest do
   describe "puller" do
     test "step 3: equal state is a no-op, behind state is planned" do
       {_, p} = setup_pair()
-      assert {p, :planned} = Puller.notify(p, "a.example", %{@a => 1}, 0)
+      assert {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 0)
       assert {:pull, "a.example", %{}} = Puller.next_pull(p, 0, false)
     end
 
     test "unfollowed actors in a notification are ignored" do
       {_, p} = setup_pair()
-      assert {_, :up_to_date} = Puller.notify(p, "a.example", %{"https://x/users/z" => 9}, 0)
+      assert {_, :up_to_date} = Puller.notify(p, "a.example", %{"https://x/users/z" => "tok"}, 0)
     end
 
     test "notification floor per origin" do
       {_, p} = setup_pair()
-      {p, :planned} = Puller.notify(p, "a.example", %{@a => 1}, 0)
-      assert {_, :rate_limited} = Puller.notify(p, "a.example", %{@a => 2}, 500)
-      assert {_, :planned} = Puller.notify(p, "a.example", %{@a => 2}, 1_000)
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 0)
+      assert {_, :rate_limited} = Puller.notify(p, "a.example", %{@a => t(@a, 2)}, 500)
+      assert {_, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 2)}, 1_000)
     end
 
     test "pool is bounded; known origins still merge" do
       p = Puller.new(max_pending: 1) |> Puller.follow("o1", "x") |> Puller.follow("o2", "y")
-      {p, :planned} = Puller.notify(p, "o1", %{"x" => 1}, 0)
-      assert {_, :pool_full} = Puller.notify(p, "o2", %{"y" => 1}, 0)
-      assert {_, :planned} = Puller.notify(p, "o1", %{"x" => 2}, 2_000)
+      {p, :planned} = Puller.notify(p, "o1", %{"x" => "t1"}, 0)
+      assert {_, :pool_full} = Puller.notify(p, "o2", %{"y" => "t1"}, 0)
+      assert {_, :planned} = Puller.notify(p, "o1", %{"x" => "t2"}, 2_000)
     end
 
     test "step 4: busy postpones" do
       {_, p} = setup_pair()
-      {p, :planned} = Puller.notify(p, "a.example", %{@a => 1}, 0)
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 0)
       assert :postponed = Puller.next_pull(p, 0, true)
       assert {:pull, _, _} = Puller.next_pull(p, 0, false)
     end
 
     test "decline backs off exponentially with jitter and honours retry-after" do
       {_, p} = setup_pair()
-      {p, :planned} = Puller.notify(p, "a.example", %{@a => 1}, 0)
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 0)
       j = fn max -> max end
       p = Puller.finish_pull(p, "a.example", {:error, {:busy, 5_000}}, 0, j)
       assert :idle = Puller.next_pull(p, 7_499, false)
@@ -142,7 +163,7 @@ defmodule PullFederationTest do
 
       {o, p} = Sim.round(o, "b.example", p, now: 0)
       assert Map.keys(p.store) |> Enum.sort() == ["1", "2", "3"]
-      assert p.cursors["a.example"] == %{@a => 2, @b => 1}
+      assert p.cursors["a.example"] == %{@a => t(@a, 2), @b => t(@b, 1)}
       assert o.active_streams == 0
 
       {_, p2} = Sim.round(o, "b.example", p, now: 10_000)
@@ -155,7 +176,11 @@ defmodule PullFederationTest do
       {o, _} = Origin.publish(o, @a, note("f1", :followers))
       {_, p} = Sim.round(o, "b.example", p, now: 0)
       assert Map.keys(p.store) |> Enum.sort() == ["f1", "p1"]
-      assert p.cursors["a.example"] == %{@a => 1, (@a <> "#followers") => 1}
+
+      assert p.cursors["a.example"] == %{
+               @a => t(@a, 1),
+               (@a <> "#followers") => t(@a <> "#followers", 1)
+             }
     end
 
     test "busy B postpones, then catches up in one stream" do
@@ -217,7 +242,8 @@ defmodule PullFederationTest do
     test "few changes travel inline, many become bucket versions" do
       {o, _p, [u1, u2, u3 | _]} = big_pair(10)
       {o2, _} = Origin.publish(o, u1, note("1"))
-      assert {_, [{"b.example", %{^u1 => 1}}]} = Origin.due_notifications(o2, 0)
+      assert {_, [{"b.example", %{^u1 => tok}}]} = Origin.due_notifications(o2, 0)
+      assert tok == t(u1, 1)
 
       o3 = Enum.reduce([u1, u2, u3], o, fn u, acc -> elem(Origin.publish(acc, u, note(u)), 0) end)
       assert {_, [{"b.example", {:buckets, versions, %{}}}]} = Origin.due_notifications(o3, 0)
@@ -268,6 +294,65 @@ defmodule PullFederationTest do
 
       assert Puller.wanted_buckets(p, "a.example") == []
       _ = o
+    end
+  end
+
+  describe "etag semantics" do
+    test "only actors whose token changed are served, with their new tokens" do
+      {o, _} = setup_pair()
+      {o, _} = Origin.publish(o, @a, note("a1"))
+      {o, _} = Origin.publish(o, @b, note("b1"))
+      {o, _} = Origin.publish(o, @b, note("b2"))
+      {:ok, _, events, announced} = Origin.open_stream(o, "b.example", %{@a => t(@a, 1)}, 0)
+      assert Enum.map(events, & &1.activity.id) == ["b1", "b2"]
+      assert announced == %{@a => t(@a, 1), @b => t(@b, 2)}
+    end
+
+    test "a token the origin does not know triggers a replay, which is idempotent" do
+      {o, p} = setup_pair()
+      {o, _} = Origin.publish(o, @a, note("a1"))
+      {o, _} = Origin.publish(o, @a, note("a2"))
+      {:ok, o, events, _} = Origin.open_stream(o, "b.example", %{@a => "forged-or-old"}, 0)
+      assert Enum.map(events, & &1.activity.id) == ["a1", "a2"]
+      assert o.resyncs == 1
+
+      p = Enum.reduce(events ++ events, p, &Puller.apply_activity(&2, &1.activity, 0))
+      assert map_size(p.store) == 2
+    end
+
+    test "a stale notification costs one empty pull and then settles" do
+      {o, p} = setup_pair()
+      {o, _} = Origin.publish(o, @a, note("a1"))
+      {o, _} = Origin.publish(o, @a, note("a2"))
+      {o, p} = Sim.round(o, "b.example", p, now: 0)
+      assert p.cursors["a.example"][@a] == t(@a, 2)
+
+      # a late copy of the older notification arrives: different token, so B pulls
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 5_000)
+      p = Puller.begin_pull(p, "a.example")
+
+      {:ok, o, events, announced} =
+        Origin.open_stream(o, "b.example", p.cursors["a.example"], 5_000)
+
+      assert events == []
+      p = Puller.finish_pull(p, "a.example", {:ok, events, announced}, 5_000, fn _ -> 0 end)
+      assert p.pending == %{}
+      assert p.cursors["a.example"][@a] == t(@a, 2)
+      _ = o
+    end
+
+    test "news that arrives while a pull is in flight is not lost" do
+      {o, p} = setup_pair()
+      {o, _} = Origin.publish(o, @a, note("a1"))
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 0)
+      p = Puller.begin_pull(p, "a.example")
+      {:ok, o, events, announced} = Origin.open_stream(o, "b.example", %{}, 0)
+
+      # a1 was just served; a2 is published and announced before the stream finishes
+      {_, _} = Origin.publish(o, @a, note("a2"))
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 2)}, 1_500)
+      p = Puller.finish_pull(p, "a.example", {:ok, events, announced}, 2_000, fn _ -> 0 end)
+      assert p.pending == %{"a.example" => %{@a => t(@a, 2)}}
     end
   end
 end

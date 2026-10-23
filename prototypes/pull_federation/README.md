@@ -1,7 +1,7 @@
 # Pull Federation prototype
 
 A runnable model of the "Pull Federation" idea: instance A *notifies*
-with per-actor sequence ids, instance B *pulls* lazily when it has room.
+with per-actor ETags, instance B *pulls* lazily when it has room.
 No network, no deps, no clock: every function takes `now` (ms), so the
 whole protocol is deterministic and unit-testable.
 
@@ -17,7 +17,7 @@ mix test
 | --- | --- |
 | 1. A has new activities, B follows the actors | `Origin.publish/3`, `Origin.follow/3` |
 | 2. Notify with `[a:123, b:124]` | `Origin.due_notifications/2` (only actors that domain follows) |
-| 3. Compare with own ids, plan if different | `Puller.notify/4` → `Seq.behind/2` |
+| 3. Compare with own ids, plan if different | `Puller.notify/4` → `Cursors.changed/2` (token differs?) |
 | 4. Busy → postpone | `Puller.next_pull(_, _, busy?)` |
 | 5. Pull when scheduled | `Puller.next_pull/3` |
 | 6. A busy → decline | `Origin.open_stream/4` → `{:error, {:busy, retry_ms}}`; B backs off with jitter in `finish_pull/5` |
@@ -27,14 +27,20 @@ mix test
 
 ## Decisions the prototype makes (all easy to change)
 
-- **Sequence = index of what is visible.** Per actor there are two
-  integer sequences from 1: the *public* index (public + unlisted, key
-  = the actor URI) and the *followers* index (key = `actor#followers`).
-  Direct messages are push-only and touch neither, so a gap never
-  reveals a hidden activity, and the public index is just a number any
-  reader could already derive from the public outbox.
-- **Sequence ids, not hashes or dates.**
-- **Notifications are untrusted.** Shape-checked once (`Seq.parse/1`, ≤1000 entries),
+- **ETag per index, not a number on the wire.** The origin still keeps
+  two internal counters per actor: the *public* index (public + unlisted,
+  key = the actor URI) and the *followers* index (key = `actor#followers`).
+  What leaves the origin is only `etag = HMAC(secret, key:seq)` truncated
+  to 12 bytes (`Etag`). B can only test "is it the same as mine?". Direct
+  messages are push-only and touch neither index; and since a token says
+  nothing about how many activities exist, a gap or a count never
+  reveals a hidden activity.
+- **Pull sends only what changed.** B's request carries the tokens it
+  holds; the stream returns only the keys whose token differs, with the
+  new token on every event (so an interrupted stream resumes at the
+  right place). A token the origin does not recognise (too old, forged)
+  gets a replay of what it still keeps; applying is idempotent.
+- **Notifications are untrusted.** Shape-checked once (`Cursors.parse/1`, ≤1000 entries, token ≤64 bytes),
   actors B does not follow are dropped, and a per-origin floor
   (`min_notify_gap_ms`, 1000) rate-limits them. Authenticity is meant
   to be the OIP/signature layer; here it is the injected `verify`.
@@ -54,7 +60,7 @@ mix test
 - Log retention: if B's cursor is older than what A kept, A needs a
   "cursor too old, fall back to outbox crawl" answer.
 - Update / Follow / Undo semantics over pull (only Create / Delete here).
-- PostgreSQL shape (e.g. one `bigserial` per actor via an `(actor_id, seq)`
+- PostgreSQL shape (e.g. an internal `bigserial` per actor via an `(actor_id, seq)`
   unique index, stream = `WHERE seq > $cursor ORDER BY seq`).
 - Choosing push vs pull per target from metrics.
 
@@ -129,12 +135,12 @@ reads from an indexed range scan on `(actor_key, seq)`.
 
 ### Part 3: how the notification is shaped (`PullFederation.NotifyCost`)
 
-A notification can carry the changed sequences inline (`%{actor => seq}`,
+A notification can carry the changed ETags inline (`%{key => etag}`,
 only the actors that changed, per domain) or point at **snapshot
 buckets**. Snapshots use the sccache layout, first two hex characters /
 next two / hash (`PullFederation.Snapshot`):
 
-    <base>/ab/cd/<sha256(actor uri)>    one actor's public seq
+    <base>/ab/cd/<sha256(actor uri)>    one actor's public ETag
     <base>/ab/_index                    bucket `ab` (256 of them): version + every actor in it
 
 Both sides derive the path from the actor URI, so a notification only
@@ -149,20 +155,20 @@ sizes, see the module for the unit sizes):
 
 | Setup | Form | Notifications | Avg notification | B's snapshot GETs | Snapshot bytes | A renders | Total wire bytes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| each of 200 domains follows 100 of 2,000 actors, 200 posts | inline | 657 | 256 B | 0 | 0 | 0 | 168,627 |
-| | hybrid (<=5 inline) | 657 | 256 B | 7 | 504 | 7 | 168,960 |
+| each of 200 domains follows 100 of 2,000 actors, 200 posts | inline | 657 | 269 B | 0 | 0 | 0 | 176,795 |
+| | hybrid (<=5 inline) | 657 | 268 B | 7 | 504 | 7 | 177,072 |
 | | always snapshot | 657 | 218 B | 1,017 | 96,768 | 100 | 240,372 |
-| each of 100 domains follows 1,500 of 2,000, 1,000 posts | inline | 500 | 739 B | 0 | 0 | 0 | 369,656 |
-| | hybrid | 500 | 378 B | 6,778 | 571,104 | 91 | 760,269 |
+| each of 100 domains follows 1,500 of 2,000, 1,000 posts | inline | 500 | 857 B | 0 | 0 | 0 | 428,832 |
+| | hybrid | 500 | 381 B | 6,778 | 571,104 | 91 | 762,013 |
 | | always snapshot | 500 | 367 B | 6,996 | 588,600 | 92 | 772,552 |
 
 **Result: the snapshot form does not pay for itself on the wire.** The
 inline form only lists actors that changed for that domain, so it stays
-small (256-739 B) even when the domain follows 1,500 actors. A bucket
+small (269-857 B) even when the domain follows 1,500 actors. A bucket
 document lists *every* actor in the bucket, and a domain that follows
 many actors touches most of the 256 buckets, so B fetches around 14
-documents per notification. Notifications shrink by half, total traffic
-doubles. What snapshots do buy is origin work: 92 renders for 500
+documents per notification. Notifications shrink by more than half, total
+traffic nearly doubles. What snapshots do buy is origin work: 92 renders for 500
 notifications (each bucket version is rendered once and then served from
 a cache), against building each notification from the counters. That is
 worth it only if building notifications is itself a bottleneck on A, which
@@ -176,6 +182,50 @@ are the natural layout for the thing snapshots are *clearly* good at:
 a B that was away or lost notifications re-checking the actors it follows
 with conditional GETs (304 when unchanged), served by any static host.
 That path is not built here.
+
+### Part 4: ETags instead of numbers (the current wire format)
+
+The protocol now follows the ETag idea: A tells B, "as far as I know
+these actors you follow have changed", with one opaque token per actor
+(`key => etag`). B compares by equality only. If it differs, B pulls with
+the tokens it holds (like `If-None-Match`) and A answers **only for keys
+whose token changed**, each event carrying its new token.
+
+What the ETag form buys:
+
+- **Nothing to leak.** A sequence number tells everyone how many posts
+  exist and a followers-only counter tells how active a locked account
+  is. A 12-byte HMAC says neither (test: tokens are fixed length and
+  differ per key and per state).
+- **Origin freedom.** A may track state by counter, timestamp or hash
+  chain; B never decodes anything.
+- **Same HTTP shape as the web already uses** (conditional GET), which
+  makes caches and debugging familiar.
+
+What it costs, and the prototype found one real bug:
+
+- **No order.** B cannot tell a stale notification from a new one; any
+  different token looks like news. The first version re-pulled forever
+  in the burst scenario (3,882 requests instead of 99, and activities
+  not all delivered), because a notification carrying an older token
+  than the stream's state stayed "pending" for good. The fix is
+  `Puller.begin_pull/2`: remember what was pending when the pull started,
+  and after the stream drop every entry that has not changed since,
+  keeping only what arrived *during* the pull. A late stale notification
+  now costs exactly one empty pull (test: "a stale notification costs one
+  empty pull and then settles"); news that arrives mid-pull is kept (test).
+- **Resync is explicit.** An unknown token means "replay what you keep"
+  (counted in `Origin.resyncs`), which is also what a lost or expired log
+  looks like. With integers the same case was "ask for seq > N" and the
+  origin could answer "too old" precisely; with ETags it can only say
+  "I don't know that one".
+- **Slightly larger notifications:** 16 characters per entry instead of
+  about 8 bytes. In the numbers above that moved the inline notification
+  from 739 B to 857 B in the busiest setup.
+
+Everything in parts 1-3 was re-run on the ETag version: the Part 1 and 2
+tables are unchanged, because the model counts requests and queries, not
+token bytes.
 
 ### What the model says
 

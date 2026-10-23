@@ -12,7 +12,7 @@ defmodule PullFederation.Puller do
   "both ways" delivery is idempotent through one code path.
   """
 
-  alias PullFederation.{Seq, Snapshot, Visibility}
+  alias PullFederation.{Cursors, Snapshot, Visibility}
 
   defstruct following: %{},
             cursors: %{},
@@ -28,6 +28,7 @@ defmodule PullFederation.Puller do
             retry_max_ms: 300_000,
             failures: %{},
             bucket_seen: %{},
+            inflight: %{},
             wanted: %{},
             verify: nil
 
@@ -65,12 +66,12 @@ defmodule PullFederation.Puller do
     end
   end
 
-  # Untrusted input, parsed once here: either inline seqs or bucket versions.
+  # Untrusted input, parsed once here: either inline ETags or bucket versions.
   defp parse_notification({:buckets, versions, inline}) when is_map(versions) do
     valid? = Enum.all?(versions, fn {k, v} -> is_binary(k) and is_integer(v) and v >= 0 end)
 
     with true <- valid? and map_size(versions) <= 256,
-         {:ok, parsed} <- Seq.parse(inline) do
+         {:ok, parsed} <- Cursors.parse(inline) do
       {:ok, parsed, versions}
     else
       _ -> :error
@@ -78,7 +79,7 @@ defmodule PullFederation.Puller do
   end
 
   defp parse_notification(inline) do
-    with {:ok, parsed} <- Seq.parse(inline), do: {:ok, parsed, %{}}
+    with {:ok, parsed} <- Cursors.parse(inline), do: {:ok, parsed, %{}}
   end
 
   defp plan_inline(b, origin, parsed) do
@@ -87,7 +88,7 @@ defmodule PullFederation.Puller do
     relevant =
       Map.filter(parsed, fn {key, _} -> MapSet.member?(followed, Visibility.actor_of(key)) end)
 
-    plan(b, origin, Seq.behind(Map.get(b.cursors, origin, %{}), relevant))
+    plan(b, origin, Cursors.changed(Map.get(b.cursors, origin, %{}), relevant))
   end
 
   defp want_buckets(b, origin, versions) do
@@ -125,9 +126,9 @@ defmodule PullFederation.Puller do
     announced =
       for actor <- followed,
           Snapshot.bucket(actor) == bucket,
-          seq = entries[Snapshot.hash(actor)],
+          etag = entries[Snapshot.hash(actor)],
           into: %{},
-          do: {actor, seq}
+          do: {actor, etag}
 
     b = %{
       b
@@ -135,7 +136,7 @@ defmodule PullFederation.Puller do
         wanted: Map.update(b.wanted, origin, %{}, &Map.delete(&1, bucket))
     }
 
-    behind = Seq.behind(Map.get(b.cursors, origin, %{}), announced)
+    behind = Cursors.changed(Map.get(b.cursors, origin, %{}), announced)
     plan(b, origin, behind)
   end
 
@@ -154,7 +155,8 @@ defmodule PullFederation.Puller do
         {b, :pool_full}
 
       _ ->
-        {%{b | pending: Map.update(b.pending, origin, behind, &Seq.merge(&1, behind))}, :planned}
+        {%{b | pending: Map.update(b.pending, origin, behind, &Cursors.merge(&1, behind))},
+         :planned}
     end
   end
 
@@ -174,13 +176,24 @@ defmodule PullFederation.Puller do
   end
 
   @doc """
+  Call when a pull starts. Remembers what was pending at that moment:
+  tokens cannot be ordered, so after the stream ends only entries that
+  *changed since this point* may still be news; the rest are covered by
+  the state the stream returned.
+  """
+  def begin_pull(%__MODULE__{} = b, origin) do
+    %{b | inflight: Map.put(b.inflight, origin, Map.get(b.pending, origin, %{}))}
+  end
+
+  @doc """
   Steps 6/8. `result` is `{:ok, events, announced}` or `{:error, {:busy, retry_ms}}`.
   `jitter.(max_ms)` returns 0..max_ms; injected so tests are deterministic.
   """
   def finish_pull(%__MODULE__{} = b, origin, {:ok, events, announced}, now, _jitter) do
     b = Enum.reduce(events, b, &apply_event(&2, origin, &1, now))
-    cursors = Map.update(b.cursors, origin, announced, &Seq.merge(&1, announced))
-    still_behind = Seq.behind(cursors[origin], b.pending[origin] || %{})
+    cursors = Map.update(b.cursors, origin, announced, &Cursors.merge(&1, announced))
+    news = changed_since_begin(b, origin)
+    still_behind = Cursors.changed(cursors[origin], news)
 
     pending =
       case map_size(still_behind) do
@@ -188,10 +201,17 @@ defmodule PullFederation.Puller do
         _ -> Map.put(b.pending, origin, still_behind)
       end
 
-    %{b | cursors: cursors, pending: pending, failures: Map.delete(b.failures, origin)}
+    %{
+      b
+      | cursors: cursors,
+        pending: pending,
+        inflight: Map.delete(b.inflight, origin),
+        failures: Map.delete(b.failures, origin)
+    }
   end
 
   def finish_pull(%__MODULE__{} = b, origin, {:error, {:busy, retry_ms}}, now, jitter) do
+    b = %{b | inflight: Map.delete(b.inflight, origin)}
     n = Map.get(b.failures, origin, 0) + 1
     backoff = min(b.retry_base_ms * Integer.pow(2, n - 1), b.retry_max_ms)
     wait = max(retry_ms, backoff) + jitter.(div(backoff, 2))
@@ -203,11 +223,20 @@ defmodule PullFederation.Puller do
     }
   end
 
-  defp apply_event(b, origin, %{key: key, seq: seq, activity: act}, now) do
+  defp changed_since_begin(b, origin) do
+    pending = Map.get(b.pending, origin, %{})
+
+    case Map.fetch(b.inflight, origin) do
+      {:ok, at_start} -> Map.reject(pending, fn {k, t} -> Map.get(at_start, k) == t end)
+      :error -> pending
+    end
+  end
+
+  defp apply_event(b, origin, %{key: key, etag: etag, activity: act}, now) do
     cursor = Map.get(b.cursors, origin, %{})
     b = apply_activity(b, act, now)
     # cursor moves per event so a crash mid-stream resumes, never re-reads
-    %{b | cursors: Map.put(b.cursors, origin, Seq.merge(cursor, %{key => seq}))}
+    %{b | cursors: Map.put(b.cursors, origin, Cursors.merge(cursor, %{key => etag}))}
   end
 
   @doc """

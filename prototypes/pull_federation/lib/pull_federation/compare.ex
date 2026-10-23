@@ -332,7 +332,7 @@ defmodule PullFederation.Compare do
     case Puller.next_pull(st.b, now, busy?) do
       {:pull, "o" <> n, cursors} ->
         o = String.to_integer(n)
-        st = count_request(st, now)
+        st = count_request(%{st | b: Puller.begin_pull(st.b, "o#{o}")}, now)
 
         case Origin.open_stream(st.origins[o].pull, "b", cursors, now) do
           {:ok, pull, events, announced} ->

@@ -88,7 +88,7 @@ defmodule PullFederation.NotifyCost do
     do: %{notes: 0, note_bytes: 0, fetches: 0, fetch_bytes: 0, renders: MapSet.new()}
 
   defp account(st, {domain, inline}, _follows, _o) when is_map(inline) do
-    bytes = @envelope + Enum.sum(for {k, _} <- inline, do: byte_size(k) + 8)
+    bytes = @envelope + Enum.sum(for {k, _} <- inline, do: byte_size(k) + 16)
     _ = domain
     %{st | notes: st.notes + 1, note_bytes: st.note_bytes + bytes}
   end
@@ -96,7 +96,7 @@ defmodule PullFederation.NotifyCost do
   defp account(st, {domain, {:buckets, versions, followers}}, follows, o) do
     bytes =
       @envelope + 12 * map_size(versions) +
-        Enum.sum(for {k, _} <- followers, do: byte_size(k) + 8)
+        Enum.sum(for {k, _} <- followers, do: byte_size(k) + 16)
 
     mine = follows |> Map.fetch!(domain) |> MapSet.new(&Snapshot.bucket/1)
 
