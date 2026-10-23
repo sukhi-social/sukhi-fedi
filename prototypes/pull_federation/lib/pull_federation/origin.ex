@@ -27,7 +27,6 @@ defmodule PullFederation.Origin do
             decline_retry_ms: 5_000,
             bucket_versions: %{},
             inline_max: 5,
-            secret: "dev-secret",
             resyncs: 0
 
   @type event :: %{
@@ -66,7 +65,7 @@ defmodule PullFederation.Origin do
           actor: actor,
           key: key,
           seq: seq,
-          etag: Etag.token(o.secret, key, seq),
+          etag: Etag.new(),
           activity: activity
         }
 
@@ -189,7 +188,10 @@ defmodule PullFederation.Origin do
     for d <- Enum.sort(domains), do: {jitter.(d), d, announced_for(o, d)}
   end
 
-  defp etag_of(o, key), do: Etag.token(o.secret, key, Map.fetch!(o.seqs, key))
+  @doc "The token of the newest event under `key`, i.e. the key's current state."
+  def etag(%__MODULE__{} = o, key), do: o.log |> Map.fetch!(key) |> hd() |> Map.fetch!(:etag)
+
+  defp etag_of(o, key), do: etag(o, key)
 
   defp announced_for(o, domain) do
     for {actor, domains} <- o.followers,

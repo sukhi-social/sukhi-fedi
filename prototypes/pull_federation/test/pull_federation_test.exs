@@ -7,7 +7,12 @@ defmodule PullFederationTest do
   @a "https://a.example/users/alice"
   @b "https://a.example/users/bob"
 
-  defp t(key, n), do: Etag.token("dev-secret", key, n)
+  # a made-up token, for tests that never talk to an origin
+  defp t(key, n), do: "tok:#{key}:#{n}"
+
+  # the real token of the nth event under `key` at origin `o`
+  defp tok(o, key, n),
+    do: o.log |> Map.fetch!(key) |> Enum.reverse() |> Enum.at(n - 1) |> Map.fetch!(:etag)
 
   defp note(id, vis \\ :public), do: %{type: :create, id: id, visibility: vis}
 
@@ -43,11 +48,15 @@ defmodule PullFederationTest do
   end
 
   describe "etag" do
-    test "tokens are fixed length, per key and per state, and say nothing about the count" do
-      assert byte_size(t(@a, 1)) == 16
-      assert t(@a, 1) != t(@a, 2)
-      assert t(@a, 1) != t(@b, 1)
-      assert t(@a, 1) != Etag.token("other", @a, 1)
+    test "tokens are fixed length, random, and say nothing about the count" do
+      assert byte_size(Etag.new()) == 16
+      assert Etag.new() != Etag.new()
+    end
+
+    test "an origin's tokens carry no secret: two origins, same history, different tokens" do
+      {o1, _} = Origin.publish(Origin.new(), @a, note("1"))
+      {o2, _} = Origin.publish(Origin.new(), @a, note("1"))
+      assert Origin.etag(o1, @a) != Origin.etag(o2, @a)
     end
   end
 
@@ -64,20 +73,24 @@ defmodule PullFederationTest do
       {o, {:pull, 1}} = Origin.publish(o, @a, note("f1", :followers))
       {o, {:pull, 2}} = Origin.publish(o, @a, note("p2", :unlisted))
       {_, [{"b.example", announced}]} = Origin.due_notifications(o, 0)
-      assert announced == %{@a => t(@a, 2), (@a <> "#followers") => t(@a <> "#followers", 1)}
+
+      assert announced == %{
+               @a => tok(o, @a, 2),
+               (@a <> "#followers") => tok(o, @a <> "#followers", 1)
+             }
     end
 
     test "notifications are coalesced within the quiet window" do
       {o, _} = setup_pair()
       {o, _} = Origin.publish(o, @a, note("1"))
       {o, [{"b.example", first}]} = Origin.due_notifications(o, 0)
-      assert first == %{@a => t(@a, 1)}
+      assert first == %{@a => tok(o, @a, 1)}
 
       {o, _} = Origin.publish(o, @a, note("2"))
       {o, _} = Origin.publish(o, @a, note("3"))
       assert {o, []} = Origin.due_notifications(o, 1_000)
       assert {_, [{"b.example", later}]} = Origin.due_notifications(o, 3_000)
-      assert later == %{@a => t(@a, 3)}
+      assert later == %{@a => tok(o, @a, 3)}
     end
 
     test "declines when all stream slots are taken" do
@@ -163,7 +176,7 @@ defmodule PullFederationTest do
 
       {o, p} = Sim.round(o, "b.example", p, now: 0)
       assert Map.keys(p.store) |> Enum.sort() == ["1", "2", "3"]
-      assert p.cursors["a.example"] == %{@a => t(@a, 2), @b => t(@b, 1)}
+      assert p.cursors["a.example"] == %{@a => tok(o, @a, 2), @b => tok(o, @b, 1)}
       assert o.active_streams == 0
 
       {_, p2} = Sim.round(o, "b.example", p, now: 10_000)
@@ -178,8 +191,8 @@ defmodule PullFederationTest do
       assert Map.keys(p.store) |> Enum.sort() == ["f1", "p1"]
 
       assert p.cursors["a.example"] == %{
-               @a => t(@a, 1),
-               (@a <> "#followers") => t(@a <> "#followers", 1)
+               @a => tok(o, @a, 1),
+               (@a <> "#followers") => tok(o, @a <> "#followers", 1)
              }
     end
 
@@ -242,8 +255,8 @@ defmodule PullFederationTest do
     test "few changes travel inline, many become bucket versions" do
       {o, _p, [u1, u2, u3 | _]} = big_pair(10)
       {o2, _} = Origin.publish(o, u1, note("1"))
-      assert {_, [{"b.example", %{^u1 => tok}}]} = Origin.due_notifications(o2, 0)
-      assert tok == t(u1, 1)
+      assert {_, [{"b.example", %{^u1 => token}}]} = Origin.due_notifications(o2, 0)
+      assert token == tok(o2, u1, 1)
 
       o3 = Enum.reduce([u1, u2, u3], o, fn u, acc -> elem(Origin.publish(acc, u, note(u)), 0) end)
       assert {_, [{"b.example", {:buckets, versions, %{}}}]} = Origin.due_notifications(o3, 0)
@@ -303,9 +316,12 @@ defmodule PullFederationTest do
       {o, _} = Origin.publish(o, @a, note("a1"))
       {o, _} = Origin.publish(o, @b, note("b1"))
       {o, _} = Origin.publish(o, @b, note("b2"))
-      {:ok, _, events, announced} = Origin.open_stream(o, "b.example", %{@a => t(@a, 1)}, 0)
+
+      {:ok, _, events, announced} =
+        Origin.open_stream(o, "b.example", %{@a => tok(o, @a, 1)}, 0)
+
       assert Enum.map(events, & &1.activity.id) == ["b1", "b2"]
-      assert announced == %{@a => t(@a, 1), @b => t(@b, 2)}
+      assert announced == %{@a => tok(o, @a, 1), @b => tok(o, @b, 2)}
     end
 
     test "a token the origin does not know triggers a replay, which is idempotent" do
@@ -325,10 +341,10 @@ defmodule PullFederationTest do
       {o, _} = Origin.publish(o, @a, note("a1"))
       {o, _} = Origin.publish(o, @a, note("a2"))
       {o, p} = Sim.round(o, "b.example", p, now: 0)
-      assert p.cursors["a.example"][@a] == t(@a, 2)
+      assert p.cursors["a.example"][@a] == tok(o, @a, 2)
 
       # a late copy of the older notification arrives: different token, so B pulls
-      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 5_000)
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => tok(o, @a, 1)}, 5_000)
       p = Puller.begin_pull(p, "a.example")
 
       {:ok, o, events, announced} =
@@ -337,22 +353,21 @@ defmodule PullFederationTest do
       assert events == []
       p = Puller.finish_pull(p, "a.example", {:ok, events, announced}, 5_000, fn _ -> 0 end)
       assert p.pending == %{}
-      assert p.cursors["a.example"][@a] == t(@a, 2)
-      _ = o
+      assert p.cursors["a.example"][@a] == tok(o, @a, 2)
     end
 
     test "news that arrives while a pull is in flight is not lost" do
       {o, p} = setup_pair()
       {o, _} = Origin.publish(o, @a, note("a1"))
-      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 0)
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => tok(o, @a, 1)}, 0)
       p = Puller.begin_pull(p, "a.example")
       {:ok, o, events, announced} = Origin.open_stream(o, "b.example", %{}, 0)
 
       # a1 was just served; a2 is published and announced before the stream finishes
-      {_, _} = Origin.publish(o, @a, note("a2"))
-      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 2)}, 1_500)
+      {o2, _} = Origin.publish(o, @a, note("a2"))
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => tok(o2, @a, 2)}, 1_500)
       p = Puller.finish_pull(p, "a.example", {:ok, events, announced}, 2_000, fn _ -> 0 end)
-      assert p.pending == %{"a.example" => %{@a => t(@a, 2)}}
+      assert p.pending == %{"a.example" => %{@a => tok(o2, @a, 2)}}
     end
   end
 end

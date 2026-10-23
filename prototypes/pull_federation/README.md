@@ -30,8 +30,9 @@ mix test
 - **ETag per index, not a number on the wire.** The origin still keeps
   two internal counters per actor: the *public* index (public + unlisted,
   key = the actor URI) and the *followers* index (key = `actor#followers`).
-  What leaves the origin is only `etag = HMAC(secret, key:seq)` truncated
-  to 12 bytes (`Etag`). B can only test "is it the same as mine?". Direct
+  What leaves the origin is only a random 12-byte token drawn when the
+  event is appended and stored on it (`Etag.new/0`): no secret, nothing
+  derived from the counter, nothing to rotate. B can only test "is it the same as mine?". Direct
   messages are push-only and touch neither index; and since a token says
   nothing about how many activities exist, a gap or a count never
   reveals a hidden activity.
@@ -195,8 +196,10 @@ What the ETag form buys:
 
 - **Nothing to leak.** A sequence number tells everyone how many posts
   exist and a followers-only counter tells how active a locked account
-  is. A 12-byte HMAC says neither (test: tokens are fixed length and
-  differ per key and per state).
+  is. A random 12-byte token says neither, and, unlike a hash of the
+  counter, cannot be brute-forced back into one (test: two origins with
+  the same history issue different tokens). No key means nothing to
+  rotate; a secret that changed would have invalidated every cursor.
 - **Origin freedom.** A may track state by counter, timestamp or hash
   chain; B never decodes anything.
 - **Same HTTP shape as the web already uses** (conditional GET), which

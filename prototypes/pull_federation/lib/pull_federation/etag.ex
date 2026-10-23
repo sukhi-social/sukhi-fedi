@@ -4,19 +4,14 @@ defmodule PullFederation.Etag do
   The per-key token that stands for "the state of this actor's index
   right now".
 
-  `token = base64url(first 12 bytes of HMAC-SHA256(secret, key ":" seq))`.
-
-  Opaque on purpose: it reveals nothing about how many activities exist
-  (a followers-only gap cannot leak), cannot be forged to point somewhere
-  else, and the origin may change how it tracks state later. The origin
-  finds a returned token again by looking at the tokens of the events it
-  still holds, so it never has to decode one.
+  A token is 12 random bytes, drawn when the activity is appended and
+  stored on that event. Nothing is derived from the sequence number, so
+  there is no key to keep or rotate, a token says nothing about how many
+  activities exist (a followers-only gap cannot leak), and it cannot be
+  forged or predicted. The origin finds a returned token again by looking
+  at the tokens of the events it still holds; it never decodes one.
   """
 
-  @spec token(binary, String.t(), pos_integer) :: String.t()
-  def token(secret, key, seq) do
-    :crypto.mac(:hmac, :sha256, secret, "#{key}:#{seq}")
-    |> binary_part(0, 12)
-    |> Base.url_encode64(padding: false)
-  end
+  @spec new() :: String.t()
+  def new, do: :crypto.strong_rand_bytes(12) |> Base.url_encode64(padding: false)
 end
