@@ -26,7 +26,7 @@ defmodule PullFederation.Origin do
             notify_quiet_ms: 3_000,
             decline_retry_ms: 5_000
 
-  @type event :: %{actor: String.t(), seq: pos_integer, activity: map}
+  @type event :: %{actor: String.t(), key: String.t(), seq: pos_integer, activity: map}
 
   def new(opts \\ []), do: struct!(__MODULE__, opts)
 
@@ -39,27 +39,28 @@ defmodule PullFederation.Origin do
   end
 
   @doc """
-  Append an activity. Pullable ones get the actor's next seq; direct
-  messages return `:push_only` and leave the sequence untouched, so a
-  gap never means "a secret exists".
+  Append an activity. It takes the next seq of its index (public or
+  followers-only, see `Visibility`); direct messages return `:push_only`
+  and touch no sequence.
   """
   def publish(%__MODULE__{} = o, actor, %{visibility: vis} = activity) do
-    case Visibility.pullable?(vis) do
-      false ->
+    case Visibility.index(vis) do
+      nil ->
         {o, :push_only}
 
-      true ->
-        seq = Map.get(o.seqs, actor, 0) + 1
-        event = %{actor: actor, seq: seq, activity: activity}
+      index ->
+        key = Visibility.key(actor, index)
+        seq = Map.get(o.seqs, key, 0) + 1
+        event = %{actor: actor, key: key, seq: seq, activity: activity}
         domains = Map.get(o.followers, actor, MapSet.new())
 
         dirty =
           Enum.reduce(domains, o.dirty, fn d, acc ->
-            Map.update(acc, d, MapSet.new([actor]), &MapSet.put(&1, actor))
+            Map.update(acc, d, MapSet.new([key]), &MapSet.put(&1, key))
           end)
 
-        log = Map.update(o.log, actor, [event], &[event | &1])
-        {%{o | log: log, seqs: Map.put(o.seqs, actor, seq), dirty: dirty}, {:pull, seq}}
+        log = Map.update(o.log, key, [event], &[event | &1])
+        {%{o | log: log, seqs: Map.put(o.seqs, key, seq), dirty: dirty}, {:pull, seq}}
     end
   end
 
@@ -110,17 +111,19 @@ defmodule PullFederation.Origin do
   defp announced_for(o, domain) do
     for {actor, domains} <- o.followers,
         MapSet.member?(domains, domain),
-        seq = o.seqs[actor],
+        index <- [:public, :followers],
+        key = Visibility.key(actor, index),
+        seq = o.seqs[key],
         into: %{} do
-      {actor, seq}
+      {key, seq}
     end
   end
 
   defp events_for(o, domain, cursors) do
-    for {actor, announced} <- announced_for(o, domain),
-        announced > Map.get(cursors, actor, 0),
-        event <- Enum.reverse(Map.fetch!(o.log, actor)),
-        event.seq > Map.get(cursors, actor, 0) do
+    for {key, announced} <- announced_for(o, domain),
+        announced > Map.get(cursors, key, 0),
+        event <- Enum.reverse(Map.fetch!(o.log, key)),
+        event.seq > Map.get(cursors, key, 0) do
       event
     end
   end

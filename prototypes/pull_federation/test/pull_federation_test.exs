@@ -39,6 +39,15 @@ defmodule PullFederationTest do
       {_, {:pull, 2}} = Origin.publish(o, @a, note("n2"))
     end
 
+    test "public and followers-only have separate sequences" do
+      {o, _} = setup_pair()
+      {o, {:pull, 1}} = Origin.publish(o, @a, note("p1"))
+      {o, {:pull, 1}} = Origin.publish(o, @a, note("f1", :followers))
+      {o, {:pull, 2}} = Origin.publish(o, @a, note("p2", :unlisted))
+      {_, [{"b.example", announced}]} = Origin.due_notifications(o, 0)
+      assert announced == %{@a => 2, (@a <> "#followers") => 1}
+    end
+
     test "notifications are coalesced within the quiet window" do
       {o, _} = setup_pair()
       {o, _} = Origin.publish(o, @a, note("1"))
@@ -138,6 +147,15 @@ defmodule PullFederationTest do
 
       {_, p2} = Sim.round(o, "b.example", p, now: 10_000)
       assert p2 == p
+    end
+
+    test "followers-only items are pulled through their own cursor" do
+      {o, p} = setup_pair()
+      {o, _} = Origin.publish(o, @a, note("p1"))
+      {o, _} = Origin.publish(o, @a, note("f1", :followers))
+      {_, p} = Sim.round(o, "b.example", p, now: 0)
+      assert Map.keys(p.store) |> Enum.sort() == ["f1", "p1"]
+      assert p.cursors["a.example"] == %{@a => 1, (@a <> "#followers") => 1}
     end
 
     test "busy B postpones, then catches up in one stream" do

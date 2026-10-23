@@ -12,7 +12,7 @@ defmodule PullFederation.Puller do
   "both ways" delivery is idempotent through one code path.
   """
 
-  alias PullFederation.Seq
+  alias PullFederation.{Seq, Visibility}
 
   defstruct following: %{},
             cursors: %{},
@@ -49,7 +49,10 @@ defmodule PullFederation.Puller do
     with :ok <- gap_ok(b, origin, now),
          {:ok, parsed} <- Seq.parse(announced) do
       followed = Map.get(b.following, origin, MapSet.new())
-      relevant = Map.filter(parsed, fn {actor, _} -> MapSet.member?(followed, actor) end)
+
+      relevant =
+        Map.filter(parsed, fn {key, _} -> MapSet.member?(followed, Visibility.actor_of(key)) end)
+
       behind = Seq.behind(Map.get(b.cursors, origin, %{}), relevant)
       b = %{b | last_accepted: Map.put(b.last_accepted, origin, now)}
       plan(b, origin, behind)
@@ -123,11 +126,11 @@ defmodule PullFederation.Puller do
     }
   end
 
-  defp apply_event(b, origin, %{actor: actor, seq: seq, activity: act}, now) do
+  defp apply_event(b, origin, %{key: key, seq: seq, activity: act}, now) do
     cursor = Map.get(b.cursors, origin, %{})
     b = apply_activity(b, act, now)
     # cursor moves per event so a crash mid-stream resumes, never re-reads
-    %{b | cursors: Map.put(b.cursors, origin, Seq.merge(cursor, %{actor => seq}))}
+    %{b | cursors: Map.put(b.cursors, origin, Seq.merge(cursor, %{key => seq}))}
   end
 
   @doc """

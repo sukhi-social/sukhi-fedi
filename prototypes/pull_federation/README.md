@@ -27,10 +27,13 @@ mix test
 
 ## Decisions the prototype makes (all easy to change)
 
-- **Only public / unlisted / followers-only is pullable** (`Visibility`).
-  Direct messages get no sequence number, so a gap in a sequence never
-  reveals that a private activity exists.
-- **Sequence ids, not hashes or dates.** Per actor, integers, from 1.
+- **Sequence = index of what is visible.** Per actor there are two
+  integer sequences from 1: the *public* index (public + unlisted, key
+  = the actor URI) and the *followers* index (key = `actor#followers`).
+  Direct messages are push-only and touch neither, so a gap never
+  reveals a hidden activity, and the public index is just a number any
+  reader could already derive from the public outbox.
+- **Sequence ids, not hashes or dates.**
 - **Notifications are untrusted.** Shape-checked once (`Seq.parse/1`, ≤1000 entries),
   actors B does not follow are dropped, and a per-origin floor
   (`min_notify_gap_ms`, 1000) rate-limits them. Authenticity is meant
