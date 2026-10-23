@@ -40,4 +40,20 @@ defmodule CompareTest do
     assert push.requests_to_b < pull.requests_to_b
     assert push.latency_max_ms <= pull.latency_max_ms
   end
+
+  test "fan-out: pull's origin cost grows slower than push as followers' domains grow" do
+    alias PullFederation.FanOut
+
+    small = [domains: 100, posts: 100]
+    big = [domains: 1_000, posts: 100]
+
+    ratio = fn opts ->
+      FanOut.run(:push, opts).origin_cost_units / FanOut.run(:pull, opts).origin_cost_units
+    end
+
+    assert ratio.(small) > 1.0
+    assert ratio.(big) > 5.0
+    assert FanOut.run(:push, big).db_writes > 100 * FanOut.run(:pull, big).db_writes
+    assert FanOut.run(:pull, big).peak_queue_entries < FanOut.run(:push, big).peak_queue_entries
+  end
 end

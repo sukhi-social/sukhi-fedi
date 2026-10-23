@@ -10,18 +10,25 @@ defmodule PullFederation.Compare do
   rests on; change them and re-run):
 
     * every HTTP request B accepts costs `request_cost` (default 1.0: TLS, signature check)
-    * every activity B stores costs 1.0
+    * every database query B runs costs `db_query_cost` (default 0.5)
+    * handling one activity in memory (parse, verify, classify) costs 0.5,
+      plus 0.1 per row of a multi-row insert
 
-  so a push POST costs `request_cost + 1`, a pull stream of n
-  activities costs `request + n * activity`, a notification costs one request.
-  Origins have no capacity limit; only B is modelled as scarce.
+  A push POST is one request plus two queries (dedupe lookup, insert).
+  A pull stream of n activities is one request plus four queries for the
+  whole batch (cursor read, batched dedupe, multi-row insert, cursor
+  write), "pay once per batch" (docs/CODE_STYLE.md). A notification is one
+  request and no query. Origin-side cost is in `PullFederation.FanOut`;
+  here only B is scarce.
   """
 
   alias PullFederation.{Origin, PushOrigin, Puller}
 
   @tick 100
   @default_request_cost 1.0
-  @activity_cost 1.0
+  @activity_cost 0.5
+  @row_cost 0.1
+  @default_db_query_cost 0.5
 
   @doc "Deterministic workloads. `events` are `{t_ms, origin, actor_no, visibility}`."
   def scenarios do
@@ -124,6 +131,8 @@ defmodule PullFederation.Compare do
     }
   end
 
+  defp qc(%{sc: sc}), do: Map.get(sc, :db_query_cost, @default_db_query_cost)
+
   defp rc(%{sc: sc}), do: Map.get(sc, :request_cost, @default_request_cost)
 
   defp actor(o, a), do: "https://o#{o}.example/users/u#{a}"
@@ -185,7 +194,7 @@ defmodule PullFederation.Compare do
     st = put_in(st.origins[o].push, po)
 
     Enum.reduce(jobs, st, fn job, st ->
-      case accept(st, now, {:push, job}, rc(st) + @activity_cost) do
+      case accept(st, now, {:push, job}, rc(st) + @activity_cost + 2 * qc(st)) do
         {:ok, st} ->
           st
 
@@ -328,7 +337,7 @@ defmodule PullFederation.Compare do
         case Origin.open_stream(st.origins[o].pull, "b", cursors, now) do
           {:ok, pull, events, announced} ->
             st = put_in(st.origins[o].pull, pull)
-            cost = rc(st) + length(events) * @activity_cost
+            cost = rc(st) + 4 * qc(st) + length(events) * (@activity_cost + @row_cost)
             item = {:stream, o, events, announced}
             %{st | queue: :queue.in({item, cost}, st.queue), qlen: st.qlen + 1, inflight: o}
 
