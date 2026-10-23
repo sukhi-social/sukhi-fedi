@@ -95,6 +95,6 @@ These say what another server does. They bind nobody.
 
 | Document | Subject |
 | --- | --- |
-| [misskey-interop](misskey-interop.md) | How Misskey behaves on the wire, with sukhi's matching actions |
+| [misskey/](misskey/README.md) | How Misskey behaves on the wire, one file per feature, with sukhi's matching actions |
 
 Open decision: the identifier base. The specifications use `https://sukhi.social/spec/<id>/<version>` as a provisional identifier. The real domain and a permanent path need to be chosen first.
