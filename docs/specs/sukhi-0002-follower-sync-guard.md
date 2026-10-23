@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# sukhi-0003: Safe reconciliation of followers collections
+# sukhi-0002: Safe reconciliation of followers collections
 
 - Status: Draft. Implemented in `delivery/lib/sukhi_delivery/delivery/followers_sync.ex`.
-- Identifier: `https://sukhi.social/spec/sukhi-0003/1` (provisional).
+- Identifier: `https://sukhi.social/spec/sukhi-0002/1` (provisional).
 - Builds on: FEP-8fcf (followers collection synchronization).
 
 ## 1. Problem
@@ -18,7 +18,7 @@ A **local edge** is a follow relation whose follower is on this server and which
 1. The receiver MUST NOT remove any edge when the fetched collection is empty.
 2. The receiver MUST NOT remove any edge when the collection is only reachable by pages and no page was read in full (non-inline collection).
 3. The receiver MUST skip a delivery whose actor is on its own server. A delivery that came back to the own shared inbox MUST NOT change local edges.
-4. When the digest differs and the collection is complete, the receiver MAY remove edges that are absent from it, and SHOULD queue the work apart from the request that carried the header, so the inbox answers first.
+4. When the digest differs and the collection is complete, the receiver MAY remove edges that are absent from it, and MAY queue the work apart from the request that carried the header, so the inbox answers first.
 5. A stale edge that stays is accepted. It goes away at an explicit `Undo(Follow)`.
 
 ## 4. Reason

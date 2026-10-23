@@ -72,12 +72,21 @@ Two lists. First, every external specification the code implements, with how far
 
 Each one covers behaviour that is observable from outside and that no listed standard states. Each says which standard it builds on.
 
+### Requirement words
+
+These specifications are written so that others can copy them.
+
+- **MUST** only where an implementation that skips the rule cannot talk to others, or loses data, or opens a security hole.
+- **SHOULD** where the rule helps others (reach, load, tidiness) but a copy that skips it still works.
+- **MAY** for choices of one implementation, such as a number taken from sukhi's tuning.
+
 | Id | Title | Builds on | Status |
 | --- | --- | --- | --- |
-| [sukhi-0001](sukhi-0001-spec-declaration.md) | Declaring implemented specifications | FEP-844e, FEP-d556, NodeInfo | Draft; not implemented |
-| [sukhi-0002](sukhi-0002-signature-fallback.md) | Signature scheme fallback and per-host memory | RFC 9421, draft-cavage-12 | Draft; implemented |
-| [sukhi-0003](sukhi-0003-follower-sync-guard.md) | Safe reconciliation of followers collections | FEP-8fcf | Draft; implemented |
-| [sukhi-0004](sukhi-0004-legacy-quote-profile.md) | Quote compatibility profile | FEP-e232, FEP-044f | Draft; implemented |
-| [sukhi-0005](sukhi-0005-signer-binding.md) | Binding the signer to the claimed actor | RFC 9421, ActivityPub | Draft; implemented |
+| [sukhi-0001](sukhi-0001-signature-fallback.md) | Signature scheme fallback and per-host memory | RFC 9421, draft-cavage-12 | Draft; implemented |
+| [sukhi-0002](sukhi-0002-follower-sync-guard.md) | Safe reconciliation of followers collections | FEP-8fcf | Draft; implemented |
+| [sukhi-0003](sukhi-0003-legacy-quote-profile.md) | Quote compatibility profile | FEP-e232, FEP-044f | Draft; implemented |
+| [sukhi-0004](sukhi-0004-signer-binding.md) | Binding the signer to the claimed actor | RFC 9421, ActivityPub | Draft; implemented |
 
-Open decision: the identifier base. The specifications use `https://sukhi.social/spec/<id>/<version>` as a provisional identifier. The real domain and a permanent path need to be chosen before sukhi-0001 ships.
+Not a specification: [`../spec-declaration-notes.md`](../spec-declaration-notes.md) is a design note on how a server could declare which of these (and which FEPs) it implements, using FEP-844e. Nothing in it is implemented.
+
+Open decision: the identifier base. The specifications use `https://sukhi.social/spec/<id>/<version>` as a provisional identifier. The real domain and a permanent path need to be chosen first.

@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# sukhi-0001: Declaring implemented specifications
+# Design note: declaring implemented specifications
 
-- Status: Draft. Not implemented.
-- Identifier: `https://sukhi.social/spec/sukhi-0001/1` (provisional, see [README](README.md)).
-- Builds on: FEP-844e (capability discovery), FEP-d556 (server-level actor discovery), NodeInfo 2.1.
+- Status: note, not a specification. Nothing here is implemented.
+- Written 2026-10-23. Builds on FEP-844e (capability discovery), FEP-d556 (server-level actor discovery), NodeInfo 2.1.
+- The requirement words below (MUST, SHOULD, MAY) describe the proposal. They do not bind anyone. If other servers start to copy this, it can be promoted to a specification in `docs/specs/`, and the levels re-set so that MUST stays only where two servers could not talk without it.
 
 ## 1. Problem
 
@@ -60,7 +60,7 @@ A test SHOULD fail when a declared identifier has no matching "implemented" row 
   "implements": [
     { "href": "https://w3id.org/fep/8b32", "name": "Object Integrity Proofs", "status": "stable" },
     { "href": "https://w3id.org/fep/044f", "name": "Quote posts", "status": "partial" },
-    { "href": "https://sukhi.social/spec/sukhi-0002/1", "name": "Signature scheme fallback", "status": "stable" }
+    { "href": "https://sukhi.social/spec/sukhi-0001/1", "name": "Signature scheme fallback", "status": "stable" }
   ]
 }
 ```
