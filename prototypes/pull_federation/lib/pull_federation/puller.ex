@@ -12,7 +12,7 @@ defmodule PullFederation.Puller do
   "both ways" delivery is idempotent through one code path.
   """
 
-  alias PullFederation.{Seq, Visibility}
+  alias PullFederation.{Seq, Snapshot, Visibility}
 
   defstruct following: %{},
             cursors: %{},
@@ -27,6 +27,8 @@ defmodule PullFederation.Puller do
             retry_base_ms: 5_000,
             retry_max_ms: 300_000,
             failures: %{},
+            bucket_seen: %{},
+            wanted: %{},
             verify: nil
 
   @doc "`verify` is `(activity -> :ok | :error)`, the single signature check."
@@ -41,25 +43,100 @@ defmodule PullFederation.Puller do
   end
 
   @doc """
-  Step 3. Returns `{b, :planned | :up_to_date | :rate_limited | :invalid | :pool_full}`.
+  Step 3. Returns `{b, :planned | :up_to_date | :fetch | :rate_limited | :invalid | :pool_full}`;
+  `:fetch` means snapshot buckets are wanted (`wanted_buckets/2`, `ingest_bucket/5`).
   Announced actors we do not follow are dropped, so a notification can
   never widen what we are willing to pull.
   """
-  def notify(%__MODULE__{} = b, origin, announced, now) do
+  def notify(%__MODULE__{} = b, origin, notification, now) do
     with :ok <- gap_ok(b, origin, now),
-         {:ok, parsed} <- Seq.parse(announced) do
-      followed = Map.get(b.following, origin, MapSet.new())
-
-      relevant =
-        Map.filter(parsed, fn {key, _} -> MapSet.member?(followed, Visibility.actor_of(key)) end)
-
-      behind = Seq.behind(Map.get(b.cursors, origin, %{}), relevant)
+         {:ok, inline, versions} <- parse_notification(notification) do
       b = %{b | last_accepted: Map.put(b.last_accepted, origin, now)}
-      plan(b, origin, behind)
+      {b, status} = plan_inline(b, origin, inline)
+      b = want_buckets(b, origin, versions)
+
+      case Map.get(b.wanted, origin, %{}) == %{} do
+        true -> {b, status}
+        false -> {b, :fetch}
+      end
     else
       :rate_limited -> {b, :rate_limited}
       :error -> {b, :invalid}
     end
+  end
+
+  # Untrusted input, parsed once here: either inline seqs or bucket versions.
+  defp parse_notification({:buckets, versions, inline}) when is_map(versions) do
+    valid? = Enum.all?(versions, fn {k, v} -> is_binary(k) and is_integer(v) and v >= 0 end)
+
+    with true <- valid? and map_size(versions) <= 256,
+         {:ok, parsed} <- Seq.parse(inline) do
+      {:ok, parsed, versions}
+    else
+      _ -> :error
+    end
+  end
+
+  defp parse_notification(inline) do
+    with {:ok, parsed} <- Seq.parse(inline), do: {:ok, parsed, %{}}
+  end
+
+  defp plan_inline(b, origin, parsed) do
+    followed = Map.get(b.following, origin, MapSet.new())
+
+    relevant =
+      Map.filter(parsed, fn {key, _} -> MapSet.member?(followed, Visibility.actor_of(key)) end)
+
+    plan(b, origin, Seq.behind(Map.get(b.cursors, origin, %{}), relevant))
+  end
+
+  defp want_buckets(b, origin, versions) do
+    seen = Map.get(b.bucket_seen, origin, %{})
+    mine = my_buckets(b, origin)
+
+    fetch =
+      for {bucket, v} <- versions,
+          MapSet.member?(mine, bucket),
+          v > Map.get(seen, bucket, 0),
+          into: %{},
+          do: {bucket, v}
+
+    %{b | wanted: Map.update(b.wanted, origin, fetch, &Map.merge(&1, fetch))}
+  end
+
+  defp my_buckets(b, origin) do
+    b.following
+    |> Map.get(origin, MapSet.new())
+    |> MapSet.new(&Snapshot.bucket/1)
+  end
+
+  @doc "Snapshot buckets the last notification asked this side to fetch."
+  def wanted_buckets(%__MODULE__{} = b, origin),
+    do: b.wanted |> Map.get(origin, %{}) |> Map.keys() |> Enum.sort()
+
+  @doc """
+  Use a fetched bucket document: remember its version, diff the actors we
+  follow in it against our cursors, and plan a pull if any is ahead.
+  Entries for actors we do not follow are ignored.
+  """
+  def ingest_bucket(%__MODULE__{} = b, origin, bucket, %{version: v, entries: entries}, _now) do
+    followed = Map.get(b.following, origin, MapSet.new())
+
+    announced =
+      for actor <- followed,
+          Snapshot.bucket(actor) == bucket,
+          seq = entries[Snapshot.hash(actor)],
+          into: %{},
+          do: {actor, seq}
+
+    b = %{
+      b
+      | bucket_seen: Map.update(b.bucket_seen, origin, %{bucket => v}, &Map.put(&1, bucket, v)),
+        wanted: Map.update(b.wanted, origin, %{}, &Map.delete(&1, bucket))
+    }
+
+    behind = Seq.behind(Map.get(b.cursors, origin, %{}), announced)
+    plan(b, origin, behind)
   end
 
   defp gap_ok(b, origin, now) do

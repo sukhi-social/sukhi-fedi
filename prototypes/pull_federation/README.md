@@ -127,6 +127,56 @@ single difference: push writes a job row (or Redis entry) and an ack per
 target per activity; pull writes one index row per activity and serves
 reads from an indexed range scan on `(actor_key, seq)`.
 
+### Part 3: how the notification is shaped (`PullFederation.NotifyCost`)
+
+A notification can carry the changed sequences inline (`%{actor => seq}`,
+only the actors that changed, per domain) or point at **snapshot
+buckets**. Snapshots use the sccache layout, first two hex characters /
+next two / hash (`PullFederation.Snapshot`):
+
+    <base>/ab/cd/<sha256(actor uri)>    one actor's public seq
+    <base>/ab/_index                    bucket `ab` (256 of them): version + every actor in it
+
+Both sides derive the path from the actor URI, so a notification only
+carries bucket versions. Only the public index is ever put in a snapshot;
+followers-only counters stay inline and go to followers' domains alone.
+Actors with no remote follower never bump a bucket. `Origin.inline_max`
+(default 5) is the hybrid switch: at most that many changed public actors
+travel inline, more become bucket versions.
+
+Measured on the real `Origin`/`Puller` logic (seeded, bytes are payload
+sizes, see the module for the unit sizes):
+
+| Setup | Form | Notifications | Avg notification | B's snapshot GETs | Snapshot bytes | A renders | Total wire bytes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| each of 200 domains follows 100 of 2,000 actors, 200 posts | inline | 657 | 256 B | 0 | 0 | 0 | 168,627 |
+| | hybrid (<=5 inline) | 657 | 256 B | 7 | 504 | 7 | 168,960 |
+| | always snapshot | 657 | 218 B | 1,017 | 96,768 | 100 | 240,372 |
+| each of 100 domains follows 1,500 of 2,000, 1,000 posts | inline | 500 | 739 B | 0 | 0 | 0 | 369,656 |
+| | hybrid | 500 | 378 B | 6,778 | 571,104 | 91 | 760,269 |
+| | always snapshot | 500 | 367 B | 6,996 | 588,600 | 92 | 772,552 |
+
+**Result: the snapshot form does not pay for itself on the wire.** The
+inline form only lists actors that changed for that domain, so it stays
+small (256-739 B) even when the domain follows 1,500 actors. A bucket
+document lists *every* actor in the bucket, and a domain that follows
+many actors touches most of the 256 buckets, so B fetches around 14
+documents per notification. Notifications shrink by half, total traffic
+doubles. What snapshots do buy is origin work: 92 renders for 500
+notifications (each bucket version is rendered once and then served from
+a cache), against building each notification from the counters. That is
+worth it only if building notifications is itself a bottleneck on A, which
+the part 2 numbers do not suggest (notifications are a small share).
+
+So the default stays **inline**; the snapshot path is an escape hatch for
+the rare notification that would otherwise list hundreds of actors. A
+sensible `inline_max` is therefore much larger than 5 (hundreds), which
+is a parameter, not a code change. Per-actor documents at `ab/cd/<hash>`
+are the natural layout for the thing snapshots are *clearly* good at:
+a B that was away or lost notifications re-checking the actors it follows
+with conditional GETs (304 when unchanged), served by any static host.
+That path is not built here.
+
 ### What the model says
 
 **Pull wins when either side is the scarce one.** B's queue overflows

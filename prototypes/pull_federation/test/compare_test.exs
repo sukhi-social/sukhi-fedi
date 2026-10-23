@@ -56,4 +56,15 @@ defmodule CompareTest do
     assert FanOut.run(:push, big).db_writes > 100 * FanOut.run(:pull, big).db_writes
     assert FanOut.run(:pull, big).peak_queue_entries < FanOut.run(:push, big).peak_queue_entries
   end
+
+  test "snapshot notifications are smaller, but cost more on the wire once fetches count" do
+    alias PullFederation.NotifyCost
+    o = [follow_k: 1500, posts: 300, domains: 40]
+    inline = NotifyCost.run(100_000, o)
+    snap = NotifyCost.run(0, o)
+
+    assert snap.avg_notification_bytes < inline.avg_notification_bytes
+    assert snap.total_wire_bytes > inline.total_wire_bytes
+    assert snap.origin_renders < snap.snapshot_fetches
+  end
 end

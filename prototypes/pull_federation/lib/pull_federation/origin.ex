@@ -14,7 +14,7 @@ defmodule PullFederation.Origin do
     * `recovered/2`   "Server Status Broadcast": notify everyone, spread by jitter
   """
 
-  alias PullFederation.Visibility
+  alias PullFederation.{Snapshot, Visibility}
 
   defstruct log: %{},
             seqs: %{},
@@ -24,7 +24,9 @@ defmodule PullFederation.Origin do
             active_streams: 0,
             max_streams: 4,
             notify_quiet_ms: 3_000,
-            decline_retry_ms: 5_000
+            decline_retry_ms: 5_000,
+            bucket_versions: %{},
+            inline_max: 5
 
   @type event :: %{actor: String.t(), key: String.t(), seq: pos_integer, activity: map}
 
@@ -60,18 +62,43 @@ defmodule PullFederation.Origin do
           end)
 
         log = Map.update(o.log, key, [event], &[event | &1])
-        {%{o | log: log, seqs: Map.put(o.seqs, key, seq), dirty: dirty}, {:pull, seq}}
+        # actors nobody follows remotely never bump a bucket: nothing to tell anyone
+        versions = bump_bucket(o.bucket_versions, actor, index, domains)
+
+        {%{
+           o
+           | log: log,
+             seqs: Map.put(o.seqs, key, seq),
+             dirty: dirty,
+             bucket_versions: versions
+         }, {:pull, seq}}
     end
   end
 
-  @doc "Notifications whose quiet period has elapsed: `[{domain, announced_seqs}]`."
+  defp bump_bucket(versions, actor, :public, domains) do
+    case MapSet.size(domains) do
+      0 -> versions
+      _ -> Map.update(versions, Snapshot.bucket(actor), 1, &(&1 + 1))
+    end
+  end
+
+  defp bump_bucket(versions, _actor, :followers, _domains), do: versions
+
+  @doc """
+  Notifications whose quiet period has elapsed: `[{domain, notification}]`.
+
+  A notification is either the changed sequences inline (`%{key => seq}`,
+  when at most `inline_max` public actors changed), or
+  `{:buckets, %{bucket => version}, inline_followers}` pointing at the
+  snapshot buckets to fetch. Followers-only counters are always inline.
+  """
   def due_notifications(%__MODULE__{} = o, now) do
     {due, _held} =
       Enum.split_with(o.dirty, fn {domain, _} ->
         now - Map.get(o.last_notified, domain, -o.notify_quiet_ms) >= o.notify_quiet_ms
       end)
 
-    msgs = for {domain, _actors} <- due, do: {domain, announced_for(o, domain)}
+    msgs = for {domain, dirty} <- due, do: {domain, notification(o, domain, dirty)}
 
     o = %{
       o
@@ -81,6 +108,42 @@ defmodule PullFederation.Origin do
     }
 
     {o, Enum.sort(msgs)}
+  end
+
+  defp notification(o, domain, dirty) do
+    changed = Map.take(announced_for(o, domain), MapSet.to_list(dirty))
+    {public, followers} = Enum.split_with(changed, fn {key, _} -> Snapshot.public_key?(key) end)
+
+    case length(public) <= o.inline_max do
+      true ->
+        changed
+
+      false ->
+        buckets =
+          for {key, _} <- public, into: %{} do
+            b = Snapshot.bucket(Visibility.actor_of(key))
+            {b, Map.fetch!(o.bucket_versions, b)}
+          end
+
+        {:buckets, buckets, Map.new(followers)}
+    end
+  end
+
+  @doc """
+  The static document at `Snapshot.bucket_path/1`: the bucket's version
+  and the public seq of every actor in it that has remote followers,
+  keyed by `Snapshot.hash/1`. Rendered from the sequence index; in a real
+  deployment it is written once per version and served from a cache.
+  """
+  def bucket_doc(%__MODULE__{} = o, bucket) do
+    entries =
+      for {key, seq} <- o.seqs,
+          Snapshot.public_key?(key),
+          Snapshot.bucket(key) == bucket,
+          into: %{},
+          do: {Snapshot.hash(key), seq}
+
+    %{version: Map.get(o.bucket_versions, bucket, 0), entries: entries}
   end
 
   @doc """

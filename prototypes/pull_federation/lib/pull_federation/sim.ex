@@ -20,6 +20,8 @@ defmodule PullFederation.Sim do
         acc -> elem(Puller.notify(acc, origin_domain, announced, now), 0)
       end
 
+    puller = fetch_buckets(origin, puller, origin_domain, now)
+
     case Puller.next_pull(puller, now, busy?) do
       {:pull, ^origin_domain, cursors} ->
         case Origin.open_stream(origin, domain, cursors, now) do
@@ -35,6 +37,15 @@ defmodule PullFederation.Sim do
 
       _ ->
         {origin, puller}
+    end
+  end
+
+  # Static GETs of the snapshot buckets the notification pointed at.
+  defp fetch_buckets(origin, puller, origin_domain, now) do
+    for bucket <- Puller.wanted_buckets(puller, origin_domain), reduce: puller do
+      acc ->
+        doc = Origin.bucket_doc(origin, bucket)
+        elem(Puller.ingest_bucket(acc, origin_domain, bucket, doc, now), 0)
     end
   end
 end

@@ -195,4 +195,79 @@ defmodule PullFederationTest do
       assert [{_, "b.example", _}, {_, "c.example", _}] = out
     end
   end
+
+  describe "snapshots" do
+    alias PullFederation.Snapshot
+
+    test "sccache-style path and bucket from the actor uri" do
+      <<a::binary-size(2), b::binary-size(2), _::binary>> = h = Snapshot.hash(@a)
+      assert Snapshot.path(@a) == "#{a}/#{b}/#{h}"
+      assert Snapshot.bucket(@a) == a
+      assert Snapshot.bucket_path(a) == "#{a}/_index"
+      assert byte_size(h) == 64
+    end
+
+    defp big_pair(n) do
+      actors = for i <- 1..n, do: "https://a.example/users/u#{i}"
+      o = Enum.reduce(actors, Origin.new(inline_max: 2), &Origin.follow(&2, "b.example", &1))
+      p = Enum.reduce(actors, Puller.new(), &Puller.follow(&2, "a.example", &1))
+      {o, p, actors}
+    end
+
+    test "few changes travel inline, many become bucket versions" do
+      {o, _p, [u1, u2, u3 | _]} = big_pair(10)
+      {o2, _} = Origin.publish(o, u1, note("1"))
+      assert {_, [{"b.example", %{^u1 => 1}}]} = Origin.due_notifications(o2, 0)
+
+      o3 = Enum.reduce([u1, u2, u3], o, fn u, acc -> elem(Origin.publish(acc, u, note(u)), 0) end)
+      assert {_, [{"b.example", {:buckets, versions, %{}}}]} = Origin.due_notifications(o3, 0)
+      assert map_size(versions) in 1..3
+      assert Enum.all?(Map.keys(versions), &(byte_size(&1) == 2))
+    end
+
+    test "actors nobody follows remotely never bump a bucket" do
+      {o, _} = Origin.publish(Origin.new(), "https://a.example/users/lonely", note("1"))
+      assert o.bucket_versions == %{}
+    end
+
+    test "followers-only never enters a snapshot" do
+      {o, _p, [u1 | _]} = big_pair(3)
+      {o, _} = Origin.publish(o, u1, note("f", :followers))
+      assert o.bucket_versions == %{}
+
+      for bucket <- Map.keys(o.bucket_versions) do
+        assert Origin.bucket_doc(o, bucket).entries == %{}
+      end
+    end
+
+    test "end to end through bucket snapshots" do
+      {o, p, actors} = big_pair(10)
+      o = Enum.reduce(actors, o, fn u, acc -> elem(Origin.publish(acc, u, note(u)), 0) end)
+      assert {_, [{_, {:buckets, _, _}}]} = Origin.due_notifications(o, 0)
+
+      {o, p} = Sim.round(o, "b.example", p, now: 0)
+      assert Map.keys(p.store) |> Enum.sort() == Enum.sort(actors)
+      assert p.wanted["a.example"] == %{}
+      {_, p2} = Sim.round(o, "b.example", p, now: 10_000)
+      assert p2 == p
+    end
+
+    test "a bucket the receiver has no followed actor in is not fetched" do
+      {o, p, [u1 | _]} = big_pair(1)
+
+      other =
+        Enum.find(
+          for(i <- 1..500, do: "https://x/#{i}"),
+          &(Snapshot.bucket(&1) != Snapshot.bucket(u1))
+        )
+
+      {p, :invalid} = Puller.notify(p, "a.example", {:buckets, %{"zz" => -1}, %{}}, 0)
+
+      {p, _} =
+        Puller.notify(p, "a.example", {:buckets, %{Snapshot.bucket(other) => 1}, %{}}, 2_000)
+
+      assert Puller.wanted_buckets(p, "a.example") == []
+      _ = o
+    end
+  end
 end

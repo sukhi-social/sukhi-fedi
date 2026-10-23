@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Compare do
   @moduledoc "Run every scenario through push and pull and print the numbers."
   use Mix.Task
 
-  alias PullFederation.{Compare, FanOut}
+  alias PullFederation.{Compare, FanOut, NotifyCost}
 
   @shortdoc "Compare push and pull federation models"
 
@@ -40,6 +40,26 @@ defmodule Mix.Tasks.Compare do
             " db_writes=#{r.db_writes} db_queries=#{r.db_queries} rows=#{r.rows_read}" <>
             " peak_queue=#{r.peak_queue_entries} MB_out=#{r.megabytes_out}" <>
             " cost=#{r.origin_cost_units} (#{r.units_per_post}/post)"
+        )
+      end
+    end
+
+    IO.puts("\n# Notification form (NotifyCost): inline vs bucket snapshots")
+
+    for {name, o} <- [
+          {"each domain follows 100 of 2000 actors, 200 posts", []},
+          {"each domain follows 1500 of 2000, 1000 posts, 100 domains",
+           [follow_k: 1500, posts: 1000, domains: 100]}
+        ] do
+      IO.puts("\n== #{name}")
+
+      for {label, inline_max} <- [{"inline", 100_000}, {"hybrid <=5", 5}, {"snapshot", 0}] do
+        r = NotifyCost.run(inline_max, o)
+
+        IO.puts(
+          "  #{String.pad_trailing(label, 10)} notes=#{r.notifications} avg_note=#{r.avg_notification_bytes}B" <>
+            " fetches=#{r.snapshot_fetches} fetch_bytes=#{r.snapshot_bytes}" <>
+            " renders=#{r.origin_renders} wire_total=#{r.total_wire_bytes}"
         )
       end
     end
