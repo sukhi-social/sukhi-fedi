@@ -89,4 +89,12 @@ These specifications are written so that others can copy them.
 
 Not a specification: [`../spec-declaration-notes.md`](../spec-declaration-notes.md) is a design note on how a server could declare which of these (and which FEPs) it implements, using FEP-844e. Nothing in it is implemented.
 
+## 3. Descriptive specifications
+
+These say what another server does. They bind nobody.
+
+| Document | Subject |
+| --- | --- |
+| [misskey-interop](misskey-interop.md) | How Misskey behaves on the wire, with sukhi's matching actions |
+
 Open decision: the identifier base. The specifications use `https://sukhi.social/spec/<id>/<version>` as a provisional identifier. The real domain and a permanent path need to be chosen first.
