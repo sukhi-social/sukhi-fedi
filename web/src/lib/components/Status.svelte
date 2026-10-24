@@ -291,8 +291,8 @@
       <!-- 自分の投稿が、外へ出ていく途中のとき。一本の小さな時系列。
            どこへ、いくつ、は言わない。 -->
       <ol class="delivery" aria-label={$t('status.delivery.label')}>
-        {#each STEPS as step, i (step)}
-          <li class:reached={i <= shown.at} class:current={i === shown.at}>
+        {#each STEPS.slice(0, shown.at + 1) as step, i (step)}
+          <li class:current={i === shown.at}>
             {$t(`status.delivery.${step}`)}{#if step === 'sending' && i === shown.at && shown.percent != null}{' '}{shown.percent}%{/if}{#if i === shown.at && deliveryNow === 'delayed'}{' '}· {$t('status.delivery.delayed')}{/if}
           </li>
         {/each}
@@ -565,21 +565,32 @@
   a.reply-to:hover {
     text-decoration: underline;
   }
+  /* 起きたことを、起きた順に、縦に。新しい一行は、下からそっと浮かんで
+     現れる。動きを減らす設定の人には、base.css がほぼ止める。 */
   .delivery {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 0.75rem;
+    flex-direction: column;
+    gap: 0.2rem;
     padding: 0;
     list-style: none;
     font-size: 0.8rem;
     color: var(--color-text-muted);
-    opacity: 0.6;
   }
-  .delivery .reached::before {
+  .delivery li {
+    opacity: 0.65;
+    animation: delivery-rise 0.6s ease-out;
+  }
+  .delivery li::before {
     content: '✓ ';
   }
   .delivery .current {
     opacity: 1;
     font-weight: 600;
+  }
+  @keyframes delivery-rise {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem);
+    }
   }
 </style>
