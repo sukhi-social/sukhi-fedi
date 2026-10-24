@@ -14,12 +14,13 @@ defmodule PullFederation.Origin do
     * `recovered/2`   "Server Status Broadcast": notify everyone, spread by jitter
   """
 
-  alias PullFederation.{Calendar, Cursors, Etag, Mode, Snapshot, Visibility}
+  alias PullFederation.{Calendar, Cursors, Etag, Mode, Proof, Snapshot, Visibility}
 
   defstruct log: %{},
             seqs: %{},
             followers: %{},
             follows: %{},
+            signers: %{},
             bucket_keys: %{},
             log_max: 10_000,
             log_len: %{},
@@ -128,10 +129,20 @@ defmodule PullFederation.Origin do
     mark_dirty(o, [domain], key)
   end
 
+  # signed once, here, whatever the number of followers or the route (pull, push, hybrid)
+  defp sign(o, actor, activity) do
+    case Map.fetch(o.signers, actor) do
+      {:ok, {key_id, private}} -> Proof.sign(activity, actor, key_id, private)
+      :error -> activity
+    end
+  end
+
   defp push_payload(event),
     do: %{key: event.key, etag: event.etag, prev: event.prev, activity: event.activity}
 
   defp append(o, actor, vis, activity) do
+    activity = sign(o, actor, activity)
+
     case Visibility.index(vis) do
       nil ->
         :push_only

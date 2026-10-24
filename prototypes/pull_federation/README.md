@@ -633,6 +633,16 @@ Bugs the load test found:
 3. The three O(all actors) scans above.
 4. Unbounded logs.
 
+### Part 11: signatures
+
+Before this part nothing was signed (`verify` defaulted to accept).
+Activities are now signed once at publish (`Proof`, Ed25519, FEP-8b32
+shape) and `Puller` verifies each one, pulled or pushed, in one place.
+Forged, relabelled, tampered and unsigned activities are rejected, and an
+origin without the actor's key cannot forge her Deletes. The comparison
+with draft-cavage and RFC 9421, what pull needs and measured costs are in
+[SIGNATURES.md](SIGNATURES.md).
+
 ### What the model says
 
 **Pull wins when either side is the scarce one.** B's queue overflows
