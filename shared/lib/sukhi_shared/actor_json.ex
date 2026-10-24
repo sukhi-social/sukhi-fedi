@@ -10,6 +10,8 @@ defmodule SukhiShared.ActorJson do
   reads fields off the account, so it works on either app's `Account`.
   """
 
+  alias SukhiShared.Capability
+
   @spec actor_uri(String.t(), map() | String.t()) :: String.t()
   def actor_uri(domain, %{username: u}), do: actor_uri(domain, u)
 
@@ -40,7 +42,7 @@ defmodule SukhiShared.ActorJson do
         "https://w3id.org/security/multikey/v1",
         "https://w3id.org/security/data-integrity/v1",
         "https://w3id.org/fep/844e",
-        %{
+        Map.merge(Capability.context_terms(), %{
           "featured" => %{"@id" => "toot:featured", "@type" => "@id"},
           "discoverable" => "toot:discoverable",
           "indexable" => "toot:indexable",
@@ -49,7 +51,7 @@ defmodule SukhiShared.ActorJson do
           "pending" => "https://purl.archive.org/socialweb/pending#",
           "pendingFollowers" => %{"@id" => "pending:pendingFollowers", "@type" => "@id"},
           "pendingFollowing" => %{"@id" => "pending:pendingFollowing", "@type" => "@id"}
-        }
+        })
       ],
       "id" => actor_uri,
       "type" => "Person",
@@ -71,7 +73,7 @@ defmodule SukhiShared.ActorJson do
       # meaningful "no"), so a remote never has to guess our default.
       "discoverable" => account.discoverable || false,
       "indexable" => account.indexable || false,
-      "endpoints" => %{"sharedInbox" => "https://#{domain}/inbox"},
+      "endpoints" => Map.merge(%{"sharedInbox" => "https://#{domain}/inbox"}, Capability.endpoints(domain)),
       "publicKey" => %{
         "id" => "#{actor_uri}#main-key",
         "owner" => actor_uri,
@@ -92,7 +94,7 @@ defmodule SukhiShared.ActorJson do
   # FEP-844e: what this server implements, under `generator`. Omitted when
   # nothing is advertised (`Capability.generator/0` is nil).
   defp maybe_put_generator(map) do
-    case SukhiShared.Capability.generator() do
+    case Capability.generator() do
       nil -> map
       gen -> Map.put(map, "generator", gen)
     end

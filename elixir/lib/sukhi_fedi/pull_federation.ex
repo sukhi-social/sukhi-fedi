@@ -11,15 +11,16 @@ defmodule SukhiFedi.PullFederation do
   """
 
   @doc """
-  Where a host serves its log. Always `https://<host>/pull/v1/stream`; the
-  `:stream_base` config (a one-arity function) is a test seam so a local
-  server can stand in for a peer — nothing sets it in production.
+  Where a host serves its log: the `pullStream` URL it published in its
+  actor, or nil if it does not (any longer). The `:stream_base` config (a
+  one-arity function) is a test seam so a local server can stand in for a
+  peer — nothing sets it in production.
   """
-  @spec stream_base(String.t()) :: String.t()
+  @spec stream_base(String.t()) :: String.t() | nil
   def stream_base(host) do
     case Application.get_env(:sukhi_fedi, :pull_federation, []) |> Keyword.get(:stream_base) do
       fun when is_function(fun, 1) -> fun.(host)
-      _ -> "https://#{host}/pull/v1/stream"
+      _ -> with %{stream: url} <- SukhiShared.PeerCapabilities.endpoints(SukhiFedi.Repo, host), do: url
     end
   end
 end

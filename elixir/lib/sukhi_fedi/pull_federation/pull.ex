@@ -90,7 +90,14 @@ defmodule SukhiFedi.PullFederation.Pull do
       |> Enum.map(fn {uri, _head, cursor} -> {"c[]", "#{cursor}@#{uri}"} end)
       |> URI.encode_query()
 
-    url = SukhiFedi.PullFederation.stream_base(host) <> "?" <> query
+    case SukhiFedi.PullFederation.stream_base(host) do
+      nil -> {:error, :no_stream_endpoint}
+      base -> fetch_from(base, query)
+    end
+  end
+
+  defp fetch_from(base, query) do
+    url = base <> if(String.contains?(base, "?"), do: "&", else: "?") <> query
 
     case Fetcher.get_raw(url, SukhiFedi.Accounts.signing_identity()) do
       {:ok, %{status: 200, body: body}} when is_binary(body) ->

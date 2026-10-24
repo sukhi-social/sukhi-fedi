@@ -43,6 +43,7 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
   defp capable(host) do
     PeerCapabilities.learn(Repo, %{
       "id" => "https://#{host}/users/x",
+      "endpoints" => Capability.endpoints(host),
       "generator" => %{"implements" => [%{"href" => Capability.pull_federation()}]}
     })
   end

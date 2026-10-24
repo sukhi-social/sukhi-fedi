@@ -17,9 +17,21 @@ defmodule SukhiShared.CapabilityTest do
     assert Capability.declares?(actor, Capability.pull_federation())
   end
 
+  test "an actor publishes where to notify and pull, in endpoints" do
+    actor = ActorJson.build_person("a.example", account())
+    assert actor["endpoints"]["sharedInbox"] == "https://a.example/inbox"
+    assert actor["endpoints"]["pullNotify"] == "https://a.example/pull/v1/notify"
+    assert actor["endpoints"]["pullStream"] == "https://a.example/pull/v1/stream"
+
+    assert Capability.pull_endpoints(actor) ==
+             {"https://a.example/pull/v1/notify", "https://a.example/pull/v1/stream"}
+  end
+
   test "switched off, the actor stays bare" do
     Application.put_env(:sukhi_shared, :pull_federation, false)
-    refute Map.has_key?(ActorJson.build_person("a.example", account()), "generator")
+    actor = ActorJson.build_person("a.example", account())
+    refute Map.has_key?(actor, "generator")
+    assert actor["endpoints"] == %{"sharedInbox" => "https://a.example/inbox"}
   end
 
   test "hrefs reads the shapes peers send and skips the rest" do

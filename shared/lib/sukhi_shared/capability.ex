@@ -20,6 +20,11 @@ defmodule SukhiShared.Capability do
 
   @pull_federation "https://github.com/sukhi-social/sukhi-fedi/blob/main/docs/PULL_FEDERATION.md"
 
+  # Where this server hosts the two endpoints. A peer never assumes these
+  # paths: it reads whatever the actor says in `endpoints` (`pull_endpoints/1`).
+  @notify_path "/pull/v1/notify"
+  @stream_path "/pull/v1/stream"
+
   @doc "The JSON-LD context URI FEP-844e asks actors to carry."
   @spec context() :: String.t()
   def context, do: @context
@@ -84,4 +89,72 @@ defmodule SukhiShared.Capability do
   @doc "Does this remote actor document declare `href`?"
   @spec declares?(term(), String.t()) :: boolean()
   def declares?(actor, href), do: href in hrefs(actor)
+
+  @doc """
+  The `endpoints` entries we add to an actor so peers know where to notify
+  and pull. Empty when we advertise nothing. The only place these URLs are
+  written; the router serves `notify_path/0` and `stream_path/0`.
+  """
+  @spec endpoints(String.t()) :: %{optional(String.t()) => String.t()}
+  def endpoints(domain) do
+    if advertised?(),
+      do: %{
+        "pullNotify" => "https://#{domain}#{@notify_path}",
+        "pullStream" => "https://#{domain}#{@stream_path}"
+      },
+      else: %{}
+  end
+
+  @doc "Paths the router serves."
+  def notify_path, do: @notify_path
+  def stream_path, do: @stream_path
+
+  @doc """
+  JSON-LD terms for `endpoints/1`, merged into the actor's context.
+  """
+  @spec context_terms() :: map()
+  def context_terms do
+    %{
+      "pullNotify" => %{"@id" => @pull_federation <> "#pullNotify", "@type" => "@id"},
+      "pullStream" => %{"@id" => @pull_federation <> "#pullStream", "@type" => "@id"}
+    }
+  end
+
+  @doc """
+  The `{notify, stream}` URLs a remote actor document declares in
+  `endpoints`, or `nil`. Untrusted input: each must be an `https` URL of the
+  *same host as the actor's `id`* (a peer cannot point our traffic at a third
+  party) and at most 512 bytes.
+  """
+  @spec pull_endpoints(term()) :: {String.t(), String.t()} | nil
+  def pull_endpoints(%{"id" => id, "endpoints" => %{} = eps}) when is_binary(id) do
+    with host when is_binary(host) <- host_of(id),
+         {:ok, notify} <- own_url(eps["pullNotify"], host),
+         {:ok, stream} <- own_url(eps["pullStream"], host) do
+      {notify, stream}
+    else
+      _ -> nil
+    end
+  end
+
+  def pull_endpoints(_), do: nil
+
+  defp own_url(url, host) when is_binary(url) and byte_size(url) <= 512 do
+    case URI.parse(url) do
+      %URI{scheme: "https", host: h} when is_binary(h) ->
+        if String.downcase(h) == host, do: {:ok, url}, else: :error
+
+      _ ->
+        :error
+    end
+  end
+
+  defp own_url(_, _), do: :error
+
+  defp host_of(url) do
+    case URI.parse(url) do
+      %URI{host: h} when is_binary(h) and h != "" -> String.downcase(h)
+      _ -> nil
+    end
+  end
 end

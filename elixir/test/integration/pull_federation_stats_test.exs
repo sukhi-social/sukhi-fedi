@@ -42,6 +42,7 @@ defmodule SukhiFedi.Integration.PullFederationStatsTest do
   test "peers are listed busiest first with their capability and breaker state" do
     PeerCapabilities.learn(Repo, %{
       "id" => "https://busy.example/users/x",
+      "endpoints" => Capability.endpoints("busy.example"),
       "generator" => %{"implements" => [%{"href" => Capability.pull_federation()}]}
     })
 

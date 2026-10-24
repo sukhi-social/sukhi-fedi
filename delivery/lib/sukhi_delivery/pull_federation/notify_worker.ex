@@ -3,7 +3,7 @@ defmodule SukhiDelivery.PullFederation.NotifyWorker do
   @moduledoc """
   Sends one Pull Federation notification to one host:
 
-      POST https://<host>/pull/v1/notify
+      POST <the host's pullNotify endpoint, from its actor>
       {"type":"PullNotification","origin":"<us>","heads":{"<actor uri>":<seq>}}
 
   `heads` has an entry for every local actor that has log rows this host has
@@ -37,7 +37,7 @@ defmodule SukhiDelivery.PullFederation.NotifyWorker do
   alias SukhiDelivery.Delivery.Worker
   alias SukhiDelivery.PullFederation.Fallback
   alias SukhiDelivery.Repo
-  alias SukhiShared.PullStats
+  alias SukhiShared.{PeerCapabilities, PullStats}
 
   @max_snooze 300
 
@@ -70,9 +70,12 @@ defmodule SukhiDelivery.PullFederation.NotifyWorker do
     started = System.monotonic_time(:millisecond)
 
     result =
-      if SukhiShared.UrlGuard.safe?(url),
-        do: Worker.post_signed(url, signer, body),
-        else: {:ok, %{status: 0, blocked: true}}
+      cond do
+        # The host stopped publishing the endpoints since we routed here.
+        is_nil(url) -> {:ok, %{status: 404}}
+        SukhiShared.UrlGuard.safe?(url) -> Worker.post_signed(url, signer, body)
+        true -> {:ok, %{status: 0, blocked: true}}
+      end
 
     ms = System.monotonic_time(:millisecond) - started
 
@@ -111,13 +114,13 @@ defmodule SukhiDelivery.PullFederation.NotifyWorker do
     end
   end
 
-  # `/pull/v1/notify` at the host. The override is a test seam (a local
-  # Bypass server is not https on the default port); nothing sets it in
-  # production.
+  # The URL the host published in its actor (`PeerCapabilities.endpoints/2`),
+  # or nil if it no longer does. The override is a test seam (a local Bypass
+  # server is not https on the default port); nothing sets it in production.
   defp endpoint(host) do
     case Application.get_env(:sukhi_delivery, :pull_notify_endpoint) do
       fun when is_function(fun, 1) -> fun.(host)
-      _ -> "https://#{host}/pull/v1/notify"
+      _ -> with %{notify: url} <- PeerCapabilities.endpoints(Repo, host), do: url
     end
   end
 

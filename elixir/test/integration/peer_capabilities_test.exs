@@ -12,7 +12,8 @@ defmodule SukhiFedi.PeerCapabilitiesTest do
         "id" => "https://#{host}/users/bob",
         "type" => "Person",
         "preferredUsername" => "bob",
-        "inbox" => "https://#{host}/users/bob/inbox"
+        "inbox" => "https://#{host}/users/bob/inbox",
+        "endpoints" => Capability.endpoints(host)
       },
       extra
     )
@@ -48,6 +49,28 @@ defmodule SukhiFedi.PeerCapabilitiesTest do
     old = DateTime.add(DateTime.utc_now(), -(PeerCapabilities.fresh_days() + 1) * 86_400, :second)
     PeerCapabilities.learn(Repo, actor("old.example", declaring()), old)
     refute PeerCapabilities.capable?(Repo, "old.example")
+  end
+
+  test "naming the capability without publishing the endpoints is not enough" do
+    PeerCapabilities.learn(Repo, actor("noeps.example", Map.put(declaring(), "endpoints", %{})))
+    refute PeerCapabilities.capable?(Repo, "noeps.example")
+  end
+
+  test "an endpoint on another host is refused: no one can aim our traffic elsewhere" do
+    eps = %{"pullNotify" => "https://evil.test/n", "pullStream" => "https://liar.example/s"}
+    PeerCapabilities.learn(Repo, actor("liar.example", Map.put(declaring(), "endpoints", eps)))
+    refute PeerCapabilities.capable?(Repo, "liar.example")
+  end
+
+  test "the published URLs are what we use" do
+    PeerCapabilities.learn(Repo, actor("pub.example", declaring()))
+
+    assert PeerCapabilities.endpoints(Repo, "pub.example") == %{
+             notify: "https://pub.example/pull/v1/notify",
+             stream: "https://pub.example/pull/v1/stream"
+           }
+
+    assert PeerCapabilities.endpoints(Repo, "nobody.example") == nil
   end
 
   test "another capability does not make a host pull-capable" do

@@ -26,6 +26,13 @@ defmodule SukhiFedi.Integration.PullFederationHttpTest do
     Application.put_env(:sukhi_fedi, :domain, @domain)
     Hammer.delete_buckets("pull_notify:#{@peer}")
 
+    # The peer published where it takes notifications and serves its log.
+    SukhiShared.PeerCapabilities.learn(Repo, %{
+      "id" => "https://#{@peer}/users/x",
+      "generator" => SukhiShared.Capability.generator(),
+      "endpoints" => SukhiShared.Capability.endpoints(@peer)
+    })
+
     # The peer's key document, so verification needs no network.
     doc = %{
       "id" => FediGolden.actor(),
@@ -106,6 +113,19 @@ defmodule SukhiFedi.Integration.PullFederationHttpTest do
   end
 
   describe "POST /pull/v1/notify" do
+    test "an origin that never published its endpoints gets 404, so its sender pushes" do
+      Repo.query!("DELETE FROM peer_capabilities WHERE host = $1", [@peer])
+
+      conn =
+        signed_post("/pull/v1/notify", %{
+          "type" => "PullNotification",
+          "origin" => @peer,
+          "heads" => %{"https://#{@peer}/users/x" => 1}
+        })
+
+      assert conn.status == 404
+    end
+
     test "a signed notification from the origin is accepted and remembered" do
       reader_following_peer()
 

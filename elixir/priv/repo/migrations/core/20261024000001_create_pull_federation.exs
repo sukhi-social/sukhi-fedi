@@ -20,6 +20,10 @@ defmodule SukhiFedi.Repo.Migrations.CreatePullFederation do
       add :host, :text, primary_key: true
       add :hrefs, {:array, :text}, null: false, default: []
       add :seen_at, :utc_datetime_usec, null: false
+      # Where the host said (actor `endpoints`) it takes notifications and
+      # serves its log. Both null unless the host declared both.
+      add :pull_notify, :text
+      add :pull_stream, :text
     end
 
     # ── origin side ────────────────────────────────────────────────────────

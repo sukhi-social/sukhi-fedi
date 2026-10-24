@@ -27,7 +27,25 @@ An actor of a server that implements this carries
 }
 ```
 
-with `https://w3id.org/fep/844e` in the actor's `@context`.
+with `https://w3id.org/fep/844e` in the actor's `@context`, and says where
+to send and pull in the actor's `endpoints`, next to `sharedInbox`:
+
+```json
+"endpoints": {
+  "sharedInbox": "https://origin.example/inbox",
+  "pullNotify": "https://origin.example/pull/v1/notify",
+  "pullStream": "https://origin.example/pull/v1/stream"
+}
+```
+
+No path is assumed. A peer is capable only if it names the capability
+**and** both URLs; each URL must be `https`, on the same host as the
+actor's `id` (so nobody can aim our traffic at a third party), and at
+most 512 bytes. The paths above are just where this implementation
+happens to serve them. The URLs are stored with the host in
+`peer_capabilities` (`pull_notify`, `pull_stream`) and read through
+`PeerCapabilities.endpoints/2`, the one place a peer's endpoint is looked
+up.
 
 - We learn it from every remote actor we already fetch (no extra
   request). It is recorded per host in `peer_capabilities`
@@ -47,21 +65,21 @@ actor key (the same verification as the inbox, `SignedRequest.verify`).
 **Notify** — origin → follower's server
 
 ```
-POST https://<host>/pull/v1/notify
+POST <the follower host's pullNotify>
 {"type":"PullNotification","origin":"origin.example",
  "heads":{"https://origin.example/users/a": 1234}}
 ```
 
 `heads` maps each actor with news to its newest sequence number. The
 signer's host must equal `origin` (else 403). Replies: `202` accepted,
-`404` we do not do this (sender falls back to push), `429`/`503` with
+`404` we do not do this, or we have no endpoint for that origin (sender falls back to push), `429`/`503` with
 `Retry-After` (sender snoozes). A host blocked by moderation
 (`instance_policy == :reject`) gets 403 and no further work.
 
 **Pull** — follower's server → origin
 
 ```
-GET https://<origin>/pull/v1/stream?c[]=<seq>@<actor_uri>&c[]=…
+GET <the origin's pullStream>?c[]=<seq>@<actor_uri>&c[]=…
 ```
 
 Up to 64 cursors. The reply is a `PullPage`: per actor, up to 100

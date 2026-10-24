@@ -56,7 +56,11 @@ defmodule SukhiDelivery.AP.ActorJsonTest do
     # Locked → FEP-4ccd pending collections are advertised.
     assert person["pendingFollowers"] == "https://test.example/users/alice/pendingFollowers"
     assert person["pendingFollowing"] == "https://test.example/users/alice/pendingFollowing"
-    assert person["endpoints"] == %{"sharedInbox" => "https://test.example/inbox"}
+    assert person["endpoints"] ==
+             Map.merge(
+               %{"sharedInbox" => "https://test.example/inbox"},
+               SukhiShared.Capability.endpoints("test.example")
+             )
 
     assert MapSet.new(Map.keys(person["publicKey"])) ==
              MapSet.new(~w(id owner publicKeyPem))

@@ -21,7 +21,8 @@ defmodule SukhiFedi.Web.PullFederationController do
          {:ok, origin, heads} <-
            Notify.parse(conn.body_params) |> or_status(400, "bad notification"),
          :ok <- bound(signer, origin),
-         :ok <- allowed(origin) do
+         :ok <- allowed(origin),
+         :ok <- known(origin) do
       case Notify.accept(origin, heads) do
         {:ok, _n} ->
           SukhiFedi.PullFederation.Puller.wake()
@@ -112,6 +113,15 @@ defmodule SukhiFedi.Web.PullFederationController do
     if SukhiFedi.Addons.Moderation.instance_policy(host) == :reject,
       do: {:status, 403, "forbidden"},
       else: :ok
+  end
+
+  # We pull from where the origin's actor says its log is. An origin we have
+  # no such address for gets a 404, and its sender falls back to push — the
+  # activity is not left waiting for a pull we could not make.
+  defp known(origin) do
+    if SukhiFedi.PullFederation.stream_base(origin),
+      do: :ok,
+      else: {:status, 404, "no pull endpoint known for this origin"}
   end
 
   defp or_status({:ok, _, _} = ok, _status, _message), do: ok
