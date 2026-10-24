@@ -10,12 +10,12 @@ export type Step = (typeof STEPS)[number];
 
 export type Shown = { at: number; percent: number | null };
 
-// 次の段へ進むまでの間(ミリ秒)。1 段ずつ読める長さ。
-export const STEP_MS = 800;
-// % が動くときの 1 刻みの間。段より少し短く。
-export const PERCENT_MS = 500;
+// 次の段へ進むまでの間(ミリ秒)。
+export const STEP_MS = 300;
+// % が動くときの間。実際の値へ一度で飛ぶので、段と同じ。
+export const PERCENT_MS = 300;
 // 完了を見せてから、消すまで。
-export const LINGER_MS = 1600;
+export const LINGER_MS = 10_000;
 
 export function target(
   p: { stage: Step; percent: number | null } | null | undefined
@@ -23,15 +23,27 @@ export function target(
   return p ? { at: STEPS.indexOf(p.stage), percent: p.percent } : null;
 }
 
-// いま見せているものから、目標へ向けて「ひと動き」だけ進める。
-// 段が遅れていれば 1 段、段が着いていれば % を 1 刻み(10)。戻らない。
+// いま見せているものから、目標へ向けて「ひと動き」だけ進める。戻らない。
+//
+//   ・段が遅れていれば 1 段進む。ただし「配信中」の段は、% が 100 になって
+//     から次へ(100% を見せずに完了へ行かない)。
+//   ・「配信中」に入るとき、先に完了まで行く目標なら、入ってすぐ 100%。
+//     目標がここなら、入ってすぐ実際の値。
+//   ・段が着いていれば、% は 10 刻みを一つずつ上るのではなく、実際の値へ
+//     一度で飛ぶ。
 export function stepToward(shown: Shown, goal: Shown): Shown {
+  const SENDING = STEPS.indexOf('sending');
+
   if (shown.at < goal.at) {
+    if (shown.at === SENDING && (shown.percent ?? 0) < 100) {
+      return { at: shown.at, percent: 100 };
+    }
     const at = shown.at + 1;
-    return { at, percent: STEPS[at] === 'sending' ? 0 : STEPS[at] === 'done' ? 100 : null };
+    if (at === SENDING) return { at, percent: goal.at > SENDING ? 100 : (goal.percent ?? 0) };
+    return { at, percent: STEPS[at] === 'done' ? 100 : null };
   }
   if (shown.at === goal.at && shown.percent != null && goal.percent != null) {
-    if (shown.percent < goal.percent) return { at: shown.at, percent: shown.percent + 10 };
+    if (shown.percent < goal.percent) return { at: shown.at, percent: goal.percent };
   }
   return shown;
 }

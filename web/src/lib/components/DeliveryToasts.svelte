@@ -84,7 +84,7 @@
      現れる。動きを減らす設定の人には、base.css がほぼ止める。 */
   li {
     opacity: 0.65;
-    animation: toast-rise 0.6s ease-out;
+    animation: toast-rise 0.3s ease-out;
   }
   li::before {
     content: '✓ ';
