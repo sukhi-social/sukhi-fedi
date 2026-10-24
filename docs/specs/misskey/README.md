@@ -10,17 +10,19 @@ This is what Misskey does when it federates, written for someone who knows Activ
 
 Read in this order if you are building a server that talks to Misskey. Steps 1, 2, and 4 are the minimum: be found, receive, and send. Steps 3 and 5 add features and serving.
 
+**0. A story first.** [walkthrough](walkthrough.md) follows one Misskey user following one user on your server, step by step, and tells you which page has the details of each step. Read it once, then use the steps below.
+
 **1. Be found.** Misskey looks you up by `user@host`.
 [webfinger](webfinger.md) → [nodeinfo](nodeinfo.md) → [actor](actor.md) (`#Person`)
 
 **2. Receive from Misskey.** Misskey POSTs activities to your inbox.
-[transport](transport.md) (how it sends) → [signatures](signatures.md) (how to verify it) → [activities](activities.md) (what each activity means; types `#Create` ... `#Flag`) → [objects](objects.md) (the `#Note` inside)
+[transport](transport.md) (what it sends, and the checks you can expect) → [signatures](signatures.md) (how to verify it) → [activities](activities.md) (every activity it sends, with exact shapes; types `#Create` ... `#Flag`) → [objects](objects.md) (the `#Note` and `#Person` inside)
 
 **3. Show what Misskey sends.** Features, each on its own page:
 [mfm](mfm.md) (formatted text) · [emoji](emoji.md) · [quote](quote.md) · [reactions](reactions.md) · [poll](poll.md)
 
 **4. Send to Misskey.** What it reads and what it does with it.
-[activities](activities.md) (the `#In...` types at the end) → [objects](objects.md) (`#InNote`, `#InActor`) → [signatures](signatures.md) (how to sign) → [delivery](delivery.md) (what it does when you fail)
+[activities-received](activities-received.md) (what it does with each activity, and the `#In...` types for what it reads) → [objects](objects.md) (`#InNote`, `#InActor`) → [signatures](signatures.md) (how to sign) → [delivery](delivery.md) (what it does when you fail)
 
 **5. Serve what Misskey fetches.** [transport](transport.md) (`GET` routes) → [collections](collections.md)
 
@@ -82,6 +84,7 @@ A type with no `...` inside is **closed**: no property other than the ones liste
 
 | File | Feature |
 | --- | --- |
+| [walkthrough.md](walkthrough.md) | one follow and one note, from the first request to the last, with links |
 | [transport.md](transport.md) | inbox routes, body limit, content types, `GET` routes |
 | [signatures.md](signatures.md) | HTTP signatures: checking and signing |
 | [webfinger.md](webfinger.md) | WebFinger and host-meta, as server and as client |
@@ -94,7 +97,8 @@ A type with no `...` inside is **closed**: no property other than the ones liste
 | [quote.md](quote.md) | quote posts |
 | [reactions.md](reactions.md) | emoji reactions |
 | [poll.md](poll.md) | polls and votes |
-| [activities.md](activities.md) | every activity Misskey sends and how it handles each one it receives |
+| [activities.md](activities.md) | every activity Misskey sends, with exact shapes |
+| [activities-received.md](activities-received.md) | what Misskey does with each activity it receives, the follow flow, what it reads |
 | [objects.md](objects.md) | the Note, Person, and the objects inside activities |
 | [collections.md](collections.md) | outbox, followers, following, featured |
 | [delivery.md](delivery.md) | who gets an activity, retries, suspension |

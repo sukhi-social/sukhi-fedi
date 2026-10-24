@@ -13,7 +13,7 @@ A Misskey user is a normal ActivityPub actor with a few Misskey-only properties.
 Every property is in `#Person`. Points that the type cannot show:
 
 - `type` is `Application` when the user name contains a dot (a system account), `Service` for a bot, and `Person` otherwise.
-- `manuallyApprovesFollowers` is the locked flag; `discoverable` is the explorable flag. A locked account does not accept every follow at once ([activities](activities.md), "Following, step by step").
+- `manuallyApprovesFollowers` is the locked flag; `discoverable` is the explorable flag. A locked account does not accept every follow at once ([activities-received](activities-received.md#following-step-by-step)).
 - The key's id is `<actor>#main-key`.
 - `attachment` holds `PropertyValue` entries (profile fields). A value that is an http(s) URL is wrapped in an anchor with `rel="me nofollow noopener"`.
 - The Misskey-only properties are explained in [extensions](extensions.md). `speakAsCat` was **[not seen]**.
