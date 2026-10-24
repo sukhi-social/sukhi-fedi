@@ -41,7 +41,9 @@ defmodule Srv do
   def handle_call(:stats, _, s),
     do: {:reply, %{calls: s.calls, active: s.o.active_streams, booked: s.o.calendar.booked, dirty: map_size(s.o.dirty), reaped: s.o.reaped}, s}
   def handle_info(:tick, s) do
-    {o, notes} = Origin.due_notifications(s.o, now())
+    t = System.monotonic_time(:microsecond)
+    {o, notes} = Origin.due_notifications(s.o, now(), :persistent_term.get(:batch))
+    :ets.insert(:persistent_term.get(:lagtab), {:tick_ms, (System.monotonic_time(:microsecond) - t) / 1000})
     for {d, ann} <- notes, do: send(s.pids[d], {:notify, ann})
     {:noreply, %{s | o: o}}
   end
@@ -166,10 +168,13 @@ follows = origin.follows
 cost = System.get_env("COST", "0") |> then(&if(String.contains?(&1, "."), do: String.to_float(&1), else: String.to_float(&1 <> ".0")))
 gate = System.get_env("GATE", "0") |> String.to_integer()
 settle = System.get_env("SETTLE", "10") |> String.to_integer()
+batch = case System.get_env("NOTIFY_BATCH", "0") do "0" -> :infinity; n -> String.to_integer(n) end
+:persistent_term.put(:batch, batch)
 :persistent_term.put(:cost, cost)
 :persistent_term.put(:gate, {:atomics.new(1, []), gate})
 {:ok, srv} = Srv.start_link(origin)
 lag = :ets.new(:lag, [:public, :duplicate_bag, write_concurrency: true])
+:persistent_term.put(:lagtab, lag)
 
 for d <- 1..domains do
   Recv.start(srv, "d#{d}", MapSet.to_list(Map.get(follows, "d#{d}", MapSet.new())), 5, lag)
@@ -191,15 +196,28 @@ monitor = spawn_link(fn ->
   end) |> Stream.run()
 end)
 
+# Open loop: posts are issued on schedule whether or not the origin keeps up, each by
+# its own process, so an overloaded origin shows up as publish latency and backlog
+# instead of as a slower load generator.
+done_pub = :atomics.new(1, [])
+
 posted =
   Enum.reduce(1..div(secs * 1000, interval), 0, fn i, n ->
     target = t0 + i * interval
+
     for _ <- 1..per do
       a = :rand.uniform(n_actors)
       :ets.insert(lag, {:posted, a})
-      {us, _} = :timer.tc(fn -> GenServer.call(srv, {:publish, "u#{a}", %{id: "p#{n}-#{:rand.uniform(1_000_000)}", type: :create, visibility: :public, at: Srv.now()}}, 120_000) end)
-      :ets.insert(lag, {:pub_ms, us / 1000})
+      id = "p#{n}-#{:rand.uniform(1_000_000)}"
+      at = Srv.now()
+
+      spawn(fn ->
+        {us, _} = :timer.tc(fn -> GenServer.call(srv, {:publish, "u#{a}", %{id: id, type: :create, visibility: :public, at: at}}, 300_000) end)
+        :ets.insert(lag, {:pub_ms, us / 1000})
+        :atomics.add(done_pub, 1, 1)
+      end)
     end
+
     Process.sleep(max(target - Srv.now(), 0))
     n + per
   end)
@@ -216,8 +234,9 @@ expected =
   end
 
 pubs = get.(:pub_ms)
-IO.puts("COST=#{cost} GATE=#{gate} settle=#{settle}s")
-IO.puts("expected deliveries=#{expected}")
+ticks = get.(:tick_ms)
+IO.puts("COST=#{cost} GATE=#{gate} NOTIFY_BATCH=#{batch} settle=#{settle}s  notification pass ms p50=#{Float.round(pct.(ticks, 0.5), 1)} max=#{Float.round(Enum.max(ticks, fn -> 0 end), 1)}")
+IO.puts("expected deliveries=#{expected}  publishes completed=#{:atomics.get(done_pub, 1)}/#{posted}")
 IO.puts("author's publish call (save) ms p50=#{Float.round(pct.(pubs, 0.5), 1)} p99=#{Float.round(pct.(pubs, 0.99), 1)} max=#{Float.round(Enum.max(pubs, fn -> 0 end), 1)}  shed=#{length(get.(:shed))}")
 IO.puts("server stats: #{inspect(GenServer.call(srv, :stats))}  peak mailbox=#{:atomics.get(peak_q, 1)}")
 IO.puts("deliveries=#{length(lags)}  lag ms p50=#{pct.(lags, 0.5)} p99=#{pct.(lags, 0.99)} max=#{Enum.max(lags, fn -> 0 end)}")

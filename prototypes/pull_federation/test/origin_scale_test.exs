@@ -63,6 +63,20 @@ defmodule OriginScaleTest do
     end
   end
 
+  test "due_notifications with a limit takes the longest-waiting domains first and leaves the rest dirty" do
+    o =
+      Enum.reduce(1..10, Origin.new(), fn d, o -> Origin.follow(o, "d#{d}", "x") end)
+      |> post("x", 1)
+
+    {o, first} = Origin.due_notifications(o, 10_000, 4)
+    assert length(first) == 4 and map_size(o.dirty) == 6
+
+    {o, second} = Origin.due_notifications(o, 10_001, 4)
+    {o, third} = Origin.due_notifications(o, 10_002, 4)
+    names = Enum.map(first ++ second ++ third, &elem(&1, 0))
+    assert length(Enum.uniq(names)) == 10 and o.dirty == %{}
+  end
+
   describe "log retention (log_max)" do
     setup do
       o = Origin.new(log_max: 5) |> Origin.follow("b", "x")

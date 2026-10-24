@@ -699,6 +699,36 @@ its Create wins. The Delete is in the log too, so a domain that pulls
 anyway sees it. Distribution is parallel: all domains are contacted at
 once and answer at their own pace.
 
+### Part 14: when our own origin is the busy one (`bench/concurrent.exs`)
+
+Same load as Part 10 (1000 domains, 1000 posts/s for 10 s, 1,000,000
+deliveries expected), but each origin call burns `COST` times its normal
+CPU, and posts arrive open-loop (the poster does not wait for the origin).
+
+| COST | author save p50 | delivery lag p50 | deliveries |
+|-----:|----------------:|-----------------:|-----------:|
+| 0    | 0.2 ms          | 0.5 s            | 1,000,000 / 1,000,000 |
+| 0.5  | 0.4 ms          | 0.6 s            | all |
+| 1.0  | 324 ms          | 7.3 s            | all |
+| 2.0  | 1486 ms         | 10 s             | all |
+
+What it shows:
+
+- **Nothing is lost.** Every delivery arrives; load only stretches lag.
+- **Receivers self-throttle.** Pull requests fall as the origin slows
+  (`retry_at` replies and long round trips push their next pull out).
+- **A front admission gate did not help.** The queue is mostly publishes
+  and notification building, not stream requests, so refusing streams
+  early frees nothing.
+- **Capping the notification pass (`NOTIFY_BATCH=100`, oldest first) did
+  not help much either**: save p50 268 ms / 1171 ms and lag p50 5.7 s /
+  10.4 s at COST 1.0 / 2.0. The pass was not the bottleneck; the
+  per-publish cost in the single origin process is.
+- So the limit is one process doing writes and serving. What would move
+  it: take the write path (sign, save, enqueue) out of the serving
+  process, and scale reads horizontally (streams are cacheable by ETag).
+  Not built here.
+
 ### What the model says
 
 **Pull wins when either side is the scarce one.** B's queue overflows

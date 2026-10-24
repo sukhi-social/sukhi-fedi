@@ -280,14 +280,15 @@ defmodule PullFederation.Origin do
   defp bump_bucket(versions, _actor, :followers, _domains), do: versions
 
   @doc """
-  Notifications whose quiet period has elapsed: `[{domain, notification}]`.
+  Notifications whose quiet period has elapsed: `[{domain, notification}]`
+  (at most `limit` of them per call, oldest first).
 
   A notification is either the changed ETags inline (`%{key => etag}`,
   when at most `inline_max` public actors changed), or
   `{:buckets, %{bucket => version}, inline_followers}` pointing at the
   snapshot buckets to fetch. Followers-only counters are always inline.
   """
-  def due_notifications(%__MODULE__{} = o, now) do
+  def due_notifications(%__MODULE__{} = o, now, limit \\ :infinity) do
     {due, _held} =
       Enum.split_with(o.dirty, fn {domain, _} ->
         quiet? = now - Map.get(o.last_notified, domain, -o.notify_quiet_ms) >= o.notify_quiet_ms
@@ -295,6 +296,7 @@ defmodule PullFederation.Origin do
         quiet? and not Calendar.claimed?(o.calendar, domain, now)
       end)
 
+    due = take_oldest(o, due, limit)
     msgs = for {domain, dirty} <- due, do: {domain, notification(o, dirty)}
 
     o = %{
@@ -305,6 +307,16 @@ defmodule PullFederation.Origin do
     }
 
     {o, Enum.sort(msgs)}
+  end
+
+  # `limit` caps the work of one call so a busy origin keeps answering its
+  # authors; whoever was told longest ago goes first, the rest stay dirty for the next call.
+  defp take_oldest(_o, due, :infinity), do: due
+
+  defp take_oldest(o, due, limit) do
+    due
+    |> Enum.sort_by(fn {d, _} -> {Map.get(o.last_notified, d, -1), d} end)
+    |> Enum.take(limit)
   end
 
   defp notification(o, dirty) do
