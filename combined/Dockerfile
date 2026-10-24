@@ -26,7 +26,10 @@ WORKDIR /repo
 
 # build-base: a few deps (argon2_elixir) compile C with make. git: ojak is
 # a github dep.
-RUN apk add --no-cache build-base git
+# vips-dev: vix links the system libvips. Its default is a precompiled libvips
+# from GitHub Releases, which fails the same way ojak's download did on OTP 29.
+RUN apk add --no-cache build-base git pkgconf vips-dev
+ENV VIX_COMPILATION_MODE=PLATFORM_PROVIDED_LIBVIPS
 
 COPY VERSION ./VERSION
 # Path dependency of elixir/ and delivery/; needed in full before deps.get.
@@ -121,7 +124,7 @@ LABEL service="sukhi-fedi"
 
 WORKDIR /app
 
-RUN apk add --no-cache libstdc++ openssl ncurses-libs
+RUN apk add --no-cache libstdc++ openssl ncurses-libs vips
 
 COPY --from=build /repo/combined/_build/prod/rel/combined ./
 COPY combined/rel/entrypoint.sh /app/entrypoint.sh
