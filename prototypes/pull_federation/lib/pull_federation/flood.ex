@@ -240,8 +240,7 @@ defmodule PullFederation.Flood do
         Origin.new(
           max_streams: p.max_streams,
           min_pull_gap_ms: p.min_pull_gap_ms,
-          max_reserve_ms: p.reserve_ms,
-          slot_ms: div(p.stream_ms, p.max_streams)
+          calendar: [horizon_ms: p.reserve_ms, slot_ms: round(p.stream_ms / p.max_streams / 0.8)]
         ),
         fn d, acc ->
           Origin.follow(acc, "d#{d}", @actor)
@@ -329,7 +328,7 @@ defmodule PullFederation.Flood do
     st = %{
       st
       | done: done,
-        origin: Origin.close_stream(st.origin),
+        origin: Origin.close_stream(st.origin, d, t),
         bs: Map.put(st.bs, d, %{bst | p: pl}),
         converged: Map.put(st.converged, d, t)
     }

@@ -293,11 +293,11 @@ costs A 1.3 units (verify + send), an admitted pull 3.3.
 | --- | --- | --- | --- | --- |
 | 1,000 domains, receivers guess a backoff (jitter) | 4,424 | 4.4 | 85 s / 220 s | 7,751 |
 | same, no jitter | 5,880 in 300 s | n/a | **48 of 1,000 converged after 300 s** | 7,740 |
-| 1,000 domains, **appointments** | 2,108 | 2.1 | 28 s / 56 s | 4,740 |
-| same + receivers start lazily over 30 s | 2,066 | 2.1 | 26 s / 54 s | 4,686 |
+| 1,000 domains, **appointments** | 2,048 | 2.0 | 31 s / 63 s | 4,662 |
+| same + receivers start lazily over 30 s | 2,002 | 2.0 | 32 s / 63 s | 4,603 |
 | 5,000 domains, guess | 31,941 | 6.4 | 361 s / 879 s | 51,515 |
-| 5,000 domains, **appointments** | 10,547 | 2.1 | 139 s / 278 s | 23,711 |
-| 1,000 receivers hammering every 100 ms, ignoring declines | 250,488 in 50 s | 250 | 25 s / 50 s | 327,634 |
+| 5,000 domains, **appointments** | 10,279 | 2.1 | 157 s / 315 s | 23,363 |
+| 1,000 receivers hammering every 100 ms, ignoring promises | 311,797 in 63 s | 312 | 31 s / 63 s | 407,336 |
 
 What it shows:
 
@@ -313,18 +313,21 @@ What it shows:
   past `max_reserve_ms` (300 s) it stops promising and sheds with
   `{:busy, ms}`, and a domain that comes back early is turned away without
   consuming another slot of the calendar. Requests per domain fall from
-  4.4 (6.4 at 5,000) to 2.1, and convergence is 3 to 4 times earlier.
-- **The 278 s for 5,000 domains is capacity, not protocol:** 20 admissions
-  per second need 250 s. A real small stream finishes faster than 400 ms;
+  4.4 (6.4 at 5,000) to 2.0 and convergence is 3.5 times earlier at p50
+  (31 s against 85 s). The full design, rules, failure modes and the two
+  bugs found on the way are in [RESERVATIONS.md](RESERVATIONS.md).
+- **The 315 s for 5,000 domains is capacity plus headroom, not protocol:** 20
+  admissions per second need 250 s, and the book is filled to 80%. A real small stream finishes faster than 400 ms;
   `stream_ms` is a parameter.
 - **The first second is the same for everybody** (every receiver asks once,
   peak 1,000/s) unless receivers start lazily: spreading their first pull
   over 30 s cuts the peak to 74/s. That is the "B has the right to pull
   lazily" idea, and it is the only thing that helps with the first wave.
 - **Hammering cannot be fixed by the protocol.** Receivers that ignore
-  declines turn 1,000 domains into 250,000 requests (327,634 units against
-  4,740), and `min_pull_gap_ms` adds nothing once appointments are on,
-  because early arrivals are already turned away. A decline is cheap but
+  declines turn 1,000 domains into 311,797 requests (407,336 units against
+  4,662), and `min_pull_gap_ms` adds nothing once appointments are on,
+  because early arrivals are already turned away. They do not displace
+  anybody's appointment, which is what the calendar guarantees. A decline is cheap but
   not free, so this is an edge problem: per-IP rate limiting and answering
   429 before the signature check, as for any public endpoint. It is not
   worse than push, where the same attacker could POST an inbox; but pull

@@ -14,7 +14,7 @@ defmodule PullFederation.Origin do
     * `recovered/2`   "Server Status Broadcast": notify everyone, spread by jitter
   """
 
-  alias PullFederation.{Cursors, Etag, Snapshot, Visibility}
+  alias PullFederation.{Calendar, Cursors, Etag, Snapshot, Visibility}
 
   defstruct log: %{},
             seqs: %{},
@@ -31,10 +31,7 @@ defmodule PullFederation.Origin do
             known_domains: MapSet.new(),
             last_pull: %{},
             min_pull_gap_ms: 0,
-            reserved: %{},
-            next_slot: 0,
-            slot_ms: 50,
-            max_reserve_ms: 300_000
+            calendar: nil
 
   @type event :: %{
           actor: String.t(),
@@ -44,7 +41,11 @@ defmodule PullFederation.Origin do
           activity: map
         }
 
-  def new(opts \\ []), do: struct!(__MODULE__, opts)
+  def new(opts \\ []) do
+    o = struct!(__MODULE__, Keyword.drop(opts, [:calendar]))
+    cal = Calendar.new(Keyword.merge([slots: o.max_streams], Keyword.get(opts, :calendar, [])))
+    %{o | calendar: cal}
+  end
 
   @doc "Record that `domain` follows `actor` (shared-inbox granularity)."
   def follow(%__MODULE__{} = o, domain, actor) do
@@ -118,7 +119,9 @@ defmodule PullFederation.Origin do
   def due_notifications(%__MODULE__{} = o, now) do
     {due, _held} =
       Enum.split_with(o.dirty, fn {domain, _} ->
-        now - Map.get(o.last_notified, domain, -o.notify_quiet_ms) >= o.notify_quiet_ms
+        quiet? = now - Map.get(o.last_notified, domain, -o.notify_quiet_ms) >= o.notify_quiet_ms
+        # a domain that already holds an appointment will pull; do not nag it
+        quiet? and not Calendar.claimed?(o.calendar, domain, now)
       end)
 
     msgs = for {domain, dirty} <- due, do: {domain, notification(o, domain, dirty)}
@@ -182,31 +185,60 @@ defmodule PullFederation.Origin do
 
   @doc """
   Like `open_stream/4` but returns the updated origin on a decline too,
-  because a decline may *reserve a time*. Result:
-  `{o, {:ok, events, announced} | {:error, reason}}` with reason one of
-  `:unknown_domain`, `{:busy, ms}` (no room and no time to offer),
+  because a decline may *book an appointment* (`PullFederation.Calendar`).
+  Result: `{o, {:ok, events, announced} | {:error, reason}}`, reason one of
+  `:unknown_domain`, `{:busy, ms}` (nothing promised; try again after `ms`),
   `{:retry_at, ms}` (come back in exactly `ms`: the slot is yours).
 
-  Reservations (the answer to a stampede): when every stream slot is
-  taken, the origin hands out the next free appointment, one every
-  `slot_ms` (stream time / slots), instead of making receivers guess a
-  backoff. State is one counter plus one entry per waiting domain.
-  Beyond `max_reserve_ms` ahead it stops promising and sheds with
-  `{:busy, max_reserve_ms}`. A domain that returns before its time is
-  turned away without a new reservation.
+  Order of checks, cheapest first, none touching the database until a
+  stream is granted: known domain, what the domain holds in the calendar,
+  the minimum gap, a free slot.
   """
   def request_stream(%__MODULE__{} = o, domain, cursors, now) do
-    # cheapest checks first: none of them touch the database
-    with :ok <- known_domain(o, domain),
-         :ok <- appointment_ok(o, domain, now),
-         :ok <- not_too_soon(o, domain, now) do
-      case o.active_streams < o.max_streams do
-        true -> admit(o, domain, cursors, now)
-        false -> reserve(o, domain, now)
-      end
-    else
-      {:error, :too_soon, retry} -> {o, {:error, {:retry_at, retry}}}
+    case known_domain(o, domain) do
       {:error, _} = err -> {o, err}
+      :ok -> by_claim(o, domain, cursors, now, Calendar.claim(o.calendar, domain, now))
+    end
+  end
+
+  # early: told how long is left; nothing else changes
+  defp by_claim(o, _domain, _cursors, _now, {:early, ms}), do: {o, {:error, {:retry_at, ms}}}
+
+  # on time (or late within the grace): served if a slot is free
+  defp by_claim(o, domain, cursors, now, :due) do
+    case slot_free?(o) do
+      true ->
+        admit(o, domain, cursors, now)
+
+      false ->
+        {cal, ms} = Calendar.postpone(o.calendar, domain, now)
+        {%{o | calendar: cal}, {:error, {:retry_at, ms}}}
+    end
+  end
+
+  # no promise, or one that lapsed: a fresh arrival
+  defp by_claim(o, domain, cursors, now, fresh) when fresh in [:none, :expired] do
+    o = %{o | calendar: Calendar.release(o.calendar, domain)}
+
+    case not_too_soon(o, domain, now) do
+      {:error, retry} ->
+        {o, {:error, {:retry_at, retry}}}
+
+      :ok ->
+        # nobody walks in ahead of domains that hold a promise
+        case slot_free?(o) and not Calendar.pending?(o.calendar, now) do
+          true -> admit(o, domain, cursors, now)
+          false -> book(o, domain, now)
+        end
+    end
+  end
+
+  defp slot_free?(o), do: o.active_streams < o.max_streams
+
+  defp book(o, domain, now) do
+    case Calendar.book(o.calendar, domain, now) do
+      {cal, {:ok, ms}} -> {%{o | calendar: cal}, {:error, {:retry_at, ms}}}
+      {cal, {:shed, ms}} -> {%{o | calendar: cal}, {:error, {:busy, ms}}}
     end
   end
 
@@ -218,23 +250,12 @@ defmodule PullFederation.Origin do
       | active_streams: o.active_streams + 1,
         resyncs: o.resyncs + resyncs,
         last_pull: Map.put(o.last_pull, domain, now),
-        reserved: Map.delete(o.reserved, domain)
+        calendar: Calendar.release(o.calendar, domain),
+        # everything pending for this domain is in the stream about to be sent
+        dirty: Map.delete(o.dirty, domain)
     }
 
     {o, {:ok, events, announced_for(o, domain)}}
-  end
-
-  defp reserve(o, domain, now) do
-    at = max(o.next_slot, now + o.slot_ms)
-
-    case at - now > o.max_reserve_ms do
-      true ->
-        {o, {:error, {:busy, o.max_reserve_ms}}}
-
-      false ->
-        o = %{o | next_slot: at + o.slot_ms, reserved: Map.put(o.reserved, domain, at)}
-        {o, {:error, {:retry_at, at - now}}}
-    end
   end
 
   defp known_domain(o, domain) do
@@ -244,27 +265,29 @@ defmodule PullFederation.Origin do
     end
   end
 
-  # Early arrival: tell the receiver how long is left, without a new reservation.
-  defp appointment_ok(o, domain, now) do
-    case Map.fetch(o.reserved, domain) do
-      {:ok, at} when now < at -> {:error, :too_soon, at - now}
-      _ -> :ok
-    end
-  end
-
   # `min_pull_gap_ms` (0 = off): a domain asking again sooner is told to wait.
   defp not_too_soon(o, domain, now) do
     case Map.fetch(o.last_pull, domain) do
-      {:ok, at} when now - at < o.min_pull_gap_ms ->
-        {:error, :too_soon, o.min_pull_gap_ms - (now - at)}
-
-      _ ->
-        :ok
+      {:ok, at} when now - at < o.min_pull_gap_ms -> {:error, o.min_pull_gap_ms - (now - at)}
+      _ -> :ok
     end
   end
 
   def close_stream(%__MODULE__{active_streams: n} = o) when n > 0,
     do: %{o | active_streams: n - 1}
+
+  @doc """
+  Close a stream and tell the calendar how long it really took, so the
+  appointment spacing follows the actual stream time.
+  """
+  def close_stream(%__MODULE__{} = o, domain, now) do
+    o = close_stream(o)
+
+    case Map.fetch(o.last_pull, domain) do
+      {:ok, started} -> %{o | calendar: Calendar.observe_stream(o.calendar, now - started)}
+      :error -> o
+    end
+  end
 
   @doc "Recovery broadcast to every domain that follows anyone here; `jitter.(domain)` is the delay in ms."
   def recovered(%__MODULE__{} = o, jitter) do

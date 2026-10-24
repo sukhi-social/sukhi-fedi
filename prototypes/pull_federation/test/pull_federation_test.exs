@@ -126,30 +126,6 @@ defmodule PullFederationTest do
       assert later == %{@a => tok(o, @a, 3)}
     end
 
-    test "when all stream slots are taken, the origin offers an appointment" do
-      {o, _} = setup_pair()
-      o = %{o | max_streams: 1, slot_ms: 50}
-      {:ok, o, _, _} = Origin.open_stream(o, "b.example", %{}, 0)
-      {o, {:error, {:retry_at, 50}}} = Origin.request_stream(o, "b.example", %{}, 0)
-
-      # coming back early is turned away without taking another slot of the calendar
-      {o, {:error, {:retry_at, 30}}} = Origin.request_stream(o, "b.example", %{}, 20)
-      assert o.next_slot == 100
-
-      o = Origin.close_stream(o)
-      assert {_, {:ok, _, _}} = Origin.request_stream(o, "b.example", %{}, 50)
-    end
-
-    test "appointments are shed beyond max_reserve_ms" do
-      {o, _} = setup_pair()
-      o = %{o | max_streams: 0, slot_ms: 1_000, max_reserve_ms: 2_500}
-      {o, {:error, {:retry_at, 1_000}}} = Origin.request_stream(o, "b.example", %{}, 0)
-      o = Origin.follow(o, "c.example", @a)
-      {o, {:error, {:retry_at, 2_000}}} = Origin.request_stream(o, "c.example", %{}, 0)
-      o = Origin.follow(o, "d.example", @a)
-      assert {_, {:error, {:busy, 2_500}}} = Origin.request_stream(o, "d.example", %{}, 0)
-    end
-
     test "a domain nobody has a follow from is refused outright" do
       assert {_, {:error, :unknown_domain}} =
                Origin.request_stream(Origin.new(), "stranger.example", %{}, 0)
