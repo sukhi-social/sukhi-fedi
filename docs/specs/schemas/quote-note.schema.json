@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sukhi.social/spec/schemas/quote-note.schema.json",
+  "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
+  "title": "Note carrying a quote (sukhi-0003)",
+  "description": "The quote properties a sukhi Note carries when it quotes another post: the three forms of sukhi-0003 'Sending'. Other properties of a Note are not restricted here.",
+  "type": "object",
+  "required": [
+    "type",
+    "quoteUrl",
+    "_misskey_quote",
+    "tag"
+  ],
+  "properties": {
+    "type": {
+      "enum": [
+        "Note",
+        "Article"
+      ]
+    },
+    "quoteUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL of the quoted post."
+    },
+    "_misskey_quote": {
+      "type": "string",
+      "format": "uri",
+      "description": "The same URL."
+    },
+    "tag": {
+      "type": "array",
+      "contains": {
+        "type": "object",
+        "required": [
+          "type",
+          "href",
+          "rel"
+        ],
+        "properties": {
+          "type": {
+            "const": "Link"
+          },
+          "href": {
+            "type": "string",
+            "format": "uri"
+          },
+          "rel": {
+            "const": "_misskey_quote"
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "type": "Note",
+      "content": "<p>Look at this</p>",
+      "quoteUrl": "https://remote.example/notes/1",
+      "_misskey_quote": "https://remote.example/notes/1",
+      "tag": [
+        {
+          "type": "Link",
+          "href": "https://remote.example/notes/1",
+          "rel": "_misskey_quote"
+        }
+      ]
+    }
+  ]
+}

@@ -3,6 +3,7 @@
 
 - Kind: descriptive (what Misskey does). Source tags and how to read them: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
+- Schema: [webfinger-jrd](../schemas/webfinger-jrd.schema.json)
 
 ### Misskey as a server **[src]** `server/WellKnownServerService.ts`
 

@@ -4,6 +4,7 @@
 - Status: Draft. Implemented in `fedi/builders.ex:347-364` and `ap/instructions/extract.ex:46-80`.
 - Identifier: `https://sukhi.social/spec/sukhi-0003/1`
 - Builds on: FEP-e232 (object links), FEP-044f (consent-respecting quotes).
+- Schema: [quote-note](schemas/quote-note.schema.json) (the three forms under "Sending").
 - Terms, and what MUST / SHOULD / MAY mean: [README](README.md#how-to-read-the-specifications). Japanese: [README.ja.md](README.ja.md).
 
 ## In one paragraph

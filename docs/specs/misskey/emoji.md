@@ -3,6 +3,7 @@
 
 - Kind: descriptive (what Misskey does), with a last section on how sukhi supports it. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
+- Schema: [emoji-tag](../schemas/emoji-tag.schema.json)
 
 ## 1. Receiving **[src]** `core/activitypub/models/ApNoteService.ts`, `extractEmojis`
 

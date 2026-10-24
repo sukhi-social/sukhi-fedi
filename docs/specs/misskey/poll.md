@@ -3,6 +3,7 @@
 
 - Kind: descriptive (what Misskey does). Source tags and how to read them: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
+- Schema: [poll-vote](../schemas/poll-vote.schema.json)
 
 - A poll in a note is written under `oneOf` or `anyOf`, chosen by whether multiple answers are allowed. Each choice is a `Note` with `name` and `replies`. The end is `endTime`, or `closed` when over. **[src]** `renderNote`
 - A vote is a `Note` whose `name` matches a choice and whose `inReplyTo` is the poll. It is counted as a vote and no note is created. A vote on an expired poll is skipped. **[src]** `ApNoteService.ts`

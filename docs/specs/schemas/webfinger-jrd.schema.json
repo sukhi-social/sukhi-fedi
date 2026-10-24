@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sukhi.social/spec/schemas/webfinger-jrd.schema.json",
+  "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
+  "title": "WebFinger answer (JRD)",
+  "description": "Descriptive of what Misskey's resolver needs and what sukhi answers: `subject` as `acct:`, and a `self` link of type `application/activity+json`. Misskey takes the first `self` link and does not check its type (see misskey/webfinger.md); sukhi sets it anyway.",
+  "type": "object",
+  "required": [
+    "subject",
+    "links"
+  ],
+  "properties": {
+    "subject": {
+      "type": "string",
+      "pattern": "^acct:[^@\\s]+@[^@\\s]+$"
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "links": {
+      "type": "array",
+      "minItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "required": [
+            "rel",
+            "href"
+          ],
+          "properties": {
+            "rel": {
+              "const": "self"
+            },
+            "type": {
+              "const": "application/activity+json"
+            },
+            "href": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        }
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "rel"
+        ],
+        "properties": {
+          "rel": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "href": {
+            "type": "string",
+            "format": "uri"
+          },
+          "template": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "subject": "acct:hina@sukhi.social",
+      "aliases": [
+        "https://sukhi.social/users/hina"
+      ],
+      "links": [
+        {
+          "rel": "self",
+          "type": "application/activity+json",
+          "href": "https://sukhi.social/users/hina"
+        },
+        {
+          "rel": "http://webfinger.net/rel/profile-page",
+          "type": "text/html",
+          "href": "https://sukhi.social/@hina"
+        }
+      ]
+    }
+  ]
+}

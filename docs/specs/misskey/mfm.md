@@ -3,6 +3,7 @@
 
 - Kind: descriptive (what Misskey does), with a last section on how sukhi supports it. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
+- Schema: [misskey-mfm-source](../schemas/misskey-mfm-source.schema.json)
 
 MFM is Misskey's own markup for note text. ActivityPub has no place for it, so Misskey sends the source text beside the HTML. This page says when it does that, what the HTML looks like, and how sukhi reads and writes it.
 

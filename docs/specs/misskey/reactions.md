@@ -3,6 +3,7 @@
 
 - Kind: descriptive (what Misskey does). Source tags and how to read them: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
+- Schema: [misskey-reaction](../schemas/misskey-reaction.schema.json)
 
 - Misskey sends a reaction as `Like` with `content` and `_misskey_reaction` both set to the reaction string. **[src]** `renderLike`
 - A custom emoji gets one `Emoji` tag, only when the reaction starts with `:`, the emoji is in the local cache, and it is not local-only. **[src]** same function
