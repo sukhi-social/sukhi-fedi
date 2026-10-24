@@ -146,7 +146,7 @@ same on both services.
 
 | Var | Default | Service |
 |---|---|---|
-| `PULL_FEDERATION` | `on` | both — `off` stops advertising the FEP-844e capability, answers `/pull/v1/*` with 404, and pushes to every follower |
+| `PULL_FEDERATION` | `on` | both — `off` stops advertising the capability (FEP-844e discovery), answers `/pull/v1/*` with 404, and pushes to every follower |
 | `PULL_MAX_STREAMS` | `16` | gateway — concurrent `GET /pull/v1/stream` we serve; more get 429 + `Retry-After` |
 | `PULL_MAX_CONCURRENT` | `4` | gateway — concurrent pulls we run against other servers |
 

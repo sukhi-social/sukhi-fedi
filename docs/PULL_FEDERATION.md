@@ -1,6 +1,6 @@
 # Pull Federation
 
-> Capability id (FEP-844e `implements.href`) for this document:
+> Pull Federation is this project's own protocol, not a FEP. FEP-844e is only how a server announces it. Capability id (`implements.href`) for this document:
 > `https://github.com/sukhi-social/sukhi-fedi/blob/main/docs/PULL_FEDERATION.md`
 
 A server that implements this keeps its normal inbox. For `Create(Note)`
