@@ -15,7 +15,7 @@ defmodule SukhiApi.Views.MastodonScheduledStatus do
   and the composer needs no hydrated attachments to confirm a schedule.
   """
 
-  alias SukhiApi.Views.Id
+  alias SukhiApi.Views.{Id, Timestamp}
 
   def render(nil), do: nil
 
@@ -24,7 +24,7 @@ defmodule SukhiApi.Views.MastodonScheduledStatus do
 
     %{
       id: Id.encode(scheduled.id),
-      scheduled_at: format_dt(scheduled.scheduled_at),
+      scheduled_at: Timestamp.iso8601(scheduled.scheduled_at),
       params: %{
         text: p["status"],
         visibility: p["visibility"],
@@ -38,7 +38,4 @@ defmodule SukhiApi.Views.MastodonScheduledStatus do
   end
 
   def render_list(list) when is_list(list), do: Enum.map(list, &render/1)
-
-  defp format_dt(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp format_dt(_), do: nil
 end

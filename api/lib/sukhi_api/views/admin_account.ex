@@ -6,7 +6,7 @@ defmodule SukhiApi.Views.AdminAccount do
   `suspended_at`, `suspended_by_id`, and `suspension_reason`.
   """
 
-  alias SukhiApi.Views.{Id, MastodonAccount}
+  alias SukhiApi.Views.{Id, MastodonAccount, Timestamp}
 
   @spec render(map() | nil) :: map() | nil
   def render(nil), do: nil
@@ -18,7 +18,7 @@ defmodule SukhiApi.Views.AdminAccount do
       is_admin: Map.get(account, :is_admin, false) || false,
       is_bot: Map.get(account, :is_bot, false) || false,
       suspended: not is_nil(Map.get(account, :suspended_at)),
-      suspended_at: format_dt(Map.get(account, :suspended_at)),
+      suspended_at: Timestamp.iso8601(Map.get(account, :suspended_at)),
       suspended_by_id: Id.encode(Map.get(account, :suspended_by_id)),
       suspension_reason: Map.get(account, :suspension_reason)
     })
@@ -26,7 +26,4 @@ defmodule SukhiApi.Views.AdminAccount do
 
   @spec render_list([map()]) :: [map()]
   def render_list(accounts) when is_list(accounts), do: Enum.map(accounts, &render/1)
-
-  defp format_dt(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp format_dt(_), do: nil
 end

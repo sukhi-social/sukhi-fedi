@@ -4,12 +4,12 @@ defmodule SukhiApi.Views.MastodonPoll do
   Render a Polls.get_with_results/2 map into Mastodon poll JSON.
   """
 
-  alias SukhiApi.Views.Id
+  alias SukhiApi.Views.{Id, Timestamp}
 
   def render(nil), do: nil
 
   def render(%{poll: poll, options: options, tallies: tallies} = ctx) do
-    expires_at = format_dt(Map.get(poll, :expires_at))
+    expires_at = Timestamp.iso8601(Map.get(poll, :expires_at))
 
     %{
       id: Id.encode(poll.id),
@@ -50,7 +50,4 @@ defmodule SukhiApi.Views.MastodonPoll do
     do: DateTime.compare(exp, DateTime.utc_now()) != :gt
 
   defp expired?(_), do: false
-
-  defp format_dt(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp format_dt(_), do: nil
 end

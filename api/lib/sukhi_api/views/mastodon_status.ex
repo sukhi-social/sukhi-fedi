@@ -18,7 +18,7 @@ defmodule SukhiApi.Views.MastodonStatus do
   reactions_for_notes}` and pass the per-note submap on render.
   """
 
-  alias SukhiApi.Views.{Id, MastodonAccount, MastodonMedia, MastodonPoll}
+  alias SukhiApi.Views.{Id, MastodonAccount, MastodonMedia, MastodonPoll, Timestamp}
 
   @spec render(map() | nil, map()) :: map() | nil
   def render(note, ctx \\ %{})
@@ -46,7 +46,7 @@ defmodule SukhiApi.Views.MastodonStatus do
 
     %{
       id: Id.encode(note.id),
-      created_at: format_dt(Map.get(note, :created_at)),
+      created_at: Timestamp.iso8601(Map.get(note, :created_at)),
       in_reply_to_id: encode_id(Map.get(note, :in_reply_to_id)),
       in_reply_to_account_id: encode_id(Map.get(note, :in_reply_to_account_id)),
       # The real NSFW flag, or implied by a content warning (Mastodon marks
@@ -148,7 +148,7 @@ defmodule SukhiApi.Views.MastodonStatus do
 
     %{
       id: Id.encode(Map.get(boost, :id)),
-      created_at: format_dt(Map.get(boost, :created_at)),
+      created_at: Timestamp.iso8601(Map.get(boost, :created_at)),
       in_reply_to_id: nil,
       in_reply_to_account_id: nil,
       sensitive: false,
@@ -366,8 +366,6 @@ defmodule SukhiApi.Views.MastodonStatus do
     end
   end
 
-  defp format_dt(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp format_dt(_), do: nil
 
   # ap_id が落ちているときの最後の砦。account がぶら下がっていれば
   # そこから username を拾って `users/<u>/notes/<id>` を組む。それも
