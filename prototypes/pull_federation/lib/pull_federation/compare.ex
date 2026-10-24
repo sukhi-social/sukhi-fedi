@@ -41,6 +41,11 @@ defmodule PullFederation.Compare do
       for {t, o, a, _} <- burst,
           do: {t, o, a, if(rem(t, 10) == 0, do: :direct, else: :public)}
 
+    # 40% followers-only: exercises the opaque-token path next to the ordered one
+    locked =
+      for {t, o, a, _} <- burst,
+          do: {t, o, a, if(rem(t, 5) < 2, do: :followers, else: :public)}
+
     outage = for i <- 0..39, do: {i * 1_000, rem(i, 4), rem(i, 2), :public}
 
     [
@@ -53,6 +58,7 @@ defmodule PullFederation.Compare do
         queue: 100
       },
       %{name: "burst, 10% direct messages", origins: 20, events: mixed, cap: 50, queue: 100},
+      %{name: "burst, 40% followers-only", origins: 20, events: locked, cap: 50, queue: 100},
       %{
         name: "burst, cheap requests (request cost 0.2)",
         origins: 20,

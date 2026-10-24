@@ -74,6 +74,32 @@ All numbers come from a model with made-up unit costs (listed in the
 module docs), **not measurements**; the structs do the counting, the cost
 tables turn counts into units.
 
+### Summary: the current design against push
+
+"Current design" = per-actor ETag notifications (ordered `s.<n>` for the
+public index, opaque for followers-only), inline by default, pull of only
+the changed keys, DMs still pushed. Same workloads, same made-up costs.
+
+| Question | Push | Pull (current) | Winner |
+| --- | --- | --- | --- |
+| Quiet traffic, latency | ~0 ms, 1 request per post | +100 ms, 2 requests per post | push |
+| 500-post burst from 20 origins: requests to B | 930 (430 rejected) | 99 (0 rejected) | pull, 9x fewer |
+| same, p50 / p99 latency | 18 s / 55 s | 3.2 s / 10.5 s | pull |
+| same with B at 4x capacity, p50 / p99 | 0.7 s / 16 s | 1.5 s / 3 s | push at p50, pull at p99 |
+| B down 30 s, p99 | 55 s | 42 s (needs the recovery broadcast) | pull, slightly |
+| Origin cost, 1,000 domains x 100 posts | 635,600 units, 210,000 DB writes | 53,500 units, 100 DB writes | pull, 12x |
+| Origin cost, 1,000 domains x 10 posts | 63,560 units | 31,950 units | pull, 2x |
+| Origin queue depth, same 1,000 x 100 | 100,000 jobs | 1,000 dirty domains | pull |
+| Leak surface | none new | public count (already public); followers index opaque | tie |
+| Implementation weight | small | cursors, tokens, decline protocol, resync | push |
+
+In short: push is the right default for low rates and urgent or private
+traffic; pull earns its complexity at bursts (receiver) and at large
+follower-domain counts (origin). The two weak spots of pull are the
+quiet-traffic overhead (twice the requests) and recovery after an outage
+(it needs the "I'm back" broadcast, because a notification is lost when B
+is down and nothing else repeats it).
+
 ### Part 1: the receiver B (`PullFederation.Compare`)
 
 One receiving instance with a work budget (50 units/s), a bounded queue
@@ -89,6 +115,8 @@ activity.
 | steady, 60 posts at 1/s | push | 60 | 0 | 1 | 0 ms | 0 ms |
 | | pull | 120 | 0 | 2 | 100 ms | 100 ms |
 | burst, 500 posts from 20 origins in 5 s | push | 930 | 430 | 100 | 18 s | 55 s |
+| | pull | 99 | 0 | 25 | 3.2 s | 10.5 s |
+| same, 40% followers-only (opaque tokens) | push | 930 | 430 | 100 | 18 s | 55 s |
 | | pull | 99 | 0 | 25 | 3.2 s | 10.5 s |
 | same, 10% direct (push-only) | push | 930 | 430 | 100 | 18 s | 55 s |
 | | pull | 130 | 0 | 29 | 4.9 s | 11 s |
