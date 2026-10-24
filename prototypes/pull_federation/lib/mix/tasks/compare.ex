@@ -45,6 +45,7 @@ defmodule Mix.Tasks.Compare do
     end
 
     flood_report()
+    rate_report()
 
     IO.puts("\n# Notification form (NotifyCost): inline vs bucket snapshots")
 
@@ -96,6 +97,20 @@ defmodule Mix.Tasks.Compare do
         "  #{String.pad_trailing(name, 50)} converged=#{r.converged} reqs=#{r.pull_requests_at_origin}" <>
           " declined=#{r.declined} peak/s=#{r.peak_requests_per_s} p50=#{r.p50_converged_ms} last=#{r.last_converged_ms}" <>
           " cost=#{r.origin_cost_units}"
+      )
+    end
+  end
+
+  defp rate_report do
+    IO.puts("\n# Posts per domain per 10 min: who is cheaper (FanOut.per_domain, quiet 3 s)")
+
+    for posts <- [1, 10, 100, 200, 300, 600, 2_000] do
+      r = FanOut.per_domain(posts, 600_000)
+      f = fn x -> :erlang.float_to_binary(x * 1.0, decimals: 1) end
+
+      IO.puts(
+        "  posts=#{String.pad_leading(to_string(posts), 5)} posts/notif=#{f.(r.posts_per_notification)}" <>
+          " origin push/pull=#{f.(r.push_origin / r.pull_origin)}x receiver push/pull=#{f.(r.push_b / r.pull_b)}x"
       )
     end
   end

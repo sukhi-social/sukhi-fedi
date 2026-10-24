@@ -67,4 +67,40 @@ defmodule CompareTest do
     assert snap.total_wire_bytes > inline.total_wire_bytes
     assert snap.origin_renders < snap.snapshot_fetches
   end
+
+  describe "which one for which rate (FanOut.per_domain/3)" do
+    alias PullFederation.FanOut
+
+    test "rare posts: push is cheaper for both sides, whatever the follower count" do
+      r = FanOut.per_domain(10, 600_000)
+      assert r.posts_per_notification == 1.0
+      assert r.push_origin < r.pull_origin
+      assert r.push_b < r.pull_b
+    end
+
+    test "dense posts: pull wins on both sides, more as batches grow" do
+      mid = FanOut.per_domain(600, 600_000)
+      dense = FanOut.per_domain(2_000, 600_000)
+      assert mid.pull_origin < mid.push_origin
+      assert dense.push_origin / dense.pull_origin > mid.push_origin / mid.pull_origin
+      assert dense.pull_b < dense.push_b
+    end
+
+    test "the break-even depends on posts per quiet period, not on the follower count" do
+      # 300 posts in 10 min = one per 2 s: 1.5 per 3 s window
+      r = FanOut.per_domain(300, 600_000, 3_000)
+      assert r.posts_per_notification > 1.0
+      # a longer quiet period batches the same traffic harder
+      longer = FanOut.per_domain(300, 600_000, 10_000)
+      assert longer.posts_per_notification > 3 * r.posts_per_notification
+    end
+
+    test "origin cost grows almost linearly with the number of domains" do
+      one = FanOut.run(:push, domains: 10, posts: 20)
+      many = FanOut.run(:push, domains: 100, posts: 20)
+      # a small per-post part (serialize once, sign the activity once) does not scale
+      ratio = many.origin_cost_units / one.origin_cost_units
+      assert ratio > 8.5 and ratio < 10.0
+    end
+  end
 end

@@ -148,4 +148,40 @@ defmodule PullFederation.FanOut do
       megabytes_out: Float.round(bytes / 1_000_000, 2)
     })
   end
+
+  @doc """
+  Cost seen by ONE follower domain over `window_ms`, when `posts` activities
+  that domain follows are published at an even pace. Domains are independent
+  and symmetric, so the cost for D domains is D times this (`FanOut.run/2`
+  needs no more than a handful of domains to count notifications).
+
+  Returns the origin's cost units, the receiver's cost units (B: request 1,
+  query 0.5, activity 0.5, row 0.1; see `Compare`) and the request counts.
+  `posts` is the total over every actor of that origin which the domain
+  follows: ten actors posting once each look like one actor posting ten times.
+  """
+  def per_domain(posts, window_ms, quiet_ms \\ 3_000) do
+    sim_domains = 10
+    push = run(:push, domains: sim_domains, posts: posts, window_ms: window_ms)
+
+    pull =
+      run(:pull, domains: sim_domains, posts: posts, window_ms: window_ms, quiet_ms: quiet_ms)
+
+    # B side, per domain
+    push_b = posts * (1.0 + 0.5 + 2 * 0.5)
+    notifs = pull.requests_out / sim_domains
+    pull_b = notifs * 1.0 + notifs * (1.0 + 4 * 0.5) + posts * (0.5 + 0.1)
+
+    %{
+      posts: posts,
+      push_requests: push.requests_out / sim_domains,
+      pull_requests: (pull.requests_out + pull.inbound_requests) / sim_domains,
+      notifications: notifs,
+      posts_per_notification: posts / max(notifs, 1),
+      push_origin: push.origin_cost_units / sim_domains,
+      pull_origin: pull.origin_cost_units / sim_domains,
+      push_b: push_b,
+      pull_b: pull_b
+    }
+  end
 end

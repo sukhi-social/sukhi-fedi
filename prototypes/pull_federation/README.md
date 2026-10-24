@@ -336,6 +336,67 @@ Caveats: authenticity is assumed; the stream time is a constant; there is
 no network latency; `max_reserve_ms`, `slot_ms` and the slot count are
 tuning knobs I did not tune.
 
+### Part 6: which actors should be pushed and which pulled
+
+The question: does it depend on how often an actor posts, how many
+followers it has, or both? (`FanOut.per_domain/3`, quiet period 3 s,
+costs as in parts 1 and 2.)
+
+**What decides it is how many posts reach one receiving domain per
+notification window, not the follower count and not one actor's rate.**
+Per follower domain the origin pays, for push, `sign + send + 2 writes`
+per post; for pull, one notification and one stream per *window*. The
+number of domains multiplies both sides (almost exactly: serializing and
+signing the activity once is a small part that does not scale), so it
+scales the absolute bill but does not move the break-even. And the window is per origin: a
+notification and a stream cover every actor of that origin the domain
+follows, so fifty actors posting once a minute each look like one actor
+posting almost once a second. That answers "pulling several actors at
+once": yes, it matters, and it moves small-but-chatty origins towards pull.
+
+Per follower domain, 10 minutes, even pace:
+
+| Posts that domain follows on this origin | Posts per notification | Origin push / pull cost | Receiver push / pull cost | Cheaper |
+| --- | --- | --- | --- | --- |
+| 1 | 1.0 | 0.9x | 0.5x | push |
+| 10 | 1.0 | 0.8x | 0.5x | push |
+| 100 | 1.0 | 0.8x | 0.5x | push |
+| 200 (one per 3 s) | 1.0 | 0.8x | 0.5x | push |
+| 300 (one per 2 s) | 1.5 | 1.2x | 0.8x | origin: pull, receiver: push |
+| 400 | 2.0 | 1.6x | 1.0x | pull (receiver: even) |
+| 600 (one per second) | 3.0 | 2.2x | 1.3x | pull |
+| 2,000 | 10.0 | 4.9x | 2.5x | pull |
+
+(`x` = push cost divided by pull cost; below 1.0 push is cheaper.)
+
+Below roughly one post per quiet period every post needs its own
+notification *and* its own pull, so pull does the same work in two
+requests and loses by about 20% at the origin and by half at the
+receiver. Above it the batches form. A longer quiet period moves the
+break-even down and the latency up: with 10 s, 200 posts per 10 min
+already batch 3.3 to 1 (origin 2.3x, receiver 1.4x). With 1 s the
+break-even is 1,200 posts per 10 min.
+
+So, for the four corners:
+
+| | Posts rarely | Posts a lot |
+| --- | --- | --- |
+| **Few followers** | push; the difference is a fraction of a cent either way | pull is cheaper per domain, but with 5 domains the absolute saving is small (600 posts per 10 min: 11,000 units saved on 5 domains, 11 million on 5,000). Push is fine, pull is optional |
+| **Many followers** | push; pull is about 20% worse per domain and gains nothing. The one burst to watch is a single post that creates `D` jobs at once | pull: the largest absolute saving, and it removes the `D x P` job queue (1,000 domains x 100 posts: 100,000 queued jobs against 1,000 dirty entries) |
+
+Two things the corners hide: the cost of pull's complexity is paid once
+per origin, not per actor, so "which actors" is really "which
+(origin, receiving domain) pairs"; and a receiver being overloaded or an
+origin being in a burst (parts 1 and 5) can justify pull even at a low
+average rate, because averages hide the peak.
+
+That points at a rule a program can evaluate per (origin, domain):
+use **push by default; switch that domain to notify-and-pull when its
+recent posts per quiet window exceed about 1.5, or when it answered
+429/5xx recently; switch back when the rate falls**. Directs and anything
+urgent stay push regardless. The switch is not built into the prototype
+yet; the numbers above are what it would be tuned against.
+
 ### What the model says
 
 **Pull wins when either side is the scarce one.** B's queue overflows
