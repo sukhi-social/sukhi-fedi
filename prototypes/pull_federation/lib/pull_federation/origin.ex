@@ -21,6 +21,9 @@ defmodule PullFederation.Origin do
             followers: %{},
             follows: %{},
             signers: %{},
+            delete_jobs: %{},
+            delete_max_attempts: 16,
+            deletes_given_up: 0,
             nonces: %{},
             bucket_keys: %{},
             log_max: 10_000,
@@ -102,12 +105,20 @@ defmodule PullFederation.Origin do
         {o, :push_only, []}
 
       # A Delete is pushed to everyone, whatever the density: it is small, it
-      # should land fast, and it does not count towards a domain's rate.
-      # If a push fails the domain falls back to a notification (`push_failed/4`),
-      # because the Delete is in the log like any activity.
+      # should land fast, and it does not count towards a domain's rate. It is
+      # never turned into "come and get it": a receiver may take its time or
+      # never ask, and the content has to go. So each (domain, delete) is a
+      # job that is retried with backoff until it is delivered or the attempts
+      # run out (`delete_result/5`, `due_deletes/2`).
       {o, event, domains} when activity.type == :delete ->
         pushes = for d <- Enum.sort(domains), do: {d, push_payload(event)}
-        {o, {:routed, event.seq}, pushes}
+
+        jobs =
+          Enum.reduce(pushes, o.delete_jobs, fn {d, payload}, acc ->
+            Map.put(acc, {d, activity.id}, %{payload: payload, attempt: 1, due: nil})
+          end)
+
+        {%{o | delete_jobs: jobs}, {:routed, event.seq}, pushes}
 
       {o, event, domains} ->
         {o, pushes, pulls} =
@@ -126,6 +137,48 @@ defmodule PullFederation.Origin do
 
         {mark_dirty(o, pulls, event.key), {:routed, event.seq}, Enum.reverse(pushes)}
     end
+  end
+
+  @doc """
+  The outcome of pushing a Delete (the first try returned by `publish_routed/4`,
+  or a retry from `due_deletes/2`). `:ok` ends the job. `:fail` schedules the
+  next try after `n^4 + 15` seconds plus a hash jitter (the Mastodon shape), and
+  after `delete_max_attempts` tries gives up and counts it in `deletes_given_up`.
+  """
+  def delete_result(%__MODULE__{} = o, domain, id, :ok, _now),
+    do: %{o | delete_jobs: Map.delete(o.delete_jobs, {domain, id})}
+
+  def delete_result(%__MODULE__{} = o, domain, id, :fail, now) do
+    case Map.fetch(o.delete_jobs, {domain, id}) do
+      :error ->
+        o
+
+      {:ok, %{attempt: n}} when n >= o.delete_max_attempts ->
+        %{
+          o
+          | delete_jobs: Map.delete(o.delete_jobs, {domain, id}),
+            deletes_given_up: o.deletes_given_up + 1
+        }
+
+      {:ok, %{attempt: n} = job} ->
+        base = Integer.pow(n, 4)
+        jitter = :erlang.phash2({domain, id, n}, div(base, 2) + 1)
+        job = %{job | attempt: n + 1, due: now + (base + 15 + jitter) * 1_000}
+        %{o | delete_jobs: Map.put(o.delete_jobs, {domain, id}, job)}
+    end
+  end
+
+  @doc "Delete pushes whose retry time has come: `{o, [{domain, id, payload}]}`. Report each with `delete_result/5`."
+  def due_deletes(%__MODULE__{} = o, now) do
+    due = for {{d, id}, %{due: at} = j} <- o.delete_jobs, at != nil and at <= now, do: {d, id, j}
+
+    jobs =
+      Enum.reduce(due, o.delete_jobs, fn {d, id, j}, acc ->
+        Map.put(acc, {d, id}, %{j | due: nil})
+      end)
+
+    {%{o | delete_jobs: jobs},
+     due |> Enum.map(fn {d, id, j} -> {d, id, j.payload} end) |> Enum.sort()}
   end
 
   @doc """

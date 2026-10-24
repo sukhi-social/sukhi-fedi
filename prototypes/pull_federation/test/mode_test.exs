@@ -110,11 +110,40 @@ defmodule ModeTest do
       assert o2.mode == o.mode
     end
 
-    test "a Delete whose push fails reaches the domain through a notification" do
+    test "a Delete whose push fails is retried with backoff, not turned into a notification" do
       del = %{type: :delete, id: "d1", object: "1", visibility: :public}
-      {o, _, _} = Origin.publish_routed(origin(), @a, del, 0)
-      o = Origin.push_failed(o, "b.example", @a, 100)
-      assert Map.keys(o.dirty) == ["b.example"]
+      {o, _, [_, _]} = Origin.publish_routed(origin(), @a, del, 0)
+      o = Origin.delete_result(o, "b.example", "d1", :fail, 1_000)
+      o = Origin.delete_result(o, "c.example", "d1", :ok, 1_000)
+
+      # nothing is marked for notification, the domain is not moved to pull
+      assert o.dirty == %{}
+      assert {_, []} = Origin.due_deletes(o, 1_000 + 15_999)
+      {o, [{"b.example", "d1", payload}]} = Origin.due_deletes(o, 1_000 + 16_000 + 1_000)
+      assert payload.activity.type == :delete
+
+      # second failure: n = 2, 2^4 + 15 = 31 s at least
+      o = Origin.delete_result(o, "b.example", "d1", :fail, 20_000)
+      assert {_, []} = Origin.due_deletes(o, 20_000 + 30_999)
+      {o, [{"b.example", "d1", _}]} = Origin.due_deletes(o, 20_000 + 31_000 + 16_000)
+
+      o = Origin.delete_result(o, "b.example", "d1", :ok, 100_000)
+      assert o.delete_jobs == %{}
+    end
+
+    test "a Delete is given up on only after the attempts run out" do
+      del = %{type: :delete, id: "d1", object: "1", visibility: :public}
+      o = Origin.new(delete_max_attempts: 3) |> Origin.follow("b.example", @a)
+      {o, _, _} = Origin.publish_routed(o, @a, del, 0)
+
+      o =
+        Enum.reduce(1..3, o, fn i, o ->
+          o = Origin.delete_result(o, "b.example", "d1", :fail, i * 10_000_000)
+          {o, _} = Origin.due_deletes(o, (i + 1) * 10_000_000)
+          o
+        end)
+
+      assert o.deletes_given_up == 1 and o.delete_jobs == %{}
     end
 
     test "direct messages are not routed at all" do

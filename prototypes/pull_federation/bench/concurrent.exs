@@ -5,18 +5,33 @@ alias PullFederation.{Etag, Origin, Puller}
 
 defmodule Srv do
   use GenServer
+  # Service time per call, in microseconds, times COST (env, default 0): what the
+  # database and the signature cost on a loaded server. A busy-wait, so the
+  # origin process really is occupied for that long.
+  def spin(us) do
+    f = :persistent_term.get(:cost, 0.0)
+    n = round(us * f)
+    if n > 0 do
+      t = System.monotonic_time(:microsecond)
+      spin_until(t + n)
+    end
+  end
+  defp spin_until(t), do: if(System.monotonic_time(:microsecond) < t, do: spin_until(t), else: :ok)
+
   def start_link(o), do: GenServer.start_link(__MODULE__, o)
   def init(o), do: {:ok, %{o: o, pids: %{}, calls: 0}}
   def handle_call({:register, d, pid}, _, s), do: {:reply, :ok, put_in(s.pids[d], pid)}
   def handle_call({:publish, actor, act}, _, s) do
+    spin(300)
     {o, _} = Origin.publish(s.o, actor, act)
     {:reply, :ok, %{s | o: o, calls: s.calls + 1}}
   end
   def handle_call({:request, d, cursors}, _, s) do
+    spin(300)
     {o, ans} = Origin.request_stream(s.o, d, cursors, now())
     {:reply, ans, %{s | o: o, calls: s.calls + 1}}
   end
-  def handle_call({:bucket, b}, _, s), do: {:reply, Origin.bucket_doc(s.o, b), s}
+  def handle_call({:bucket, b}, _, s), do: spin(100) |> then(fn _ -> {:reply, Origin.bucket_doc(s.o, b), s} end)
 
   def handle_call({:close, d}, _, s),
     do: {:reply, :ok, %{s | o: Origin.close_stream(s.o, d, now()), calls: s.calls + 1}}
@@ -76,6 +91,27 @@ defmodule Recv do
     end
   end
 
+  # Admission control in front of the origin process: at most `limit` requests
+  # waiting for it; the rest are refused at once (a 503 with Retry-After), without
+  # touching its mailbox. limit 0 = no gate.
+  defp gated_request(srv, domain, cursors, lag_tab) do
+    {ref, limit} = :persistent_term.get(:gate)
+
+    case limit > 0 and :atomics.add_get(ref, 1, 1) > limit do
+      true ->
+        :atomics.sub(ref, 1, 1)
+        :ets.insert(lag_tab, {:shed, 1})
+        {:error, {:busy, 500 + :rand.uniform(1000)}}
+
+      false ->
+        try do
+          GenServer.call(srv, {:request, domain, cursors}, 120_000)
+        after
+          if limit > 0, do: :atomics.sub(ref, 1, 1)
+        end
+    end
+  end
+
   defp wait_for(b) do
     gap = if b.stale["o"], do: Map.get(b.last_accepted, "o", 0) + b.min_notify_gap_ms - Srv.now(), else: 0
     max(Map.get(b.not_before, "o", 0) - Srv.now(), gap)
@@ -86,7 +122,7 @@ defmodule Recv do
       {:pull, "o", cursors} ->
         b = Puller.begin_pull(b, "o")
         t0 = Srv.now()
-        ans = GenServer.call(srv, {:request, domain, cursors}, 60_000)
+        ans = gated_request(srv, domain, cursors, lag_tab)
         :ets.insert(lag_tab, {:trace, domain, Srv.now(), {:ans, (case ans do {:ok, ev, _} -> {:ok, length(ev)}; {:error, e} -> e end)}})
         :ets.insert(lag_tab, {:call_us, (Srv.now() - t0)})
 
@@ -127,6 +163,11 @@ origin =
   end)
 
 follows = origin.follows
+cost = System.get_env("COST", "0") |> then(&if(String.contains?(&1, "."), do: String.to_float(&1), else: String.to_float(&1 <> ".0")))
+gate = System.get_env("GATE", "0") |> String.to_integer()
+settle = System.get_env("SETTLE", "10") |> String.to_integer()
+:persistent_term.put(:cost, cost)
+:persistent_term.put(:gate, {:atomics.new(1, []), gate})
 {:ok, srv} = Srv.start_link(origin)
 lag = :ets.new(:lag, [:public, :duplicate_bag, write_concurrency: true])
 
@@ -156,14 +197,15 @@ posted =
     for _ <- 1..per do
       a = :rand.uniform(n_actors)
       :ets.insert(lag, {:posted, a})
-      GenServer.call(srv, {:publish, "u#{a}", %{id: "p#{n}-#{:rand.uniform(1_000_000)}", type: :create, visibility: :public, at: Srv.now()}}, 60_000)
+      {us, _} = :timer.tc(fn -> GenServer.call(srv, {:publish, "u#{a}", %{id: "p#{n}-#{:rand.uniform(1_000_000)}", type: :create, visibility: :public, at: Srv.now()}}, 120_000) end)
+      :ets.insert(lag, {:pub_ms, us / 1000})
     end
     Process.sleep(max(target - Srv.now(), 0))
     n + per
   end)
 
 IO.puts("posted #{posted} in #{Srv.now() - t0} ms (target #{secs * 1000})")
-Process.sleep(10_000)
+Process.sleep(settle * 1000)
 pct = fn xs, p -> xs |> Enum.sort() |> then(&Enum.at(&1, min(round(length(&1) * p) , length(&1) - 1))) end
 get = fn k -> for {^k, v} <- :ets.tab2list(lag), do: v end
 lags = get.(:lag)
@@ -173,7 +215,10 @@ expected =
     acc -> acc + Enum.count(follows, fn {_d, as} -> MapSet.member?(as, "u#{a}") end)
   end
 
+pubs = get.(:pub_ms)
+IO.puts("COST=#{cost} GATE=#{gate} settle=#{settle}s")
 IO.puts("expected deliveries=#{expected}")
+IO.puts("author's publish call (save) ms p50=#{Float.round(pct.(pubs, 0.5), 1)} p99=#{Float.round(pct.(pubs, 0.99), 1)} max=#{Float.round(Enum.max(pubs, fn -> 0 end), 1)}  shed=#{length(get.(:shed))}")
 IO.puts("server stats: #{inspect(GenServer.call(srv, :stats))}  peak mailbox=#{:atomics.get(peak_q, 1)}")
 IO.puts("deliveries=#{length(lags)}  lag ms p50=#{pct.(lags, 0.5)} p99=#{pct.(lags, 0.99)} max=#{Enum.max(lags, fn -> 0 end)}")
 IO.puts("pull call (request_stream round trip) ms p50=#{pct.(calls, 0.5)} p99=#{pct.(calls, 0.99)} max=#{Enum.max(calls, fn -> 0 end)}  calls=#{length(calls)}  declined=#{inspect(Enum.frequencies(get.(:declined)))}")

@@ -678,17 +678,26 @@ of the runs with a short wait (`Puller`, `stale`):
 
 With both fixed, every run delivers all 1 000 000 for every wait.
 
-### Part 13: Delete goes by push
+### Part 13: Delete goes by push, and is retried until it lands
 
 `Origin.publish_routed/4` pushes a Delete to every follower domain
 whatever their density mode (it is small and should land fast), and it
 does not count towards a domain's rate, so a Delete never flips anyone to
-pull. It is appended to the log like any activity, so a failed push
-(`push_failed/4`) falls back to a notification and the domain catches up
-by pull. The receiver side was already order-independent: a Delete that
-arrives before its Create wins (`Puller`, tombstones). Distribution is
-parallel: all domains are contacted at once, each answers at its own pace
-(`bench/concurrent.exs` already runs one process per domain).
+pull.
+
+A failed Delete push is **not** turned into a notification. A
+notification only says "something changed, come and look": the receiver
+may take its time or never ask, and a Delete is an instruction that has
+to arrive. Each (domain, Delete) is a job: `delete_result/5` with `:fail`
+schedules the next try after `n^4 + 15` seconds plus a hash jitter (the
+Mastodon shape: 16 s, 31 s, 96 s, ... about 2.4 days over 16 tries), and
+only after the last try is the job dropped and counted in
+`deletes_given_up`, which a status view can show honestly ("no answer").
+`due_deletes/2` hands out the retries that are due. Receivers apply a
+repeated Delete harmlessly (tombstones), and a Delete that arrives before
+its Create wins. The Delete is in the log too, so a domain that pulls
+anyway sees it. Distribution is parallel: all domains are contacted at
+once and answer at their own pace.
 
 ### What the model says
 
