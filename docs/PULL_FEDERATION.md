@@ -135,7 +135,27 @@ the busiest peers and their breaker state. The dashboard shows
 "POSTs avoided (24 h)". Rows older than the metrics retention are
 pruned by `Metrics.prune`.
 
-## 7. Honest limits
+## 7. Replacing the notification
+
+The "I have news" step is a stopgap. A FEP for server-status
+broadcast ("I am up, you may send again") is being written with
+others; when it is published, the notification is **replaced** by it,
+not switched with a flag. Pull itself (§2 Pull, the log, the cursors)
+stays. The notification lives in exactly these places, and nowhere else:
+
+| Part | Place |
+|---|---|
+| Sending (origin) | `delivery/.../pull_federation/notifier.ex`, `notify_worker.ex` (and the `heads` query in it) |
+| Receiving (follower) | `elixir/.../pull_federation/notify.ex`, `POST /pull/v1/notify` in the controller and router |
+| Its counters | `notify_sent`, `notify_failed`, `notify_received`, `notify_dropped` |
+
+Everything downstream is independent of how the follower learned there
+is news: `pull_pending` (host and actors to pull), `Puller`, `Serve`,
+`Fallback`. The replacement therefore only has to put hosts into
+`pull_pending` (receiving side) and decide when to tell a host
+(sending side); the capability href moves to the new FEP's.
+
+## 8. Honest limits
 
 - **Delete racing a pulled Create.** A Delete is pushed immediately; a
   follower that has been notified but has not pulled yet may later pull
