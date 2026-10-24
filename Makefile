@@ -3,7 +3,7 @@
 # One place to start from. `make` on its own lists everything.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev dev-web test test-shared test-elixir test-delivery test-api test-web check-specs \
+.PHONY: help setup dev dev-web dev-about test test-shared test-elixir test-delivery test-api test-web check-specs \
         test-pglite test-e2e check check-presets env-audit script-tests need-tsubaki up down preflight \
         push-static push-styles clear-static static-status \
         push-natadeco natadeco-images
@@ -32,6 +32,7 @@ setup:  ## fetch every project's dependencies
 	cd web && $(RUN) pnpm install
 	cd bun && $(RUN) pnpm install
 	cd web-natadeco && $(RUN) pnpm install
+	cd about && $(RUN) pnpm install
 
 # ── Running it locally ──────────────────────────────────────────────────────
 
@@ -40,6 +41,9 @@ dev:  ## run the whole thing locally, no Docker (:4000, IEx shell)
 
 dev-web:  ## the SPA dev server (:5173), in a second terminal
 	cd web && $(RUN) pnpm run dev
+
+dev-about:  ## the about.sukhi.social page (Astro, :4321)
+	cd about && $(RUN) pnpm run dev
 
 up:  ## the full docker-compose stack instead (:4000)
 	@docker info >/dev/null 2>&1 || { echo "Docker isn't answering — start it first (colima start / Docker Desktop)."; exit 1; }

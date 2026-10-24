@@ -1,0 +1,51 @@
+---
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import '../styles/about.css';
+import { copy, LOGIN_URL, ORG_URL, type Locale } from '../content';
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const c = copy[locale];
+const other = locale === 'ja' ? '/ko/' : '/';
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{c.title}</title>
+    <meta name="description" content={c.description} />
+    <link rel="icon" href="/favicon.png" />
+    <link rel="alternate" hreflang="ja" href="/" />
+    <link rel="alternate" hreflang="ko" href="/ko/" />
+  </head>
+  <body>
+    <header class="bar">
+      <a class="mark" href={locale === 'ja' ? '/' : '/ko/'}>sukhi</a>
+      <nav aria-label="language">
+        <a href={other} hreflang={locale === 'ja' ? 'ko' : 'ja'}>{c.langSwitch}</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1>{c.slogan}</h1>
+        <p class="lead">{c.lead}</p>
+        <p class="login">
+          <a class="button" href={LOGIN_URL}>{c.login}</a>
+          <span class="note">{c.loginNote}</span>
+        </p>
+      </section>
+
+      <slot />
+    </main>
+
+    <footer>
+      <p>{c.footer}</p>
+      <p><a href={ORG_URL}>github.com/sukhi-social</a></p>
+    </footer>
+  </body>
+</html>
