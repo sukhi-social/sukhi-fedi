@@ -14,13 +14,14 @@ defmodule PullFederation.Origin do
     * `recovered/2`   "Server Status Broadcast": notify everyone, spread by jitter
   """
 
-  alias PullFederation.{Calendar, Cursors, Etag, Mode, Proof, Snapshot, Visibility}
+  alias PullFederation.{Calendar, Cursors, Etag, Mode, Proof, RequestAuth, Snapshot, Visibility}
 
   defstruct log: %{},
             seqs: %{},
             followers: %{},
             follows: %{},
             signers: %{},
+            nonces: %{},
             bucket_keys: %{},
             log_max: 10_000,
             log_len: %{},
@@ -289,6 +290,34 @@ defmodule PullFederation.Origin do
       {o, {:ok, events, announced}} -> {:ok, o, events, announced}
       {_o, {:error, err}} -> {:error, err}
     end
+  end
+
+  @doc """
+  The boundary for pull requests from the network. The requester is
+  authenticated here, once (`RequestAuth.verify/5`), and a nonce is
+  accepted only once within its window, so a captured request cannot be
+  replayed. Behind it `request_stream/4` trusts the domain.
+
+  Errors: `{:error, :unauthenticated | :expired | :replayed}`; none of
+  them touches the calendar, a slot or the database.
+  """
+  def authenticated_stream(%__MODULE__{} = o, req, keys, target, cursors, now) do
+    o = prune_nonces(o, now)
+
+    with {:ok, domain, nonce, expires} <- RequestAuth.verify(req, keys, target, cursors, now),
+         :ok <- fresh_nonce(o, nonce) do
+      request_stream(%{o | nonces: Map.put(o.nonces, nonce, expires)}, domain, cursors, now)
+    else
+      {:error, _} = err -> {o, err}
+    end
+  end
+
+  defp fresh_nonce(o, nonce),
+    do: if(Map.has_key?(o.nonces, nonce), do: {:error, :replayed}, else: :ok)
+
+  defp prune_nonces(o, now) do
+    # bounded by the requests of one window
+    %{o | nonces: Map.reject(o.nonces, fn {_n, exp} -> exp < now end)}
   end
 
   @doc """

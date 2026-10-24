@@ -92,6 +92,28 @@ clock window.
   actor, actor's host equals the host that served the stream (not
   implemented in the prototype), and then nothing downstream re-verifies.
 
+## Pull requests are signed too (`RequestAuth`, `Origin.authenticated_stream/6`)
+
+HTTPS shows the client the server, not the server the client. Before
+this, the domain in a pull request was only a claim: anyone could name
+`d1` and read d1's followers-only stream, or burn d1's appointment.
+
+`Origin.authenticated_stream/6` is the boundary: it verifies the request
+once, then calls `request_stream/4`, which trusts the domain. The
+signature covers domain, target, a digest of the cursors, `created`,
+`expires` (60 s), `nonce` and a `tag`. Tested: another domain's name with
+one's own key, a valid signature relabelled to another domain, no
+signature, unknown domain, wrong target, changed cursors, expired and
+not-yet-valid requests, and replay of a captured request (each nonce is
+accepted once; spent nonces are dropped after the window, so the table is
+bounded by one window of requests). A refusal takes no slot, books no
+appointment and touches no database.
+
+Still unsigned on purpose: notifications and ETags (hints). Still open:
+the key directory for domains (here a map; in a real server the key of the
+requesting server's actor or instance actor, fetched once and cached) and
+the 9421 wire serialisation.
+
 ## Cost (measured: `mix run bench/sign.exs`, one core, OTP crypto)
 
 | operation | microseconds |
