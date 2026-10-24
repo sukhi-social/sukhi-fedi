@@ -340,3 +340,187 @@ An actor (type `#Person`):
   "isCat": false
 }
 ```
+
+## What Misskey reads from objects
+
+**[src]** `ApNoteService.ts` (`createNote`, `extractEmojis`), `ApPersonService.ts` (`validateActor`, `createPerson`), `ApQuestionService.ts`, `ApImageService.ts`, `ApMentionService.ts`, `type.ts`.
+
+The types above say what Misskey writes. What Misskey accepts is wider, but once it has taken the values it needs, it uses only those. The types below list exactly the properties it reads (`#In...`); every other property is ignored, which is why they stay open (`...`). A property listed here with no `?` is one whose absence makes Misskey refuse the object.
+
+Rules that no type can say, all **[src]**:
+
+- A note's `id` and `url` must be https. Its `id` and `attributedTo` must be on the host it was fetched from, and `attributedTo` must be the sending actor.
+- `published`, if present, must be a sane date.
+- An actor's `id`, `inbox`, `outbox`, `followers`, `following`, and `publicKey.id` must be on the host the actor was fetched from. A shared inbox on another host is dropped.
+- `preferredUsername` is at most 128 characters; `name` and `summary` are cut when long.
+- An attachment or emoji `url` must be a string; an attachment must be https.
+- `type` may be an array; Misskey uses its first element.
+
+```cue
+// An id, as `getApId` reads it: a string, or an object with an `id`.
+#Ref: #URL | {id: #URL, ...}
+
+// One reference or several. `getOneApId` takes the first.
+#Refs: #Ref | [#Ref, ...#Ref]
+
+// A link, as `getApHrefNullable` reads it.
+#Href: #URL | {href: #URL, ...}
+
+#InHashtag: {
+	type: "Hashtag" | ["Hashtag", ...string]
+	name: string
+	...
+}
+
+#InMention: {
+	type: "Mention" | ["Mention", ...string]
+	href: #URL
+	...
+}
+
+// `isEmoji` needs a single `icon` object with a `url`.
+#InEmoji: {
+	type:     "Emoji" | ["Emoji", ...string]
+	id?:      #URL
+	name:     string // colons are stripped
+	updated?: string
+	icon: {url: #URL, ...}
+	"_misskey_license"?: {freeText: string | null, ...}
+	...
+}
+
+#InDocument: {
+	type:       "Audio" | "Document" | "Image" | "Page" | "Video"
+	url:        #URL
+	name?:      string | null
+	sensitive?: bool
+	...
+}
+
+#InChoice: {
+	name?: string
+	replies?: {totalItems?: int, ...}
+	"_misskey_votes"?: int
+	...
+}
+
+// Any post type; Misskey makes a note of it.
+#InNote: {
+	id:            #URL
+	type:          "Note" | "Question" | "Article" | "Audio" | "Document" | "Image" | "Page" | "Video" | "Event"
+	attributedTo?: #Refs // when absent in a Create, the activity's actor is used
+	url?:          #Href | [#Href, ...#Href]
+	published?:    string
+	summary?:      string // "" means no content warning
+	name?:         string // the title, or the choice of a vote
+	content?:      string | null
+	source?: {
+		content:   string
+		mediaType: string // only `text/x.misskeymarkdown` is used
+		...
+	}
+	"_misskey_content"?: string
+	"_misskey_quote"?:   string
+	quoteUrl?:           string
+	to?:                 #Refs
+	cc?:                 #Refs
+	inReplyTo?:          #Ref
+	attachment?:         #InDocument | [...#InDocument]
+	sensitive?:          bool
+	tag?:                [...(#InHashtag | #InMention | #InEmoji | {type: _, ...})] | {...}
+	endTime?:            string
+	closed?:             string
+	oneOf?:              [...#InChoice]
+	anyOf?:              [...#InChoice]
+	...
+}
+
+#InActor: {
+	type:               "Person" | "Service" | "Group" | "Organization" | "Application"
+	id:                 #URL
+	inbox:              #URL
+	sharedInbox?:       #Ref
+	endpoints?:         {sharedInbox?: #Ref, ...}
+	outbox?:            #Ref
+	followers?:         #Ref
+	following?:         #Ref
+	featured?:          #Ref
+	preferredUsername:  =~"^\\w([\\w.-]*\\w)?$"
+	name?:              string
+	summary?:           string
+	"_misskey_summary"?:           string
+	"_misskey_followedMessage"?:   string | null
+	url?:               #Href | [#Href, ...#Href]
+	icon?:              _
+	image?:             _
+	tag?:               _
+	attachment?:        _
+	publicKey?:         {id: #URL, publicKeyPem: string, ...}
+	manuallyApprovesFollowers?: bool
+	discoverable?:      bool
+	movedTo?:           #URL
+	alsoKnownAs?:       #URL | [...#URL]
+	isCat?:             bool
+	// read without the `_misskey_` prefix, although Misskey writes them with it
+	requireSigninToViewContents?:  bool
+	makeNotesFollowersOnlyBefore?: int | null
+	makeNotesHiddenBefore?:        int | null
+	"vcard:bday"?:      string
+	"vcard:Address"?:   string
+	...
+}
+```
+
+How Misskey picks the values it keeps:
+
+| Kept value | Taken from, in order |
+| --- | --- |
+| note text | `source.content` (if `source.mediaType` is `text/x.misskeymarkdown`), then `_misskey_content`, then `content` converted from HTML |
+| quote | `_misskey_quote` and `quoteUrl`, both tried |
+| content warning | `summary` (`""` means none) |
+| visibility | `to` and `cc` ([note](note.md)) |
+| poll | `anyOf` if there is no `oneOf` (multiple choice); the end is `endTime`, else `closed`; a choice's count is `replies.totalItems`, else `_misskey_votes`, else 0 |
+| vote | a note whose parent is a poll and whose `name` equals a choice |
+| shared inbox | `sharedInbox`, else `endpoints.sharedInbox` |
+| actor description | `_misskey_summary`, else `summary` converted from HTML |
+| bot flag | the type is `Service` or `Application` |
+| birthday | the first `YYYY-MM-DD` of `vcard:bday` |
+
+Note that Misskey writes `_misskey_requireSigninToViewContents`, `_misskey_makeNotesFollowersOnlyBefore`, and `_misskey_makeNotesHiddenBefore`, but reads the same three without the prefix. A Misskey server therefore does not read these settings from another Misskey server. **[src]** (compare `renderPerson` with `createPerson`)
+
+A note as a server with no Misskey terms might send it (type `#InNote`):
+```json
+{
+  "id": "https://other.example/notes/1",
+  "type": "Note",
+  "attributedTo": "https://other.example/users/b2",
+  "content": "<p>Hello <a href=\"https://misskey.example/@alice\" class=\"u-url mention\">@alice</a></p>",
+  "published": "2026-10-23T09:00:00Z",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://misskey.example/users/a1"],
+  "tag": [
+    {
+      "type": "Mention",
+      "href": "https://misskey.example/users/a1",
+      "name": "@alice@misskey.example"
+    }
+  ]
+}
+```
+
+An actor as a server with no Misskey terms might send it (type `#InActor`):
+```json
+{
+  "type": "Person",
+  "id": "https://other.example/users/b2",
+  "inbox": "https://other.example/users/b2/inbox",
+  "outbox": "https://other.example/users/b2/outbox",
+  "preferredUsername": "bob",
+  "name": "Bob",
+  "publicKey": {
+    "id": "https://other.example/users/b2#main-key",
+    "owner": "https://other.example/users/b2",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
+  }
+}
+```

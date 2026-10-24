@@ -7,7 +7,7 @@
 
 ## In one paragraph
 
-Misskey sends fourteen kinds of activity and accepts fourteen at its inbox. For each, this page gives the exact shape Misskey sends (every property, no others), what it does when one arrives, and which Misskey function builds or handles it. Two things surprise most readers: Misskey applies `Update` only to actors and polls, never to a note; and an `Accept` or `Reject` carries the whole `Follow` it answers, not just its id.
+Misskey sends fourteen kinds of activity and accepts fourteen at its inbox. For each, this page gives the exact shape Misskey sends (every property, no others), what it does when one arrives, the properties it reads to do so (nothing else is used), and which Misskey function builds or handles it. Two things surprise most readers: Misskey applies `Update` only to actors and polls, never to a note; and an `Accept` or `Reject` carries the whole `Follow` it answers, not just its id.
 
 Sent: **[src]** `ApRendererService.ts` (`render*`) and the services that call it, named in each section. Received: **[src]** `ApInboxService.ts`.
 
@@ -442,3 +442,260 @@ Other rules from the same file:
 - A suspended actor is ignored.
 - A `Collection` or `OrderedCollection` is unpacked item by item. Items whose host differs from the actor's are skipped.
 
+
+## What Misskey reads from each activity
+
+The table above says what Misskey does. The types below say which properties it reads to do it; the rest are ignored (the types are open). The object types (`#InNote`, `#InActor`) are in [objects](objects.md).
+
+Rules that apply to all of them, **[src]** `ApInboxService.ts`, `InboxProcessorService.ts`:
+
+- The activity needs a string `id` (a missing one is an error in most branches) and an `actor` that is the signer ([signatures](signatures.md)). For `Delete`, `Update`, `Undo`, `Add`, and `Remove`, `actor` must equal the signer or the activity is skipped.
+- `type` may be an array; the first element is used.
+- `object` may be a string or an object. For `Create`, `Update`, `Accept`, `Reject`, `Undo`, and `Announce`, Misskey resolves it (fetches it when it is a bare URL), so the nested object's own properties are what count.
+- The activity may also be a `Collection` or an `OrderedCollection` of activities. Misskey runs each item whose `id` host equals the actor's host.
+
+```cue
+#InActivity: {
+	id:    #URL
+	actor: #Ref
+	...
+}
+
+#InCreate: {
+	#InActivity
+	type:    "Create" | ["Create", ...string]
+	object:  #InNote | #URL
+	to?:     #Refs // merged with the object's `to`
+	cc?:     #Refs
+	...
+}
+
+#InDelete: {
+	#InActivity
+	type: "Delete" | ["Delete", ...string]
+	// A bare id has no type: the target is then a Person if it equals the
+	// actor, otherwise a Note. A Tombstone's `formerType` gives the type.
+	object: #URL | {id: #URL, type?: string, formerType?: string, ...}
+	...
+}
+
+#InUpdate: {
+	#InActivity
+	type:   "Update" | ["Update", ...string]
+	object: #InActor | #InNote | #URL // only an actor or a Question is applied
+	...
+}
+
+#InFollow: {
+	#InActivity
+	type:   "Follow" | ["Follow", ...string]
+	object: #Ref // must be a local user
+	...
+}
+
+// The Follow being answered or undone. Its `actor` is the follower.
+#InFollowRef: {
+	id?:    #URL
+	type:   "Follow" | ["Follow", ...string]
+	actor:  #Ref
+	object: #Ref
+	...
+}
+
+#InAccept: {
+	#InActivity
+	type:   "Accept" | ["Accept", ...string]
+	object: #InFollowRef | #URL
+	...
+}
+
+#InReject: {
+	#InActivity
+	type:   "Reject" | ["Reject", ...string]
+	object: #InFollowRef | #URL
+	...
+}
+
+#InAnnounce: {
+	#InActivity
+	type:       "Announce" | ["Announce", ...string]
+	object:     #InNote | #URL
+	to?:        #Refs
+	cc?:        #Refs
+	published?: string
+	...
+}
+
+#InLike: {
+	#InActivity
+	type:   "Like" | "EmojiReaction" | "EmojiReact"
+	object: #Ref
+	// the reaction string is the first that is present
+	"_misskey_reaction"?: string
+	content?:             string
+	name?:                string
+	tag?:                 [...] | {...} // emoji tags are saved, see #InEmoji
+	...
+}
+
+#InUndo: {
+	#InActivity
+	type: "Undo" | ["Undo", ...string]
+	object: {
+		type: "Follow" | "Block" | "Like" | "Announce" | "Accept"
+		...
+	} | #URL
+	...
+}
+
+#InBlock: {
+	#InActivity
+	type:   "Block" | ["Block", ...string]
+	object: #Ref // must be a local user
+	...
+}
+
+#InFlag: {
+	#InActivity
+	type:     "Flag" | ["Flag", ...string]
+	content?: string
+	object:   #Refs // the first local user is the target
+	...
+}
+
+#InMove: {
+	#InActivity
+	type:   "Move" | ["Move", ...string]
+	target: #Href
+	...
+}
+
+// Add and Remove: only pinning, when `target` is the actor's `featured`.
+#InAdd: {
+	#InActivity
+	type:   "Add" | ["Add", ...string]
+	target: #URL
+	object: #Ref
+	...
+}
+
+#InRemove: {
+	#InActivity
+	type:   "Remove" | ["Remove", ...string]
+	target: #URL
+	object: #Ref
+	...
+}
+```
+
+A `Create` from a server with no Misskey terms (type `#InCreate`):
+```json
+{
+  "id": "https://other.example/notes/1/activity",
+  "type": "Create",
+  "actor": "https://other.example/users/b2",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "object": {
+    "id": "https://other.example/notes/1",
+    "type": "Note",
+    "attributedTo": "https://other.example/users/b2",
+    "content": "<p>Hello</p>"
+  }
+}
+```
+
+A `Delete` with a bare id (type `#InDelete`):
+```json
+{
+  "id": "https://other.example/notes/1/delete",
+  "type": "Delete",
+  "actor": "https://other.example/users/b2",
+  "object": "https://other.example/notes/1"
+}
+```
+
+A `Like` as another server writes a reaction (type `#InLike`):
+```json
+{
+  "id": "https://other.example/likes/1",
+  "type": "EmojiReact",
+  "actor": "https://other.example/users/b2",
+  "object": "https://misskey.example/notes/9abc",
+  "content": "🎉"
+}
+```
+
+An `Undo` of a `Like` (type `#InUndo`):
+```json
+{
+  "id": "https://other.example/likes/1/undo",
+  "type": "Undo",
+  "actor": "https://other.example/users/b2",
+  "object": {
+    "id": "https://other.example/likes/1",
+    "type": "Like",
+    "actor": "https://other.example/users/b2",
+    "object": "https://misskey.example/notes/9abc"
+  }
+}
+```
+
+A `Follow` from a remote user (type `#InFollow`):
+```json
+{
+  "id": "https://other.example/follows/f1",
+  "type": "Follow",
+  "actor": "https://other.example/users/b2",
+  "object": "https://misskey.example/users/a1"
+}
+```
+
+An `Accept` of a follow Misskey sent (type `#InAccept`):
+```json
+{
+  "id": "https://other.example/accepts/1",
+  "type": "Accept",
+  "actor": "https://other.example/users/b2",
+  "object": "https://misskey.example/follows/a1/b2"
+}
+```
+
+A `Flag` (type `#InFlag`):
+```json
+{
+  "id": "https://other.example/flags/1",
+  "type": "Flag",
+  "actor": "https://other.example/actor",
+  "content": "spam",
+  "object": ["https://misskey.example/users/a1", "https://misskey.example/notes/9abc"]
+}
+```
+
+A `Move` (type `#InMove`):
+```json
+{
+  "id": "https://other.example/moves/1",
+  "type": "Move",
+  "actor": "https://other.example/users/b2",
+  "object": "https://other.example/users/b2",
+  "target": "https://new.example/users/b3"
+}
+```
+
+An `Update` of a poll (type `#InUpdate`):
+```json
+{
+  "id": "https://other.example/updates/1",
+  "type": "Update",
+  "actor": "https://other.example/users/b2",
+  "object": {
+    "id": "https://other.example/notes/9",
+    "type": "Question",
+    "attributedTo": "https://other.example/users/b2",
+    "oneOf": [
+      {"name": "Ramen", "replies": {"totalItems": 3}},
+      {"name": "Curry", "replies": {"totalItems": 1}}
+    ]
+  }
+}
+```

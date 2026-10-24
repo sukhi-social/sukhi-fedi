@@ -141,5 +141,78 @@
       "published": "2026-10-23T09:00:00.000Z",
       "object": "https://m.example/n/1"
     }
+  },
+  {
+    "type": "InCreate",
+    "why": "a Create without an id",
+    "instance": {
+      "type": "Create",
+      "actor": "https://o.example/u",
+      "object": "https://o.example/n/1"
+    }
+  },
+  {
+    "type": "InLike",
+    "why": "a Dislike is not a reaction type",
+    "instance": {
+      "id": "https://o.example/l",
+      "type": "Dislike",
+      "actor": "https://o.example/u",
+      "object": "https://m.example/n/1"
+    }
+  },
+  {
+    "type": "InActor",
+    "why": "a username with a space",
+    "instance": {
+      "type": "Person",
+      "id": "https://o.example/u",
+      "inbox": "https://o.example/u/inbox",
+      "preferredUsername": "b ob"
+    }
+  },
+  {
+    "type": "InActor",
+    "why": "an actor without an inbox",
+    "instance": {
+      "type": "Person",
+      "id": "https://o.example/u",
+      "preferredUsername": "bob"
+    }
+  },
+  {
+    "type": "InEmoji",
+    "why": "an emoji whose icon is a list",
+    "instance": {
+      "type": "Emoji",
+      "name": ":a:",
+      "icon": [
+        {
+          "url": "https://o.example/a.png"
+        }
+      ]
+    }
+  },
+  {
+    "type": "InUndo",
+    "why": "an Undo of an unknown activity type",
+    "instance": {
+      "id": "https://o.example/x",
+      "type": "Undo",
+      "actor": "https://o.example/u",
+      "object": {
+        "type": "Create"
+      }
+    }
+  },
+  {
+    "type": "InDocument",
+    "why": "an attachment whose url is an object",
+    "instance": {
+      "type": "Image",
+      "url": {
+        "href": "https://o.example/a.png"
+      }
+    }
   }
 ]
