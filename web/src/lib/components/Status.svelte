@@ -11,6 +11,7 @@
   import PreviewCard from './PreviewCard.svelte';
   import Twemoji from './Twemoji.svelte';
   import { putDeliveryToast, dropDeliveryToast } from '#lib/deliveryToasts.svelte.js';
+  import { deliveryPrefs } from '#lib/deliveryPrefs.svelte.js';
   import { renderEmojis } from '#lib/emoji.js';
   import { renderMfm } from '#lib/mfm.js';
   import { phrase } from '#lib/phrase.js';
@@ -80,7 +81,7 @@
 
   // 見せる先は投稿の中ではなく、右下の小さな枠(DeliveryToasts)。
   $effect(() => {
-    if (timeline && shown) {
+    if (timeline && shown && !deliveryPrefs.off) {
       putDeliveryToast({
         id: status.id,
         at: shown.at,
@@ -96,7 +97,7 @@
   // 完了するまで、ときどき本人の投稿を見に行く。遅れているときは間を
   // 長く、回数にも上限を。見に行くのは、時系列が出る投稿だけ。
   $effect(() => {
-    if (readonly || !goal || timelineGone || deliveryNow === 'delivered' || polls >= 60) return;
+    if (readonly || deliveryPrefs.off || !goal || timelineGone || deliveryNow === 'delivered' || polls >= 60) return;
     const id = setTimeout(async () => {
       polls += 1;
       try {
