@@ -6,7 +6,7 @@ defmodule SukhiApi.Views.AdminReport do
   when the UI needs it.
   """
 
-  alias SukhiApi.Views.{AdminAccount, Id}
+  alias SukhiApi.Views.{AdminAccount, Id, Timestamp}
 
   @spec render(map() | nil) :: map() | nil
   def render(nil), do: nil
@@ -19,9 +19,9 @@ defmodule SukhiApi.Views.AdminReport do
       reporter: report |> Map.get(:account) |> AdminAccount.render(),
       target: report |> Map.get(:target) |> AdminAccount.render(),
       note: render_note_ref(Map.get(report, :note)),
-      resolved_at: format_dt(Map.get(report, :resolved_at)),
+      resolved_at: Timestamp.iso8601(Map.get(report, :resolved_at)),
       resolved_by: report |> Map.get(:resolved_by) |> AdminAccount.render(),
-      created_at: format_dt(Map.get(report, :inserted_at))
+      created_at: Timestamp.iso8601(Map.get(report, :inserted_at))
     }
   end
 
@@ -37,7 +37,4 @@ defmodule SukhiApi.Views.AdminReport do
       ap_id: Map.get(note, :ap_id)
     }
   end
-
-  defp format_dt(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp format_dt(_), do: nil
 end

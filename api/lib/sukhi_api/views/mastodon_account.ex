@@ -15,7 +15,7 @@ defmodule SukhiApi.Views.MastodonAccount do
   render. `nil` counts render as `0`.
   """
 
-  alias SukhiApi.Views.Id
+  alias SukhiApi.Views.{Id, Timestamp}
 
   # 1x1 透明 PNG。header(バナー)の既定 ─ バナー無しは見えないままで
   # いい。avatar は @default_avatar_path(やさしいシルエット)を使う。
@@ -89,7 +89,7 @@ defmodule SukhiApi.Views.MastodonAccount do
       discoverable: Map.get(account, :discoverable, false) || false,
       indexable: Map.get(account, :indexable, false) || false,
       group: false,
-      created_at: format_dt(Map.get(account, :created_at)),
+      created_at: Timestamp.iso8601(Map.get(account, :created_at)),
       note: Map.get(account, :summary) || "",
       url: actor_uri,
       uri: actor_uri,
@@ -266,7 +266,4 @@ defmodule SukhiApi.Views.MastodonAccount do
   def render_list(accounts, counts_by_id \\ %{}) when is_list(accounts) do
     Enum.map(accounts, fn a -> render(a, Map.get(counts_by_id, a.id, %{})) end)
   end
-
-  defp format_dt(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp format_dt(_), do: nil
 end

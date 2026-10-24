@@ -11,6 +11,8 @@ defmodule SukhiApi.Views.MisskeyNoteDraft do
   `nil` (no draft) renders as `nil`; the capability maps that to 204.
   """
 
+  alias SukhiApi.Views.Timestamp
+
   def render(nil), do: nil
 
   def render(draft) do
@@ -22,10 +24,7 @@ defmodule SukhiApi.Views.MisskeyNoteDraft do
       useSpoiler: spoiler != "",
       sensitive: !!draft.sensitive,
       visibility: draft.visibility,
-      updated_at: format_dt(draft.updated_at)
+      updated_at: Timestamp.iso8601(draft.updated_at)
     }
   end
-
-  defp format_dt(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp format_dt(_), do: nil
 end

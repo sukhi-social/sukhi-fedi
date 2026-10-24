@@ -23,7 +23,6 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
   # Meant to be reachable from the internet.
   @edge [
     # ── User-facing login (session_token cookie minter)
-    "get /login",
     "post /login",
     "post /login/totp",
     "post /login/email/request",
@@ -40,15 +39,16 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     "get /terms",
     "get /legal",
     "get /support",
+    "get /licenses",
+    "get /licenses/rust",
+    "get /credits",
 
     # ── Password set / change / remove (session_token cookie required)
-    "get /settings/password",
     "post /settings/password",
     "post /settings/password/remove",
 
     # ── Login-factor management (cookie-gated; see SecurityController)
     "get /auth/state",
-    "get /settings/security",
     "post /settings/reauth/request",
     "post /settings/email/request",
     "post /settings/email/confirm",
@@ -63,14 +63,17 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     "post /settings/sessions/:id/revoke",
 
     # ── Self-cleanup (archive own old posts; cookie-gated, reauth on execute)
-    "get /settings/cleanup",
-    "get /settings/bot",
     "post /settings/cleanup/preview",
     "post /settings/cleanup/execute",
 
     # ── Static assets for the SPA + login page
     "get /static/*path",
 
+    # ── The SPA's own pages (/signup, /lists/:id, ...) have no route of their
+    #    own: this one answers them with the shell, for exactly the paths the
+    #    build lists in routes.json (SukhiFedi.Web.SpaRoutes). A page is a
+    #    static shell with no data in it, so there is nothing to decide per page.
+    #
     # ── SvelteKit's client-side navigation data (`<path>/__data.json`),
     #    answered by the SSR renderer when SSR_URL is set; 404 otherwise
     "get /*path",
@@ -112,25 +115,6 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
 
     # ── Human-facing HTML + JSON proxy for nodeinfo lookup
     "get /",
-    "get /signup",
-    "get /invite/:code",
-    "get /timeline",
-    "get /app/callback",
-    "get /settings",
-    "get /search",
-    "get /messages",
-    "get /messages/:id",
-    "get /clips",
-    "get /compose",
-    "get /notifications",
-    "get /bookmarks",
-    "get /favourites",
-    "get /requests",
-    "get /lists",
-    "get /lists/:id",
-    "get /tags/:tag",
-    "get /map",
-    "get /check",
     "get /_app/*path",
     "get /twemoji/*path",
     "get /favicon.ico",
@@ -145,13 +129,6 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     "get /service-worker.js",
     "get /posts/:id",
     "get /d/:slug/p/:id",
-    "get /d/:slug/new",
-    "get /d/:slug",
-    "get /hello",
-    "get /tomo",
-    "get /people/:id",
-    "get /veranda",
-    "get /about",
     "get /api/nodeinfo",
     "get /api/watchers",
     "post /api/watchers",

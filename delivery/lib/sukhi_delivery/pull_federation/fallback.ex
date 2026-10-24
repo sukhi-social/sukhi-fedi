@@ -14,7 +14,7 @@ defmodule SukhiDelivery.PullFederation.Fallback do
   import Ecto.Query
 
   alias SukhiDelivery.Delivery.Worker
-  alias SukhiDelivery.Outbox.Consumer
+  alias SukhiDelivery.Outbox.Recipients
   alias SukhiDelivery.Repo
   alias SukhiShared.{PeerCapabilities, PullStats}
 
@@ -43,7 +43,7 @@ defmodule SukhiDelivery.PullFederation.Fallback do
 
         inboxes =
           actor_uri
-          |> Consumer.followers_inboxes()
+          |> Recipients.followers_inboxes()
           |> Enum.filter(&(PeerCapabilities.host_of(&1) == String.downcase(host)))
           |> Enum.uniq()
 

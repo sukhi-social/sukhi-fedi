@@ -20,7 +20,7 @@ defmodule SukhiApi.Views.MastodonNotification do
   for plain follow / follow_request.
   """
 
-  alias SukhiApi.Views.{Id, MastodonAccount, MastodonStatus}
+  alias SukhiApi.Views.{Id, MastodonAccount, MastodonStatus, Timestamp}
 
   @spec render(map() | nil) :: map() | nil
   def render(nil), do: nil
@@ -29,7 +29,7 @@ defmodule SukhiApi.Views.MastodonNotification do
     %{
       id: Id.encode(notif.id),
       type: notif.type,
-      created_at: format_dt(Map.get(notif, :created_at)),
+      created_at: Timestamp.iso8601(Map.get(notif, :created_at)),
       account: account_view(Map.get(notif, :from_account)),
       status: status_view(Map.get(notif, :note))
     }
@@ -49,7 +49,4 @@ defmodule SukhiApi.Views.MastodonNotification do
   defp status_view(nil), do: nil
   defp status_view(%{id: _, content: _} = note), do: MastodonStatus.render(note, %{})
   defp status_view(_), do: nil
-
-  defp format_dt(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp format_dt(_), do: nil
 end

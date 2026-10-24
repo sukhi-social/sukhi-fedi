@@ -26,6 +26,7 @@ defmodule SukhiFedi.PreviewCards do
   alias SukhiFedi.Fedi.HttpFetch
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.PreviewCard
+  alias SukhiShared.UrlGuard
 
   @url_re ~r{https?://[^\s"'<>)\]]+}i
   @user_agent "sukhi-fedi/1.0 (+link-preview)"
@@ -139,48 +140,11 @@ defmodule SukhiFedi.PreviewCards do
     if String.contains?(ct, "html"), do: :ok, else: :error
   end
 
-  # The host must resolve only to public addresses. We check both A and
-  # AAAA records and require at least one, all public.
+  # The host must resolve only to public addresses; the rules are
+  # `SukhiShared.UrlGuard`'s, the one copy.
   defp ensure_public_host(host) do
-    v4 = resolve(host, :inet)
-    v6 = resolve(host, :inet6)
-    addrs = v4 ++ v6
-
-    cond do
-      addrs == [] -> :error
-      Enum.all?(addrs, &public_ip?/1) -> :ok
-      true -> :error
-    end
+    if UrlGuard.public_host?(host), do: :ok, else: :error
   end
-
-  defp resolve(host, family) do
-    case :inet.getaddrs(to_charlist(host), family) do
-      {:ok, addrs} -> addrs
-      _ -> []
-    end
-  end
-
-  # IPv4 private/special ranges.
-  defp public_ip?({10, _, _, _}), do: false
-  defp public_ip?({127, _, _, _}), do: false
-  defp public_ip?({169, 254, _, _}), do: false
-  defp public_ip?({172, b, _, _}) when b in 16..31, do: false
-  defp public_ip?({192, 168, _, _}), do: false
-  defp public_ip?({100, b, _, _}) when b in 64..127, do: false
-  defp public_ip?({0, _, _, _}), do: false
-  defp public_ip?({a, _, _, _}) when a >= 224, do: false
-  defp public_ip?({_, _, _, _}), do: true
-  # IPv6 loopback / unspecified.
-  defp public_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: false
-  defp public_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: false
-  # IPv4-mapped (::ffff:a.b.c.d) → judge by the embedded v4.
-  defp public_ip?({0, 0, 0, 0, 0, 0xFFFF, ab, cd}),
-    do: public_ip?({div(ab, 256), rem(ab, 256), div(cd, 256), rem(cd, 256)})
-
-  # fc00::/7 unique-local, fe80::/10 link-local.
-  defp public_ip?({h, _, _, _, _, _, _, _}) when h >= 0xFC00 and h <= 0xFDFF, do: false
-  defp public_ip?({h, _, _, _, _, _, _, _}) when h >= 0xFE80 and h <= 0xFEBF, do: false
-  defp public_ip?({_, _, _, _, _, _, _, _}), do: true
 
   # ── OpenGraph parse ──────────────────────────────────────────────────────
 

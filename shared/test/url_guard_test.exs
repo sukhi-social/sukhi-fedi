@@ -32,6 +32,13 @@ defmodule SukhiShared.UrlGuardTest do
     refute UrlGuard.safe?("https://[::1]/inbox")
   end
 
+  test "public_host?/1 is the address rule alone, with no scheme policy" do
+    assert UrlGuard.public_host?("1.1.1.1")
+    refute UrlGuard.public_host?("127.0.0.1")
+    refute UrlGuard.public_host?("10.0.0.5")
+    refute UrlGuard.public_host?("::1")
+  end
+
   test "rejects non-https and malformed urls" do
     refute UrlGuard.safe?("http://1.1.1.1/inbox")
     refute UrlGuard.safe?("ftp://1.1.1.1/inbox")

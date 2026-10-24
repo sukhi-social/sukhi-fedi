@@ -1,4 +1,5 @@
 import adapter from '@sveltejs/adapter-static';
+import { withRoutesManifest } from './scripts/routes-manifest.mjs';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
@@ -30,7 +31,10 @@ export default defineConfig({
     // owned by the server (login, OAuth, AP, admin).
     sveltekit({
       preprocess: vitePreprocess(),
-      adapter: adapter({ fallback: 'index.html', precompress: false, strict: false }),
+      adapter: withRoutesManifest(
+        adapter({ fallback: 'index.html', precompress: false, strict: false }),
+        'build'
+      ),
       paths: { base: '', relative: false },
       // SvelteKit が `/_app/version.json` を pollInterval 毎に取りに
       // いって、ビルドの version 文字列が変わったら `updated.current`

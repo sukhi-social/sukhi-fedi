@@ -34,6 +34,24 @@ bearer — that check lives with the route, where it belongs. This list
 answers only whether the door is meant to face the street at all,
 because that is the question that goes unasked.
 
+## The SPA's pages are not doors of their own
+
+`/signup`, `/lists/:id` and the rest of the SPA's pages have no line in
+`router.ex`. The web build writes `routes.json` from SvelteKit's own route
+table (`web/scripts/routes-manifest.mjs`), the gateway reads it
+(`SukhiFedi.Web.SpaRoutes`), and the catch-all `get /*path` answers a path
+the build calls a page with the shell. Add a `+page.svelte` and the page
+exists; there is no second list to forget (every time one was forgotten,
+the page worked on in-app clicks and 404ed on a reload).
+
+A page is the same static shell whichever path asks, with no data in it, so
+there is nothing to decide per page. A route that needs more than the shell
+(`/settings/password` is also a POST, `/posts/:id` negotiates on `Accept`)
+keeps its own line, and so its own entry here.
+
+With the SSR renderer (natadeco) and no `routes.json` yet, the renderer is
+asked and answers 404 for what it does not know.
+
 ## Why the test and not a plug
 
 A plug that denied anything undeclared would be the stronger guarantee,
