@@ -12,7 +12,7 @@ defmodule PullFederation.Puller do
   "both ways" delivery is idempotent through one code path.
   """
 
-  alias PullFederation.{Cursors, Snapshot, Visibility}
+  alias PullFederation.{Cursors, Etag, Snapshot, Visibility}
 
   defstruct following: %{},
             cursors: %{},
@@ -184,6 +184,55 @@ defmodule PullFederation.Puller do
       {false, []} -> :idle
       {false, [origin | _]} -> {:pull, origin, Map.get(b.cursors, origin, %{})}
     end
+  end
+
+  @doc """
+  A pushed activity, as the hybrid sends it: `%{key:, etag:, prev:, activity:}`.
+
+  Goes through the same `apply_activity/3` as a pulled one. Then the
+  cursor: if we hold exactly `prev`, the push is the next link of the
+  chain and we advance to `etag` without any pull; if we already hold
+  `etag` or something newer, nothing to do; otherwise we missed
+  something in between and the key is planned for a pull.
+  """
+  def receive_push(
+        %__MODULE__{} = b,
+        origin,
+        %{key: key, etag: etag, prev: prev, activity: act},
+        now
+      ) do
+    followed = Map.get(b.following, origin, MapSet.new())
+
+    case MapSet.member?(followed, Visibility.actor_of(key)) do
+      false ->
+        {b, :ignored}
+
+      true ->
+        before = b.rejected
+        b = apply_activity(b, act, now)
+        cursors = Map.get(b.cursors, origin, %{})
+        have = Map.get(cursors, key)
+
+        cond do
+          b.rejected > before -> {b, :rejected}
+          have == prev -> {advance(b, origin, key, etag), :advanced}
+          Etag.compare(have || "", etag) in [:eq, :gt] -> {b, :noop}
+          true -> plan(b, origin, %{key => etag})
+        end
+    end
+  end
+
+  defp advance(b, origin, key, etag) do
+    cursors = Map.update(b.cursors, origin, %{key => etag}, &Cursors.merge(&1, %{key => etag}))
+
+    # a notification for this very token is now satisfied
+    pending =
+      case Cursors.changed(cursors[origin], Map.get(b.pending, origin, %{})) do
+        left when map_size(left) == 0 -> Map.delete(b.pending, origin)
+        left -> Map.put(b.pending, origin, left)
+      end
+
+    %{b | cursors: cursors, pending: pending}
   end
 
   @doc """

@@ -46,6 +46,11 @@ defmodule PullFederation.Compare do
       for {t, o, a, _} <- burst,
           do: {t, o, a, if(rem(t, 5) < 2, do: :followers, else: :public)}
 
+    # 18 origins post once every 20 s; 2 origins post 100 times in 5 s
+    mixed_rates =
+      for(o <- 0..17, i <- 0..9, do: {i * 20_000 + o * 500, o, rem(i, 5), :public}) ++
+        for o <- 18..19, i <- 0..99, do: {i * 50 + o * 3, o, rem(i, 5), :public}
+
     outage = for i <- 0..39, do: {i * 1_000, rem(i, 4), rem(i, 2), :public}
 
     [
@@ -58,6 +63,13 @@ defmodule PullFederation.Compare do
         queue: 100
       },
       %{name: "burst, 10% direct messages", origins: 20, events: mixed, cap: 50, queue: 100},
+      %{
+        name: "mixed: 18 quiet origins + 2 bursting",
+        origins: 20,
+        events: mixed_rates,
+        cap: 50,
+        queue: 100
+      },
       %{name: "burst, 40% followers-only", origins: 20, events: locked, cap: 50, queue: 100},
       %{
         name: "burst, cheap requests (request cost 0.2)",
@@ -85,7 +97,7 @@ defmodule PullFederation.Compare do
     ]
   end
 
-  def run(model, sc) when model in [:push, :pull] do
+  def run(model, sc) when model in [:push, :pull, :hybrid] do
     state = init(model, sc)
     last = sc.events |> Enum.map(&elem(&1, 0)) |> Enum.max()
     horizon = last + 120_000
@@ -102,7 +114,7 @@ defmodule PullFederation.Compare do
     origins =
       for o <- 0..(sc.origins - 1), into: %{} do
         ao =
-          Enum.reduce(actors, Origin.new(), fn
+          Enum.reduce(actors, Origin.new(Map.get(sc, :origin, [])), fn
             {^o, actor}, acc -> Origin.follow(acc, "b", actor)
             _, acc -> acc
           end)
@@ -133,6 +145,8 @@ defmodule PullFederation.Compare do
       peak_rps: 0,
       second: %{},
       recovery_sent: false,
+      hjobs: [],
+      hpushes: 0,
       next_id: 0
     }
   end
@@ -189,9 +203,41 @@ defmodule PullFederation.Compare do
     end
   end
 
+  defp publish_one(%{model: :hybrid} = st, o, ao, act, now) do
+    case Origin.publish_routed(st.origins[o].pull, ao, act, now) do
+      {pull, :push_only, []} ->
+        st = put_in(st.origins[o].pull, pull)
+        put_in(st.origins[o].push, PushOrigin.publish(st.origins[o].push, act, ["b"], now))
+
+      {pull, {:routed, _}, pushes} ->
+        st = put_in(st.origins[o].pull, pull)
+        jobs = for {"b", payload} <- pushes, do: {o, payload}
+        %{st | hjobs: st.hjobs ++ jobs}
+    end
+  end
+
   defp origins_send(st, now) do
+    st = send_hybrid_pushes(st, now)
+
     Enum.reduce(Map.keys(st.origins), st, fn o, st ->
       st |> send_push_jobs(o, now) |> send_notifications(o, now)
+    end)
+  end
+
+  # An activity pushed under the hybrid. A failure is not retried: the
+  # domain moves to pull and the notification carries the activity.
+  defp send_hybrid_pushes(st, now) do
+    Enum.reduce(st.hjobs, %{st | hjobs: []}, fn {o, payload}, st ->
+      st = %{st | hpushes: st.hpushes + 1}
+
+      case accept(st, now, {:hpush, o, payload}, rc(st) + @activity_cost + 2 * qc(st)) do
+        {:ok, st} ->
+          st
+
+        {:error, st} ->
+          pull = Origin.push_failed(st.origins[o].pull, "b", payload.key, now)
+          put_in(st.origins[o].pull, pull)
+      end
     end)
   end
 
@@ -212,7 +258,7 @@ defmodule PullFederation.Compare do
 
   defp send_notifications(%{model: :push} = st, _o, _now), do: st
 
-  defp send_notifications(%{model: :pull} = st, o, now) do
+  defp send_notifications(st, o, now) do
     {pull, notes} = Origin.due_notifications(st.origins[o].pull, now)
     st = put_in(st.origins[o].pull, pull)
 
@@ -229,8 +275,11 @@ defmodule PullFederation.Compare do
   end
 
   # "Server Status Broadcast": when B comes back, each origin tells it, spread by jitter.
-  defp recovery_broadcast(%{model: :pull, sc: %{down: {_, to}}, recovery_sent: false} = st, now)
-       when now >= to do
+  defp recovery_broadcast(
+         %{model: model, sc: %{down: {_, to}}, recovery_sent: false} = st,
+         now
+       )
+       when model in [:pull, :hybrid] and now >= to do
     st =
       Enum.reduce(Map.keys(st.origins), st, fn o, st ->
         jitter = :erlang.phash2(o, 20_000)
@@ -240,7 +289,7 @@ defmodule PullFederation.Compare do
     st
   end
 
-  defp recovery_broadcast(%{model: :pull} = st, now) do
+  defp recovery_broadcast(%{model: model} = st, now) when model in [:pull, :hybrid] do
     due = Map.get(st, :recoveries, [])
     {ready, rest} = Enum.split_with(due, fn {_, t} -> t <= now end)
     st = Map.put(st, :recoveries, rest)
@@ -310,6 +359,12 @@ defmodule PullFederation.Compare do
     %{st | b: b, applied: Map.put_new(st.applied, job.activity.id, now)}
   end
 
+  defp complete(st, {:hpush, o, payload}, now) do
+    {b, _} = Puller.receive_push(st.b, "o#{o}", payload, now)
+    id = payload.activity.id
+    %{st | b: b, applied: Map.put_new(st.applied, id, now)}
+  end
+
   defp complete(st, {:notify, o, announced}, now) do
     {b, _} = Puller.notify(st.b, "o#{o}", announced, now)
     %{st | b: b}
@@ -340,9 +395,11 @@ defmodule PullFederation.Compare do
         o = String.to_integer(n)
         st = count_request(%{st | b: Puller.begin_pull(st.b, "o#{o}")}, now)
 
-        case Origin.open_stream(st.origins[o].pull, "b", cursors, now) do
-          {:ok, pull, events, announced} ->
-            st = put_in(st.origins[o].pull, pull)
+        {pull, answer} = Origin.request_stream(st.origins[o].pull, "b", cursors, now)
+        st = put_in(st.origins[o].pull, pull)
+
+        case answer do
+          {:ok, events, announced} ->
             cost = rc(st) + 4 * qc(st) + length(events) * (@activity_cost + @row_cost)
             item = {:stream, o, events, announced}
             %{st | queue: :queue.in({item, cost}, st.queue), qlen: st.qlen + 1, inflight: o}
@@ -376,6 +433,7 @@ defmodule PullFederation.Compare do
       failed_requests: st.failed_requests,
       peak_requests_per_s: st.peak_rps,
       push_posts: push_sent,
+      hybrid_pushes: st.hpushes,
       give_ups: dropped,
       lost_notifications: st.lost_notes,
       pull_declines: st.declines,

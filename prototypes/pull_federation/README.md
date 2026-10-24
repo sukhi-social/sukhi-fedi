@@ -397,8 +397,65 @@ That points at a rule a program can evaluate per (origin, domain):
 use **push by default; switch that domain to notify-and-pull when its
 recent posts per quiet window exceed about 1.5, or when it answered
 429/5xx recently; switch back when the rate falls**. Directs and anything
-urgent stay push regardless. The switch is not built into the prototype
-yet; the numbers above are what it would be tuned against.
+urgent stay push regardless. The switch is built (`Mode`, part 7); the numbers above are what its
+thresholds come from.
+
+### Part 7: the hybrid (push by default, pull when it gets dense)
+
+`PullFederation.Mode` decides per (origin, receiving domain) and nowhere
+else. It starts on push; it goes to pull when posts reaching that domain
+reach 1.5 per 3 s window (two posts inside one window are enough, no wait
+for the average) or when a push to it failed; it comes back only after the
+windowed average stayed under 0.7 for 30 s and the failure penalty (60 s)
+is over. The gap between 1.5 and 0.7 plus the hold is the hysteresis.
+
+What makes mixing safe is that **the origin always appends to the log
+and assigns the ETag**, whichever way a domain is served. A push carries
+the chain token: `%{key, etag, prev, activity}`. The receiver
+(`Puller.receive_push/4`) runs it through the same `apply_activity` as a
+pulled one, then:
+
+- it holds exactly `prev`: advance the cursor to `etag`, no pull needed;
+- it holds `etag` or something newer: nothing to do;
+- anything else: it missed something, so plan a pull for that key.
+
+A push that fails (429, 5xx, timeout) is **not retried**. The activity is
+already in the log, so `Origin.push_failed/4` moves the domain to pull and
+marks it, and the next notification carries it. That removes push's retry
+storm (the `n^4` schedule of part 1) from the picture.
+
+Same workloads as part 1, one more row each:
+
+| Scenario | Model | Requests to B | Failed | p50 | p99 |
+| --- | --- | --- | --- | --- | --- |
+| steady, 60 posts at 1/s | push | 60 | 0 | 0 ms | 0 ms |
+| | pull | 120 | 0 | 100 ms | 100 ms |
+| | **hybrid** | **60** | 0 | **0 ms** | **0 ms** |
+| burst, 500 posts from 20 origins in 5 s | push | 930 | 430 | 18 s | 55 s |
+| | pull | 95 | 0 | 3.2 s | 10.4 s |
+| | **hybrid** | 108 | 0 | 3.9 s | 10.8 s |
+| mixed: 18 quiet origins + 2 bursting | push | 391 | 11 | 0.7 s | 16.1 s |
+| | pull | 372 | 0 | 1.0 s | 4.3 s |
+| | **hybrid** | **194** | 0 | 0.9 s | 4.5 s |
+| burst, B has 4x capacity | push | 511 | 11 | 0.7 s | 16 s |
+| | pull | 116 | 0 | 1.5 s | 3 s |
+| | **hybrid** | 132 | 0 | 1.4 s | 3 s |
+| B down for 30 s | push | 84 | 44 | 16 s | 55 s |
+| | pull | 58 | 30 | 19.7 s | 41.9 s |
+| | hybrid | 52 | 34 | 19.7 s | 41.9 s |
+
+What it shows: the hybrid gets push's numbers when nothing is going on
+(60 requests, 0 ms), pull's numbers in a burst (no rejected request, a
+tenth of push's requests), and in the mixed case it beats both on
+requests (194 against 391 and 372) because the 18 quiet origins stay on
+push while the 2 bursting ones are on pull. The cost is a little in the
+burst itself (108 requests against 95, p50 3.9 s against 3.2 s): the first
+two posts of each burst still go out as pushes before the switch.
+
+Not yet covered: a domain flapping on a noisy boundary (the unit tests
+cover the hysteresis, not an adversarial rate), the mode state's memory
+(one small record per known domain), and the receiver telling the origin
+"pull me" explicitly (it only learns by failures today).
 
 ### What the model says
 

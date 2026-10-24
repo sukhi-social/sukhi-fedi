@@ -14,7 +14,7 @@ defmodule PullFederation.Origin do
     * `recovered/2`   "Server Status Broadcast": notify everyone, spread by jitter
   """
 
-  alias PullFederation.{Calendar, Cursors, Etag, Snapshot, Visibility}
+  alias PullFederation.{Calendar, Cursors, Etag, Mode, Snapshot, Visibility}
 
   defstruct log: %{},
             seqs: %{},
@@ -31,20 +31,22 @@ defmodule PullFederation.Origin do
             known_domains: MapSet.new(),
             last_pull: %{},
             min_pull_gap_ms: 0,
-            calendar: nil
+            calendar: nil,
+            mode: nil
 
   @type event :: %{
           actor: String.t(),
           key: String.t(),
           seq: pos_integer,
           etag: String.t(),
+          prev: String.t() | nil,
           activity: map
         }
 
   def new(opts \\ []) do
-    o = struct!(__MODULE__, Keyword.drop(opts, [:calendar]))
+    o = struct!(__MODULE__, Keyword.drop(opts, [:calendar, :mode]))
     cal = Calendar.new(Keyword.merge([slots: o.max_streams], Keyword.get(opts, :calendar, [])))
-    %{o | calendar: cal}
+    %{o | calendar: cal, mode: Mode.new(Keyword.get(opts, :mode, []))}
   end
 
   @doc "Record that `domain` follows `actor` (shared-inbox granularity)."
@@ -59,44 +61,104 @@ defmodule PullFederation.Origin do
   @doc """
   Append an activity. It takes the next seq of its index (public or
   followers-only, see `Visibility`); direct messages return `:push_only`
-  and touch no sequence.
+  and touch no sequence. Every follower domain is told by notification
+  (the pull-only path); see `publish_routed/4` for the hybrid.
   """
   def publish(%__MODULE__{} = o, actor, %{visibility: vis} = activity) do
+    case append(o, actor, vis, activity) do
+      :push_only ->
+        {o, :push_only}
+
+      {o, event, domains} ->
+        {mark_dirty(o, domains, event.key), {:pull, event.seq}}
+    end
+  end
+
+  @doc """
+  Hybrid publish. The activity is appended exactly as in `publish/3`
+  (so the sequence and ETags stay continuous), then each follower domain
+  is routed by `Mode`: `:push` domains get the activity itself,
+  `:pull` domains are marked for a notification.
+
+  Returns `{o, {:routed, seq}, pushes}` where `pushes` is
+  `[{domain, %{key:, etag:, prev:, activity:}}]`. `prev` is the ETag the
+  receiver should hold before applying it: if it does, the receiver
+  advances its cursor itself and needs no pull; if not, it knows it
+  missed something.
+  """
+  def publish_routed(%__MODULE__{} = o, actor, %{visibility: vis} = activity, now) do
+    case append(o, actor, vis, activity) do
+      :push_only ->
+        {o, :push_only, []}
+
+      {o, event, domains} ->
+        {o, pushes, pulls} =
+          domains
+          |> Enum.sort()
+          |> Enum.reduce({o, [], []}, fn d, {o, pushes, pulls} ->
+            mode = Mode.observe_post(o.mode, d, now)
+            {mode, route} = Mode.mode(mode, d, now)
+            o = %{o | mode: mode}
+
+            case route do
+              :push -> {o, [{d, push_payload(event)} | pushes], pulls}
+              :pull -> {o, pushes, [d | pulls]}
+            end
+          end)
+
+        {mark_dirty(o, pulls, event.key), {:routed, event.seq}, Enum.reverse(pushes)}
+    end
+  end
+
+  @doc """
+  A push to `domain` failed (429, 5xx, timeout). Do not retry the
+  activity: it is in the log, so move the domain to pull and let the
+  notification carry it.
+  """
+  def push_failed(%__MODULE__{} = o, domain, key, now) do
+    o = %{o | mode: Mode.observe_failure(o.mode, domain, now)}
+    mark_dirty(o, [domain], key)
+  end
+
+  defp push_payload(event),
+    do: %{key: event.key, etag: event.etag, prev: event.prev, activity: event.activity}
+
+  defp append(o, actor, vis, activity) do
     case Visibility.index(vis) do
       nil ->
-        {o, :push_only}
+        :push_only
 
       index ->
         key = Visibility.key(actor, index)
         seq = Map.get(o.seqs, key, 0) + 1
+        prev = o.log |> Map.get(key, []) |> List.first() |> then(&(&1 && &1.etag))
 
         event = %{
           actor: actor,
           key: key,
           seq: seq,
           etag: new_etag(index, seq),
+          prev: prev,
           activity: activity
         }
 
         domains = Map.get(o.followers, actor, MapSet.new())
-
-        dirty =
-          Enum.reduce(domains, o.dirty, fn d, acc ->
-            Map.update(acc, d, MapSet.new([key]), &MapSet.put(&1, key))
-          end)
-
         log = Map.update(o.log, key, [event], &[event | &1])
         # actors nobody follows remotely never bump a bucket: nothing to tell anyone
         versions = bump_bucket(o.bucket_versions, actor, index, domains)
 
-        {%{
-           o
-           | log: log,
-             seqs: Map.put(o.seqs, key, seq),
-             dirty: dirty,
-             bucket_versions: versions
-         }, {:pull, seq}}
+        {%{o | log: log, seqs: Map.put(o.seqs, key, seq), bucket_versions: versions}, event,
+         domains}
     end
+  end
+
+  defp mark_dirty(o, domains, key) do
+    dirty =
+      Enum.reduce(domains, o.dirty, fn d, acc ->
+        Map.update(acc, d, MapSet.new([key]), &MapSet.put(&1, key))
+      end)
+
+    %{o | dirty: dirty}
   end
 
   defp bump_bucket(versions, actor, :public, domains) do

@@ -14,11 +14,11 @@ defmodule Mix.Tasks.Compare do
     for sc <- Compare.scenarios() do
       IO.puts("\n== #{sc.name}")
 
-      for model <- [:push, :pull] do
+      for model <- [:push, :pull, :hybrid] do
         r = Compare.run(model, sc)
 
         IO.puts(
-          "  #{String.pad_trailing(to_string(r.model), 5)}" <>
+          "  #{String.pad_trailing(to_string(r.model), 6)}" <>
             " delivered=#{r.delivered} reqs=#{r.requests_to_b} failed=#{r.failed_requests}" <>
             " peak/s=#{r.peak_requests_per_s} giveups=#{r.give_ups} lostnotes=#{r.lost_notifications}" <>
             " declines=#{r.pull_declines} p50=#{r.latency_p50_ms} p99=#{r.latency_p99_ms} max=#{r.latency_max_ms}"
