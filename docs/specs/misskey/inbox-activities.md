@@ -1,12 +1,12 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Activities accepted at the inbox
 
-- Kind: descriptive (what Misskey does). Source tags and how to read them: [README](README.md).
+- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
 
 ## In one paragraph
 
-Misskey accepts a short list of activity types at the inbox and ignores or rejects the rest. The one that matters most to sukhi: Misskey applies `Update` only to actors and polls, so an edited note is probably not updated there.
+Misskey accepts a short list of activity types at the inbox and ignores or rejects the rest. The one that surprises most: Misskey applies `Update` only to actors and polls, so an edited note is probably not updated there.
 
 Source of this page: **[src]** `ApInboxService.ts`
 
@@ -30,4 +30,4 @@ Other rules from the same file:
 - A suspended actor is ignored.
 - A `Collection` or `OrderedCollection` is unpacked item by item. Items whose host differs from the actor's are skipped.
 
-Consequence for sukhi: an edit sent as `Update(Note)` is probably not applied by Misskey. **[study]**, not tested on a live server. sukhi sends `Update(Note)` on edit. **[study]** `outbox/consumer.ex`
+Consequence: an edit sent as `Update(Note)` is probably not applied. **[study]**, not tested on a live server.

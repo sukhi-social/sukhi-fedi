@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# Misskey interoperability: a descriptive specification
+# Misskey: a descriptive specification
 
-One file per feature. Each file states what Misskey does, as read from its source, and then what sukhi does. None of it says what anyone must do. The rules that bind sukhi are in the numbered specifications ([../README.md](../README.md)).
+One file per feature. Each file states what Misskey does, as read from its source. None of it says what anyone must do, and none of it is about any other server. (How sukhi meets these behaviours is in [../../misskey-interop-sukhi.md](../../misskey-interop-sukhi.md).)
 
 - Subject: Misskey, `packages/backend/src` on the `develop` branch, read on 2026-10-23. No release tag was pinned, so the version is unknown. Forks (Sharkey, Firefish, Iceshrimp) are not covered.
 - Status: Draft.
@@ -17,7 +17,7 @@ One file per feature. Each file states what Misskey does, as read from its sourc
 | [json-ld-context.md](json-ld-context.md) | the `@context` Misskey writes |
 | [actor.md](actor.md) | the Person document |
 | [note.md](note.md) | the Note, sent and received |
-| [mfm.md](mfm.md) | MFM: when the source is sent, the HTML, and how sukhi supports it |
+| [mfm.md](mfm.md) | MFM: when the source is sent, and the HTML it makes |
 | [emoji.md](emoji.md) | custom emoji tags |
 | [quote.md](quote.md) | quote posts |
 | [reactions.md](reactions.md) | emoji reactions |
@@ -25,9 +25,9 @@ One file per feature. Each file states what Misskey does, as read from its sourc
 | [inbox-activities.md](inbox-activities.md) | the activity types the inbox accepts |
 | [collections.md](collections.md) | outbox, followers, following, featured |
 | [delivery.md](delivery.md) | retries and failure handling |
-| [extensions.md](extensions.md) | every Misskey-only term and how to support it |
+| [extensions.md](extensions.md) | every Misskey-only term |
 
-Each page begins with a one-paragraph summary. Where a page is about a JSON shape, it prints the type as JSDoc, with example messages checked against it (`make check-specs`; see [check](../check/README.md)).
+Each page begins with a one-paragraph summary.
 
 Every statement is tagged with where it comes from.
 
@@ -35,25 +35,18 @@ Every statement is tagged with where it comes from.
 | --- | --- |
 | **[src]** | Read in a Misskey source file on 2026-10-23. The file is named. |
 | **[study]** | Taken from the delivery study in the project files (`federation/push-federation-ste.md`, source read 2026-10-22). |
-| **[sukhi]** | Read in the sukhi code, with the file. |
 | **[not seen]** | Looked for and not found in the files read. This is not proof of absence. |
 
 The Misskey files were read through a summarising tool, not line by line by a person. A statement marked **[src]** should be checked against the file before it is relied on. Nothing here was tested against a live Misskey server. Files read: `ActivityPubServerService`, `ApInboxService`, `ApRendererService`, `ApNoteService`, `InboxProcessorService`, `WellKnownServerService`, `NodeinfoServerService`, `RemoteUserResolveService`, `FetchInstanceMetadataService`, `type.ts`, `misc/contexts.ts`.
 
-## What sukhi relies on, in one table
+## Terms used by the types
 
-| Need | Misskey behaviour | sukhi action | Where |
-| --- | --- | --- | --- |
-| Accept our signature | cavage, with digest and host signed | falls back to cavage on 400/401 | [sukhi-0001](../sukhi-0001-signature-fallback.md) |
-| Show our quote | reads `_misskey_quote`, `quoteUrl` | sends both and the tag `Link` | [sukhi-0003](../sukhi-0003-legacy-quote-profile.md) |
-| Show our reaction | reads `_misskey_reaction`, `content`, `name` | sends `Like` with `content` | [reactions.md](reactions.md) |
-| Show our formatting | reads `_misskey_content`, `source` | reads and keeps MFM; sends `_misskey_content` | [mfm.md](mfm.md) |
-| Find our account | WebFinger `self` link (first one), host of its URI must equal the acct host; name lowercased | `self` first; account lookup case-handling unverified | [webfinger.md](webfinger.md) |
-| Show our server | NodeInfo 2.1 then 2.0; reads `metadata.nodeName`, `nodeDescription`, `themeColor` | `metadata` empty; Misskey falls back to HTML | [nodeinfo.md](nodeinfo.md) |
-| Accept our activity ids | `activity.id` host must equal signer host | ids are on our domain | [signatures.md](signatures.md) |
-| Keep our edits | applies `Update` of actors and `Question` only | sends `Update(Note)`; likely not applied | gap |
-| Keep our public notes public | accepts three spellings of Public | sends the full IRI | `audience.ex` |
-| Count our poll votes | counts a `Note` with matching `name` | sends that shape | `builders.ex` |
+The pages write the shape of each JSON message as a [CUE](https://cuelang.org) type, and check the examples against it (`make check-specs`; see [check](../check/README.md)). One helper is shared:
+
+```cue
+// A URL as it appears in these messages: absolute, http or https.
+#URL: =~"^https?://[^\\s]+$"
+```
 
 ## Not researched
 

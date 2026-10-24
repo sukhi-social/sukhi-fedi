@@ -1,13 +1,13 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: WebFinger and host-meta
 
-- Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
+- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Type: `WebFingerAnswer`, defined below
+- Type: `#WebFingerAnswer`, defined below
 
 ## In one paragraph
 
-To find a Misskey user from `user@host`, a server asks WebFinger. Misskey does the same when it looks for a sukhi user: it lowercases the name, asks sukhi, takes the first `self` link, and then checks that the actor URL is on the same host. sukhi answers in the shape Misskey needs.
+To find a Misskey user from `user@host`, a server asks WebFinger. As a client, Misskey lowercases the name, asks the other server, takes the first `self` link, and then checks that the actor URL is on the same host.
 
 ## Misskey as a server **[src]** `server/WellKnownServerService.ts`
 
@@ -43,62 +43,50 @@ The WebFinger answer:
 
 How the request URL is built, the `host-meta` fallback, any check of the returned `subject`, and redirects belong to `WebfingerService`, which was **[not seen]**.
 
-## What sukhi does **[sukhi]** `web/webfinger_controller.ex`
+## An example
 
-| Misskey asks | sukhi answers |
-| --- | --- |
-| `acct:name@domain` for a local account | 200 JRD: `subject`, `aliases` (the actor URL), `self`, `profile-page` |
-| a name on another host | 404 (Misskey itself answers 422) |
-| an actor URL under `/users/<name>` | the same JRD |
-| no `resource` | 400 |
-| `host-meta` | XRD with the `lrdd` template |
-
-A typical sukhi answer (type `WebFingerAnswer`):
+An answer Misskey accepts (type `#WebFingerAnswer`):
 ```json
 {
-  "subject": "acct:hina@sukhi.social",
-  "aliases": ["https://sukhi.social/users/hina"],
+  "subject": "acct:hina@other.example",
+  "aliases": ["https://other.example/users/hina"],
   "links": [
-    {
-      "rel": "self",
-      "type": "application/activity+json",
-      "href": "https://sukhi.social/users/hina"
-    },
     {
       "rel": "http://webfinger.net/rel/profile-page",
       "type": "text/html",
-      "href": "https://sukhi.social/@hina"
+      "href": "https://other.example/@hina"
+    },
+    {
+      "rel": "self",
+      "type": "application/activity+json",
+      "href": "https://other.example/users/hina"
     }
   ]
 }
 ```
 
-The type, written as JSDoc so the page can be read on its own (the checker compiles it):
+The type, in [CUE](https://cuelang.org):
 
-```js
-/**
- * What Misskey's resolver needs from a WebFinger answer, and what sukhi sends.
- * Misskey takes the first `self` link and does not check its type.
- * @typedef {object} WebFingerAnswer
- * @property {`acct:${string}@${string}`} subject
- * @property {string[]} [aliases]
- * @property {[SelfLink, ...OtherLink[]]} links  The `self` link comes first.
- *
- * @typedef {object} SelfLink
- * @property {'self'} rel
- * @property {'application/activity+json'} [type]
- * @property {string} href
- *
- * @typedef {object} OtherLink
- * @property {string} rel
- * @property {string} [type]
- * @property {string} [href]
- * @property {string} [template]
- */
+```cue
+// What Misskey's resolver needs from a WebFinger answer: a `subject` and a
+// `self` link. It uses the first `self` link, and does not check its `type`.
+#WebFingerAnswer: {
+	subject:  =~"^acct:[^@\\s]+@[^@\\s]+$"
+	aliases?: [...#URL]
+	links: [...#Link] // one of them has rel "self"; CUE cannot say "one of" here
+	...
+}
+
+#Link: {
+	rel:       string
+	type?:     string
+	href?:     #URL
+	template?: string
+	...
+}
 ```
 
 ## Things to watch
 
-- sukhi puts the `self` link first, which is the one Misskey uses.
-- Misskey lowercases the user name before asking. sukhi passes the name to `Accounts.get_account_by_username/1` as it is. Whether that lookup ignores case was **[not seen]**. If it does not, an account with capitals in its name cannot be found by Misskey. This needs a test.
-- sukhi caches each answer for 600 seconds.
+- Misskey lowercases the user name before asking. A server that compares names with case sensitivity will not find an account that has capitals in its name.
+- Misskey checks the host of the `self` link only for a user it already knows.

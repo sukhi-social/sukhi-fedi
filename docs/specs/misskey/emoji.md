@@ -1,13 +1,13 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Custom emoji
 
-- Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
+- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Type: `EmojiTag`, defined below
+- Type: `#EmojiTag`, defined below
 
 ## In one paragraph
 
-A custom emoji travels as a `tag` item of type `Emoji` next to the text that uses `:shortcode:`. The receiver saves the image under that shortcode and draws it in place of the text. Misskey and sukhi both use the Mastodon shape.
+A custom emoji travels as a `tag` item of type `Emoji` next to the text that uses `:shortcode:`. The receiver saves the image under that shortcode and draws it in place of the text. Misskey uses the Mastodon shape.
 
 ## What Misskey does
 
@@ -25,37 +25,40 @@ A custom emoji travels as a `tag` item of type `Emoji` next to the text that use
 - In the text, `:name:` is wrapped in zero-width spaces in the `content` HTML (see [mfm](mfm.md)).
 - A reaction that starts with `:` gets one `Emoji` tag, only if the emoji is in the local cache and not local-only (see [reactions](reactions.md)).
 
-## What sukhi does **[sukhi]**
+## An example
 
-- Actors and notes carry `Emoji` tags built from the saved emoji; rows without a URL are dropped (`shared/.../actor_json.ex`, `fedi/builders.ex`).
-- A reaction adds one `Emoji` tag with the icon URL.
-- sukhi's context defines `Emoji` as `toot:Emoji`, as Misskey's does.
-- The web client replaces `:code:` by the image with `renderEmojis`, using the `emojis` of the status.
-
-An `Emoji` tag as sukhi sends it (type `EmojiTag`):
+An `Emoji` tag (type `#EmojiTag`):
 ```json
 {
-  "id": "https://sukhi.social/emojis/blobcat.png",
+  "id": "https://misskey.example/emojis/blobcat",
   "type": "Emoji",
   "name": ":blobcat:",
   "icon": {
     "type": "Image",
-    "url": "https://sukhi.social/emojis/blobcat.png"
+    "url": "https://misskey.example/files/blobcat.png"
   }
 }
 ```
 
-The type, written as JSDoc so the page can be read on its own (the checker compiles it):
+The type, in [CUE](https://cuelang.org):
 
-```js
-/**
- * A custom emoji item in `tag`, in the shape sukhi sends.
- * @typedef {object} EmojiTag
- * @property {string} [id]
- * @property {'Emoji'} type
- * @property {`:${string}:`} name  The shortcode with its colons.
- * @property {{type: 'Image', url: string}} icon  `url` is an absolute URL.
- */
+```cue
+// An item of `tag` that carries a custom emoji. Misskey reads `type`, `name`,
+// and the icon URL; its other fields (`id`, `updated`) were not read, so they
+// are optional here. `icon` is required here because a receiver has nothing
+// to draw without it; Misskey's handling of a missing icon was not read.
+#EmojiTag: {
+	id?:      string
+	type:     "Emoji"
+	name:     string
+	updated?: string
+	icon: {
+		type?: string
+		url:   #URL
+		...
+	}
+	...
+}
 ```
 
 ## Not researched

@@ -1,13 +1,13 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: NodeInfo
 
-- Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
+- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Type: `NodeInfoMetadata`, defined below
+- Type: `#NodeInfoMetadata`, defined below
 
 ## In one paragraph
 
-NodeInfo is a small public document that says what software a server runs. Misskey publishes one, and reads other servers'. When it reads sukhi's, it takes the display name, description, and colour from `metadata` if they are there, and from sukhi's web page otherwise. sukhi's `metadata` is empty today, so Misskey falls back to the page.
+NodeInfo is a small public document that says what software a server runs. Misskey publishes one, and reads other servers'. When it reads one, it takes the display name, description, and colour from `metadata` if they are there, and from the server's web page otherwise.
 
 ## Misskey as a server **[src]** `server/NodeinfoServerService.ts`
 
@@ -28,40 +28,42 @@ NodeInfo is a small public document that says what software a server runs. Missk
 7. It also fetches the home page, `/manifest.json`, and a favicon (`/favicon.ico` by `HEAD` if the page has no `<link rel="icon">`).
 8. One failing source does not stop the others. The data is refreshed at most once a day unless forced.
 
-## What sukhi does **[sukhi]** `web/nodeinfo_controller.ex`
+## An example
 
-- The discovery document lists 2.0 and then 2.1, and the same body is served at both. Misskey prefers 2.1 whatever the order.
-- `software.name` is `sukhi-fedi`. Misskey lowercases it, which changes nothing.
-- `metadata` is `{}`. Misskey therefore uses sukhi's home page and manifest for name, description, and colour.
-- `activeMonth` and `activeHalfyear` are 0. Misskey sends null for both. A reader should rely on neither.
-
-What a `metadata` object that gives Misskey the values directly would look like (type `NodeInfoMetadata`):
+A `metadata` object that gives Misskey the values directly (type `#NodeInfoMetadata`):
 ```json
 {
-  "nodeName": "sukhi",
+  "nodeName": "Example",
   "nodeDescription": "A small server",
   "themeColor": "#86b300",
   "maintainer": {
     "name": "hina",
-    "email": "admin@sukhi.social"
+    "email": "admin@other.example"
   }
 }
 ```
 
-The type, written as JSDoc so the page can be read on its own (the checker compiles it):
+The type, in [CUE](https://cuelang.org):
 
-```js
-/**
- * The `metadata` keys Misskey's instance fetcher reads. All are optional.
- * sukhi sends an empty object.
- * @typedef {object} NodeInfoMetadata
- * @property {string} [nodeName]
- * @property {string} [name]  Read when `nodeName` is absent.
- * @property {string} [nodeDescription]
- * @property {string} [description]  Read when `nodeDescription` is absent.
- * @property {string} [themeColor]  A hex colour such as `#86b300`; Misskey normalises it.
- * @property {{name?: string, email?: string}} [maintainer]
- */
+```cue
+// The `metadata` keys Misskey's instance fetcher reads. All are optional;
+// other keys are allowed.
+#NodeInfoMetadata: {
+	nodeName?:        string
+	name?:            string // read when `nodeName` is absent
+	nodeDescription?: string
+	description?:     string // read when `nodeDescription` is absent
+	themeColor?:      =~"^#?[0-9a-fA-F]{3,8}$" // Misskey normalises it to hex
+	maintainer?: {
+		name?:  string
+		email?: string
+		...
+	}
+	...
+}
 ```
 
-This is a gap in sukhi, not a fault: nothing breaks without it.
+## Things to watch
+
+- Misskey sends `null` for `activeMonth` and `activeHalfyear`. A reader should rely on neither.
+- A server whose `metadata` is empty is still shown, from its web page.

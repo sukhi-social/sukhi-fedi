@@ -89,8 +89,8 @@ test-e2e:  ## cross-browser SPA smoke (Playwright)
 check: check-presets  ## linters and type checks
 	cd web && $(RUN) pnpm run check
 
-check-specs:  ## compile the JSDoc types in docs/specs and check the examples
-	cd docs/specs/check && pnpm install --frozen-lockfile && pnpm run check
+check-specs:  ## run the CUE types in docs/specs against their examples
+	node docs/specs/check/check.cjs
 
 check-presets:
 	@bash scripts/check_presets_sync.sh

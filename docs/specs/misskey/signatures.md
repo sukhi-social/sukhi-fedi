@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: HTTP signatures
 
-- Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
+- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
 
 ## In one paragraph
@@ -33,16 +33,13 @@ The steps run in this order.
 
 A permanent failure is not retried. FEP-8b32 proofs are not read at all. **[src]**
 
-## What it means for sukhi
+## Things to watch
 
-| Fact about Misskey | Effect on sukhi |
-| --- | --- |
-| No RFC 9421 | A sender that signs only with RFC 9421 is refused. sukhi falls back to cavage on 400 or 401 ([sukhi-0001](../sukhi-0001-signature-fallback.md)). |
-| Key owner must equal `actor` | Matches [sukhi-0004](../sukhi-0004-signer-binding.md) on the receiving side. sukhi signs as the actor it names. |
-| `activity.id` on the signer's host | Every `id` sukhi puts on an activity is on its own domain, so this holds. **[sukhi]** `fedi/builders.ex` |
-| FEP-8b32 proofs ignored | A sukhi proof adds nothing for Misskey; the HTTP signature carries the trust. |
-| `RsaSignature2017` is only a fallback | sukhi's Linked-Data signature is used by Misskey only when the HTTP signature fails. |
-| Permanent failures are silent | The route has answered 202 already, so sukhi never learns of the failure. |
+- A sender that signs only with RFC 9421 is refused.
+- The key's owner must equal `actor`, and `activity.id` must be on the signer's host.
+- A FEP-8b32 proof adds nothing; the HTTP signature carries the trust.
+- `RsaSignature2017` is used only when the HTTP signature fails.
+- Permanent failures are silent: the route has answered 202 already, so the sender never learns of the failure.
 
 ## Not researched
 

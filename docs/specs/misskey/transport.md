@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Transport
 
-- Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
+- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
 
 ## In one paragraph
@@ -17,7 +17,6 @@ Misskey takes activities by `POST` to an inbox, answers quickly with 202, and ch
 5. A delivery that passes the form checks is answered with 202 and queued. The activity is checked again in the queue (see [signatures](signatures.md)). **[src]** same file; **[study]**
 6. `GET` endpoints do not check HTTP signatures in the file that was read. They are limited by the federation setting and by visibility rules. A newer authorized-fetch option was **[not seen]**.
 
-## What it means for sukhi
+## Things to watch
 
-- A body larger than 64 KB is refused by Misskey. The status code it answers with was not read. An activity from sukhi that is that large (a long note with many attachments, for example) would not arrive. sukhi retries a refused delivery, but the same body would be refused again. **[study]** (for the retry behaviour of sukhi)
-- The content type that sukhi puts on its deliveries was not re-read for this page.
+- A body larger than 64 KB is refused. The status code it answers with was not read. A resend of the same body is refused again.

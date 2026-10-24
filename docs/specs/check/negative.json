@@ -1,0 +1,56 @@
+[
+  {
+    "type": "Quote",
+    "why": "a quote with neither quoteUrl nor _misskey_quote",
+    "instance": {
+      "type": "Note",
+      "content": "x"
+    }
+  },
+  {
+    "type": "NoteText",
+    "why": "_misskey_content without source",
+    "instance": {
+      "_misskey_content": "**x**"
+    }
+  },
+  {
+    "type": "NoteText",
+    "why": "source with another media type",
+    "instance": {
+      "_misskey_content": "x",
+      "source": {
+        "content": "x",
+        "mediaType": "text/markdown"
+      }
+    }
+  },
+  {
+    "type": "NoteText",
+    "why": "source that differs from _misskey_content",
+    "instance": {
+      "_misskey_content": "x",
+      "source": {
+        "content": "y",
+        "mediaType": "text/x.misskeymarkdown"
+      }
+    }
+  },
+  {
+    "type": "Reaction",
+    "why": "empty reaction string",
+    "instance": {
+      "type": "Like",
+      "actor": "https://a.example/u",
+      "object": "https://b.example/n",
+      "content": ""
+    }
+  },
+  {
+    "type": "NodeInfoMetadata",
+    "why": "themeColor that is not a colour",
+    "instance": {
+      "themeColor": "green"
+    }
+  }
+]

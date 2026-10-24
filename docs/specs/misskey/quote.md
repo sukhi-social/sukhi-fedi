@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Quotes
 
-- Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
+- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Type: `QuoteNote`, defined below
+- Type: `#Quote`, defined below
 
 ## In one paragraph
 
@@ -16,41 +16,34 @@ Misskey recognises a quote only from two properties, `_misskey_quote` and `quote
 - The first success becomes the quote.
 - If none succeeds and any failure was temporary, creation fails with `quote resolve failed`. If every failure was permanent, the note is saved without the quote.
 
-## What sukhi does **[sukhi]** `fedi/builders.ex:347-364`
+## An example
 
-sukhi sends all three forms ([sukhi-0003](../sukhi-0003-legacy-quote-profile.md)), so Misskey finds the first two. On the receiving side sukhi reads all of them, including a tag `Link` and `quoteUri` (`ap/instructions/extract.ex`).
-
-A quote as sukhi sends it (type `QuoteNote`):
+The quote part of a note (type `#Quote`):
 ```json
 {
   "type": "Note",
   "content": "<p>Look at this</p>",
-  "quoteUrl": "https://remote.example/notes/1",
-  "_misskey_quote": "https://remote.example/notes/1",
-  "tag": [
-    {
-      "type": "Link",
-      "href": "https://remote.example/notes/1",
-      "rel": "_misskey_quote"
-    }
-  ]
+  "quoteUrl": "https://other.example/notes/1",
+  "_misskey_quote": "https://other.example/notes/1"
 }
 ```
 
-The type, written as JSDoc so the page can be read on its own (the checker compiles it):
+The type, in [CUE](https://cuelang.org):
 
-```js
-/**
- * A Note that quotes another post: the three forms of sukhi-0003 "Sending".
- * Other properties of a Note are allowed.
- * @typedef {{[other: string]: unknown, type: 'Note' | 'Article', quoteUrl: string, _misskey_quote: string, tag: [object, ...object[]]}} QuoteNote
- * `quoteUrl` and `_misskey_quote` are both the URL of the quoted post. At
- * least one `tag` entry is `{type: 'Link', href: <that URL>, rel: '_misskey_quote'}`;
- * this check does not look for it.
- */
+```cue
+// The quote properties of a Note as Misskey writes and reads them: either
+// one, or both. They hold the URL of the quoted note.
+#Quote: {
+	quoteUrl:          #URL
+	"_misskey_quote"?: #URL
+	...
+} | {
+	"_misskey_quote": #URL
+	quoteUrl?:        #URL
+	...
+}
 ```
 
 ## Things to watch
 
 - If the quoted note cannot be fetched temporarily, Misskey refuses the whole note (and does not save it). A later delivery has to succeed.
-- The Misskey rule that a quote is read only from two properties is why sukhi keeps sending them until Misskey also reads `quote` (FEP-044f). Whether it will was not researched.

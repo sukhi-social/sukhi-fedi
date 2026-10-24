@@ -4,7 +4,7 @@
 - 状態: 草案。`fedi/builders.ex:347-364` と `ap/instructions/extract.ex:46-80` に実装済み。
 - 識別子: `https://sukhi.social/spec/sukhi-0003/1`
 - 土台にする仕様: FEP-e232(オブジェクトへのリンク)、FEP-044f(同意にもとづく引用)
-- 型: `QuoteNote`(「送るとき」の三つの形。[quote.md](misskey/quote.md) に載せています)
+- 型: `#QuoteNote`(「送るとき」の三つの形。英語版に書いてあります)
 - 用語と「必須・推奨・任意」の意味: [README.ja.md](README.ja.md)
 
 ## 一言で

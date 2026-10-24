@@ -1,15 +1,15 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: MFM (Misskey Flavored Markdown)
 
-- Kind: descriptive (what Misskey does), with a last section on how sukhi supports it. Source tags: [README](README.md).
+- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
 - Type: `NoteText`, defined below
 
 ## In one paragraph
 
-MFM is Misskey's own markup for note text. ActivityPub has no place for it, so Misskey sends the source text beside the HTML, in two properties that always travel together. It does so only when the text uses something beyond plain text, mentions, hashtags, URLs, and emoji. This page says when, what the HTML looks like, and how sukhi reads and writes it.
+MFM is Misskey's own markup for note text. ActivityPub has no place for it, so Misskey sends the source text beside the HTML, in two properties. It does so only when the text uses something beyond plain text, mentions, hashtags, URLs, and emoji. This page says when, what the HTML looks like, and how a server that reads it can use it.
 
-A note whose text has MFM, as Misskey sends it (type `NoteText`):
+A note whose text has MFM, as Misskey sends it (type `#NoteText`):
 ```json
 {
   "content": "<p><b>Hello</b></p>",
@@ -21,29 +21,34 @@ A note whose text has MFM, as Misskey sends it (type `NoteText`):
 }
 ```
 
-A note with plain text carries neither property (type `NoteText`). It passes, because the type only says that the two come together:
-
+A note with plain text carries neither property (type `#NoteText`):
 ```json
 {
   "content": "<p>Hello</p>"
 }
 ```
 
-The type, written as JSDoc so the page can be read on its own (the checker compiles it):
+The type, in [CUE](https://cuelang.org):
 
-```js
-/**
- * The text of a Note. The two MFM properties come together or not at all.
- * @typedef {{content?: string} & (NoMfm | WithMfm)} NoteText
- *
- * @typedef {object} NoMfm
- * @property {undefined} [_misskey_content]
- * @property {undefined} [source]
- *
- * @typedef {object} WithMfm
- * @property {string} _misskey_content  MFM source text.
- * @property {{content: string, mediaType: 'text/x.misskeymarkdown'}} source
- */
+```cue
+// The text of a Note. The two MFM properties come together, and say the
+// same thing, or neither is present.
+#NoteText: {
+	content?:            string
+	"_misskey_content"?: string
+	source?: {
+		content:   string
+		mediaType: "text/x.misskeymarkdown"
+		...
+	}
+	if source != _|_ {
+		"_misskey_content": source.content
+	}
+	if source == _|_ {
+		"_misskey_content"?: _|_
+	}
+	...
+}
 ```
 
 ## 1. The syntax
@@ -126,50 +131,8 @@ So whatever text a server puts in `_misskey_content` is read by Misskey as MFM.
 - `<ruby>` becomes `$[ruby base reading]` when it is simple.
 - Unknown tags pass their children through.
 
-## 6. How sukhi handles it
-
-### Receiving **[sukhi]**
-
-- `Extract.extract_mfm/1` takes `_misskey_content` if it is a non-empty string, otherwise `source.content`. Note that it does not check `source.mediaType`. (`ap/instructions/extract.ex`)
-- The text is stored in `notes.mfm` for notes, mirrored notes, and DMs. (`ap/instructions/mirror.ex`, `dms.ex`, `schema/note.ex`)
-- On an edit of a mirrored note, `mfm` is extracted again. (`mirror.ex`)
-- The Mastodon-compatible API passes the source through as an extra key `mfm`. Mastodon clients ignore it. (`api/.../views/mastodon_status.ex`)
-- The web client shows `mfm` through `renderMfm` when it is present, and `content` otherwise. (`web/src/lib/components/Status.svelte`)
-
-`renderMfm` (`web/src/lib/mfm.ts`) escapes the whole source first, then applies a static subset:
-- kept: fenced code, `<center>`, quote lines, inline code, `<small>`, `<b>`, `<i>`, `<s>`, `**`, `__`, `*`, `_`, `~~`, `[label](http(s) url)`, bare http(s) URLs, mentions, hashtags, custom and unicode emoji;
-- functions: every `$[name args content]` is replaced by its content, so motion and decoration are dropped. This is deliberate (calm UX);
-- not handled: `<plain>`, `search`, math, and any `$[...]` meaning. `$[ruby 漢字 かな]` shows as `漢字 かな`; `$[unixtime 1700000000]` shows the number.
-
-### Sending **[sukhi]**
-
-- Every note carries `_misskey_content`, set to the author's raw text (the stored text with HTML escapes removed). (`notes/create.ex`, `fedi/builders.ex` `inject_misskey_content`)
-- `content` is the HTML rendering of that text (`Note.html`).
-- sukhi does not send `source`.
-
-### Effects
-
-1. Misskey reads sukhi's raw text as MFM. If a sukhi user writes `**x**`, `<center>`, or `$[spin x]`, Misskey will show bold, centered, or spinning text. If they write Markdown that MFM does not know (headings, lists), Misskey shows it as plain text.
-2. sukhi sends the source even when it is plain text. Misskey's own rule (section 2) would leave it out. This is harmless but not needed.
-3. A Misskey note whose text is plain has no `mfm` in sukhi, and the web client falls back to `content`, which is complete in that case.
-4. A Misskey note with formatting is shown from the source, so formatting survives. A Mastodon client of sukhi sees the `content` HTML, where functions are italics (section 4).
-
-### Suggested handling **[suggestion, not a statement about Misskey]**
-
-Receive:
-1. Keep storing the source verbatim and never put it in a page unescaped. Keep the escape-first order of `renderMfm`.
-2. Check `source.mediaType` before using `source.content`, as Misskey does, so that a non-MFM `source` (for example Markdown from another server) is not taken as MFM.
-3. Keep dropping motion functions. Add `ruby` and `unixtime` only if they can be done without an animation.
-4. For a note with no source, use `content` unchanged.
-
-Send:
-1. Keep `_misskey_content` as the raw text.
-2. Add `source` with `mediaType: "text/x.misskeymarkdown"`, which Misskey reads first and which names the format. FEP-style servers that know `source` get a labelled format.
-3. Decide whether to omit both properties for text that has only the six plain node types, to match Misskey. It is optional.
-
-## 7. Not researched
+## 6. Not researched
 
 - The grammar of `mfm-js` (which text counts as which node).
 - Whether `extraHtml` is set for quotes or other cases.
 - How Misskey escapes a `$[` in text that is not meant as a function.
-- Rendering of math in sukhi.

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Actor
 
-- Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
+- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
 
 ## In one paragraph
@@ -22,7 +22,3 @@ A Misskey user is a normal ActivityPub actor with a few Misskey-only properties.
 ## How Misskey reads an actor
 
 An actor is fetched again in the background when its stored data is older than 24 hours, after an activity from it has been processed. **[src]** `ApInboxService.ts`
-
-## What sukhi does **[sukhi]**
-
-sukhi tells that an actor comes from the Misskey family when its `@context` has an object with a `misskey` key. It then asks Misskey's own API for avatar decorations (see [extensions](extensions.md)). sukhi does not use `isCat` or the other `_misskey_*` actor properties.

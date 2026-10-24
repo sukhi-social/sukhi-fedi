@@ -4,7 +4,7 @@
 - Status: Draft. Implemented in `fedi/builders.ex:347-364` and `ap/instructions/extract.ex:46-80`.
 - Identifier: `https://sukhi.social/spec/sukhi-0003/1`
 - Builds on: FEP-e232 (object links), FEP-044f (consent-respecting quotes).
-- Type: `QuoteNote`, the three forms under "Sending" ([quote.md](misskey/quote.md) prints it).
+- Type: `#QuoteNote`, the three forms under "Sending" (written below).
 - Terms, and what MUST / SHOULD / MAY mean: [README](README.md#how-to-read-the-specifications). Japanese: [README.ja.md](README.ja.md).
 
 ## In one paragraph
@@ -31,6 +31,37 @@ A quote post SHOULD carry all of the following, each set to the URL of the quote
 1. `quoteUrl`
 2. `_misskey_quote`
 3. A `tag` entry `{"type": "Link", "href": <url>, "rel": "_misskey_quote"}` (the FEP-e232 form)
+
+
+A quote post as sukhi sends it (type `#QuoteNote`):
+```json
+{
+  "type": "Note",
+  "content": "<p>Look at this</p>",
+  "quoteUrl": "https://remote.example/notes/1",
+  "_misskey_quote": "https://remote.example/notes/1",
+  "tag": [
+    {
+      "type": "Link",
+      "href": "https://remote.example/notes/1",
+      "rel": "_misskey_quote"
+    }
+  ]
+}
+```
+
+The same, as a type ([CUE](https://cuelang.org)):
+
+```cue
+// A Note that quotes another post, in the three forms of "Sending".
+#QuoteNote: {
+	type:             "Note" | "Article"
+	quoteUrl:         #URL
+	"_misskey_quote": quoteUrl
+	tag: [...{...}] // one of them is {type: "Link", rel: "_misskey_quote", href: quoteUrl}; CUE cannot say "one of" here
+	...
+}
+```
 
 When FEP-044f is implemented (not yet; see `FEDERATION.md` §11), the post SHOULD also carry `quote`. The `@context` terms it needs MUST be present **before** the object is signed. A term added afterwards is not covered by the signature.
 

@@ -118,6 +118,6 @@ These say what another server does. They bind nobody.
 | --- | --- |
 | [misskey/](misskey/README.md) | How Misskey behaves on the wire, one file per feature, with sukhi's matching actions |
 
-JSON shapes are written as JSDoc types inside the pages that use them, and a checker compiles them against the examples ([check/](check/README.md)).
+JSON shapes are written as CUE types inside the pages that use them, and a checker runs the examples against them ([check/](check/README.md)).
 
 Identifier base: `https://sukhi.social/spec/<id>/<version>`. The domain `sukhi.social` (acquired 2026-10-24) and the `/spec/` path are fixed. The pages are meant to be public, for anyone interested in development. Nothing is served at that address yet, so the identifiers do not resolve until the specification pages are published there. Clashes with the ActivityPub side are avoided by WebFinger.

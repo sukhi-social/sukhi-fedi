@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Note
 
-- Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
+- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
 
 ## In one paragraph
@@ -48,8 +48,8 @@ When it is accepted:
 - A reply to an unknown parent makes creation fail.
 - A duplicate returns the existing note.
 
-## What it means for sukhi
+## Things to watch
 
-- A note whose `id` is on another host than the one Misskey fetched it from is refused. sukhi's note ids are on its own domain. **[sukhi]**
+- A note whose `id` is on another host than the one it was fetched from is refused.
 - `https` is required for `id` and `url`.
-- A reply from sukhi to a Misskey note that Misskey cannot find fails on the Misskey side.
+- A reply to a note that Misskey cannot find fails on the Misskey side.
