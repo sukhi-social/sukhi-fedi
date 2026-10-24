@@ -39,6 +39,7 @@ defmodule SukhiShared.ActorJson do
         "https://w3id.org/security/v1",
         "https://w3id.org/security/multikey/v1",
         "https://w3id.org/security/data-integrity/v1",
+        "https://w3id.org/fep/844e",
         %{
           "featured" => %{"@id" => "toot:featured", "@type" => "@id"},
           "discoverable" => "toot:discoverable",
@@ -78,6 +79,7 @@ defmodule SukhiShared.ActorJson do
       }
     }
     |> maybe_put_assertion_method(account, actor_uri)
+    |> maybe_put_generator()
     |> maybe_put_image("icon", account.avatar_url)
     |> maybe_put_image("image", account.banner_url)
     |> maybe_put_fields(account.fields)
@@ -85,6 +87,15 @@ defmodule SukhiShared.ActorJson do
     |> maybe_put_also_known_as(account.aliases)
     |> maybe_put_moved_to(account.moved_to_uri)
     |> maybe_put_pending_collections(account, actor_uri)
+  end
+
+  # FEP-844e: what this server implements, under `generator`. Omitted when
+  # nothing is advertised (`Capability.generator/0` is nil).
+  defp maybe_put_generator(map) do
+    case SukhiShared.Capability.generator() do
+      nil -> map
+      gen -> Map.put(map, "generator", gen)
+    end
   end
 
   # FEP-4ccd: a locked actor advertises where its pending follow requests

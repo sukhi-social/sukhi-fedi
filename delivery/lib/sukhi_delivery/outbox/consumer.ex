@@ -55,6 +55,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
 
   alias SukhiDelivery.{Repo, Relays}
   alias SukhiDelivery.Delivery.{FedifyClient, Worker}
+  alias SukhiDelivery.PullFederation
   alias SukhiDelivery.Schema.{Account, Follow}
 
   # ── event dispatch ───────────────────────────────────────────────────────
@@ -133,9 +134,17 @@ defmodule SukhiDelivery.Outbox.Consumer do
           |> Enum.map(&inbox_for_actor_uri/1)
           |> Enum.reject(&is_nil/1)
 
+        # Followers on a host that declared Pull Federation are told to pull
+        # (`Route`); everyone else, and every reply/mention/relay target, is
+        # pushed. A host that is pushed to anyway for this note (a mention
+        # on the same shared inbox) is not also notified.
+        {follower_push, pull_hosts} = PullFederation.Route.split(followers_inboxes(actor_uri))
+
         recipients =
-          (followers_inboxes(actor_uri) ++ relay_inboxes() ++ reply_inbox ++ mention_inboxes)
+          (follower_push ++ relay_inboxes() ++ reply_inbox ++ mention_inboxes)
           |> Enum.uniq()
+
+        pull_hosts = pull_hosts -- Enum.map(recipients, &SukhiShared.PeerCapabilities.host_of/1)
 
         note_id = p["note_id"]
         ap_id = note_ap_id(actor_uri, note_id)
@@ -163,7 +172,8 @@ defmodule SukhiDelivery.Outbox.Consumer do
           |> maybe_put_audience(p["audience"])
 
         translate_and_fanout("note", translator_payload, actor_uri, activity_id, recipients,
-          extract_note: true
+          extract_note: true,
+          pull: %{account_id: parse_id(account_id), hosts: pull_hosts}
         )
     end
   end
@@ -223,6 +233,10 @@ defmodule SukhiDelivery.Outbox.Consumer do
       %{actor_uri: actor_uri} ->
         recipients = followers_inboxes(actor_uri) ++ relay_inboxes()
         activity_id = "#{ap_id}#delete"
+
+        # A Delete always goes by push, to everyone. Take the Create out of
+        # the pull log so a puller is never handed the post it retracts.
+        PullFederation.Log.retract("#{ap_id}/activity")
 
         translator_payload = %{
           actor: actor_uri,
@@ -594,14 +608,12 @@ defmodule SukhiDelivery.Outbox.Consumer do
   # FEP-044f: deliver our `QuoteRequest` to the quoted post's author (the
   # gateway resolved their inbox into `target_inbox`). `instrument` is our
   # quote post's URI — dereferenceable, so it need not be inlined.
-  defp handle_quote_requested(
-         %{
-           "account_id" => account_id,
-           "note_id" => note_id,
-           "quote_of_ap_id" => quoted_uri,
-           "target_inbox" => inbox
-         }
-       )
+  defp handle_quote_requested(%{
+         "account_id" => account_id,
+         "note_id" => note_id,
+         "quote_of_ap_id" => quoted_uri,
+         "target_inbox" => inbox
+       })
        when is_binary(quoted_uri) and is_binary(inbox) do
     case actor_for(account_id) do
       nil ->
@@ -687,7 +699,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
         body =
           extract_body(translator_result, object_type, opts)
 
-        enqueue_jobs(body, actor_uri, activity_id, inboxes)
+        enqueue_jobs(body, actor_uri, activity_id, inboxes, Keyword.get(opts, :pull))
 
       {:error, reason} ->
         Logger.warning("Outbox.Consumer: translate(#{object_type}) failed: #{inspect(reason)}")
@@ -714,9 +726,28 @@ defmodule SukhiDelivery.Outbox.Consumer do
   defp extract_body(result, "remove", _opts), do: Map.get(result, "activity", result)
   defp extract_body(result, _type, _opts), do: result
 
-  defp enqueue_jobs(_body, _actor_uri, _activity_id, []), do: :no_recipients
+  # `pull` is `%{account_id: id, hosts: [host]}` for an activity that goes
+  # to some followers by notification instead of by POST, else nil. The
+  # decision of *which* hosts is `PullFederation.Route`'s, made by the caller
+  # before translation; here the activity is only logged and the hosts told.
+  defp enqueue_jobs(body, actor_uri, activity_id, inboxes, pull \\ nil) do
+    pushed = push_jobs(body, actor_uri, activity_id, inboxes)
+    pulled = pull_jobs(pull, activity_id, body)
 
-  defp enqueue_jobs(body, actor_uri, activity_id, inboxes) do
+    if pushed == :no_recipients and pulled == :none, do: :no_recipients, else: :ok
+  end
+
+  defp pull_jobs(%{account_id: account_id, hosts: [_ | _] = hosts}, activity_id, body) do
+    {:ok, _} = PullFederation.Log.append(account_id, activity_id, body)
+    PullFederation.Notifier.schedule(hosts)
+    :ok
+  end
+
+  defp pull_jobs(_pull, _activity_id, _body), do: :none
+
+  defp push_jobs(_body, _actor_uri, _activity_id, []), do: :no_recipients
+
+  defp push_jobs(body, actor_uri, activity_id, inboxes) do
     inboxes = Enum.uniq(inboxes)
 
     base = %{
@@ -826,7 +857,8 @@ defmodule SukhiDelivery.Outbox.Consumer do
     end
   end
 
-  defp followers_inboxes(actor_uri) do
+  @doc false
+  def followers_inboxes(actor_uri) do
     domain = SukhiDelivery.Config.domain!()
     expected_prefix = "https://#{domain}/users/"
 

@@ -10,6 +10,8 @@ defmodule SukhiDelivery.Application do
       SukhiDelivery.PromEx,
       SukhiDelivery.Repo,
       SukhiDelivery.Cache.Ets,
+      # Pull Federation counters, folded into pull_stats in batches.
+      {SukhiShared.PullStats, repo: SukhiDelivery.Repo},
       {Gnat.ConnectionSupervisor, nats_connection_settings()},
       # Outbound HTTP pool for remote inbox POSTs. Tune via
       # `sukhi_delivery_pool_utilization` (stays near 1.0 → scale up).

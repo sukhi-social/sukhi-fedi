@@ -47,7 +47,9 @@ config :sukhi_delivery, Oban,
   # re-dispatched event just re-enqueues jobs that same table absorbs.
   plugins: [
     {Oban.Plugins.Pruner, max_age: 30 * 24 * 60 * 60},
-    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(15)}
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(15)},
+    # Pull Federation's log is bounded by age and count; trim it hourly.
+    {Oban.Plugins.Cron, crontab: [{"17 * * * *", SukhiDelivery.PullFederation.PruneWorker}]}
   ]
 
 # Web Push borrows the Finch pool this node already supervises for inbox
