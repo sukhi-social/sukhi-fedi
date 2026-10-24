@@ -3,7 +3,7 @@
 
 - Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Schema: `schemas/poll-vote.schema.json`
+- Type: `PollVote`, defined below
 
 ## In one paragraph
 
@@ -19,7 +19,7 @@ A poll is a `Question`-like note whose choices are listed under `oneOf` or `anyO
 
 A vote is a `Create` of a `Note` that has `name`, `inReplyTo`, and `to` set to the poll's author. It has no `content` and no `cc`.
 
-A vote as sukhi sends it ([poll-vote schema](../schemas/poll-vote.schema.json)):
+A vote as sukhi sends it (type `PollVote`):
 ```json
 {
   "type": "Create",
@@ -39,76 +39,27 @@ A vote as sukhi sends it ([poll-vote schema](../schemas/poll-vote.schema.json)):
 }
 ```
 
-The schema, copied here so the page can be read on its own:
+The type, written as JSDoc so the page can be read on its own (the checker compiles it):
 
-<!-- schema: poll-vote.schema.json -->
-```json
-{
-  "$schema": "http://json-schema.org/draft-04/schema#",
-  "id": "https://sukhi.social/spec/schemas/poll-vote.schema.json",
-  "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
-  "title": "Poll vote (Create of a Note)",
-  "description": "Descriptive and sent by sukhi: a vote is a Create of a small Note whose `name` is the chosen option and whose `inReplyTo` is the poll. Misskey counts a Note with a matching `name` as a vote and creates no note (see misskey/poll.md).",
-  "type": "object",
-  "required": [
-    "type",
-    "actor",
-    "object"
-  ],
-  "properties": {
-    "type": {
-      "enum": [
-        "Create"
-      ]
-    },
-    "actor": {
-      "type": "string",
-      "format": "uri"
-    },
-    "to": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "format": "uri"
-      },
-      "minItems": 1
-    },
-    "object": {
-      "type": "object",
-      "required": [
-        "type",
-        "attributedTo",
-        "name",
-        "inReplyTo"
-      ],
-      "properties": {
-        "type": {
-          "enum": [
-            "Note"
-          ]
-        },
-        "attributedTo": {
-          "type": "string",
-          "format": "uri"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "inReplyTo": {
-          "type": "string",
-          "format": "uri"
-        },
-        "content": {
-          "not": {}
-        },
-        "cc": {
-          "not": {}
-        }
-      }
-    }
-  }
-}
+```js
+/**
+ * A vote: a Create of a small Note whose `name` is the chosen option and whose
+ * `inReplyTo` is the poll. Misskey counts it and creates no note.
+ * @typedef {object} PollVote
+ * @property {'Create'} type
+ * @property {string} actor
+ * @property {[string, ...string[]]} [to]
+ * @property {PollVoteNote} object
+ *
+ * @typedef {object} PollVoteNote
+ * @property {'Note'} type
+ * @property {string} attributedTo
+ * @property {string} name  The chosen option. Not empty.
+ * @property {string} inReplyTo  URL of the poll.
+ * @property {[string, ...string[]]} [to]  The poll's author.
+ * @property {never} [content]  A vote carries no text.
+ * @property {never} [cc]
+ */
 ```
 
 ## Not researched

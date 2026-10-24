@@ -3,7 +3,7 @@
 
 - Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Schema: `schemas/nodeinfo-metadata.schema.json`
+- Type: `NodeInfoMetadata`, defined below
 
 ## In one paragraph
 
@@ -35,7 +35,7 @@ NodeInfo is a small public document that says what software a server runs. Missk
 - `metadata` is `{}`. Misskey therefore uses sukhi's home page and manifest for name, description, and colour.
 - `activeMonth` and `activeHalfyear` are 0. Misskey sends null for both. A reader should rely on neither.
 
-What a `metadata` object that gives Misskey the values directly would look like ([nodeinfo-metadata schema](../schemas/nodeinfo-metadata.schema.json)):
+What a `metadata` object that gives Misskey the values directly would look like (type `NodeInfoMetadata`):
 ```json
 {
   "nodeName": "sukhi",
@@ -48,50 +48,20 @@ What a `metadata` object that gives Misskey the values directly would look like 
 }
 ```
 
-The schema, copied here so the page can be read on its own:
+The type, written as JSDoc so the page can be read on its own (the checker compiles it):
 
-<!-- schema: nodeinfo-metadata.schema.json -->
-```json
-{
-  "$schema": "http://json-schema.org/draft-04/schema#",
-  "id": "https://sukhi.social/spec/schemas/nodeinfo-metadata.schema.json",
-  "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
-  "title": "NodeInfo metadata that Misskey reads",
-  "description": "Descriptive: the `metadata` keys Misskey's instance fetcher reads (see misskey/nodeinfo.md). All are optional. sukhi currently sends an empty object.",
-  "type": "object",
-  "properties": {
-    "nodeName": {
-      "type": "string"
-    },
-    "name": {
-      "type": "string",
-      "description": "Read when nodeName is absent."
-    },
-    "nodeDescription": {
-      "type": "string"
-    },
-    "description": {
-      "type": "string",
-      "description": "Read when nodeDescription is absent."
-    },
-    "themeColor": {
-      "type": "string",
-      "description": "Misskey normalises it to hex.",
-      "pattern": "^#?[0-9a-fA-F]{3,8}$"
-    },
-    "maintainer": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "email": {
-          "type": "string"
-        }
-      }
-    }
-  }
-}
+```js
+/**
+ * The `metadata` keys Misskey's instance fetcher reads. All are optional.
+ * sukhi sends an empty object.
+ * @typedef {object} NodeInfoMetadata
+ * @property {string} [nodeName]
+ * @property {string} [name]  Read when `nodeName` is absent.
+ * @property {string} [nodeDescription]
+ * @property {string} [description]  Read when `nodeDescription` is absent.
+ * @property {string} [themeColor]  A hex colour such as `#86b300`; Misskey normalises it.
+ * @property {{name?: string, email?: string}} [maintainer]
+ */
 ```
 
 This is a gap in sukhi, not a fault: nothing breaks without it.

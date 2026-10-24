@@ -3,7 +3,7 @@
 
 - Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Schema: `schemas/quote-note.schema.json`
+- Type: `QuoteNote`, defined below
 
 ## In one paragraph
 
@@ -20,7 +20,7 @@ Misskey recognises a quote only from two properties, `_misskey_quote` and `quote
 
 sukhi sends all three forms ([sukhi-0003](../sukhi-0003-legacy-quote-profile.md)), so Misskey finds the first two. On the receiving side sukhi reads all of them, including a tag `Link` and `quoteUri` (`ap/instructions/extract.ex`).
 
-A quote as sukhi sends it ([quote-note schema](../schemas/quote-note.schema.json)):
+A quote as sukhi sends it (type `QuoteNote`):
 ```json
 {
   "type": "Note",
@@ -37,50 +37,17 @@ A quote as sukhi sends it ([quote-note schema](../schemas/quote-note.schema.json
 }
 ```
 
-The schema, copied here so the page can be read on its own:
+The type, written as JSDoc so the page can be read on its own (the checker compiles it):
 
-<!-- schema: quote-note.schema.json -->
-```json
-{
-  "$schema": "http://json-schema.org/draft-04/schema#",
-  "id": "https://sukhi.social/spec/schemas/quote-note.schema.json",
-  "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
-  "title": "Note carrying a quote (sukhi-0003)",
-  "description": "The quote properties a sukhi Note carries when it quotes another post: the three forms of sukhi-0003 'Sending'. Other properties of a Note are not restricted here.",
-  "type": "object",
-  "required": [
-    "type",
-    "quoteUrl",
-    "_misskey_quote",
-    "tag"
-  ],
-  "properties": {
-    "type": {
-      "enum": [
-        "Note",
-        "Article"
-      ]
-    },
-    "quoteUrl": {
-      "type": "string",
-      "format": "uri",
-      "description": "URL of the quoted post."
-    },
-    "_misskey_quote": {
-      "type": "string",
-      "format": "uri",
-      "description": "The same URL."
-    },
-    "tag": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object"
-      },
-      "description": "At least one entry is {\"type\":\"Link\",\"href\":<the quoted URL>,\"rel\":\"_misskey_quote\"}. Draft-04 has no `contains`, so that part is stated here, not checked."
-    }
-  }
-}
+```js
+/**
+ * A Note that quotes another post: the three forms of sukhi-0003 "Sending".
+ * Other properties of a Note are allowed.
+ * @typedef {{[other: string]: unknown, type: 'Note' | 'Article', quoteUrl: string, _misskey_quote: string, tag: [object, ...object[]]}} QuoteNote
+ * `quoteUrl` and `_misskey_quote` are both the URL of the quoted post. At
+ * least one `tag` entry is `{type: 'Link', href: <that URL>, rel: '_misskey_quote'}`;
+ * this check does not look for it.
+ */
 ```
 
 ## Things to watch

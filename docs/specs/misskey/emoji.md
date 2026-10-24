@@ -3,7 +3,7 @@
 
 - Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Schema: `schemas/emoji-tag.schema.json`
+- Type: `EmojiTag`, defined below
 
 ## In one paragraph
 
@@ -32,7 +32,7 @@ A custom emoji travels as a `tag` item of type `Emoji` next to the text that use
 - sukhi's context defines `Emoji` as `toot:Emoji`, as Misskey's does.
 - The web client replaces `:code:` by the image with `renderEmojis`, using the `emojis` of the status.
 
-An `Emoji` tag as sukhi sends it ([emoji-tag schema](../schemas/emoji-tag.schema.json)):
+An `Emoji` tag as sukhi sends it (type `EmojiTag`):
 ```json
 {
   "id": "https://sukhi.social/emojis/blobcat.png",
@@ -45,57 +45,17 @@ An `Emoji` tag as sukhi sends it ([emoji-tag schema](../schemas/emoji-tag.schema
 }
 ```
 
-The schema, copied here so the page can be read on its own:
+The type, written as JSDoc so the page can be read on its own (the checker compiles it):
 
-<!-- schema: emoji-tag.schema.json -->
-```json
-{
-  "$schema": "http://json-schema.org/draft-04/schema#",
-  "id": "https://sukhi.social/spec/schemas/emoji-tag.schema.json",
-  "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
-  "title": "Custom emoji tag",
-  "description": "The `tag` item that carries a custom emoji, in the shape sukhi sends (actors, notes, reactions). Misskey's exact fields for the same item were not read; Misskey reads `type` and `name` and the icon URL (see misskey/emoji.md).",
-  "type": "object",
-  "required": [
-    "type",
-    "name",
-    "icon"
-  ],
-  "properties": {
-    "id": {
-      "type": "string",
-      "format": "uri"
-    },
-    "type": {
-      "enum": [
-        "Emoji"
-      ]
-    },
-    "name": {
-      "type": "string",
-      "pattern": "^:[^:\\s]+:$",
-      "description": "The shortcode with its colons."
-    },
-    "icon": {
-      "type": "object",
-      "required": [
-        "type",
-        "url"
-      ],
-      "properties": {
-        "type": {
-          "enum": [
-            "Image"
-          ]
-        },
-        "url": {
-          "type": "string",
-          "format": "uri"
-        }
-      }
-    }
-  }
-}
+```js
+/**
+ * A custom emoji item in `tag`, in the shape sukhi sends.
+ * @typedef {object} EmojiTag
+ * @property {string} [id]
+ * @property {'Emoji'} type
+ * @property {`:${string}:`} name  The shortcode with its colons.
+ * @property {{type: 'Image', url: string}} icon  `url` is an absolute URL.
+ */
 ```
 
 ## Not researched

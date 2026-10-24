@@ -3,7 +3,7 @@
 
 - Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Schema: `schemas/misskey-reaction.schema.json`
+- Type: `Reaction`, defined below
 
 ## In one paragraph
 
@@ -23,7 +23,7 @@ sukhi sends `Like` with `content` and, for custom emoji, an `Emoji` tag. It does
 
 The choice of `Like` is made for other servers, not for Misskey: Mastodon reads it as a plain like, and Pleroma quarantines `EmojiReact` (`FEDERATION.md` §10).
 
-A reaction as sukhi sends it ([misskey-reaction schema](../schemas/misskey-reaction.schema.json)):
+A reaction as sukhi sends it (type `Reaction`):
 ```json
 {
   "id": "https://sukhi.social/likes/1",
@@ -44,7 +44,7 @@ A reaction as sukhi sends it ([misskey-reaction schema](../schemas/misskey-react
 }
 ```
 
-A reaction as Misskey sends it, with a Unicode emoji ([misskey-reaction schema](../schemas/misskey-reaction.schema.json)):
+A reaction as Misskey sends it, with a Unicode emoji (type `Reaction`):
 ```json
 {
   "type": "Like",
@@ -55,61 +55,21 @@ A reaction as Misskey sends it, with a Unicode emoji ([misskey-reaction schema](
 }
 ```
 
-The schema, copied here so the page can be read on its own:
+The type, written as JSDoc so the page can be read on its own (the checker compiles it):
 
-<!-- schema: misskey-reaction.schema.json -->
-```json
-{
-  "$schema": "http://json-schema.org/draft-04/schema#",
-  "id": "https://sukhi.social/spec/schemas/misskey-reaction.schema.json",
-  "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
-  "title": "Emoji reaction (Like with content)",
-  "description": "Descriptive: a reaction as Misskey sends it, and as sukhi sends it (without `_misskey_reaction`, which Misskey does not need). Misskey also accepts the types `EmojiReaction` and `EmojiReact` (see misskey/reactions.md).",
-  "type": "object",
-  "required": [
-    "type",
-    "actor",
-    "object",
-    "content"
-  ],
-  "properties": {
-    "id": {
-      "type": "string",
-      "format": "uri"
-    },
-    "type": {
-      "enum": [
-        "Like",
-        "EmojiReaction",
-        "EmojiReact"
-      ]
-    },
-    "actor": {
-      "type": "string",
-      "format": "uri"
-    },
-    "object": {
-      "type": "string",
-      "format": "uri"
-    },
-    "content": {
-      "type": "string",
-      "minLength": 1,
-      "description": "A Unicode emoji, or a shortcode such as :blobcat:."
-    },
-    "_misskey_reaction": {
-      "type": "string",
-      "description": "Misskey sets this to the same string as content."
-    },
-    "tag": {
-      "type": "array",
-      "maxItems": 1,
-      "items": {
-        "$ref": "emoji-tag.schema.json"
-      }
-    }
-  }
-}
+```js
+/**
+ * A reaction: a Like that carries `content`. Misskey also accepts the types
+ * `EmojiReaction` and `EmojiReact`.
+ * @typedef {object} Reaction
+ * @property {string} [id]
+ * @property {'Like' | 'EmojiReaction' | 'EmojiReact'} type
+ * @property {string} actor  URL of the reacting actor.
+ * @property {string} object  URL of the note.
+ * @property {string} content  A Unicode emoji, or a shortcode such as `:blobcat:`. Not empty.
+ * @property {string} [_misskey_reaction]  Misskey sets it to the same string as `content`.
+ * @property {[] | [EmojiTag]} [tag]
+ */
 ```
 
-Note that the embedded schema refers to `emoji-tag.schema.json`, which is on the [emoji](emoji.md) page.
+Note that the type refers to `EmojiTag`, which is on the [emoji](emoji.md) page.

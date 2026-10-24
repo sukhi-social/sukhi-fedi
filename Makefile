@@ -89,7 +89,7 @@ test-e2e:  ## cross-browser SPA smoke (Playwright)
 check: check-presets  ## linters and type checks
 	cd web && $(RUN) pnpm run check
 
-check-specs:  ## validate the JSON in docs/specs against its schemas
+check-specs:  ## compile the JSDoc types in docs/specs and check the examples
 	cd docs/specs/check && pnpm install --frozen-lockfile && pnpm run check
 
 check-presets:

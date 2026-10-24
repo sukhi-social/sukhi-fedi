@@ -2,37 +2,21 @@
 //
 // Checks the JSON in docs/specs.
 //
-//   1. Every ```json block that has a link to a *.json schema right above
-//      it is validated against that schema (skeemas-markdown-validation).
-//   2. Every schema printed inside a document (<!-- schema: NAME --> and
-//      the ```json block after it) is identical to schemas/NAME.
-//   3. The cases in negative.json are rejected by the schema they name.
+//   1. Every ```js block in a document is JSDoc (@typedef ...). All of them
+//      are put in one file and compiled with `checkJs` and `strict`.
+//   2. A ```json block that follows a line ending in (type `Name`): is
+//      added to that file as `/** @type {Name} */ const x = <the JSON>`,
+//      so the compiler checks it against the type.
+//   3. negative.js holds messages the types must reject (`@ts-expect-error`).
 //
-// Exits 1 on the first kind of failure it finds, after printing all of
-// that kind.
+// Exits 1 if the compiler reports anything, with the document and line.
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
-const assert = require('assert');
-const skeemas = require('skeemas');
-skeemas.use(require('skeemas-markdown-validation'));
+const ts = require('typescript');
 
 const specs = path.resolve(__dirname, '..');
-const schemasDir = path.join(specs, 'schemas');
-
-const schemaFiles = fs.readdirSync(schemasDir).filter((f) => f.endsWith('.schema.json')).sort();
-const schemas = Object.fromEntries(
-  schemaFiles.map((f) => [f, JSON.parse(fs.readFileSync(path.join(schemasDir, f), 'utf8'))])
-);
-
-function newValidator() {
-  const v = skeemas();
-  for (const [f, s] of Object.entries(schemas)) {
-    v.addRef(f, s);
-    if (s.id) v.addRef(s.id, s);
-  }
-  return v;
-}
 
 function markdownFiles(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -43,65 +27,79 @@ function markdownFiles(dir) {
   });
 }
 
-const rel = (p) => path.relative(specs, p);
-let failures = 0;
-const fail = (msg) => {
-  failures += 1;
-  console.error('FAIL ' + msg);
+// out: lines of the generated file; origin[i] = where line i came from
+const out = [];
+const origin = [];
+const add = (line, where) => {
+  out.push(line);
+  origin.push(where);
 };
 
 const docs = markdownFiles(specs).sort();
-
-// 1. examples against the schema linked above them
+const fence = /^```(\w*)\s*$/;
+let types = 0;
 let examples = 0;
+
 for (const doc of docs) {
-  let tests;
-  try {
-    tests = newValidator().markdownTests(doc);
-  } catch (e) {
-    fail(`${rel(doc)}: ${e.message}`);
-    continue;
-  }
-  for (const t of tests) {
-    examples += 1;
-    try {
-      t.execute();
-    } catch (e) {
-      fail(`${rel(doc)}:${t.json.line}: ${e.message}`);
+  const rel = path.relative(specs, doc);
+  const lines = fs.readFileSync(doc, 'utf8').split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(fence);
+    if (!m || !m[1]) continue;
+    let j = i + 1;
+    while (j < lines.length && lines[j] !== '```') j++;
+    const body = lines.slice(i + 1, j);
+    const typed = i > 0 && lines[i - 1].match(/\(type `(\w+)`\):\s*$/);
+    if (m[1] === 'js') {
+      types += 1;
+      body.forEach((l, k) => add(l, `${rel}:${i + 2 + k}`));
+    } else if (m[1] === 'json' && typed) {
+      examples += 1;
+      add(`/** @type {${typed[1]}} */`, `${rel}:${i + 1}`);
+      add(`const example${examples} = `, `${rel}:${i + 1}`);
+      body.forEach((l, k) => add(l, `${rel}:${i + 2 + k}`));
+      add(';', `${rel}:${j + 1}`);
     }
+    i = j;
   }
 }
 
-// 2. embedded copies of the schemas
-let embedded = 0;
-const copyRe = /<!-- schema: (\S+) -->\s*```json\n([\s\S]+?)```/g;
-for (const doc of docs) {
-  const text = fs.readFileSync(doc, 'utf8');
-  for (const m of text.matchAll(copyRe)) {
-    embedded += 1;
-    const name = m[1];
-    if (!schemas[name]) {
-      fail(`${rel(doc)}: embedded schema names a missing file: ${name}`);
-      continue;
-    }
-    try {
-      assert.deepStrictEqual(JSON.parse(m[2]), schemas[name]);
-    } catch (e) {
-      fail(`${rel(doc)}: the embedded copy of ${name} differs from schemas/${name}`);
-    }
-  }
-}
+// negative.js is appended whole; its errors are marked by @ts-expect-error
+const negFile = path.join(__dirname, 'negative.js');
+const neg = fs.readFileSync(negFile, 'utf8').split('\n');
+const negative = neg.filter((l) => l.trim() === '// @ts-expect-error').length;
+neg.forEach((l, k) => add(l, `check/negative.js:${k + 1}`));
 
-// 3. the cases that must be rejected
-const negative = JSON.parse(fs.readFileSync(path.join(__dirname, 'negative.json'), 'utf8'));
-for (const n of negative) {
-  const r = newValidator().validate(n.instance, schemas[n.schema]);
-  if (r.valid) fail(`negative case accepted by ${n.schema}: ${n.why}`);
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-check-'));
+const file = path.join(dir, 'specs.js');
+fs.writeFileSync(file, '// @ts-check\n' + out.join('\n') + '\n');
+
+const program = ts.createProgram([file], {
+  allowJs: true,
+  checkJs: true,
+  noEmit: true,
+  strict: true,
+  target: ts.ScriptTarget.ES2022,
+  types: [],
+  lib: ['lib.es2022.d.ts'],
+});
+const diagnostics = ts.getPreEmitDiagnostics(program);
+fs.rmSync(dir, { recursive: true, force: true });
+
+let failures = 0;
+for (const d of diagnostics) {
+  failures += 1;
+  const text = ts.flattenDiagnosticMessageText(d.messageText, '\n');
+  let where = '';
+  if (d.file && d.start !== undefined) {
+    const line = d.file.getLineAndCharacterOfPosition(d.start).line; // 0-based; line 0 is the @ts-check comment
+    where = (origin[line - 1] || `line ${line}`) + ': ';
+  }
+  console.error(`FAIL ${where}${text}`);
 }
 
 console.log(
-  `${docs.length} documents, ${examples} examples, ${embedded} embedded schemas, ` +
-    `${schemaFiles.length} schema files, ${negative.length} negative cases`
+  `${docs.length} documents, ${types} type blocks, ${examples} examples, ${negative} rejected cases`
 );
 if (failures) {
   console.error(`${failures} failure(s)`);

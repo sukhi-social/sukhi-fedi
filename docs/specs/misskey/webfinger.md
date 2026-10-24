@@ -3,7 +3,7 @@
 
 - Kind: descriptive (what Misskey does), then what sukhi does. Tags (**[src]**, **[study]**, **[sukhi]**, **[not seen]**) and terms: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Schema: `schemas/webfinger-jrd.schema.json`
+- Type: `WebFingerAnswer`, defined below
 
 ## In one paragraph
 
@@ -53,7 +53,7 @@ How the request URL is built, the `host-meta` fallback, any check of the returne
 | no `resource` | 400 |
 | `host-meta` | XRD with the `lrdd` template |
 
-A typical sukhi answer ([webfinger-jrd schema](../schemas/webfinger-jrd.schema.json)):
+A typical sukhi answer (type `WebFingerAnswer`):
 ```json
 {
   "subject": "acct:hina@sukhi.social",
@@ -73,85 +73,28 @@ A typical sukhi answer ([webfinger-jrd schema](../schemas/webfinger-jrd.schema.j
 }
 ```
 
-The schema, copied here so the page can be read on its own:
+The type, written as JSDoc so the page can be read on its own (the checker compiles it):
 
-<!-- schema: webfinger-jrd.schema.json -->
-```json
-{
-  "$schema": "http://json-schema.org/draft-04/schema#",
-  "id": "https://sukhi.social/spec/schemas/webfinger-jrd.schema.json",
-  "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
-  "title": "WebFinger answer (JRD)",
-  "description": "Descriptive of what Misskey's resolver needs and what sukhi answers: `subject` as `acct:`, and a `self` link of type `application/activity+json`. Misskey takes the first `self` link and does not check its type (see misskey/webfinger.md); sukhi sets it anyway.",
-  "type": "object",
-  "required": [
-    "subject",
-    "links"
-  ],
-  "properties": {
-    "subject": {
-      "type": "string",
-      "pattern": "^acct:[^@\\s]+@[^@\\s]+$"
-    },
-    "aliases": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "format": "uri"
-      }
-    },
-    "links": {
-      "type": "array",
-      "minItems": 1,
-      "items": [
-        {
-          "type": "object",
-          "required": [
-            "rel",
-            "href"
-          ],
-          "properties": {
-            "rel": {
-              "enum": [
-                "self"
-              ]
-            },
-            "type": {
-              "enum": [
-                "application/activity+json"
-              ]
-            },
-            "href": {
-              "type": "string",
-              "format": "uri"
-            }
-          }
-        }
-      ],
-      "additionalItems": {
-        "type": "object",
-        "required": [
-          "rel"
-        ],
-        "properties": {
-          "rel": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          },
-          "href": {
-            "type": "string",
-            "format": "uri"
-          },
-          "template": {
-            "type": "string"
-          }
-        }
-      }
-    }
-  }
-}
+```js
+/**
+ * What Misskey's resolver needs from a WebFinger answer, and what sukhi sends.
+ * Misskey takes the first `self` link and does not check its type.
+ * @typedef {object} WebFingerAnswer
+ * @property {`acct:${string}@${string}`} subject
+ * @property {string[]} [aliases]
+ * @property {[SelfLink, ...OtherLink[]]} links  The `self` link comes first.
+ *
+ * @typedef {object} SelfLink
+ * @property {'self'} rel
+ * @property {'application/activity+json'} [type]
+ * @property {string} href
+ *
+ * @typedef {object} OtherLink
+ * @property {string} rel
+ * @property {string} [type]
+ * @property {string} [href]
+ * @property {string} [template]
+ */
 ```
 
 ## Things to watch
