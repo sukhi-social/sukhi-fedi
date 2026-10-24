@@ -700,7 +700,7 @@ POST /api/v1/accounts/:id/follow      (id = shadow account id)
    │  SukhiFedi.Social.request_follow
    │  → state="pending" (remote target) + sns.outbox.follow.requested
    ▼
-SukhiDelivery.Outbox.Consumer.handle_follow
+SukhiDelivery.Outbox.Handlers.Social.follow
    │  followee_endpoints(account) → actor_uri + shared_inbox_url||inbox_url
    │  Bun follow translator + HTTP-Signature → POST remote inbox
    ▼
