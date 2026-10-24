@@ -2,31 +2,49 @@
 # sukhi-0003: Quote compatibility profile
 
 - Status: Draft. Implemented in `fedi/builders.ex:347-364` and `ap/instructions/extract.ex:46-80`.
-- Identifier: `https://sukhi.social/spec/sukhi-0003/1` (domain and `/spec/` path fixed, see [README](README.md)).
+- Identifier: `https://sukhi.social/spec/sukhi-0003/1`
 - Builds on: FEP-e232 (object links), FEP-044f (consent-respecting quotes).
+- Terms, and what MUST / SHOULD / MAY mean: [README](README.md#how-to-read-the-specifications). Japanese: [README.ja.md](README.ja.md).
 
-## 1. Problem
+## In one paragraph
 
-Servers write quotes in different ways: Misskey `quoteUrl` and `_misskey_quote`, a FEP-e232 link, and the newer FEP-044f `quote`. A sender that picks one is invisible to the others. The standards do not say which alias set a server sends or reads while the migration lasts.
+"This post quotes that post" is written differently by different servers. So when sending a quote, **write it in all three ways**, and when receiving, **accept any of them**. When the migration is over, remove the old ways one by one.
 
-## 2. Sending
+## The problem
 
-A quote post SHOULD carry all of these, set to the quoted object URL, so that servers on either convention show it as a quote:
+There are at least four ways to write a quote.
 
-1. `quoteUrl`.
-2. `_misskey_quote`.
-3. A `tag` entry `{"type": "Link", "href": <url>, "rel": "_misskey_quote"}` (FEP-e232 form).
+| Way | Used by |
+| --- | --- |
+| `quoteUrl` | Misskey and its forks |
+| `_misskey_quote` | Misskey and its forks |
+| a `Link` inside `tag` (FEP-e232) | servers that implement FEP-e232 |
+| `quote` (FEP-044f) | the newer form, read by Mastodon and others |
 
-When FEP-044f is implemented (not yet; see `FEDERATION.md` §11), the post SHOULD also carry `quote`. The `@context` terms MUST be present before the object is signed, or the signature will not cover what is sent.
+If you write only one, servers that do not read it show your post as an ordinary post, not as a quote. Misskey reads only the first two (`_misskey_quote` and `quoteUrl`). It reads neither a `tag` `Link` nor `quoteUri`. The standards do not say which ones to send or read while servers are moving from one to another.
 
-## 3. Reading
+## Sending
 
-A reader SHOULD take the quoted URL from one of: `quoteUrl`, `quoteUri`, `_misskey_quote`, a `tag` Link whose `rel` contains `_misskey_quote` or `e232`. The reading MAY live in one function; sukhi does it that way. When FEP-044f is implemented, `quote` joins this list; the current code does not read it.
+A quote post SHOULD carry all of the following, each set to the URL of the quoted post.
 
-## 4. Consent
+1. `quoteUrl`
+2. `_misskey_quote`
+3. A `tag` entry `{"type": "Link", "href": <url>, "rel": "_misskey_quote"}` (the FEP-e232 form)
 
-Until `QuoteRequest` and `QuoteAuthorization` are handled, a sender cannot honour an interaction policy. A quote of a post that has such a policy renders as "legacy" at receivers that need it.
+When FEP-044f is implemented (not yet; see `FEDERATION.md` §11), the post SHOULD also carry `quote`. The `@context` terms it needs MUST be present **before** the object is signed. A term added afterwards is not covered by the signature.
 
-## 5. End of life
+## Reading
 
-Each alias SHOULD be removed once no server in the fediverse that sukhi federates with needs it. Removal is a new major version of this profile.
+A reader SHOULD take the quoted URL from any of these:
+
+`quoteUrl`, `quoteUri`, `_misskey_quote`, or a `tag` `Link` whose `rel` contains `_misskey_quote` or `e232`.
+
+The reading MAY live in one function. sukhi does it that way. When FEP-044f is implemented, `quote` joins this list. The current code does not read it.
+
+## Consent
+
+The mechanism by which the quoted author agrees to be quoted (`QuoteRequest` and `QuoteAuthorization` of FEP-044f) is not handled yet. A quote of a post that has such a policy is shown as a "legacy" quote at servers that need the policy.
+
+## When to remove each way
+
+Each way SHOULD be removed once no server that sukhi federates with needs it. Removal is published as a new major version (`/2`) of this profile.

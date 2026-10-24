@@ -17,6 +17,33 @@ Two lists. First, every external specification the code implements, with how far
 | partial | Some of the specification; the gap is named. |
 | doc | A document only; no code. |
 
+## How to read the specifications
+
+The specifications in section 2 are written for readers who know basic logic ("if A then B", "not B, so not A") and nothing about ActivityPub. Terms are defined here, once. A Japanese edition is in [README.ja.md](README.ja.md).
+
+### Terms
+
+| Term | Meaning here |
+| --- | --- |
+| server | One operator's installation that exchanges posts over ActivityPub. sukhi is one. |
+| actor | The "who": something like a user account, named by a URL. |
+| activity | The "did what": one message, such as "post this" or "follow that". |
+| inbox | The URL where a server receives activities. |
+| signature | A mark that proves the sender holds a certain key. Only the key's holder can make it. |
+| digest | A short value computed from the body. If one character of the body changes, the digest changes. |
+
+### MUST, SHOULD, MAY
+
+The words follow RFC 2119 and are used to say how firmly a rule binds.
+
+| Word | Meaning | If you skip it |
+| --- | --- | --- |
+| MUST | Follow it. | Others cannot talk to you, data is lost, or safety is lost. |
+| SHOULD | Follow it unless you have a specific reason. | It still works, but others bear a cost or efficiency drops. |
+| MAY | Your choice. | Nothing happens. It is only what sukhi does. |
+
+MUST is used only where an implementation that copies the rules would otherwise fail to communicate, lose data, or become unsafe.
+
 ## 1. External specifications in the code
 
 ### Federation
@@ -72,13 +99,7 @@ Two lists. First, every external specification the code implements, with how far
 
 Each one covers behaviour that is observable from outside and that no listed standard states. Each says which standard it builds on.
 
-### Requirement words
-
-These specifications are written so that others can copy them.
-
-- **MUST** only where an implementation that skips the rule cannot talk to others, or loses data, or opens a security hole.
-- **SHOULD** where the rule helps others (reach, load, tidiness) but a copy that skips it still works.
-- **MAY** for choices of one implementation, such as a number taken from sukhi's tuning.
+The requirement words (MUST, SHOULD, MAY) are explained in [How to read the specifications](#how-to-read-the-specifications).
 
 | Id | Title | Builds on | Status |
 | --- | --- | --- | --- |
