@@ -23,6 +23,31 @@ defmodule SukhiFedi.DeliveryStatusTest do
     end
   end
 
+  describe "progress/3" do
+    test "walks received → signing → queued → sending → done" do
+      assert %{stage: :received, percent: nil} = DeliveryStatus.progress("pending", %{}, %{})
+      assert %{stage: :received} = DeliveryStatus.progress("published", %{"available" => 1}, %{})
+      assert %{stage: :signing} = DeliveryStatus.progress("published", %{"executing" => 1}, %{})
+
+      assert %{stage: :queued, state: :delivering, percent: nil} =
+               DeliveryStatus.progress("published", %{"completed" => 1}, %{"available" => 4})
+
+      assert %{stage: :sending, percent: 30} =
+               DeliveryStatus.progress("published", %{"completed" => 1}, %{
+                 "completed" => 3,
+                 "executing" => 7
+               })
+
+      assert %{stage: :done, state: :delivered, percent: 100} =
+               DeliveryStatus.progress("published", %{"completed" => 1}, %{"completed" => 4})
+    end
+
+    test "never says 100 before everything is done" do
+      assert %{stage: :sending, percent: 90} =
+               DeliveryStatus.progress("published", %{}, %{"completed" => 99, "retryable" => 1})
+    end
+  end
+
   describe "for_own_notes/3" do
     test "follows a post from queued, to sent, to late" do
       a = create_account!("ds_alice")
@@ -30,19 +55,22 @@ defmodule SukhiFedi.DeliveryStatusTest do
       note = Repo.reload!(note)
 
       # The outbox row is still pending: on its way.
-      assert %{note.id => :delivering} == DeliveryStatus.for_own_notes(a.id, [note.id])
+      assert %{note.id => %{state: :delivering, stage: :received, percent: nil}} ==
+               DeliveryStatus.for_own_notes(a.id, [note.id])
 
       mark_outbox("sns.outbox.note.created", note.id, "published")
-      assert %{note.id => :delivered} == DeliveryStatus.for_own_notes(a.id, [note.id])
+      assert %{note.id => {:delivered, :done, 100}} == view(DeliveryStatus.for_own_notes(a.id, [note.id]))
 
       # Two inboxes: one done, one still going.
       send_job(note.ap_id <> "/activity", "https://one.example/inbox", "completed")
       send_job(note.ap_id <> "/activity", "https://two.example/inbox", "executing")
-      assert %{note.id => :delivering} == DeliveryStatus.for_own_notes(a.id, [note.id])
+      assert %{note.id => {:delivering, :sending, 50}} ==
+               view(DeliveryStatus.for_own_notes(a.id, [note.id]))
 
       # A retry waiting is late, whatever the other inbox did.
       send_job(note.ap_id <> "/activity", "https://three.example/inbox", "retryable")
-      assert %{note.id => :delayed} == DeliveryStatus.for_own_notes(a.id, [note.id])
+      assert %{note.id => {:delayed, :sending, 30}} ==
+               view(DeliveryStatus.for_own_notes(a.id, [note.id]))
     end
 
     test "the answer is only the state: no host and no count in it" do
@@ -55,7 +83,7 @@ defmodule SukhiFedi.DeliveryStatusTest do
 
       result = DeliveryStatus.for_own_notes(a.id, [note.id])
 
-      assert result == %{note.id => :delayed}
+      assert %{note.id => {:delayed, :sending, 0}} == view(result)
       refute inspect(result) =~ "example"
     end
 
@@ -85,14 +113,18 @@ defmodule SukhiFedi.DeliveryStatusTest do
       note = Repo.reload!(note)
       {:ok, _} = Notes.delete_note(a, note.id)
 
-      assert %{note.id => :delivering} == DeliveryStatus.for_deleted_notes([note.id])
+      assert %{note.id => {:delivering, :received, nil}} ==
+               view(DeliveryStatus.for_deleted_notes([note.id]))
 
       mark_outbox("sns.outbox.note.deleted", note.id, "published")
       send_job(note.ap_id <> "#delete", "https://one.example/inbox", "discarded")
 
-      assert %{note.id => :delayed} == DeliveryStatus.for_deleted_notes([note.id])
+      assert %{note.id => {:delayed, :sending, 0}} ==
+               view(DeliveryStatus.for_deleted_notes([note.id]))
     end
   end
+
+  defp view(result), do: Map.new(result, fn {id, p} -> {id, {p.state, p.stage, p.percent}} end)
 
   defp create_account!(username) do
     Repo.insert!(%Account{username: username, display_name: username})

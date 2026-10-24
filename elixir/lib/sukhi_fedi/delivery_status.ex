@@ -9,11 +9,14 @@ defmodule SukhiFedi.DeliveryStatus do
     * `:delayed` — some part of the trip is late: a send is being retried
       or has been given up on.
 
+  Alongside it, a stage for a small timeline — received, signing, queued,
+  sending (with a rough percent), done — and nothing finer.
+
   That is the whole answer. Which servers, and how many of them, are
   deliberately not part of it: the author is told "it is on its way / it
   has arrived / it is late", not who is behind it. Nothing in this
   module's result can carry a host or a count, so no caller can leak one
-  by accident — the three words are the boundary.
+  by accident — the three words and a rough percent are the boundary.
 
   It is read from what the pipeline already writes, in one batch for any
   number of notes (three grouped queries, never one per note):
@@ -40,6 +43,7 @@ defmodule SukhiFedi.DeliveryStatus do
 
   @type state :: :delivering | :delivered | :delayed
   @type kind :: :created | :deleted
+  @type stage :: :received | :signing | :queued | :sending | :done
 
   @window_days 2
 
@@ -58,11 +62,11 @@ defmodule SukhiFedi.DeliveryStatus do
 
   @doc """
   The state of each of `account_id`'s own notes among `note_ids`, as
-  `%{note_id => state}`. Notes that are not the account's, not local, or
+  `%{note_id => %{state:, stage:, percent:}}` (see `progress/3`). Notes that are not the account's, not local, or
   older than the window are left out, so the result can be handed straight
   to a renderer: a missing key means "show nothing".
   """
-  @spec for_own_notes(integer() | nil, [integer()], DateTime.t()) :: %{integer() => state()}
+  @spec for_own_notes(integer() | nil, [integer()], DateTime.t()) :: %{integer() => map()}
   def for_own_notes(account_id, note_ids, now \\ DateTime.utc_now())
   def for_own_notes(nil, _note_ids, _now), do: %{}
   def for_own_notes(_account_id, [], _now), do: %{}
@@ -91,7 +95,7 @@ defmodule SukhiFedi.DeliveryStatus do
   for notes the caller has just deleted for their owner; it does not check
   ownership, which `Notes.delete_note/2` already did.
   """
-  @spec for_deleted_notes([integer()]) :: %{integer() => state()}
+  @spec for_deleted_notes([integer()]) :: %{integer() => map()}
   def for_deleted_notes([]), do: %{}
 
   def for_deleted_notes(note_ids) do
@@ -119,17 +123,57 @@ defmodule SukhiFedi.DeliveryStatus do
     sends = sends(Map.values(activity_ids))
 
     Map.new(ids, fn id ->
-      outbox = Map.get(events, id)
+      {outbox_id, outbox_status} = Map.get(events, id, {nil, nil})
 
-      outbox_signals =
-        case outbox do
-          {outbox_id, status} -> [outbox_signal(status) | Map.get(dispatches, outbox_id, [])]
-          nil -> []
-        end
-
-      {id, classify(outbox_signals ++ Map.get(sends, activity_ids[id], []))}
+      {id,
+       progress(
+         outbox_status,
+         Map.get(dispatches, outbox_id, %{}),
+         Map.get(sends, activity_ids[id], %{})
+       )}
     end)
   end
+
+  @doc """
+  Fold what was seen for one post into `%{state:, stage:, percent:}`.
+
+  `outbox_status` is the event row's status (nil when there is none);
+  `dispatch` and `sends` are `%{oban_state => how many jobs}` for the
+  dispatch job and for the sends over every inbox. The counts go in and
+  only a coarse picture comes out: `percent` is the share of sends that
+  finished, in steps of 10, and only while `stage` is `:sending`.
+  """
+  @spec progress(String.t() | nil, %{String.t() => pos_integer()}, %{String.t() => pos_integer()}) ::
+          %{state: state(), stage: stage(), percent: 0..100 | nil}
+  def progress(outbox_status, dispatch, sends) do
+    signals =
+      List.wrap(outbox_status && outbox_signal(outbox_status)) ++
+        signals(dispatch) ++ signals(sends)
+
+    total = sends |> Map.values() |> Enum.sum()
+    done = count(sends, ~w(completed cancelled))
+
+    stage =
+      cond do
+        total > 0 and done == total -> :done
+        total > 0 and (done > 0 or count(sends, ~w(executing retryable discarded)) > 0) -> :sending
+        total > 0 -> :queued
+        count(dispatch, ~w(executing)) > 0 -> :signing
+        outbox_status in ["pending", "failed"] -> :received
+        count(dispatch, ~w(available scheduled retryable discarded)) > 0 -> :received
+        true -> :done
+      end
+
+    %{state: classify(signals), stage: stage, percent: percent(stage, done, total)}
+  end
+
+  defp percent(:done, _done, _total), do: 100
+  defp percent(:sending, done, total), do: min(div(done * 10 + div(total, 2), total) * 10, 90)
+  defp percent(_stage, _done, _total), do: nil
+
+  defp count(by_state, states), do: by_state |> Map.take(states) |> Map.values() |> Enum.sum()
+
+  defp signals(by_state), do: by_state |> Map.keys() |> Enum.map(&job_signal/1)
 
   @doc """
   Fold the signals seen for one post into its state. A signal is
@@ -173,7 +217,7 @@ defmodule SukhiFedi.DeliveryStatus do
     end)
   end
 
-  # outbox row id => the signals of its dispatch jobs.
+  # outbox row id => %{oban_state => jobs} for its dispatch job.
   defp dispatches([]), do: %{}
 
   defp dispatches(outbox_ids) do
@@ -182,14 +226,14 @@ defmodule SukhiFedi.DeliveryStatus do
         j.worker == ^@dispatch_worker and
           fragment("?->>'outbox_id'", j.args) in ^Enum.map(outbox_ids, &to_string/1),
       group_by: [fragment("?->>'outbox_id'", j.args), j.state],
-      select: {fragment("?->>'outbox_id'", j.args), j.state}
+      select: {fragment("?->>'outbox_id'", j.args), j.state, count(j.id)}
     )
-    |> signals_by_key(&String.to_integer/1)
+    |> counts_by_key(&String.to_integer/1)
   end
 
-  # activity id => the signals of its sends, over every inbox. Which inbox
-  # a signal came from is dropped here (the query groups on state alone)
-  # and never leaves the function.
+  # activity id => %{oban_state => jobs}, over every inbox. Which inbox a
+  # job was for is dropped here (the query groups on state alone) and
+  # never leaves the function.
   defp sends([]), do: %{}
 
   defp sends(activity_ids) do
@@ -198,16 +242,15 @@ defmodule SukhiFedi.DeliveryStatus do
         j.worker == ^@send_worker and
           fragment("?->>'activity_id'", j.args) in ^activity_ids,
       group_by: [fragment("?->>'activity_id'", j.args), j.state],
-      select: {fragment("?->>'activity_id'", j.args), j.state}
+      select: {fragment("?->>'activity_id'", j.args), j.state, count(j.id)}
     )
-    |> signals_by_key(& &1)
+    |> counts_by_key(& &1)
   end
 
-  defp signals_by_key(query, key_fun) do
+  defp counts_by_key(query, key_fun) do
     query
     |> Repo.all()
-    |> Enum.group_by(fn {key, _state} -> key_fun.(key) end, fn {_key, state} ->
-      job_signal(state)
-    end)
+    |> Enum.group_by(fn {key, _state, _n} -> key_fun.(key) end, fn {_key, state, n} -> {state, n} end)
+    |> Map.new(fn {key, pairs} -> {key, Map.new(pairs)} end)
   end
 end

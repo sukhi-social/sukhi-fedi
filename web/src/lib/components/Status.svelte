@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getAccountCached, type Status } from '#lib/api.js';
+  import { getAccountCached, getStatus, type Status } from '#lib/api.js';
   import Self from './Status.svelte';
   import Avatar from './Avatar.svelte';
   import CircleBadge from './CircleBadge.svelte';
@@ -12,6 +12,7 @@
   import { renderEmojis } from '#lib/emoji.js';
   import { renderMfm } from '#lib/mfm.js';
   import { phrase } from '#lib/phrase.js';
+  import { STEPS, LINGER_MS, arrived, delayFor, stepToward, target, type Shown } from '#lib/deliveryPace.js';
   import { t, locale, type Locale, type TranslationKey } from '#lib/i18n.js';
 
   let {
@@ -45,6 +46,50 @@
   let name = $derived(status.account.display_name || status.account.username);
   let avatar = $derived(status.account.avatar || null);
   let ts = $derived(formatTime(status.created_at, $t, $locale));
+
+  // 配信の時系列(受付 → 署名 → キュー → 配信中 → 完了)。サーバの答えは
+  // 速ければ一度に飛ぶので、見せる段は deliveryPace の決めごとで 1 つずつ
+  // 間をあけて進める。最初に見たときにもう完了していた投稿は、何も出さない。
+  const DONE = STEPS.length - 1;
+  let live = $state<Status | null>(null);
+  let shown = $state<Shown | null>(null);
+  let timelineGone = $state(false);
+  let polls = 0;
+  let goal = $derived(target((live ?? status).delivery_progress));
+  let deliveryNow = $derived((live ?? status).delivery);
+  let timeline = $derived(shown !== null && !timelineGone);
+
+  $effect(() => {
+    if (!goal) return;
+    if (shown === null) {
+      if (goal.at === DONE) return;
+      shown = { at: 0, percent: null };
+      return;
+    }
+    if (arrived(shown, goal)) {
+      if (goal.at !== DONE) return;
+      const id = setTimeout(() => (timelineGone = true), LINGER_MS);
+      return () => clearTimeout(id);
+    }
+    const current = shown;
+    const id = setTimeout(() => (shown = stepToward(current, goal)), delayFor(current, goal));
+    return () => clearTimeout(id);
+  });
+
+  // 完了するまで、ときどき本人の投稿を見に行く。遅れているときは間を
+  // 長く、回数にも上限を。見に行くのは、時系列が出る投稿だけ。
+  $effect(() => {
+    if (readonly || !goal || timelineGone || deliveryNow === 'delivered' || polls >= 60) return;
+    const id = setTimeout(async () => {
+      polls += 1;
+      try {
+        live = await getStatus(status.id);
+      } catch {
+        // 見られなかったら、次の機会に。
+      }
+    }, deliveryNow === 'delayed' ? 10_000 : 2_500);
+    return () => clearTimeout(id);
+  });
   // リモートのアカウントは acct に「@ドメイン」が付く。そのときだけ
   // 元の投稿（status.url）への入口を出す。ローカルは詳細ページが本物。
   let isRemote = $derived(status.account.acct.includes('@'));
@@ -178,11 +223,6 @@
       <a class="handle" href={`/@${status.account.acct}`}>@{status.account.acct}</a>
       <span class="sep">·</span>
       <a class="timestamp" href={`/@${status.account.acct}/${status.id}`} title={status.created_at}>{ts}</a>
-      {#if status.delivery === 'delivering' || status.delivery === 'delayed'}
-        <!-- 自分の投稿が、外へ出ていく途中のとき。どこへ、いくつ、は言わない。
-             届いたら、何も出さない。 -->
-        <span class="delivery" role="status">{$t(`status.delivery.${status.delivery}`)}</span>
-      {/if}
       {#if isRemote && status.url}
         <!-- リモートの投稿。元のサーバの本物へ、別タブでそっと開く入口。 -->
         <a
@@ -245,6 +285,20 @@
     <!-- リンクプレビュー。画像や引用があるときは出さない（二重に飾らない）。 -->
     {#if status.card && status.media_attachments.length === 0 && !status.quote}
       <PreviewCard card={status.card} />
+    {/if}
+
+    {#if timeline && shown}
+      <!-- 自分の投稿が、外へ出ていく途中のとき。一本の小さな時系列。
+           どこへ、いくつ、は言わない。 -->
+      <ol class="delivery" aria-label={$t('status.delivery.label')}>
+        {#each STEPS as step, i (step)}
+          <li class:reached={i <= shown.at} class:current={i === shown.at}>
+            {$t(`status.delivery.${step}`)}{#if step === 'sending' && i === shown.at && shown.percent != null}
+              {shown.percent}%{/if}{#if i === shown.at && deliveryNow === 'delayed'}
+              · {$t('status.delivery.delayed')}{/if}
+          </li>
+        {/each}
+      </ol>
     {/if}
 
     <StatusActions {status} {canReply} {readonly} {onreply} {onquote} {onupdate} {ondelete} />
@@ -514,7 +568,20 @@
     text-decoration: underline;
   }
   .delivery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    padding: 0;
+    list-style: none;
     font-size: 0.8rem;
     color: var(--color-text-muted);
+    opacity: 0.6;
+  }
+  .delivery .reached::before {
+    content: '✓ ';
+  }
+  .delivery .current {
+    opacity: 1;
+    font-weight: 600;
   }
 </style>

@@ -103,14 +103,24 @@ defmodule SukhiApi.Views.MastodonStatus do
       # out: "delivering" | "delivered" | "delayed", or nil when it is not
       # the viewer's own (or too old to say). Three words on purpose — no
       # host names, no counts. See `SukhiFedi.DeliveryStatus`.
-      delivery: render_delivery(Map.get(ctx, :delivery))
+      delivery: render_delivery(Map.get(ctx, :delivery)),
+      # Sukhi extension. The same trip as a small timeline: `stage` is one
+      # of "received" | "signing" | "queued" | "sending" | "done", and
+      # `percent` (steps of 10) is set only while "sending" and at "done".
+      delivery_progress: render_delivery_progress(Map.get(ctx, :delivery))
     }
   end
 
-  defp render_delivery(state) when state in [:delivering, :delivered, :delayed],
+  defp render_delivery(%{state: state}) when state in [:delivering, :delivered, :delayed],
     do: Atom.to_string(state)
 
   defp render_delivery(_), do: nil
+
+  defp render_delivery_progress(%{stage: stage, percent: percent})
+       when stage in [:received, :signing, :queued, :sending, :done],
+       do: %{stage: Atom.to_string(stage), percent: percent}
+
+  defp render_delivery_progress(_), do: nil
 
   @doc """
   Render a list of notes, looking up per-note counts/viewer-flags
