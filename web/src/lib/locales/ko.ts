@@ -170,7 +170,7 @@ export const ko: Dict = {
   'status.replyToUnknown': '답장',
   'status.delivery.label': '전달 상황',
   'status.delivery.received': '요청을 받았어요',
-  'status.delivery.signing': '서명하고 있어요',
+  'status.delivery.signing': '서명했어요',
   'status.delivery.queued': '대기열에 배정했어요',
   'status.delivery.sending': '배달 중이에요',
   'status.delivery.done': '모두 끝났어요',

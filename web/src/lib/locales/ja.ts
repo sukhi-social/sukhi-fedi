@@ -169,7 +169,7 @@ export const ja = {
   'status.replyToUnknown': '返信',
   'status.delivery.label': '配信のようす',
   'status.delivery.received': 'リクエストを受けました',
-  'status.delivery.signing': '署名しています',
+  'status.delivery.signing': '署名しました',
   'status.delivery.queued': 'キューに割り当てました',
   'status.delivery.sending': '配信中です',
   'status.delivery.done': 'フローを完了しました',
