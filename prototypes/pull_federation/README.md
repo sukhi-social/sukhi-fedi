@@ -462,12 +462,12 @@ cover the hysteresis, not an adversarial rate), the mode state's memory
 "Ping" is read here as network round-trip time (RTT). `Compare` and
 `Flood.stampede` take `rtt_ms`; a message takes half of it each way.
 
-**Normal traffic never touches the calendar.** In every uncontended
-scenario (steady, mixed quiet origins) pull and hybrid show `booked=0`
-and `declines=0`; a test pins this (`appointments_booked == 0`). An
-appointment is only written when an origin refuses a stream, which only
-happens when all stream slots are busy. The cost in normal traffic is a
-lookup in an empty calendar.
+**Small fan-out never touches the calendar.** In the `Compare`
+scenarios each origin serves one receiver, so there is never contention
+and `booked=0` / `declines=0`; a test pins this. *Correction:* the
+`booked` counter was never incremented in the first version (so those
+zeros proved nothing); it is fixed, and part 10 measures what happens
+when one origin has many receivers: there appointments are routine.
 
 **RTT latency, steady 1 post/s (p50 of end-to-end delivery, ms):**
 
@@ -562,6 +562,76 @@ one shared worker.
 Not covered: more than two servers in a cycle (A pulls B pulls C pulls A).
 It is the same argument (every wait is a refusal or timeout, nothing
 queues), but it is not simulated.
+
+### Part 10: load test of the real code (`bench/`)
+
+The earlier parts run a cost model with assumed numbers. This part times
+the actual `Origin` / `Puller` code (4 cores, one BEAM).
+
+`mix run bench/scale.exs` times the pure functions as the data grows:
+
+| | before | after |
+|---|---|---|
+| `due_notifications`, 1000 domains, 100k local actors | 23.4 s | 4.0 s |
+| `request_stream` for one domain, 100k actors | 39 ms | 3.7 ms |
+| `bucket_doc`, 100k actors | 1.1 s | 1.2 ms |
+| publish by an actor with 100k follower domains | n/a | 46 ms/post |
+| `due_notifications` for those 100k domains | n/a | 0.37 s |
+| receiver `notify`, one pull cycle | | 5-12 us |
+
+Three scans were proportional to *all* local actors and are now
+proportional to what the call needs: `announced_for` walked every actor
+for every domain (now `follows`, an index domain -> actors),
+`notification` built the full announced map and then took the dirty keys
+(now only the dirty keys), `bucket_doc` walked every actor (now
+`bucket_keys`). What is left is proportional to the output: 4 s is
+500 000 changed keys across 1000 domains, 8 us per key (the bucket hash).
+Memory: 80 MB for 100k actors x 5 follower domains.
+
+Also from this run: the per-key log was unbounded (a hot actor's log grew
+for ever) and was reversed on every request. It is now capped at `log_max`
+(10 000, trimmed in batches), a request costs what it returns, and a
+cursor older than the retained range gets a resync instead of a silent
+gap (`test/origin_scale_test.exs`).
+
+`mix run bench/concurrent.exs DOMAINS POSTS_PER_S SECONDS` runs real
+processes on the real clock: one origin process (all state in one
+GenServer, 64 stream slots, 5 ms streams) and one process per receiving
+domain, each following 1/10 of 200 actors. Lag is post -> applied at the
+receiver, after the 1 s notification quiet period.
+
+| domains | posts/s | deliveries | lag p50 / p99 | pull call p50 / p99 | peak mailbox |
+|---|---|---|---|---|---|
+| 1000 | 10 | 10 000 / 10 000 | 0.3 s / 1.0 s | 2 / 7 ms | 75 |
+| 1000 | 100 | 100 000 / 100 000 | 0.5 s / 1.4 s | 1 / 21 ms | 472 |
+| 1000 | 1000 | 1 000 000 / 1 000 000 (4 of 4 runs) | 0.6 s / 2.2 s | 4-6 / 35-40 ms | ~970 |
+| 3000 | 500 | 1 500 000 / 1 500 000 | 1.9 s / 4.9 s | 4 / 83 ms | 2616 |
+
+Nothing lost, no slot left open, no domain stuck. At 3000 domains the
+single origin process is the limit: the poster fell 6% behind (5000
+posts took 10.6 s) and the mailbox reached 2616. That is where the origin
+state would need to be split by actor (the sequence counter is per actor,
+so this is possible), or read from the database instead of one process.
+
+**Reservations under load.** With 50 domains and 64 slots no appointment
+is ever booked. With 200 domains, 26% of pulls (632 of 2432) were told
+`retry_at`, and at 1000 domains about 40%: all receivers are notified in
+the same 100 ms tick, so more than 64 arrive together. The delay is tens
+of ms and lag stayed at 0.5 s, so this is the calendar doing its job
+(spreading a wave), but it means "no reservations in normal traffic" holds
+only for an origin with fewer receivers than stream slots.
+
+Bugs the load test found:
+
+1. `Calendar.book` never incremented `booked` (see the correction in
+   part 8).
+2. The calendar spaced its first appointments 50 ms apart whatever the
+   slot count: with 64 slots a first wave of 1000 receivers was spread over
+   50 s, 795 domains were still waiting 10 s after the posts stopped, and
+   notifications to them were suppressed (they hold a promise). The first
+   spacing is now `100 ms / (slots x 0.8)` until a real stream is observed.
+3. The three O(all actors) scans above.
+4. Unbounded logs.
 
 ### What the model says
 

@@ -19,6 +19,10 @@ defmodule PullFederation.Origin do
   defstruct log: %{},
             seqs: %{},
             followers: %{},
+            follows: %{},
+            bucket_keys: %{},
+            log_max: 10_000,
+            log_len: %{},
             dirty: %{},
             last_notified: %{},
             active_streams: 0,
@@ -57,6 +61,7 @@ defmodule PullFederation.Origin do
     %{
       o
       | followers: Map.update(o.followers, actor, MapSet.new([domain]), &MapSet.put(&1, domain)),
+        follows: Map.update(o.follows, domain, MapSet.new([actor]), &MapSet.put(&1, actor)),
         known_domains: MapSet.put(o.known_domains, domain)
     }
   end
@@ -146,12 +151,40 @@ defmodule PullFederation.Origin do
         }
 
         domains = Map.get(o.followers, actor, MapSet.new())
-        log = Map.update(o.log, key, [event], &[event | &1])
+        {log, log_len} = push_log(o, key, event)
+        bucket_keys = index_bucket(o.bucket_keys, key, index, seq)
         # actors nobody follows remotely never bump a bucket: nothing to tell anyone
         versions = bump_bucket(o.bucket_versions, actor, index, domains)
 
-        {%{o | log: log, seqs: Map.put(o.seqs, key, seq), bucket_versions: versions}, event,
-         domains}
+        {%{
+           o
+           | log: log,
+             log_len: log_len,
+             bucket_keys: bucket_keys,
+             seqs: Map.put(o.seqs, key, seq),
+             bucket_versions: versions
+         }, event, domains}
+    end
+  end
+
+  # which keys live in which snapshot bucket, so a bucket document does not scan every actor
+  defp index_bucket(idx, key, :public, 1),
+    do: Map.update(idx, Snapshot.bucket(key), MapSet.new([key]), &MapSet.put(&1, key))
+
+  defp index_bucket(idx, _key, _index, _seq), do: idx
+
+  # Newest first. Kept to `log_max` entries per key; trimmed in batches of
+  # `log_max` so a post does not pay for the trim.
+  defp push_log(o, key, event) do
+    len = Map.get(o.log_len, key, 0) + 1
+    entries = [event | Map.get(o.log, key, [])]
+
+    case len > 2 * o.log_max do
+      true ->
+        {Map.put(o.log, key, Enum.take(entries, o.log_max)), Map.put(o.log_len, key, o.log_max)}
+
+      false ->
+        {Map.put(o.log, key, entries), Map.put(o.log_len, key, len)}
     end
   end
 
@@ -189,7 +222,7 @@ defmodule PullFederation.Origin do
         quiet? and not Calendar.claimed?(o.calendar, domain, now)
       end)
 
-    msgs = for {domain, dirty} <- due, do: {domain, notification(o, domain, dirty)}
+    msgs = for {domain, dirty} <- due, do: {domain, notification(o, dirty)}
 
     o = %{
       o
@@ -201,8 +234,9 @@ defmodule PullFederation.Origin do
     {o, Enum.sort(msgs)}
   end
 
-  defp notification(o, domain, dirty) do
-    changed = Map.take(announced_for(o, domain), MapSet.to_list(dirty))
+  defp notification(o, dirty) do
+    # only the keys that changed, not everything the domain follows
+    changed = Map.new(dirty, &{&1, etag_of(o, &1)})
     {public, followers} = Enum.split_with(changed, fn {key, _} -> Snapshot.public_key?(key) end)
 
     case length(public) <= o.inline_max do
@@ -228,9 +262,7 @@ defmodule PullFederation.Origin do
   """
   def bucket_doc(%__MODULE__{} = o, bucket) do
     entries =
-      for {key, _seq} <- o.seqs,
-          Snapshot.public_key?(key),
-          Snapshot.bucket(key) == bucket,
+      for key <- Map.get(o.bucket_keys, bucket, []),
           into: %{},
           do: {Snapshot.hash(key), etag_of(o, key)}
 
@@ -418,8 +450,7 @@ defmodule PullFederation.Origin do
   def announced(o, domain), do: announced_for(o, domain)
 
   defp announced_for(o, domain) do
-    for {actor, domains} <- o.followers,
-        MapSet.member?(domains, domain),
+    for actor <- Map.get(o.follows, domain, []),
         index <- [:public, :followers],
         key = Visibility.key(actor, index),
         Map.has_key?(o.seqs, key),
@@ -434,27 +465,38 @@ defmodule PullFederation.Origin do
   defp events_for(o, domain, cursors) do
     changed = Cursors.changed(cursors, announced_for(o, domain))
 
-    Enum.reduce(Enum.sort(changed), {[], 0}, fn {key, _new}, {acc, resyncs} ->
-      log = Enum.reverse(Map.fetch!(o.log, key))
+    {chunks, resyncs} =
+      Enum.reduce(Enum.sort(changed), {[], 0}, fn {key, _new}, {acc, resyncs} ->
+        log = Map.fetch!(o.log, key)
 
-      case after_cursor(log, Map.fetch(cursors, key)) do
-        {:ok, events} -> {acc ++ events, resyncs}
-        :unknown -> {acc ++ log, resyncs + 1}
-      end
-    end)
+        case after_cursor(log, Map.fetch(cursors, key)) do
+          {:ok, events} -> {[events | acc], resyncs}
+          :unknown -> {[Enum.reverse(log) | acc], resyncs + 1}
+        end
+      end)
+
+    {chunks |> Enum.reverse() |> Enum.concat(), resyncs}
   end
 
-  defp after_cursor(log, :error), do: {:ok, log}
+  # `log` is newest first; the answer is oldest first and costs what it returns.
+  defp after_cursor(log, :error), do: {:ok, Enum.reverse(log)}
 
   defp after_cursor(log, {:ok, token}) do
     case Etag.seq(token) do
       {:ok, n} ->
-        {:ok, Enum.filter(log, &(&1.seq > n))}
+        {newer, _} = Enum.split_while(log, &(&1.seq > n))
+
+        # the entry just before the answer must be `n` or still be retained;
+        # otherwise trimmed events lie in between and the receiver must resync
+        case newer do
+          [] -> {:ok, []}
+          _ -> if List.last(newer).seq > n + 1, do: :unknown, else: {:ok, Enum.reverse(newer)}
+        end
 
       :error ->
         case Enum.split_while(log, &(&1.etag != token)) do
           {_all, []} -> :unknown
-          {_before, [_known | after_it]} -> {:ok, after_it}
+          {before, [_known | _]} -> {:ok, Enum.reverse(before)}
         end
     end
   end

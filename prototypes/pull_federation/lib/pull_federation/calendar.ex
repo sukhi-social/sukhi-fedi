@@ -56,7 +56,19 @@ defmodule PullFederation.Calendar do
   @type t :: %__MODULE__{}
   @type claim :: :none | :due | :expired | {:early, pos_integer}
 
-  def new(opts \\ []), do: struct!(__MODULE__, opts)
+  # Until a stream has been observed, assume streams take `@first_stream_ms`.
+  # (A fixed 50 ms spacing is wrong for any slot count: with 64 slots the
+  # first wave of 1000 receivers was spread over 50 s.)
+  @first_stream_ms 100
+
+  def new(opts \\ []) do
+    c = struct!(__MODULE__, opts)
+
+    case Keyword.has_key?(opts, :slot_ms) do
+      true -> c
+      false -> %{c | slot_ms: max(1, round(@first_stream_ms / (c.slots * c.utilization)))}
+    end
+  end
 
   @doc "What this domain holds: nothing, a promise not yet due, one that is due now, or one it let lapse."
   @spec claim(t, String.t(), integer) :: claim
@@ -88,8 +100,12 @@ defmodule PullFederation.Calendar do
         {c, {:shed, c.horizon_ms}}
 
       false ->
-        {%{c | next_slot: at + c.slot_ms, entries: Map.put(c.entries, domain, at)},
-         {:ok, at - now}}
+        {%{
+           c
+           | next_slot: at + c.slot_ms,
+             entries: Map.put(c.entries, domain, at),
+             booked: c.booked + 1
+         }, {:ok, at - now}}
     end
   end
 
