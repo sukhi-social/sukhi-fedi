@@ -98,6 +98,22 @@ defmodule SukhiFedi.Fedi.Fetcher do
 
   defp signer(_), do: nil
 
+  @doc """
+  One signed GET that reports the status and headers instead of folding them
+  into an error — for callers that act on `429`/`503` + `Retry-After` (Pull
+  Federation). Same guard and signing as `fetch_document/2`; no redirects
+  (the peer's endpoint is a fixed path, a redirect there is a misconfig).
+  Returns `{:ok, %{status: integer, headers: map, body: binary}}`.
+  """
+  @spec get_raw(String.t(), map() | nil) :: {:ok, map()} | {:error, term()}
+  def get_raw(url, sign_as \\ nil) when is_binary(url) do
+    with :ok <- guard(url),
+         {:ok, %{status: status, headers: headers, body: body}} <-
+           request(url, signer(sign_as), retry: false) do
+      {:ok, %{status: status, headers: headers, body: body}}
+    end
+  end
+
   defp get_json(url, signer, redirects_left \\ @max_redirects)
 
   defp get_json(_url, _signer, 0), do: {:error, :too_many_redirects}
@@ -121,18 +137,24 @@ defmodule SukhiFedi.Fedi.Fetcher do
     end
   end
 
-  defp request(url, signer) do
+  defp request(url, signer, extra \\ []) do
     headers =
       case signer do
-        nil -> %{"accept" => @accept}
-        {private_key, key_id} -> HttpSignature.sign_get(url, private_key, key_id) |> Map.put("accept", @accept)
+        nil ->
+          %{"accept" => @accept}
+
+        {private_key, key_id} ->
+          HttpSignature.sign_get(url, private_key, key_id) |> Map.put("accept", @accept)
       end
 
-    HttpFetch.capped_get(url,
-      headers: headers,
-      redirect: false,
-      finch: SukhiFedi.Finch,
-      receive_timeout: @receive_timeout
+    HttpFetch.capped_get(
+      url,
+      [
+        headers: headers,
+        redirect: false,
+        finch: SukhiFedi.Finch,
+        receive_timeout: @receive_timeout
+      ] ++ extra
     )
   end
 

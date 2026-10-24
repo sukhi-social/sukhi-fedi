@@ -28,6 +28,10 @@ defmodule SukhiFedi.Repo.Migrations.CreatePullFederation do
     create table(:pull_heads, primary_key: false) do
       add :account_id, :bigint, primary_key: true
       add :seq, :bigint, null: false, default: 0
+      # Rows at or below this sequence were pruned. A puller whose cursor is
+      # behind it has missed activities and is told to resync; a gap left by
+      # a retracted (deleted) activity is not a loss and does not count.
+      add :pruned_through, :bigint, null: false, default: 0
     end
 
     # The activities a puller can fetch: exactly the signed bodies we would

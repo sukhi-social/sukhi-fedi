@@ -125,6 +125,10 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
 
       assert Log.prune() == 1
       assert %{rows: [["new"]]} = Repo.query!("SELECT activity_id FROM pull_log")
+
+      # The gateway is told how far pruning reached, so a puller behind it can
+      # be sent to resync rather than silently missing rows.
+      assert %{rows: [[1]]} = Repo.query!("SELECT pruned_through FROM pull_heads WHERE account_id = $1", [a])
     end
   end
 

@@ -75,23 +75,38 @@ defmodule SukhiDelivery.PullFederation.Log do
     n
   end
 
-  @doc "Drop rows over the age or per-actor limits. Returns how many went."
+  @doc """
+  Drop rows past the age limit or over the per-actor cap, and remember per
+  actor how far the pruning reached (`pull_heads.pruned_through`), so the
+  gateway can tell a puller it has missed rows. Returns how many went.
+  """
   @spec prune(DateTime.t()) :: non_neg_integer()
   def prune(now \\ DateTime.utc_now()) do
-    cutoff = DateTime.add(now, -@keep_days * 86_400, :second)
-    {aged, _} = Repo.delete_all(from(l in "pull_log", where: l.inserted_at < ^cutoff))
+    cutoff = DateTime.add(now, -@keep_days * 86_400, :second) |> DateTime.to_naive()
 
-    %{num_rows: over} =
+    %{rows: rows} =
       Repo.query!(
         """
-        DELETE FROM pull_log WHERE id IN (
+        WITH doomed AS (
+          SELECT id FROM pull_log WHERE inserted_at < $1
+          UNION
           SELECT id FROM (
             SELECT id, row_number() OVER (PARTITION BY account_id ORDER BY seq DESC) AS rn FROM pull_log
-          ) t WHERE rn > $1)
+          ) t WHERE rn > $2
+        ), gone AS (
+          DELETE FROM pull_log WHERE id IN (SELECT id FROM doomed) RETURNING account_id, seq
+        ), marked AS (
+          UPDATE pull_heads h SET pruned_through = GREATEST(h.pruned_through, m.s)
+          FROM (SELECT account_id, max(seq) AS s FROM gone GROUP BY account_id) m
+          WHERE h.account_id = m.account_id
+          RETURNING h.account_id
+        )
+        SELECT count(*) FROM gone
         """,
-        [@keep_per_actor]
+        [cutoff, @keep_per_actor]
       )
 
-    aged + over
+    [[n]] = rows
+    n
   end
 end

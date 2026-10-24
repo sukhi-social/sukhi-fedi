@@ -8,7 +8,7 @@ defmodule SukhiDelivery.PullFederation.NotifyWorker do
 
   `heads` has an entry for every local actor that has log rows this host has
   not been told about yet *and* that the host follows. It is HTTP-signed by
-  one of those actors through `Delivery.Worker.post_signed/4` (the single
+  one of those actors through `Delivery.Worker.post_signed/3` (the single
   signing path), so the receiver authenticates it exactly as it does an
   inbox POST.
 
@@ -71,7 +71,7 @@ defmodule SukhiDelivery.PullFederation.NotifyWorker do
 
     result =
       if SukhiShared.UrlGuard.safe?(url),
-        do: Worker.post_signed(url, signer, body, "application/json"),
+        do: Worker.post_signed(url, signer, body),
         else: {:ok, %{status: 0, blocked: true}}
 
     ms = System.monotonic_time(:millisecond) - started
