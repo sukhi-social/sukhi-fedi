@@ -2,7 +2,7 @@
 # sukhi-0003: Quote compatibility profile
 
 - Status: Draft. Implemented in `fedi/builders.ex:347-364` and `ap/instructions/extract.ex:46-80`.
-- Identifier: `https://sukhi.social/spec/sukhi-0003/1` (provisional).
+- Identifier: `https://sukhi.social/spec/sukhi-0003/1` (domain fixed; the `/spec/` path is proposed, see [README](README.md)).
 - Builds on: FEP-e232 (object links), FEP-044f (consent-respecting quotes).
 
 ## 1. Problem

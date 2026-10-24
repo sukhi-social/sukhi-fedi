@@ -2,7 +2,7 @@
 # sukhi-0002: Safe reconciliation of followers collections
 
 - Status: Draft. Implemented in `delivery/lib/sukhi_delivery/delivery/followers_sync.ex`.
-- Identifier: `https://sukhi.social/spec/sukhi-0002/1` (provisional).
+- Identifier: `https://sukhi.social/spec/sukhi-0002/1` (domain fixed; the `/spec/` path is proposed, see [README](README.md)).
 - Builds on: FEP-8fcf (followers collection synchronization).
 
 ## 1. Problem

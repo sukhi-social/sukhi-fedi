@@ -2,7 +2,7 @@
 # sukhi-0001: Signature scheme fallback and per-host memory
 
 - Status: Draft. Implemented in `delivery/lib/sukhi_delivery/delivery/sig_spec.ex` and `worker.ex`.
-- Identifier: `https://sukhi.social/spec/sukhi-0001/1` (provisional).
+- Identifier: `https://sukhi.social/spec/sukhi-0001/1` (domain fixed; the `/spec/` path is proposed, see [README](README.md)).
 - Builds on: RFC 9421 (HTTP Message Signatures), draft-cavage-http-signatures-12.
 
 ## 1. Problem
