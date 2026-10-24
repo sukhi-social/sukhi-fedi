@@ -11,7 +11,7 @@ defmodule PullFederation.NotifyCost do
   often A has to *render* a bucket document (once per bucket version,
   the rest are cache hits).
 
-  Sizes are bytes of the JSON-ish payload: key length + 8 per inline
+  Sizes are bytes of the JSON-ish payload: key length + token length per inline
   entry, 12 per bucket version, 72 per snapshot entry (64-char hash + seq).
   """
 
@@ -88,7 +88,7 @@ defmodule PullFederation.NotifyCost do
     do: %{notes: 0, note_bytes: 0, fetches: 0, fetch_bytes: 0, renders: MapSet.new()}
 
   defp account(st, {domain, inline}, _follows, _o) when is_map(inline) do
-    bytes = @envelope + Enum.sum(for {k, _} <- inline, do: byte_size(k) + 16)
+    bytes = @envelope + Enum.sum(for {k, v} <- inline, do: byte_size(k) + byte_size(v))
     _ = domain
     %{st | notes: st.notes + 1, note_bytes: st.note_bytes + bytes}
   end
@@ -96,7 +96,7 @@ defmodule PullFederation.NotifyCost do
   defp account(st, {domain, {:buckets, versions, followers}}, follows, o) do
     bytes =
       @envelope + 12 * map_size(versions) +
-        Enum.sum(for {k, _} <- followers, do: byte_size(k) + 16)
+        Enum.sum(for {k, v} <- followers, do: byte_size(k) + byte_size(v))
 
     mine = follows |> Map.fetch!(domain) |> MapSet.new(&Snapshot.bucket/1)
 

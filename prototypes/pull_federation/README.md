@@ -27,15 +27,17 @@ mix test
 
 ## Decisions the prototype makes (all easy to change)
 
-- **ETag per index, not a number on the wire.** The origin still keeps
-  two internal counters per actor: the *public* index (public + unlisted,
-  key = the actor URI) and the *followers* index (key = `actor#followers`).
-  What leaves the origin is only a random 12-byte token drawn when the
-  event is appended and stored on it (`Etag.new/0`): no secret, nothing
-  derived from the counter, nothing to rotate. B can only test "is it the same as mine?". Direct
-  messages are push-only and touch neither index; and since a token says
-  nothing about how many activities exist, a gap or a count never
-  reveals a hidden activity.
+- **ETag per index; ordered where the count is public, opaque where it
+  is not.** The origin keeps two counters per actor: the *public* index
+  (public + unlisted, key = the actor URI) and the *followers* index
+  (key = `actor#followers`). The public index's token is its sequence
+  number (`s.<n>`): that count is already readable from the public outbox,
+  and an ordered token lets B drop a stale notification and lets A answer
+  "everything after n" exactly. The followers index's token is 12 random
+  bytes stored on the event (`o.<random>`): no secret, nothing derived
+  from the counter, so a locked account's activity cannot be read off it.
+  Direct messages are push-only and touch neither index. B never needs to
+  parse a token beyond "does it start with `s.`" (see `Etag`).
 - **Pull sends only what changed.** B's request carries the tokens it
   holds; the stream returns only the keys whose token differs, with the
   new token on every event (so an interrupted stream resumes at the
@@ -156,20 +158,20 @@ sizes, see the module for the unit sizes):
 
 | Setup | Form | Notifications | Avg notification | B's snapshot GETs | Snapshot bytes | A renders | Total wire bytes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| each of 200 domains follows 100 of 2,000 actors, 200 posts | inline | 657 | 269 B | 0 | 0 | 0 | 176,795 |
-| | hybrid (<=5 inline) | 657 | 268 B | 7 | 504 | 7 | 177,072 |
+| each of 200 domains follows 100 of 2,000 actors, 200 posts | inline | 657 | 248 B | 0 | 0 | 0 | 163,522 |
+| | hybrid (<=5 inline) | 657 | 248 B | 7 | 504 | 7 | 163,890 |
 | | always snapshot | 657 | 218 B | 1,017 | 96,768 | 100 | 240,372 |
-| each of 100 domains follows 1,500 of 2,000, 1,000 posts | inline | 500 | 857 B | 0 | 0 | 0 | 428,832 |
-| | hybrid | 500 | 381 B | 6,778 | 571,104 | 91 | 762,013 |
+| each of 100 domains follows 1,500 of 2,000, 1,000 posts | inline | 500 | 665 B | 0 | 0 | 0 | 332,671 |
+| | hybrid | 500 | 376 B | 6,778 | 571,104 | 91 | 759,179 |
 | | always snapshot | 500 | 367 B | 6,996 | 588,600 | 92 | 772,552 |
 
 **Result: the snapshot form does not pay for itself on the wire.** The
 inline form only lists actors that changed for that domain, so it stays
-small (269-857 B) even when the domain follows 1,500 actors. A bucket
+small (248-665 B) even when the domain follows 1,500 actors. A bucket
 document lists *every* actor in the bucket, and a domain that follows
 many actors touches most of the 256 buckets, so B fetches around 14
 documents per notification. Notifications shrink by more than half, total
-traffic nearly doubles. What snapshots do buy is origin work: 92 renders for 500
+traffic more than doubles. What snapshots do buy is origin work: 92 renders for 500
 notifications (each bucket version is rendered once and then served from
 a cache), against building each notification from the counters. That is
 worth it only if building notifications is itself a bottleneck on A, which
@@ -184,51 +186,48 @@ a B that was away or lost notifications re-checking the actors it follows
 with conditional GETs (304 when unchanged), served by any static host.
 That path is not built here.
 
-### Part 4: ETags instead of numbers (the current wire format)
+### Part 4: ETags on the wire (the current format)
 
-The protocol now follows the ETag idea: A tells B, "as far as I know
-these actors you follow have changed", with one opaque token per actor
-(`key => etag`). B compares by equality only. If it differs, B pulls with
-the tokens it holds (like `If-None-Match`) and A answers **only for keys
-whose token changed**, each event carrying its new token.
+A tells B, "as far as I know these actors you follow have changed", with
+one token per actor (`key => etag`). If it is news, B pulls with the
+tokens it holds (like `If-None-Match`) and A answers **only for keys whose
+token changed**, each event carrying its new token.
 
-What the ETag form buys:
+Two kinds of token (`Etag`), chosen by the origin per index:
 
-- **Nothing to leak.** A sequence number tells everyone how many posts
-  exist and a followers-only counter tells how active a locked account
-  is. A random 12-byte token says neither, and, unlike a hash of the
-  counter, cannot be brute-forced back into one (test: two origins with
-  the same history issue different tokens). No key means nothing to
-  rotate; a secret that changed would have invalidated every cursor.
-- **Origin freedom.** A may track state by counter, timestamp or hash
-  chain; B never decodes anything.
-- **Same HTTP shape as the web already uses** (conditional GET), which
-  makes caches and debugging familiar.
+| | ordered `s.<n>` (public index) | opaque `o.<random>` (followers index) |
+| --- | --- | --- |
+| What it is | the sequence number | 12 random bytes stored on the event |
+| B can | compare: ignore a stale one, never rewind a cursor | test equality only |
+| A answers a cursor | exactly ("after n"), no log lookup | by finding the token among events it holds; unknown token = replay |
+| Reveals | the public count (already public) | nothing |
+| Key to keep | none | none (no HMAC, so nothing to rotate) |
 
-What it costs, and the prototype found one real bug:
+A timestamp would also work as an ordered token, but is worse than the
+counter: it reveals when the actor is active, two events can share a
+millisecond, and a clock step backwards breaks the order.
 
-- **No order.** B cannot tell a stale notification from a new one; any
-  different token looks like news. The first version re-pulled forever
-  in the burst scenario (3,882 requests instead of 99, and activities
-  not all delivered), because a notification carrying an older token
-  than the stream's state stayed "pending" for good. The fix is
-  `Puller.begin_pull/2`: remember what was pending when the pull started,
-  and after the stream drop every entry that has not changed since,
-  keeping only what arrived *during* the pull. A late stale notification
-  now costs exactly one empty pull (test: "a stale notification costs one
-  empty pull and then settles"); news that arrives mid-pull is kept (test).
-- **Resync is explicit.** An unknown token means "replay what you keep"
-  (counted in `Origin.resyncs`), which is also what a lost or expired log
-  looks like. With integers the same case was "ask for seq > N" and the
-  origin could answer "too old" precisely; with ETags it can only say
-  "I don't know that one".
-- **Slightly larger notifications:** 16 characters per entry instead of
-  about 8 bytes. In the numbers above that moved the inline notification
-  from 739 B to 857 B in the busiest setup.
+What the prototype found along the way:
 
-Everything in parts 1-3 was re-run on the ETag version: the Part 1 and 2
-tables are unchanged, because the model counts requests and queries, not
-token bytes.
+- **Opaque tokens alone cannot be ordered, and that broke pulling.** The
+  first all-opaque version re-pulled forever in the burst scenario (3,882
+  requests instead of 99, activities not all delivered), because a
+  notification carrying an older token than the stream's state stayed
+  "pending" for good. Two fixes remain in the code: `Puller.begin_pull/2`
+  remembers what was pending when a pull starts and drops, after the
+  stream, every entry that has not changed since (so a late stale opaque
+  notification costs exactly one empty pull, and news that arrives mid-pull
+  is kept); and ordered tokens make the problem disappear for the public
+  index, where a stale notification is ignored with no pull at all. All of
+  these are tests.
+- **Resync is explicit for opaque tokens.** An unrecognised token means
+  "replay what you keep" (counted in `Origin.resyncs`), and applying is
+  idempotent. For an ordered cursor the origin answers precisely.
+- **Notification size** with real token lengths: 248-665 B on average in
+  the setups above (an `s.12` entry is smaller than a random one).
+
+Parts 1 and 2 were re-run on this version and are unchanged: they count
+requests and queries, not token bytes.
 
 ### What the model says
 

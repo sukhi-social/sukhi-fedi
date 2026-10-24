@@ -8,7 +8,7 @@ defmodule PullFederationTest do
   @b "https://a.example/users/bob"
 
   # a made-up token, for tests that never talk to an origin
-  defp t(key, n), do: "tok:#{key}:#{n}"
+  defp t(_key, n), do: "o.fake#{n}"
 
   # the real token of the nth event under `key` at origin `o`
   defp tok(o, key, n),
@@ -27,36 +27,69 @@ defmodule PullFederationTest do
   end
 
   describe "Cursors" do
-    test "changed/2 returns only keys whose token differs, missing counts as different" do
-      assert %{"b" => "y"} ==
-               Cursors.changed(%{"a" => "x", "b" => "z"}, %{"a" => "x", "b" => "y"})
+    test "changed/2: opaque tokens count as news when they differ" do
+      assert %{"b" => "o.y"} ==
+               Cursors.changed(%{"a" => "o.x", "b" => "o.z"}, %{"a" => "o.x", "b" => "o.y"})
 
-      assert %{"c" => "1"} == Cursors.changed(%{}, %{"c" => "1"})
+      assert %{"c" => "o.1"} == Cursors.changed(%{}, %{"c" => "o.1"})
     end
 
-    test "a token cannot be ordered: an older one looks exactly like a newer one" do
-      assert Cursors.changed(%{"a" => t("a", 5)}, %{"a" => t("a", 4)}) == %{"a" => t("a", 4)}
+    test "changed/2: ordered tokens only count when ahead; a stale one is ignored" do
+      assert %{"a" => "s.5"} == Cursors.changed(%{"a" => "s.4"}, %{"a" => "s.5"})
+      assert %{} == Cursors.changed(%{"a" => "s.5"}, %{"a" => "s.4"})
+      assert %{} == Cursors.changed(%{"a" => "s.5"}, %{"a" => "s.5"})
+    end
+
+    test "changed/2: mixing kinds falls back to equality" do
+      assert %{"a" => "o.x"} == Cursors.changed(%{"a" => "s.5"}, %{"a" => "o.x"})
+    end
+
+    test "merge/2 never moves an ordered cursor backwards" do
+      assert %{"a" => "s.5"} == Cursors.merge(%{"a" => "s.5"}, %{"a" => "s.4"})
+      assert %{"a" => "s.6"} == Cursors.merge(%{"a" => "s.5"}, %{"a" => "s.6"})
+      assert %{"a" => "o.new"} == Cursors.merge(%{"a" => "o.old"}, %{"a" => "o.new"})
     end
 
     test "parse/1 rejects garbage" do
-      assert {:ok, _} = Cursors.parse(%{"a" => "tok"})
+      assert {:ok, _} = Cursors.parse(%{"a" => "o.tok"})
+      assert {:ok, _} = Cursors.parse(%{"a" => "s.12"})
       assert :error = Cursors.parse(%{"a" => -1})
-      assert :error = Cursors.parse(%{"a" => String.duplicate("x", 65)})
-      assert :error = Cursors.parse(%{1 => "x"})
+      assert :error = Cursors.parse(%{"a" => "tok"})
+      assert :error = Cursors.parse(%{"a" => "s.-1"})
+      assert :error = Cursors.parse(%{"a" => "s.x"})
+      assert :error = Cursors.parse(%{"a" => "o." <> String.duplicate("x", 63)})
+      assert :error = Cursors.parse(%{1 => "o.x"})
       assert :error = Cursors.parse("nope")
     end
   end
 
   describe "etag" do
-    test "tokens are fixed length, random, and say nothing about the count" do
-      assert byte_size(Etag.new()) == 16
-      assert Etag.new() != Etag.new()
+    test "opaque tokens are fixed length, random, and say nothing about the count" do
+      assert byte_size(Etag.opaque()) == 18
+      assert Etag.opaque() != Etag.opaque()
     end
 
-    test "an origin's tokens carry no secret: two origins, same history, different tokens" do
-      {o1, _} = Origin.publish(Origin.new(), @a, note("1"))
-      {o2, _} = Origin.publish(Origin.new(), @a, note("1"))
-      assert Origin.etag(o1, @a) != Origin.etag(o2, @a)
+    test "public index tokens are the sequence; followers tokens are not" do
+      {o, _} = setup_pair()
+      {o, _} = Origin.publish(o, @a, note("p1"))
+      {o, _} = Origin.publish(o, @a, note("p2"))
+      {o, _} = Origin.publish(o, @a, note("f1", :followers))
+      assert Origin.etag(o, @a) == "s.2"
+      assert "o." <> _ = Origin.etag(o, @a <> "#followers")
+    end
+
+    test "two origins with the same followers history issue different tokens" do
+      {o1, _} = Origin.publish(Origin.new(), @a, note("f", :followers))
+      {o2, _} = Origin.publish(Origin.new(), @a, note("f", :followers))
+      assert Origin.etag(o1, @a <> "#followers") != Origin.etag(o2, @a <> "#followers")
+    end
+
+    test "compare/2" do
+      assert :lt = Etag.compare("s.1", "s.2")
+      assert :gt = Etag.compare("s.10", "s.9")
+      assert :eq = Etag.compare("o.x", "o.x")
+      assert :unordered = Etag.compare("o.x", "o.y")
+      assert :unordered = Etag.compare("s.1", "o.y")
     end
   end
 
@@ -122,7 +155,9 @@ defmodule PullFederationTest do
 
     test "unfollowed actors in a notification are ignored" do
       {_, p} = setup_pair()
-      assert {_, :up_to_date} = Puller.notify(p, "a.example", %{"https://x/users/z" => "tok"}, 0)
+
+      assert {_, :up_to_date} =
+               Puller.notify(p, "a.example", %{"https://x/users/z" => "o.tok"}, 0)
     end
 
     test "notification floor per origin" do
@@ -134,9 +169,9 @@ defmodule PullFederationTest do
 
     test "pool is bounded; known origins still merge" do
       p = Puller.new(max_pending: 1) |> Puller.follow("o1", "x") |> Puller.follow("o2", "y")
-      {p, :planned} = Puller.notify(p, "o1", %{"x" => "t1"}, 0)
-      assert {_, :pool_full} = Puller.notify(p, "o2", %{"y" => "t1"}, 0)
-      assert {_, :planned} = Puller.notify(p, "o1", %{"x" => "t2"}, 2_000)
+      {p, :planned} = Puller.notify(p, "o1", %{"x" => "o.t1"}, 0)
+      assert {_, :pool_full} = Puller.notify(p, "o2", %{"y" => "o.t1"}, 0)
+      assert {_, :planned} = Puller.notify(p, "o1", %{"x" => "o.t2"}, 2_000)
     end
 
     test "step 4: busy postpones" do
@@ -336,24 +371,46 @@ defmodule PullFederationTest do
       assert map_size(p.store) == 2
     end
 
-    test "a stale notification costs one empty pull and then settles" do
+    test "a stale ordered notification (public index) is ignored without a pull" do
       {o, p} = setup_pair()
       {o, _} = Origin.publish(o, @a, note("a1"))
       {o, _} = Origin.publish(o, @a, note("a2"))
       {o, p} = Sim.round(o, "b.example", p, now: 0)
-      assert p.cursors["a.example"][@a] == tok(o, @a, 2)
+      assert p.cursors["a.example"][@a] == "s.2"
 
-      # a late copy of the older notification arrives: different token, so B pulls
-      {p, :planned} = Puller.notify(p, "a.example", %{@a => tok(o, @a, 1)}, 5_000)
+      assert {p2, :up_to_date} = Puller.notify(p, "a.example", %{@a => tok(o, @a, 1)}, 5_000)
+      assert p2.pending == %{}
+    end
+
+    test "a stale opaque notification (followers index) costs one empty pull and then settles" do
+      fkey = @a <> "#followers"
+      {o, p} = setup_pair()
+      {o, _} = Origin.publish(o, @a, note("f1", :followers))
+      {o, _} = Origin.publish(o, @a, note("f2", :followers))
+      {o, p} = Sim.round(o, "b.example", p, now: 0)
+      assert p.cursors["a.example"][fkey] == tok(o, fkey, 2)
+
+      # a late copy of the older notification: different opaque token, so B pulls
+      {p, :planned} = Puller.notify(p, "a.example", %{fkey => tok(o, fkey, 1)}, 5_000)
       p = Puller.begin_pull(p, "a.example")
 
-      {:ok, o, events, announced} =
+      {:ok, _o, events, announced} =
         Origin.open_stream(o, "b.example", p.cursors["a.example"], 5_000)
 
       assert events == []
       p = Puller.finish_pull(p, "a.example", {:ok, events, announced}, 5_000, fn _ -> 0 end)
       assert p.pending == %{}
-      assert p.cursors["a.example"][@a] == tok(o, @a, 2)
+      assert p.cursors["a.example"][fkey] == tok(o, fkey, 2)
+    end
+
+    test "an ordered cursor is answered exactly, with no replay" do
+      {o, _} = setup_pair()
+      {o, _} = Origin.publish(o, @a, note("a1"))
+      {o, _} = Origin.publish(o, @a, note("a2"))
+      {o, _} = Origin.publish(o, @a, note("a3"))
+      {:ok, o, events, _} = Origin.open_stream(o, "b.example", %{@a => "s.1"}, 0)
+      assert Enum.map(events, & &1.activity.id) == ["a2", "a3"]
+      assert o.resyncs == 0
     end
 
     test "news that arrives while a pull is in flight is not lost" do

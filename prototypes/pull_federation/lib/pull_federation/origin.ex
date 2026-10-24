@@ -65,7 +65,7 @@ defmodule PullFederation.Origin do
           actor: actor,
           key: key,
           seq: seq,
-          etag: Etag.new(),
+          etag: new_etag(index, seq),
           activity: activity
         }
 
@@ -193,6 +193,10 @@ defmodule PullFederation.Origin do
 
   defp etag_of(o, key), do: etag(o, key)
 
+  # The public index equals the public outbox, so its count is no secret.
+  defp new_etag(:public, seq), do: Etag.ordered(seq)
+  defp new_etag(:followers, _seq), do: Etag.opaque()
+
   defp announced_for(o, domain) do
     for {actor, domains} <- o.followers,
         MapSet.member?(domains, domain),
@@ -213,16 +217,25 @@ defmodule PullFederation.Origin do
     Enum.reduce(Enum.sort(changed), {[], 0}, fn {key, _new}, {acc, resyncs} ->
       log = Enum.reverse(Map.fetch!(o.log, key))
 
-      case Map.fetch(cursors, key) do
-        :error ->
-          {acc ++ log, resyncs}
-
-        {:ok, token} ->
-          case Enum.split_while(log, &(&1.etag != token)) do
-            {_all, []} -> {acc ++ log, resyncs + 1}
-            {_before, [_known | after_it]} -> {acc ++ after_it, resyncs}
-          end
+      case after_cursor(log, Map.fetch(cursors, key)) do
+        {:ok, events} -> {acc ++ events, resyncs}
+        :unknown -> {acc ++ log, resyncs + 1}
       end
     end)
+  end
+
+  defp after_cursor(log, :error), do: {:ok, log}
+
+  defp after_cursor(log, {:ok, token}) do
+    case Etag.seq(token) do
+      {:ok, n} ->
+        {:ok, Enum.filter(log, &(&1.seq > n))}
+
+      :error ->
+        case Enum.split_while(log, &(&1.etag != token)) do
+          {_all, []} -> :unknown
+          {_before, [_known | after_it]} -> {:ok, after_it}
+        end
+    end
   end
 end
