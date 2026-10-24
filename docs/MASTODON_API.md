@@ -78,7 +78,7 @@ timeline: `stage` is `received` → `signing` → `queued` → `sending` →
 `done`, and `percent` (steps of 10, never 100 before `done`) is set only
 while `sending`. No server names and no exact counts are in the API, the
 web UI, or anything else the author sees (the admin pages are unchanged).
-The web client steps through the stages one at a time, about 0.8 s apart,
+The web client shows it in a small card at the bottom right (not inside the post), stepping through the stages one at a time, about 0.8 s apart,
 so a fast delivery is still readable (`web/src/lib/deliveryPace.ts`).
 Read from `outbox` + `oban_jobs` by `SukhiFedi.DeliveryStatus`; Pull
 Federation posts count as delivered once logged.

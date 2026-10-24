@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { getAccountCached, getStatus, type Status } from '#lib/api.js';
   import Self from './Status.svelte';
   import Avatar from './Avatar.svelte';
@@ -9,6 +10,7 @@
   import StatusPoll from './StatusPoll.svelte';
   import PreviewCard from './PreviewCard.svelte';
   import Twemoji from './Twemoji.svelte';
+  import { putDeliveryToast, dropDeliveryToast } from '#lib/deliveryToasts.svelte.js';
   import { renderEmojis } from '#lib/emoji.js';
   import { renderMfm } from '#lib/mfm.js';
   import { phrase } from '#lib/phrase.js';
@@ -75,6 +77,21 @@
     const id = setTimeout(() => (shown = stepToward(current, goal)), delayFor(current, goal));
     return () => clearTimeout(id);
   });
+
+  // 見せる先は投稿の中ではなく、右下の小さな枠(DeliveryToasts)。
+  $effect(() => {
+    if (timeline && shown) {
+      putDeliveryToast({
+        id: status.id,
+        at: shown.at,
+        percent: shown.percent,
+        delayed: deliveryNow === 'delayed'
+      });
+    } else {
+      dropDeliveryToast(status.id);
+    }
+  });
+  onDestroy(() => dropDeliveryToast(status.id));
 
   // 完了するまで、ときどき本人の投稿を見に行く。遅れているときは間を
   // 長く、回数にも上限を。見に行くのは、時系列が出る投稿だけ。
@@ -285,18 +302,6 @@
     <!-- リンクプレビュー。画像や引用があるときは出さない（二重に飾らない）。 -->
     {#if status.card && status.media_attachments.length === 0 && !status.quote}
       <PreviewCard card={status.card} />
-    {/if}
-
-    {#if timeline && shown}
-      <!-- 自分の投稿が、外へ出ていく途中のとき。一本の小さな時系列。
-           どこへ、いくつ、は言わない。 -->
-      <ol class="delivery" aria-label={$t('status.delivery.label')}>
-        {#each STEPS.slice(0, shown.at + 1) as step, i (step)}
-          <li class:current={i === shown.at}>
-            {$t(`status.delivery.${step}`)}{#if step === 'sending' && i === shown.at && shown.percent != null}{' '}{shown.percent}%{/if}{#if i === shown.at && deliveryNow === 'delayed'}{' '}· {$t('status.delivery.delayed')}{/if}
-          </li>
-        {/each}
-      </ol>
     {/if}
 
     <StatusActions {status} {canReply} {readonly} {onreply} {onquote} {onupdate} {ondelete} />
@@ -564,33 +569,5 @@
   }
   a.reply-to:hover {
     text-decoration: underline;
-  }
-  /* 起きたことを、起きた順に、縦に。新しい一行は、下からそっと浮かんで
-     現れる。動きを減らす設定の人には、base.css がほぼ止める。 */
-  .delivery {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    padding: 0;
-    list-style: none;
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-  }
-  .delivery li {
-    opacity: 0.65;
-    animation: delivery-rise 0.6s ease-out;
-  }
-  .delivery li::before {
-    content: '✓ ';
-  }
-  .delivery .current {
-    opacity: 1;
-    font-weight: 600;
-  }
-  @keyframes delivery-rise {
-    from {
-      opacity: 0;
-      transform: translateY(0.75rem);
-    }
   }
 </style>
