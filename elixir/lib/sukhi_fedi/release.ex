@@ -144,7 +144,7 @@ defmodule SukhiFedi.Release do
     monitored_domain = Keyword.get(opts, :monitored_domain)
 
     do_seed = fn ->
-      case SukhiFedi.Repo.get_by(SukhiFedi.Schema.Account, username: username) do
+      case SukhiFedi.Accounts.by_local_username(username) do
         nil ->
           keys = SukhiFedi.Addons.NodeinfoMonitor.KeyGen.generate()
 
