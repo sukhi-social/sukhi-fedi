@@ -37,13 +37,15 @@
     }
   },
   {
-    "type": "Reaction",
+    "type": "Like",
     "why": "empty reaction string",
     "instance": {
       "type": "Like",
       "actor": "https://a.example/u",
       "object": "https://b.example/n",
-      "content": ""
+      "content": "",
+      "id": "https://m.example/l",
+      "_misskey_reaction": ""
     }
   },
   {
@@ -51,6 +53,93 @@
     "why": "themeColor that is not a colour",
     "instance": {
       "themeColor": "green"
+    }
+  },
+  {
+    "type": "Create",
+    "why": "a Create with a property Misskey never writes",
+    "instance": {
+      "id": "https://m.example/n/1/activity",
+      "type": "Create",
+      "actor": "https://m.example/users/a",
+      "published": "2026-10-23T09:00:00.000Z",
+      "to": [],
+      "cc": [],
+      "extra": 1,
+      "object": {
+        "id": "https://m.example/n/1",
+        "type": "Note",
+        "attributedTo": "https://m.example/users/a",
+        "published": "2026-10-23T09:00:00.000Z",
+        "to": [],
+        "cc": [],
+        "attachment": [],
+        "sensitive": false,
+        "tag": []
+      }
+    }
+  },
+  {
+    "type": "Note",
+    "why": "a note without published",
+    "instance": {
+      "id": "https://m.example/n/1",
+      "type": "Note",
+      "attributedTo": "https://m.example/users/a",
+      "to": [],
+      "cc": [],
+      "attachment": [],
+      "sensitive": false,
+      "tag": []
+    }
+  },
+  {
+    "type": "Like",
+    "why": "_misskey_reaction that differs from content",
+    "instance": {
+      "id": "https://m.example/likes/1",
+      "type": "Like",
+      "actor": "https://m.example/users/a",
+      "object": "https://o.example/n/1",
+      "content": "👍",
+      "_misskey_reaction": "👎"
+    }
+  },
+  {
+    "type": "Accept",
+    "why": "an Accept whose object is only the id of the Follow",
+    "instance": {
+      "id": "https://m.example/x",
+      "type": "Accept",
+      "actor": "https://m.example/users/a",
+      "object": "https://o.example/follows/1"
+    }
+  },
+  {
+    "type": "Note",
+    "why": "a note with _misskey_quote but no quoteUrl",
+    "instance": {
+      "id": "https://m.example/n/1",
+      "type": "Note",
+      "attributedTo": "https://m.example/users/a",
+      "published": "2026-10-23T09:00:00.000Z",
+      "to": [],
+      "cc": [],
+      "attachment": [],
+      "sensitive": false,
+      "tag": [],
+      "_misskey_quote": "https://o.example/n/1"
+    }
+  },
+  {
+    "type": "Delete",
+    "why": "a Delete whose object is a bare id (Misskey sends a Tombstone)",
+    "instance": {
+      "id": "https://m.example/d",
+      "type": "Delete",
+      "actor": "https://m.example/users/a",
+      "published": "2026-10-23T09:00:00.000Z",
+      "object": "https://m.example/n/1"
     }
   }
 ]

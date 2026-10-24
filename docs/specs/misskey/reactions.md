@@ -3,7 +3,7 @@
 
 - Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Type: `#Reaction`, defined below
+- Type: `#Like`, defined in [activities](activities.md)
 
 ## In one paragraph
 
@@ -19,55 +19,42 @@ A reaction is a `Like` that carries an emoji in `content`. Misskey sends it that
 
 ## Examples
 
-A reaction with a Unicode emoji (type `#Reaction`):
+A reaction with a Unicode emoji (type `#Like`):
 ```json
 {
+  "id": "https://misskey.example/likes/r1",
   "type": "Like",
-  "actor": "https://misskey.example/users/a",
+  "actor": "https://misskey.example/users/a1",
   "object": "https://other.example/notes/1",
   "content": "👍",
   "_misskey_reaction": "👍"
 }
 ```
 
-A reaction with a custom emoji (type `#Reaction`):
+A reaction with a custom emoji (type `#Like`):
 ```json
 {
-  "id": "https://misskey.example/likes/1",
+  "id": "https://misskey.example/likes/r2",
   "type": "Like",
-  "actor": "https://misskey.example/users/a",
+  "actor": "https://misskey.example/users/a1",
   "object": "https://other.example/notes/1",
   "content": ":blobcat:",
   "_misskey_reaction": ":blobcat:",
   "tag": [
     {
+      "id": "https://misskey.example/emojis/blobcat",
       "type": "Emoji",
       "name": ":blobcat:",
+      "updated": "2026-10-01T00:00:00.000Z",
       "icon": {
         "type": "Image",
+        "mediaType": "image/png",
         "url": "https://misskey.example/files/blobcat.png"
-      }
+      },
+      "_misskey_license": {"freeText": null}
     }
   ]
 }
 ```
 
-The type, in [CUE](https://cuelang.org):
-
-```cue
-// A reaction: a Like that carries `content`. Misskey also accepts the types
-// `EmojiReaction` and `EmojiReact`, and reads the string from
-// `_misskey_reaction`, then `content`, then `name`.
-#Reaction: {
-	id?:                 #URL
-	type:                "Like" | "EmojiReaction" | "EmojiReact"
-	actor:               #URL
-	object:              #URL
-	content:             string & !=""
-	"_misskey_reaction"?: content
-	tag?:                [] | [#EmojiTag] // at most one emoji
-	...
-}
-```
-
-The type refers to `#EmojiTag`, which is on the [emoji](emoji.md) page.
+What Misskey sends is the type above. What it accepts is looser: the types `EmojiReaction` and `EmojiReact` count as `Like`, and the string is read from `_misskey_reaction`, then `content`, then `name`.

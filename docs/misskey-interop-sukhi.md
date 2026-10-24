@@ -14,7 +14,7 @@ This is a working note, not a specification. [specs/misskey/](specs/misskey/READ
 | Find our account | WebFinger: first `self` link, its host must equal the acct host; name lowercased ([webfinger](specs/misskey/webfinger.md)) | `self` first; case handling of the account lookup unverified | `web/webfinger_controller.ex` |
 | Show our server | NodeInfo 2.1 then 2.0; reads `metadata.nodeName`, `nodeDescription`, `themeColor` ([nodeinfo](specs/misskey/nodeinfo.md)) | `metadata` is empty; Misskey falls back to the HTML page | `web/nodeinfo_controller.ex` |
 | Accept our activity ids | `activity.id` host must equal signer host | ids are on our domain | `fedi/builders.ex` |
-| Keep our edits | applies `Update` of actors and `Question` only ([inbox-activities](specs/misskey/inbox-activities.md)) | sends `Update(Note)`; probably not applied | gap |
+| Keep our edits | applies `Update` of actors and `Question` only ([activities](specs/misskey/activities.md)) | sends `Update(Note)`; probably not applied | gap |
 | Keep our public notes public | accepts three spellings of Public | sends the full IRI | `audience.ex` |
 | Count our poll votes | counts a `Note` with matching `name` ([poll](specs/misskey/poll.md)) | sends that shape | `builders.ex` `vote/1` |
 

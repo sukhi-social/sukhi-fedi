@@ -22,7 +22,8 @@ One file per feature. Each file states what Misskey does, as read from its sourc
 | [quote.md](quote.md) | quote posts |
 | [reactions.md](reactions.md) | emoji reactions |
 | [poll.md](poll.md) | polls and votes |
-| [inbox-activities.md](inbox-activities.md) | the activity types the inbox accepts |
+| [activities.md](activities.md) | every activity Misskey sends (complete types) and how it handles each one it receives |
+| [objects.md](objects.md) | the Note, Person, and the objects inside activities (complete types) |
 | [collections.md](collections.md) | outbox, followers, following, featured |
 | [delivery.md](delivery.md) | retries and failure handling |
 | [extensions.md](extensions.md) | every Misskey-only term |
