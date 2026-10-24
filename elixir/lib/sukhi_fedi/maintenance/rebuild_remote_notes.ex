@@ -41,6 +41,7 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNotes do
 
   alias SukhiFedi.AP.Published
   alias SukhiFedi.Federation.FedifyClient
+  alias SukhiFedi.Maintenance.Progress
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Note
 
@@ -65,8 +66,12 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNotes do
         %{mode: :dry_run, candidates: length(targets), fk_refs: refs}
 
       :execute ->
-        results = Enum.map(targets, &process/1)
-        summary = tally(results)
+        summary =
+          Progress.track("rebuild_remote_notes", mode, length(targets), "rebuilding", fn run ->
+            {results, run} = Progress.map(run, targets, &process/1)
+            {tally(results), run}
+          end)
+
         Logger.info("rebuild_remote_notes done: #{inspect(summary)}")
         Map.merge(summary, %{mode: :execute, fk_refs: refs})
     end

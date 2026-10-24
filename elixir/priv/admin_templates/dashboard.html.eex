@@ -1,5 +1,14 @@
-<h1>Dashboard</h1>
+<h1>いまのサーバー</h1>
 
+<%# 数秒おきに断片だけ取り直す。タブが裏にあるあいだは止める(急かさない)。 %>
+<div id="activity"
+     hx-get="/admin/activity"
+     hx-trigger="every 5s [!document.hidden]"
+     hx-swap="innerHTML">
+<%= SukhiFedi.Web.Admin.Render.render_template("dashboard/activity.html.eex", activity: activity) %>
+</div>
+
+<h2>運営のこと</h2>
 <div class="grid-cards">
   <div class="card">
     <div class="label">Local users</div>

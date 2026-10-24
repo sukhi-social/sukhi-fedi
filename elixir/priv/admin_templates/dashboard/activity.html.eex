@@ -1,0 +1,169 @@
+<% alias SukhiFedi.ServerActivity %>
+<% m = activity.maintenance %>
+<% quiet = ServerActivity.quiet?(activity) %>
+
+<p class="status-line <%= if quiet, do: "calm", else: "busy" %>">
+<%= cond do %>
+<% quiet -> %>
+  いまは静かです。動いているメンテナンスも、たまっているジョブも、最近の失敗もありません。
+<% m.running != [] -> %>
+  メンテナンスが <%= length(m.running) %> 件、動いています。終わるまで、そのままで大丈夫です。
+<% activity.failures != [] -> %>
+  最近、うまくいかなかったジョブがあります。理由と次の一手を下に書きました。
+<% true -> %>
+  ジョブを順に処理しています。
+<% end %>
+  <span class="muted">· <%= h(Calendar.strftime(activity.now, "%H:%M:%S")) %> UTC に確認</span>
+</p>
+
+<h2>メンテナンス</h2>
+<%= if m.running == [] and m.ended == [] do %>
+  <div class="panel muted">動いているものも、この1日に終わったものもありません。
+    スクリプトは <code>docs/data-correction.md</code> にまとめています。</div>
+<% end %>
+
+<%= for r <- m.running do %>
+  <% pct = ServerActivity.percent(r) %>
+  <% eta = ServerActivity.eta_s(r, activity.now) %>
+  <% cmd = ServerActivity.rerun_command(r.name) %>
+  <div class="panel run">
+    <div class="run-head">
+      <strong><%= h(r.name) %></strong>
+      <span class="pill"><%= h(r.mode) %></span>
+      <%= if r.stage do %><span class="muted"><%= h(r.stage) %></span><% end %>
+    </div>
+    <div class="bar"><i style="width: <%= pct || 0 %>%"></i></div>
+    <div class="run-nums">
+      <%= if pct do %>
+        <span><strong><%= r.done %></strong> / <%= r.total %> 件（<%= pct %>%）</span>
+      <% else %>
+        <span><strong><%= r.done %></strong> 件 処理済み</span>
+      <% end %>
+      <span class="muted">うまくいかなかった: <%= r.failed %> 件</span>
+      <span class="muted"><%= h(ago(r.started_at)) %> に開始（経過 <%= h(span(DateTime.diff(activity.now, r.started_at, :second))) %>）</span>
+      <%= if eta do %><span class="muted">のこり目安 <%= h(span(eta)) %></span><% end %>
+    </div>
+    <%= if r.stale? do %>
+      <p class="note">
+        <%= h(ago(r.updated_at)) %> から進みの報告がありません。重い処理の途中かもしれませんし、
+        サーバーの再起動などで止まったのかもしれません。急がなくて大丈夫です。
+        止まっていたら、同じコマンドをもう一度実行できます
+        <%= if cmd do %>（<code><%= h(cmd) %></code>）<% end %>。
+      </p>
+    <% end %>
+    <%= if r.failed > 0 and r.last_error do %>
+      <p class="note">直近のうまくいかなかった理由: <code><%= h(r.last_error) %></code>
+        — 相手サーバー側の事情のことが多く、続きの処理には影響しません。</p>
+    <% end %>
+  </div>
+<% end %>
+
+<%= if m.ended != [] do %>
+  <details class="panel" open>
+    <summary>この1日に終わったもの（<%= length(m.ended) %> 件）</summary>
+    <table>
+      <thead><tr><th>名前</th><th>結果</th><th>処理</th><th>終わった</th></tr></thead>
+      <tbody>
+      <%= for r <- m.ended do %>
+        <% cmd = ServerActivity.rerun_command(r.name) %>
+        <tr>
+          <td><%= h(r.name) %> <span class="pill"><%= h(r.mode) %></span></td>
+          <td>
+            <%= if r.state == "done" do %><span class="pill ok">完了</span>
+            <% else %><span class="pill suspended">途中で止まりました</span><% end %>
+          </td>
+          <td class="muted"><%= r.done %> / <%= r.total %> 件、うまくいかなかった <%= r.failed %> 件</td>
+          <td class="muted"><%= h(ago(r.finished_at)) %></td>
+        </tr>
+        <%= if r.state == "failed" do %>
+        <tr><td colspan="4" class="note">
+          止まった理由: <code><%= h(r.last_error) %></code><br>
+          よくあることです。原因を直してから、もう一度実行できます
+          <%= if cmd do %>（<code><%= h(cmd) %></code>）<% end %>。
+        </td></tr>
+        <% end %>
+      <% end %>
+      </tbody>
+    </table>
+  </details>
+<% end %>
+
+<h2>ジョブキュー</h2>
+<%= cond do %>
+<% is_nil(activity.queues) -> %>
+  <div class="panel muted">キューの様子を読めませんでした。データベースの <code>oban_jobs</code> を見られなかったようです。ログに理由が出ています。</div>
+<% activity.queues == [] -> %>
+  <div class="panel muted">たまっているジョブはありません。</div>
+<% true -> %>
+  <div class="panel" style="padding: 0;">
+  <table>
+    <thead><tr><th>キュー</th><th>実行中</th><th>待ち</th><th>予約</th><th>再試行待ち</th><th>諦めた(1日)</th></tr></thead>
+    <tbody>
+    <%= for q <- activity.queues do %>
+      <tr>
+        <td><code><%= h(q.queue) %></code></td>
+        <td><%= q.executing %></td>
+        <td><%= q.available %></td>
+        <td class="muted"><%= q.scheduled %></td>
+        <td><%= q.retryable %></td>
+        <td class="muted"><%= q.discarded %></td>
+      </tr>
+    <% end %>
+    </tbody>
+  </table>
+  </div>
+<% end %>
+
+<h2>配送</h2>
+<%= if activity.outbox do %>
+  <% ob = activity.outbox %>
+  <div class="grid-cards">
+    <div class="card">
+      <div class="label">送り出し待ち</div>
+      <div class="n"><%= ob.pending %></div>
+      <%= if ob.oldest_pending_s do %>
+        <span class="muted">いちばん古いもの: <%= h(ago(ob.oldest_pending_s)) %></span>
+      <% end %>
+    </div>
+    <div class="card">
+      <div class="label">送り出せなかった</div>
+      <div class="n"><%= ob.failed %></div>
+      <%= if ob.failed > 0 do %><span class="muted">配送ノードのログに理由があります</span><% end %>
+    </div>
+    <div class="card">
+      <div class="label">フォロー先の過去投稿</div>
+      <div class="n"><%= activity.backfill.running + activity.backfill.pending %></div>
+      <a href="/admin/backfill" class="muted">取り込み中・待ち（失敗 <%= activity.backfill.failed %>）→</a>
+    </div>
+  </div>
+  <%= if ob.pending > 0 and ob.oldest_pending_s && ob.oldest_pending_s > 300 do %>
+    <p class="note">送り出し待ちが <%= h(span(ob.oldest_pending_s)) %> 動いていません。配送ノード（delivery）が
+      止まっているか、NATS に繋がっていない可能性があります。復旧すれば、たまった分は順に流れます。</p>
+  <% end %>
+<% else %>
+  <div class="panel muted">配送の様子を読めませんでした。ログに理由が出ています。</div>
+<% end %>
+
+<h2>最近の失敗</h2>
+<%= if activity.failures == [] do %>
+  <div class="panel muted">この1日、ジョブが諦めた記録はありません。</div>
+<% else %>
+  <div class="panel" style="padding: 0;">
+  <table>
+    <thead><tr><th>ジョブ</th><th>回数</th><th>最後のエラー</th><th>いつ</th></tr></thead>
+    <tbody>
+    <%= for f <- activity.failures do %>
+      <tr>
+        <td><code><%= h(f.worker |> to_string() |> String.split(".") |> List.last()) %></code>
+          <div class="muted" style="font-size: 12px;"><%= h(f.queue) %></div></td>
+        <td class="muted"><%= f.attempt %></td>
+        <td style="font-size: 12px; word-break: break-word;"><%= h(f.error || "(記録なし)") %></td>
+        <td class="muted"><%= h(ago(f.discarded_at)) %></td>
+      </tr>
+    <% end %>
+    </tbody>
+  </table>
+  </div>
+  <p class="muted">上限まで再試行して、諦めたジョブです。相手サーバーが落ちていただけ、ということもよくあります。
+    同じ相手で続くときだけ、<a href="/admin/instance_blocks">連合の設定</a>を見てください。</p>
+<% end %>

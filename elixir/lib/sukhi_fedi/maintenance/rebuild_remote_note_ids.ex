@@ -48,6 +48,7 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
   import Ecto.Query
   require Logger
 
+  alias SukhiFedi.Maintenance.Progress
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Note
 
@@ -78,8 +79,12 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
         %{mode: :dry_run, candidates: length(targets), fk_refs: refs}
 
       :execute ->
-        results = Enum.map(targets, &process(&1, refs))
-        summary = tally(results)
+        summary =
+          Progress.track("rebuild_remote_note_ids", mode, length(targets), "reminting", fn run ->
+            {results, run} = Progress.map(run, targets, &process(&1, refs))
+            {tally(results), run}
+          end)
+
         Logger.info("rebuild_remote_note_ids done: #{inspect(summary)}")
         Map.merge(summary, %{mode: :execute, fk_refs: refs})
     end

@@ -65,6 +65,10 @@ defmodule SukhiFedi.Web.Admin.Router do
     Auth.with_admin(conn, &DashboardController.index/1)
   end
 
+  get "/activity" do
+    Auth.with_admin(conn, &DashboardController.activity/1)
+  end
+
   get "/users" do
     Auth.with_admin(conn, &UsersController.index/1)
   end
