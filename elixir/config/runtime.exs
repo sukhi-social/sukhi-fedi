@@ -259,6 +259,15 @@ if config_env() == :prod do
     ]
 end
 
+# Pull Federation (docs/PULL_FEDERATION.md). `PULL_FEDERATION=off` stops
+# advertising the capability (FEP-844e) and answers /pull/v1/* with 404;
+# followers on pull servers are then pushed to as before.
+config :sukhi_shared, :pull_federation, System.get_env("PULL_FEDERATION", "on") != "off"
+
+config :sukhi_fedi, :pull_federation,
+  max_streams: String.to_integer(System.get_env("PULL_MAX_STREAMS", "16")),
+  max_concurrent: String.to_integer(System.get_env("PULL_MAX_CONCURRENT", "4"))
+
 # Dev runs the whole system as one BEAM (`make dev` boots combined/,
 # which assembles gateway + delivery + api), so the api plugin node is
 # this node. runtime.exs is evaluated inside the booting VM, so node()

@@ -67,16 +67,16 @@ defmodule SukhiDelivery.Delivery.Worker do
   that is not an activity (the Pull Federation notification) goes through
   here too instead of growing its own signing.
   """
-  @spec post_signed(String.t(), String.t() | nil, String.t(), String.t()) ::
+  @spec post_signed(String.t(), String.t() | nil, String.t()) ::
           {:ok, Req.Response.t()} | {:error, term()}
-  def post_signed(url, actor_uri, json, content_type \\ "application/activity+json") do
+  def post_signed(url, actor_uri, json) do
     host = url |> URI.parse() |> Map.get(:host)
 
     deliver_with_knock(
       url,
       actor_uri,
       json,
-      %{"content-type" => content_type},
+      %{"content-type" => "application/activity+json"},
       host,
       SigSpec.spec_for(host)
     )

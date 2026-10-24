@@ -92,6 +92,10 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     "post /users/:name/inbox",
     "post /inbox",
 
+    # ── Pull Federation (signed by the peer; see docs/PULL_FEDERATION.md)
+    "post /pull/v1/notify",
+    "get /pull/v1/stream",
+
     # ── NodeInfo (Elixir-native)
     "get /.well-known/nodeinfo",
     "get /nodeinfo/2.0",

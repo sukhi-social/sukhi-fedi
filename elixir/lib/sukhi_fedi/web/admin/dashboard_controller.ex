@@ -17,9 +17,12 @@ defmodule SukhiFedi.Web.Admin.DashboardController do
       instance_blocks: Repo.aggregate(InstanceBlock, :count)
     }
 
+    pull = SukhiFedi.PullFederation.Stats.derive(SukhiFedi.PullFederation.Stats.totals(24))
+
     Render.send_page(conn, "dashboard.html.eex",
       page_title: "Dashboard",
-      counts: counts
+      counts: counts,
+      pull: pull
     )
   end
 end

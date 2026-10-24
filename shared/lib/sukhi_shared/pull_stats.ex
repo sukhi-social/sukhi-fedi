@@ -33,6 +33,8 @@ defmodule SukhiShared.PullStats do
   @kinds %{
     # origin — delivery node
     "log_appended" => "activities written to the pull log",
+    "pull_routed" => "(activity, host) pairs delivered by notification instead of a POST",
+    "push_routed" => "(note, inbox) POSTs enqueued where a notification was possible",
     "notify_sent" => "notifications delivered to a peer (ms = request time)",
     "notify_failed" => "notification attempts that failed",
     "push_fallback" => "activities pushed because the peer did not take the notification",
@@ -108,9 +110,10 @@ defmodule SukhiShared.PullStats do
     at = DateTime.to_naive(now)
 
     kinds =
-      for {{:kind, kind}, _, _} = row <- :ets.tab2list(@table), do: {kind, row}
+      for {{:kind, kind}, n, _} = row <- :ets.tab2list(@table), n != 0, do: {kind, row}
 
-    peers = for {{:peer, host, kind}, _} = row <- :ets.tab2list(@table), do: {host, kind, row}
+    peers =
+      for {{:peer, host, kind}, n} = row <- :ets.tab2list(@table), n != 0, do: {host, kind, row}
 
     k =
       Enum.count(kinds, fn {kind, {key, n, sum}} ->

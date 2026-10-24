@@ -1,0 +1,194 @@
+<%
+  fmt_ms = fn
+    nil -> "–"
+    ms when ms >= 10_000 -> "#{Float.round(ms / 1000, 1)} s"
+    ms -> "#{ms} ms"
+  end
+
+  fmt_age = fn
+    s when s >= 86_400 -> "#{div(s, 86_400)} d"
+    s when s >= 3_600 -> "#{div(s, 3_600)} h"
+    s when s >= 60 -> "#{div(s, 60)} min"
+    s -> "#{s} s"
+  end
+
+  peak = fn kind -> Enum.max([1 | Enum.map(hourly, &Map.get(&1.kinds, kind, 0))]) end
+%>
+<h1>Pull Federation</h1>
+<p class="muted">
+  Followers on a host that declares the capability (FEP-844e) get a short notification
+  instead of a POST per activity, and fetch what they want when they have room.
+  Everyone else is pushed to as before. Counters are written in batches from both nodes
+  and cover the last <%= hours %> hours. Spec: <code>docs/PULL_FEDERATION.md</code>.
+</p>
+
+<%= unless gauges.advertised do %>
+  <div class="flash error">
+    This server does not advertise Pull Federation (<code>PULL_FEDERATION=off</code>): no actor carries
+    the capability, the endpoints answer 404, and every follower is pushed to.
+  </div>
+<% end %>
+
+<h2>Is it worth it? (<%= hours %> h)</h2>
+<div class="grid-cards">
+  <div class="card">
+    <div class="label">POSTs avoided</div>
+    <div class="n"><%= if d.saved_pct, do: "#{d.saved_pct}%", else: "–" %></div>
+    <div class="muted"><%= d.pull_routed %> notified · <%= d.push_routed %> pushed</div>
+  </div>
+  <div class="card">
+    <div class="label">Delivery lag (publish → apply)</div>
+    <div class="n"><%= fmt_ms.(d.lag_avg_ms) %></div>
+    <div class="muted">max <%= fmt_ms.(if d.lag_max_ms > 0, do: d.lag_max_ms) %> · <%= d.applied %> applied</div>
+  </div>
+  <div class="card">
+    <div class="label">Pushed back by fallback</div>
+    <div class="n"><%= d.push_fallback %></div>
+    <div class="muted">activities a peer never took by notification</div>
+  </div>
+  <div class="card">
+    <div class="label">Refused at admission</div>
+    <div class="n"><%= d.rejected %></div>
+    <div class="muted">bad proof, wrong actor, suspended host</div>
+  </div>
+</div>
+
+<h2>As origin (we notify, they pull)</h2>
+<div class="grid-cards">
+  <div class="card">
+    <div class="label">Notifications sent</div>
+    <div class="n"><%= d.notify_sent %></div>
+    <div class="muted">avg <%= fmt_ms.(d.notify_avg_ms) %> · <%= d.notify_failed %> failed</div>
+  </div>
+  <div class="card">
+    <div class="label">Pages served</div>
+    <div class="n"><%= d.served %></div>
+    <div class="muted">avg <%= fmt_ms.(d.served_avg_ms) %> · <%= d.served_items %> activities</div>
+  </div>
+  <div class="card">
+    <div class="label">Told "busy" (429)</div>
+    <div class="n"><%= d.declined %></div>
+    <div class="muted"><%= gauges.in_flight %> / <%= gauges.max_in_flight %> in flight now</div>
+  </div>
+  <div class="card">
+    <div class="label">Denied</div>
+    <div class="n"><%= d.denied %></div>
+    <div class="muted">unsigned, or no follower on that host</div>
+  </div>
+</div>
+
+<h2>As follower (they notify, we pull)</h2>
+<div class="grid-cards">
+  <div class="card">
+    <div class="label">Notifications received</div>
+    <div class="n"><%= d.notify_received %></div>
+    <div class="muted"><%= d.notify_dropped %> dropped (floor, not followed, stale)</div>
+  </div>
+  <div class="card">
+    <div class="label">Pulls</div>
+    <div class="n"><%= d.pulls_ok %></div>
+    <div class="muted">avg <%= fmt_ms.(d.pull_avg_ms) %> · <%= d.pulls_failed %> failed · <%= d.pulls_declined %> declined</div>
+  </div>
+  <div class="card">
+    <div class="label">Resyncs</div>
+    <div class="n"><%= d.resync %></div>
+    <div class="muted">cursor older than the origin's log</div>
+  </div>
+</div>
+
+<h2>Now</h2>
+<div class="grid-cards">
+  <div class="card">
+    <div class="label">Pull-capable hosts</div>
+    <div class="n"><%= gauges.capable_peers %></div>
+    <div class="muted">of <%= gauges.known_peers %> hosts seen</div>
+  </div>
+  <div class="card">
+    <div class="label">Waiting to be pulled</div>
+    <div class="n"><%= gauges.pending_actors %></div>
+    <div class="muted">actors on <%= gauges.pending_hosts %> hosts</div>
+  </div>
+  <div class="card">
+    <div class="label">Hosts failing</div>
+    <div class="n"><%= gauges.failing_hosts %></div>
+    <div class="muted">pulls from them are backing off</div>
+  </div>
+  <div class="card">
+    <div class="label">Breaker open</div>
+    <div class="n"><%= gauges.breaker_open %></div>
+    <div class="muted">hosts pushed to again after repeated notify failures</div>
+  </div>
+  <div class="card">
+    <div class="label">Log</div>
+    <div class="n"><%= gauges.log_rows %></div>
+    <div class="muted">rows · oldest <%= fmt_age.(gauges.log_oldest_s) %></div>
+  </div>
+</div>
+
+<h2>Hour by hour</h2>
+<div class="panel">
+  <table>
+    <thead>
+      <tr><th>Hour (UTC)</th><th>Notified</th><th>Pushed</th><th>Pulled ok</th><th>Applied</th><th>Refused</th><th>Told busy</th></tr>
+    </thead>
+    <tbody>
+      <%= for row <- Enum.reverse(hourly) do %>
+        <tr>
+          <td><%= Calendar.strftime(row.hour, "%m-%d %H:00") %></td>
+          <td><%= Map.get(row.kinds, "pull_routed", 0) %></td>
+          <td><%= Map.get(row.kinds, "push_routed", 0) %></td>
+          <td><%= Map.get(row.kinds, "pull_ok", 0) %></td>
+          <td>
+            <%= Map.get(row.kinds, "activities_applied", 0) %>
+            <div class="bar"><i style="width: <%= round(Map.get(row.kinds, "activities_applied", 0) * 100 / peak.("activities_applied")) %>%"></i></div>
+          </td>
+          <td><%= Map.get(row.kinds, "activities_rejected", 0) %></td>
+          <td><%= Map.get(row.kinds, "stream_declined", 0) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<h2>Peers</h2>
+<div class="panel">
+  <%= if peers == [] do %>
+    <p class="muted">No peer has exchanged anything yet.</p>
+  <% else %>
+    <table>
+      <thead>
+        <tr>
+          <th>Host</th><th>Capable</th><th>Notified</th><th>Notify failed</th><th>Received</th>
+          <th>Pulled</th><th>Pull failed</th><th>Applied</th><th>Refused</th><th>Served</th><th>State</th>
+        </tr>
+      </thead>
+      <tbody>
+        <%= for p <- peers do %>
+          <tr>
+            <td><%= h(p.host) %><div class="muted"><%= Calendar.strftime(p.last_at, "%m-%d %H:%M") %></div></td>
+            <td><%= if p.capable do %><span class="pill ok">yes</span><% else %><span class="pill">no</span><% end %></td>
+            <td><%= Map.get(p.counts, "notify_sent", 0) %></td>
+            <td><%= Map.get(p.counts, "notify_failed", 0) %></td>
+            <td><%= Map.get(p.counts, "notify_received", 0) %></td>
+            <td><%= Map.get(p.counts, "pull_ok", 0) %></td>
+            <td><%= Map.get(p.counts, "pull_failed", 0) %></td>
+            <td><%= Map.get(p.counts, "activities_applied", 0) %></td>
+            <td><%= Map.get(p.counts, "activities_rejected", 0) %></td>
+            <td><%= Map.get(p.counts, "stream_served", 0) %></td>
+            <td>
+              <%= if p.notify && p.notify.failures > 0 do %>
+                <span class="pill suspended">notify ×<%= p.notify.failures %></span>
+                <div class="muted"><%= h(p.notify.last_error) %></div>
+              <% end %>
+              <%= if p.pull && p.pull.failures > 0 do %>
+                <span class="pill silenced">pull ×<%= p.pull.failures %></span>
+                <div class="muted"><%= h(p.pull.last_error) %></div>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</div>
+<p class="muted"><a href="/admin/pull_federation.json">JSON</a></p>

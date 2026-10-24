@@ -608,12 +608,14 @@ defmodule SukhiDelivery.Outbox.Consumer do
   # FEP-044f: deliver our `QuoteRequest` to the quoted post's author (the
   # gateway resolved their inbox into `target_inbox`). `instrument` is our
   # quote post's URI — dereferenceable, so it need not be inlined.
-  defp handle_quote_requested(%{
-         "account_id" => account_id,
-         "note_id" => note_id,
-         "quote_of_ap_id" => quoted_uri,
-         "target_inbox" => inbox
-       })
+  defp handle_quote_requested(
+         %{
+           "account_id" => account_id,
+           "note_id" => note_id,
+           "quote_of_ap_id" => quoted_uri,
+           "target_inbox" => inbox
+         }
+       )
        when is_binary(quoted_uri) and is_binary(inbox) do
     case actor_for(account_id) do
       nil ->
@@ -734,12 +736,17 @@ defmodule SukhiDelivery.Outbox.Consumer do
     pushed = push_jobs(body, actor_uri, activity_id, inboxes)
     pulled = pull_jobs(pull, activity_id, body)
 
+    # Only the activities that *could* have gone by notification are counted,
+    # so the push/pull ratio on the dashboard compares like with like.
+    if pull, do: SukhiShared.PullStats.bump("push_routed", n: length(Enum.uniq(inboxes)))
+
     if pushed == :no_recipients and pulled == :none, do: :no_recipients, else: :ok
   end
 
   defp pull_jobs(%{account_id: account_id, hosts: [_ | _] = hosts}, activity_id, body) do
     {:ok, _} = PullFederation.Log.append(account_id, activity_id, body)
     PullFederation.Notifier.schedule(hosts)
+    SukhiShared.PullStats.bump("pull_routed", n: length(hosts))
     :ok
   end
 

@@ -139,6 +139,17 @@ consistently >0 in `oban_jobs WHERE state='available'`.
 | `OBAN_PREVIEW_CONCURRENCY` | `3` | gateway — link-preview fetches |
 | `OBAN_BACKFILL_CONCURRENCY` | `2` | gateway — remote outbox backfill |
 
+## Pull Federation (gateway, delivery)
+
+See [PULL_FEDERATION.md](PULL_FEDERATION.md). Set `PULL_FEDERATION` the
+same on both services.
+
+| Var | Default | Service |
+|---|---|---|
+| `PULL_FEDERATION` | `on` | both — `off` stops advertising the FEP-844e capability, answers `/pull/v1/*` with 404, and pushes to every follower |
+| `PULL_MAX_STREAMS` | `16` | gateway — concurrent `GET /pull/v1/stream` we serve; more get 429 + `Retry-After` |
+| `PULL_MAX_CONCURRENT` | `4` | gateway — concurrent pulls we run against other servers |
+
 ## Tuning — Finch HTTP pool (delivery)
 
 Outbound TLS connection pool to remote inboxes. Lower on memory-

@@ -140,21 +140,13 @@ defmodule SukhiFedi.Fedi.Fetcher do
   defp request(url, signer, extra \\ []) do
     headers =
       case signer do
-        nil ->
-          %{"accept" => @accept}
-
-        {private_key, key_id} ->
-          HttpSignature.sign_get(url, private_key, key_id) |> Map.put("accept", @accept)
+        nil -> %{"accept" => @accept}
+        {private_key, key_id} -> HttpSignature.sign_get(url, private_key, key_id) |> Map.put("accept", @accept)
       end
 
     HttpFetch.capped_get(
       url,
-      [
-        headers: headers,
-        redirect: false,
-        finch: SukhiFedi.Finch,
-        receive_timeout: @receive_timeout
-      ] ++ extra
+      [headers: headers, redirect: false, finch: SukhiFedi.Finch, receive_timeout: @receive_timeout] ++ extra
     )
   end
 

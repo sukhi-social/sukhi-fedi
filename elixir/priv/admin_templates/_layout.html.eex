@@ -77,6 +77,7 @@
       <a href="/admin/relays"<%= if String.starts_with?(current_path, "/admin/relays"), do: " class=\"active\"" %>>Relays</a>
       <a href="/admin/map_peers"<%= if String.starts_with?(current_path, "/admin/map_peers"), do: " class=\"active\"" %>>Universe map</a>
       <a href="/admin/backfill"<%= if String.starts_with?(current_path, "/admin/backfill"), do: " class=\"active\"" %>>Backfill</a>
+      <a href="/admin/pull_federation"<%= if String.starts_with?(current_path, "/admin/pull_federation"), do: " class=\"active\"" %>>Pull</a>
       <a href="/admin/system"<%= if String.starts_with?(current_path, "/admin/system"), do: " class=\"active\"" %>>System</a>
     </nav>
     <span class="muted"><%= h(admin.username) %></span>

@@ -23,6 +23,14 @@
 | `@context` (egress) | one shared context: AS2 + `security/v1` + `security/data-integrity/v1` + a small compatibility map (`toot:`, `misskey:`, `sensitive`, `Hashtag`, `Emoji`, `_misskey_content`, `_misskey_quote`, `quoteUrl`) | `builders.ex:32-49` |
 | Transport idempotency | receive: `objects.ap_id` unique + `on_conflict: :nothing`; send: `delivery_receipts(activity_id, inbox_url)` unique, checked before every POST | `delivery/.../worker.ex:43,332-340` |
 
+### Pull Federation (FEP-844e)
+
+Our actors advertise `generator.implements` for Pull Federation, and
+`Create(Note)` to followers of hosts that advertise it too is announced
+with a signed notification and fetched by the follower instead of
+POSTed. Everyone else, and every other activity (always `Delete`), is
+pushed as above. Details: [`PULL_FEDERATION.md`](PULL_FEDERATION.md).
+
 ## 2. Audience / addressing
 
 `as:Public` is emitted as the **full IRI**

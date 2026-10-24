@@ -72,20 +72,12 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
           # New row: blanks are fine; restore the historical defaults so a
           # nameless actor still shows its handle and summary is "" not nil.
           attrs = Map.merge(identity, insert_defaults(mergeable, username))
-
-          %Account{}
-          |> Account.changeset_remote(attrs)
-          |> Repo.insert()
-          |> then_decorate(actor_json)
+          %Account{} |> Account.changeset_remote(attrs) |> Repo.insert() |> then_decorate(actor_json)
 
         %Account{} = existing ->
           # Merge only the fields the fetched doc actually carries.
           attrs = Map.merge(identity, present_only(mergeable))
-
-          existing
-          |> Account.changeset_remote(attrs)
-          |> Repo.update()
-          |> then_decorate(actor_json)
+          existing |> Account.changeset_remote(attrs) |> Repo.update() |> then_decorate(actor_json)
       end
     end
   end
@@ -114,9 +106,7 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
   defp learn_capabilities(actor_json) do
     SukhiShared.PeerCapabilities.learn(Repo, actor_json)
   rescue
-    e ->
-      require Logger
-      Logger.warning("peer capabilities: #{Exception.message(e)}")
+    e -> require Logger; Logger.warning("peer capabilities: #{Exception.message(e)}")
   end
 
   # Misskey and its forks declare the `misskey` namespace in `@context`
@@ -197,8 +187,7 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
   # allows a single string, so we tolerate both. Keep only well-formed
   # http(s) URIs — a blank or non-URI entry would never match a Move's
   # actor anyway, and we don't want junk in the consent check.
-  defp also_known_as(uris) when is_list(uris),
-    do: uris |> Enum.flat_map(&aka_uri/1) |> Enum.uniq()
+  defp also_known_as(uris) when is_list(uris), do: uris |> Enum.flat_map(&aka_uri/1) |> Enum.uniq()
 
   defp also_known_as(uri) when is_binary(uri), do: aka_uri(uri)
   defp also_known_as(_), do: []
