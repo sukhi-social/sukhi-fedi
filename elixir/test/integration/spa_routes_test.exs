@@ -3,17 +3,16 @@ defmodule SukhiFedi.Integration.SpaRoutesTest do
   @moduledoc """
   SPA の直リンク / リロードで開く道。
 
-  web は fallback: 'index.html' の一枚ものなので、どの URL も
-  `serve_spa/1` が拾わないと 404 になる ── アプリの中でクリックする
-  ぶんには SvelteKit が捌くので、**直リンクとリロードだけ**が壊れる。
-  気づきにくいので、router.ex の各所にその警告コメントが繰り返し
-  置いてある。それでも 2026-08-25 に `/tomo` と `/people/:id` で
-  一度踏んだので、ここに並べて留める。
+  web は fallback: 'index.html' の一枚ものなので、どの URL も shell を
+  返さないと 404 になる ── アプリの中でクリックするぶんには SvelteKit が
+  捌くので、**直リンクとリロードだけ**が壊れる。気づきにくく、`/tomo` と
+  `/people/:id`(2026-08-25)ほか何度も踏んだ。
 
-  見るのは「その道を `serve_spa/1` が拾ったか」だけ。テスト環境には
-  ビルドした SPA の実体が無いので、拾われた道も 404 を返す ── ただし
-  本文が `frontend not built …` で、道が無いときの 404 とは区別が付く。
-  中身は SPA が描くので、ここでは問わない。
+  どの URL が頁かは、ビルドが出す `routes.json` が言う
+  (SukhiFedi.Web.SpaRoutes)。router.ex に頁ごとの行は無い。ここでは
+  「routes.json にある頁を、router が shell で返すか」を見る。テストの
+  木には本物のビルドが無いので、`routes.json` と `index.html` を置いた
+  仮の木を使う ── 頁の一覧は sukhi の web と natadeco の画面のぶん。
 
       mix test --only integration test/integration/spa_routes_test.exs
   """
@@ -54,8 +53,53 @@ defmodule SukhiFedi.Integration.SpaRoutesTest do
     "/posts/1"
   ]
 
-  # 道が無いときの 404 と、拾われたが実体が無いときの 404 を分ける印。
-  @not_built "frontend not built"
+  # SvelteKit の route id。実際のビルドの `routes.json` と同じ書き方。
+  @route_ids [
+    "/",
+    "/timeline",
+    "/settings",
+    "/search",
+    "/messages",
+    "/messages/[id]",
+    "/clips",
+    "/compose",
+    "/notifications",
+    "/bookmarks",
+    "/favourites",
+    "/requests",
+    "/lists",
+    "/lists/[id]",
+    "/signup",
+    "/hello",
+    "/tomo",
+    "/veranda",
+    "/about",
+    "/people/[id]",
+    "/d/[slug]",
+    "/d/[slug]/new"
+  ]
+
+  @shell "<!doctype html><title>shell</title>"
+
+  setup do
+    baked = Path.join(System.tmp_dir!(), "spa_routes_it_#{System.unique_integer([:positive])}")
+    File.mkdir_p!(baked)
+    File.write!(Path.join(baked, "index.html"), @shell)
+    File.write!(Path.join(baked, "routes.json"), Jason.encode!(%{"routes" => @route_ids}))
+
+    prev = {System.get_env("STATIC_BAKED_DIR"), System.get_env("STATIC_OVERRIDE_DIR")}
+    System.put_env("STATIC_BAKED_DIR", baked)
+    System.put_env("STATIC_OVERRIDE_DIR", Path.join(baked, "no-override"))
+
+    on_exit(fn ->
+      restore("STATIC_BAKED_DIR", elem(prev, 0))
+      restore("STATIC_OVERRIDE_DIR", elem(prev, 1))
+      File.rm_rf!(baked)
+    end)
+  end
+
+  defp restore(key, nil), do: System.delete_env(key)
+  defp restore(key, value), do: System.put_env(key, value)
 
   # ブラウザとして来る。`/posts/:id` は Accept で行き先を分けている
   # (AP JSON なら本当の ap_id へ、Markdown を欲しがる相手には本文、
@@ -74,16 +118,14 @@ defmodule SukhiFedi.Integration.SpaRoutesTest do
     |> Router.call(@opts)
   end
 
-  defp spa?(conn) do
-    conn.status == 200 or (conn.status == 404 and conn.resp_body =~ @not_built)
-  end
+  defp spa?(conn), do: conn.status == 200
 
   for path <- @paths do
     test "#{path} は直リンクで開ける" do
       conn = browser_get(unquote(path))
 
       assert spa?(conn),
-             "#{unquote(path)} を SPA が拾っていない ── router.ex に serve_spa の一行が要る"
+             "#{unquote(path)} を SPA が拾っていない ── routes.json の route id と SpaRoutes を見る"
     end
   end
 
@@ -94,8 +136,13 @@ defmodule SukhiFedi.Integration.SpaRoutesTest do
            "HEAD / を SPA が拾っていない ── router.ex の pipeline に Plug.Head が要る"
   end
 
-  test "無い道は、ちゃんと無い ── 上の見分けが効いていること" do
+  test "routes.json に無い道は、ちゃんと無い" do
     conn = browser_get("/definitely-not-a-route-xyz")
     refute spa?(conn)
+    assert conn.status == 404
+  end
+
+  test "頁の下の余計な段は頁ではない" do
+    assert browser_get("/lists/1/extra").status == 404
   end
 end

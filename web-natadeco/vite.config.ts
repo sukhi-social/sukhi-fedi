@@ -1,4 +1,5 @@
 import adapter from '@sveltejs/adapter-node';
+import { withRoutesManifest } from './scripts/routes-manifest.mjs';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
@@ -15,7 +16,7 @@ export default defineConfig({
     // `build/index.js` が Node で動くもの(web-natadeco/Dockerfile)。
     sveltekit({
       preprocess: vitePreprocess(),
-      adapter: adapter({ out: 'build' }),
+      adapter: withRoutesManifest(adapter({ out: 'build' }), 'build/client'),
       paths: { base: '', relative: false }
     })
   ],

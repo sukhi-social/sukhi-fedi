@@ -50,6 +50,22 @@ defmodule SukhiFedi.Integration.SSRNavigationTest do
     assert conn.resp_body == "<h1>chai</h1>"
   end
 
+  test "with a routes.json, a path the build does not list is a 404 without asking the renderer" do
+    dir = Path.join(System.tmp_dir!(), "ssr_nav_#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "routes.json"), ~s({"routes": ["/d/[slug]"]}))
+    System.put_env("STATIC_BAKED_DIR", dir)
+
+    on_exit(fn ->
+      System.delete_env("STATIC_BAKED_DIR")
+      File.rm_rf!(dir)
+    end)
+
+    # No Bypass.expect: a request reaching the renderer would fail the test.
+    assert SukhiFedi.Web.Router.call(conn(:get, "/wp-login.php"), []).status == 404
+    assert SukhiFedi.Web.Router.call(conn(:get, "/d/chai/extra"), []).status == 404
+  end
+
   test "without SSR, a stray __data.json is a plain 404" do
     System.delete_env("SSR_URL")
     conn = SukhiFedi.Web.Router.call(conn(:get, "/d/chai/__data.json"), [])

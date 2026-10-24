@@ -81,10 +81,6 @@ defmodule SukhiFedi.Web.Router do
   # shell, POST is the JSON endpoint that validates credentials and mints
   # the session_token cookie `/oauth/authorize` consumes.
 
-  get "/login" do
-    serve_spa(conn)
-  end
-
   # ── Legal pages (static HTML baked at compile time) ────────────────────
   # Robust on purpose: no SPA, no JS, no DB — served even if everything
   # else is down. Source: priv/legal/*.ko.md (see LegalController).
@@ -174,10 +170,6 @@ defmodule SukhiFedi.Web.Router do
   # Form in the SPA (`web/src/routes/settings/password`), POST is JSON.
   # Same cookie auth surface as /login (not the OAuth bearer).
 
-  get "/settings/password" do
-    serve_spa(conn)
-  end
-
   post "/settings/password" do
     PasswordController.submit(conn)
   end
@@ -193,10 +185,6 @@ defmodule SukhiFedi.Web.Router do
 
   get "/auth/state" do
     SecurityController.state(conn)
-  end
-
-  get "/settings/security" do
-    serve_spa(conn)
   end
 
   post "/settings/reauth/request" do
@@ -251,22 +239,12 @@ defmodule SukhiFedi.Web.Router do
   # The page is the SPA; preview is read-only (dry-run), execute is the
   # owner-re-proof–gated commit. See SelfCleanupController.
 
-  get "/settings/cleanup" do
-    serve_spa(conn)
-  end
-
   post "/settings/cleanup/preview" do
     SelfCleanupController.preview(conn)
   end
 
   post "/settings/cleanup/execute" do
     SelfCleanupController.execute(conn)
-  end
-
-  # ── Bot token page (SPA; the JSON calls go to /api/v1/sukhi/bots) ──────
-
-  get "/settings/bot" do
-    serve_spa(conn)
   end
 
   # ── Static assets for the SPA + login page ─────────────────────────────
@@ -432,111 +410,10 @@ defmodule SukhiFedi.Web.Router do
     end
   end
 
-  # SPA-owned client routes. Each one is just the same SvelteKit shell
-  # (`priv/static/index.html`); the bundled JS reads the URL and
-  # renders the matching page. Listing them explicitly keeps `/api`,
-  # `/oauth`, `/.well-known` untouched.
-
-  get "/signup" do
-    serve_spa(conn)
-  end
-
-  # travel.natadeco.com の「置く」道。同じ画面が host で部屋を分けるので、
-  # natadeco.com でここに来ると「ありません」の頁になるだけ。
-  # (`/map` は下の路線図の道がもう SPA に渡している。)
-  get "/new" do
-    serve_spa(conn)
-  end
-
-  # 招待リンクの玄関。`:code` は SPA 側が URL から読むので、ここでは
-  # shell を返すだけ(signup と同じ)。生死の確認は GET /api/v1/invite/:code。
-  get "/invite/:code" do
-    serve_spa(conn)
-  end
-
-  get "/timeline" do
-    serve_spa(conn)
-  end
-
-  get "/app/callback" do
-    serve_spa(conn)
-  end
-
-  get "/settings" do
-    serve_spa(conn)
-  end
-
-  get "/search" do
-    serve_spa(conn)
-  end
-
-  get "/messages" do
-    serve_spa(conn)
-  end
-
-  # 個別の会話。lists と同型で、ここを足し忘れるとアプリ内クリックは
-  # SvelteKit が捌くのに直リンク / リロードだけ 404 になる。`:id` は viewer の
-  # conversation_participants 行 id(SPA 側が URL から読む)。
-  get "/messages/:id" do
-    serve_spa(conn)
-  end
-
-  # 試作中の Clips (自分宛て DM を保存先に流用)。lists / messages/:id と
-  # 同じ理由で明示が要る ── 足し忘れると直リンク / リロードだけ 404 になる。
-  get "/clips" do
-    serve_spa(conn)
-  end
-
-  get "/compose" do
-    serve_spa(conn)
-  end
-
-  get "/notifications" do
-    serve_spa(conn)
-  end
-
-  get "/bookmarks" do
-    serve_spa(conn)
-  end
-
-  get "/favourites" do
-    serve_spa(conn)
-  end
-
-  # フォロー承認 + 招待リンク (locked アカウントの待ち合い室)。web 側だけ
-  # 足してここを忘れると、直リンク / リロードだけ 404 になる(lists と同型)。
-  get "/requests" do
-    serve_spa(conn)
-  end
-
-  # lists の一覧 (`/lists`) と個別リスト (`/lists/:id`)。web 側だけ足して
-  # ここを足し忘れると、アプリ内クリックは SvelteKit が捌くのに直リンク /
-  # リロードだけ 404 になる。
-  get "/lists" do
-    serve_spa(conn)
-  end
-
-  get "/lists/:id" do
-    serve_spa(conn)
-  end
-
-  # ハッシュタグのタイムライン。本文中の #tag リンクと `tags` 配列の URL が
-  # ここを指す。`:tag` は SPA 側が URL から読む。直リンク / リロードでも
-  # shell を返せるよう、lists と同じく明示で足しておく。
-  get "/tags/:tag" do
-    serve_spa(conn)
-  end
-
-  # 路線図(公開ページ)。数字は GET /api/map から。
-  get "/map" do
-    serve_spa(conn)
-  end
-
-  # PoW で守られる「通り道」。Anubis がこの path だけを challenge する。
-  # 中身は SPA shell ─ JS で intent / next を読んで分岐する。
-  get "/check" do
-    serve_spa(conn)
-  end
+  # The SPA's own pages (`/signup`, `/lists/:id`, ...) are not listed here:
+  # the build says which exist (`routes.json`, SukhiFedi.Web.SpaRoutes) and
+  # the catch-all at the bottom answers them with the shell. Only a page
+  # that needs more than the shell gets a route of its own above.
 
   # SvelteKit がビルド出力に `_app/` を使うので、こちらも static として
   # 配る(`/static/` と同じ priv/static ルート、prefix だけ別)。
@@ -626,45 +503,6 @@ defmodule SukhiFedi.Web.Router do
 
   get "/d/:slug/p/:id" do
     serve_post_page(conn, conn.path_params["id"])
-  end
-
-  # 板は `/d/` の下に一本化 ── これで板の slug が他のどの一段路
-  # (login・settings・api 等)とも衝突しなくなった。
-  get "/d/:slug/new" do
-    serve_spa(conn)
-  end
-
-  get "/d/:slug" do
-    serve_spa(conn)
-  end
-
-  # 加入の前に、ひなたが一言。/login の「はじめての方はこちら」が
-  # ここへ通す。
-  get "/hello" do
-    serve_spa(conn)
-  end
-
-  # ともデコ(追っている人が言ったこと)と、その中から開く人の頁。
-  # `/notifications` は上の一段路にもう在る ── sukhi の web と同じ道を
-  # 使う。`/d/:slug` と同型で、ここを足し忘れると直リンク / リロード
-  # だけ 404 になる（実際に一度そうした）。
-  get "/tomo" do
-    serve_spa(conn)
-  end
-
-  get "/people/:id" do
-    serve_spa(conn)
-  end
-
-  # ベランダ ── よその板を、追う前に覗く場所。
-  get "/veranda" do
-    serve_spa(conn)
-  end
-
-  # このばしょの約束 ── 変えないと決めていることの一枚。
-  # (足し忘れて、また直リンクだけ 404 にした。二度目。)
-  get "/about" do
-    serve_spa(conn)
   end
 
   get "/api/nodeinfo" do
@@ -828,6 +666,8 @@ defmodule SukhiFedi.Web.Router do
   # deco addon も積むが、画面は `/@alice` を持つ自分の web なので、addon の
   # 有無で分けてはいけなかった(2026-09-22、`/@kuro_admin` が
   # `/people/33` へ飛んで 404 になった)。
+  # 頁そのもの(`/lists/:id` など)は、ビルドの `routes.json` が頁と言った
+  # path だけここで shell を返す(SukhiFedi.Web.SpaRoutes)。
   get "/*path" do
     at? = String.starts_with?(conn.request_path, "/@")
 
@@ -842,7 +682,7 @@ defmodule SukhiFedi.Web.Router do
         serve_at_path(conn)
 
       true ->
-        send_resp(conn, 404, "not found")
+        serve_page_or_404(conn, path)
     end
   end
 
@@ -997,6 +837,19 @@ defmodule SukhiFedi.Web.Router do
   defp serve_spa(conn) do
     if SukhiFedi.Web.SSR.enabled?(), do: SukhiFedi.Web.SSR.render(conn), else: serve_shell(conn)
   end
+
+  # A page of the SPA, per the build's `routes.json`. Without one, the SSR
+  # renderer (if there is one) is the authority and 404s what it does not
+  # know; with neither, nothing is claimed.
+  defp serve_page_or_404(conn, path) do
+    case SukhiFedi.Web.SpaRoutes.classify(path) do
+      :page -> serve_spa(conn)
+      :no_manifest -> if SukhiFedi.Web.SSR.enabled?(), do: serve_spa(conn), else: not_found(conn)
+      :not_page -> not_found(conn)
+    end
+  end
+
+  defp not_found(conn), do: send_resp(conn, 404, "not found")
 
   defp serve_shell(conn) do
     # index.html refers to content-hashed chunks (`_app/immutable/...`).
