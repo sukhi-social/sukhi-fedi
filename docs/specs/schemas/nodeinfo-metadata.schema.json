@@ -1,6 +1,6 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sukhi.social/spec/schemas/nodeinfo-metadata.schema.json",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "https://sukhi.social/spec/schemas/nodeinfo-metadata.schema.json",
   "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
   "title": "NodeInfo metadata that Misskey reads",
   "description": "Descriptive: the `metadata` keys Misskey's instance fetcher reads (see misskey/nodeinfo.md). All are optional. sukhi currently sends an empty object.",
@@ -36,17 +36,5 @@
         }
       }
     }
-  },
-  "examples": [
-    {},
-    {
-      "nodeName": "sukhi",
-      "nodeDescription": "A small server",
-      "themeColor": "#86b300",
-      "maintainer": {
-        "name": "hina",
-        "email": "admin@sukhi.social"
-      }
-    }
-  ]
+  }
 }

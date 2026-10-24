@@ -4,6 +4,10 @@
 - Kind: descriptive (what Misskey does). Source tags and how to read them: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
 
+## In one paragraph
+
+Misskey serves four collections for a user, each with its own page size and paging parameter. Followers and following can be refused, and the featured path differs from sukhi's.
+
 Source of this page: **[src]** `ActivityPubServerService.ts`
 
 | Endpoint | Page size | Paging | Limits |

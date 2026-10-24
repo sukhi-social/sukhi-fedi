@@ -3,9 +3,76 @@
 
 - Kind: descriptive (what Misskey does), with a last section on how sukhi supports it. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
-- Schema: [misskey-mfm-source](../schemas/misskey-mfm-source.schema.json)
+- Schema: `schemas/misskey-mfm-source.schema.json`
 
-MFM is Misskey's own markup for note text. ActivityPub has no place for it, so Misskey sends the source text beside the HTML. This page says when it does that, what the HTML looks like, and how sukhi reads and writes it.
+## In one paragraph
+
+MFM is Misskey's own markup for note text. ActivityPub has no place for it, so Misskey sends the source text beside the HTML, in two properties that always travel together. It does so only when the text uses something beyond plain text, mentions, hashtags, URLs, and emoji. This page says when, what the HTML looks like, and how sukhi reads and writes it.
+
+A note whose text has MFM, as Misskey sends it ([misskey-mfm-source schema](../schemas/misskey-mfm-source.schema.json)):
+```json
+{
+  "content": "<p><b>Hello</b></p>",
+  "_misskey_content": "**Hello**",
+  "source": {
+    "content": "**Hello**",
+    "mediaType": "text/x.misskeymarkdown"
+  }
+}
+```
+
+A note with plain text carries neither property ([same schema](../schemas/misskey-mfm-source.schema.json)). It passes, because the schema only says that the two come together:
+
+```json
+{
+  "content": "<p>Hello</p>"
+}
+```
+
+The schema, copied here so the page can be read on its own:
+
+<!-- schema: misskey-mfm-source.schema.json -->
+```json
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "https://sukhi.social/spec/schemas/misskey-mfm-source.schema.json",
+  "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
+  "title": "MFM source properties of a Note",
+  "description": "Descriptive: how Misskey carries MFM source beside `content` (see misskey/mfm.md). Misskey writes both properties together, or neither. Misskey reads `source` first (only when `mediaType` is `text/x.misskeymarkdown`), then `_misskey_content`.",
+  "type": "object",
+  "properties": {
+    "_misskey_content": {
+      "type": "string",
+      "description": "MFM source text."
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "content",
+        "mediaType"
+      ],
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "mediaType": {
+          "enum": [
+            "text/x.misskeymarkdown"
+          ]
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "_misskey_content": [
+      "source"
+    ],
+    "source": [
+      "_misskey_content"
+    ]
+  }
+}
+```
 
 ## 1. The syntax
 

@@ -1,0 +1,14 @@
+{
+  "name": "sukhi-spec-check",
+  "private": true,
+  "version": "0.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Checks the JSON in docs/specs against the JSON Schemas in docs/specs/schemas.",
+  "scripts": {
+    "check": "node check.cjs"
+  },
+  "dependencies": {
+    "skeemas": "1.2.5",
+    "skeemas-markdown-validation": "1.0.2"
+  }
+}

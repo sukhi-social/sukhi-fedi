@@ -4,6 +4,10 @@
 - Kind: descriptive (what Misskey does). Source tags and how to read them: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
 
+## In one paragraph
+
+Misskey retries a failed delivery for more than a day. sukhi retries for about twenty minutes, so a short outage at Misskey can lose a delivery from sukhi.
+
 Source of this page: **[study]**
 
 - Misskey groups followers by shared inbox and falls back to the personal inbox.

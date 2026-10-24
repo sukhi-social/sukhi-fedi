@@ -1,6 +1,6 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sukhi.social/spec/schemas/emoji-tag.schema.json",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "https://sukhi.social/spec/schemas/emoji-tag.schema.json",
   "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
   "title": "Custom emoji tag",
   "description": "The `tag` item that carries a custom emoji, in the shape sukhi sends (actors, notes, reactions). Misskey's exact fields for the same item were not read; Misskey reads `type` and `name` and the icon URL (see misskey/emoji.md).",
@@ -16,7 +16,9 @@
       "format": "uri"
     },
     "type": {
-      "const": "Emoji"
+      "enum": [
+        "Emoji"
+      ]
     },
     "name": {
       "type": "string",
@@ -31,7 +33,9 @@
       ],
       "properties": {
         "type": {
-          "const": "Image"
+          "enum": [
+            "Image"
+          ]
         },
         "url": {
           "type": "string",
@@ -39,16 +43,5 @@
         }
       }
     }
-  },
-  "examples": [
-    {
-      "id": "https://example.social/emojis/blobcat.png",
-      "type": "Emoji",
-      "name": ":blobcat:",
-      "icon": {
-        "type": "Image",
-        "url": "https://example.social/emojis/blobcat.png"
-      }
-    }
-  ]
+  }
 }

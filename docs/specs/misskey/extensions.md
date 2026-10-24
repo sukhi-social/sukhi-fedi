@@ -4,6 +4,10 @@
 - Kind: descriptive (what Misskey does), with a column on how sukhi supports each item. Source tags: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
 
+## In one paragraph
+
+Misskey adds its own terms to ActivityPub. Most can be ignored; three matter for sukhi (`_misskey_content`, `_misskey_quote` with `quoteUrl`, and `_misskey_reaction`). The tables below list every term and say what to do with it.
+
 Every Misskey-only term, one row each. All of them live in the `misskey:` namespace, `https://misskey-hub.net/ns#`, except `quoteUrl` (`as:quoteUrl`). **[src]** `misc/contexts.ts`
 
 How to read the columns:

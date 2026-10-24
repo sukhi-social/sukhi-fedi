@@ -4,6 +4,10 @@
 - Kind: descriptive (what Misskey does). Source tags and how to read them: [README](README.md).
 - Subject: Misskey `develop`, read on 2026-10-23.
 
+## In one paragraph
+
+Misskey accepts a short list of activity types at the inbox and ignores or rejects the rest. The one that matters most to sukhi: Misskey applies `Update` only to actors and polls, so an edited note is probably not updated there.
+
 Source of this page: **[src]** `ApInboxService.ts`
 
 | Type | What Misskey does |

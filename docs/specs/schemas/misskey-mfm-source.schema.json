@@ -1,6 +1,6 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sukhi.social/spec/schemas/misskey-mfm-source.schema.json",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "https://sukhi.social/spec/schemas/misskey-mfm-source.schema.json",
   "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
   "title": "MFM source properties of a Note",
   "description": "Descriptive: how Misskey carries MFM source beside `content` (see misskey/mfm.md). Misskey writes both properties together, or neither. Misskey reads `source` first (only when `mediaType` is `text/x.misskeymarkdown`), then `_misskey_content`.",
@@ -21,30 +21,19 @@
           "type": "string"
         },
         "mediaType": {
-          "const": "text/x.misskeymarkdown"
+          "enum": [
+            "text/x.misskeymarkdown"
+          ]
         }
       }
     }
   },
-  "dependentRequired": {
+  "dependencies": {
     "_misskey_content": [
       "source"
     ],
     "source": [
       "_misskey_content"
     ]
-  },
-  "examples": [
-    {
-      "content": "<p><b>bold</b></p>",
-      "_misskey_content": "**bold**",
-      "source": {
-        "content": "**bold**",
-        "mediaType": "text/x.misskeymarkdown"
-      }
-    },
-    {
-      "content": "<p>plain</p>"
-    }
-  ]
+  }
 }

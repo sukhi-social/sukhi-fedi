@@ -1,0 +1,49 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      skeemas:
+        specifier: 1.2.5
+        version: 1.2.5
+      skeemas-markdown-validation:
+        specifier: 1.0.2
+        version: 1.0.2(skeemas@1.2.5)
+
+packages:
+
+  skeemas-json-pointer@1.0.0:
+    resolution: {integrity: sha512-bJRs1ZPzE/SqMOFrC7KroKcmO7sERrfL/XHdLZ2x4vJkU0TMlttSfRWGBrv08F6+243Zit5V25utxqEkcC0zZw==}
+
+  skeemas-json-refs@1.0.1:
+    resolution: {integrity: sha512-nX5NXXxZ5y33Lx/PiolFzokJ9cbLXNmlYtTaybV2dvCfAWKrtZcoLlFV5I4GSSDTLp/YAABY/83tqa2z36Ll9g==}
+
+  skeemas-markdown-validation@1.0.2:
+    resolution: {integrity: sha512-uHd3VLTePUppqNhQcBNmTDQFFhJCj+nvnBBKLZUq+J1P6MQVpX2XgUvW6ZL73ioHjs6AOVWR3R7gskSYyjB4Xw==}
+    peerDependencies:
+      skeemas: '>=1.1.4 <2'
+
+  skeemas@1.2.5:
+    resolution: {integrity: sha512-itiq9FA/8CYIUZK/jtSrzWyipJkJNgAtsVpVySuJ+laamzuk9lEdjOqgMI8gWco/UyzJkhld6QMWdZ4zFOAOIw==}
+
+snapshots:
+
+  skeemas-json-pointer@1.0.0: {}
+
+  skeemas-json-refs@1.0.1:
+    dependencies:
+      skeemas-json-pointer: 1.0.0
+
+  skeemas-markdown-validation@1.0.2(skeemas@1.2.5):
+    dependencies:
+      skeemas: 1.2.5
+
+  skeemas@1.2.5:
+    dependencies:
+      skeemas-json-pointer: 1.0.0
+      skeemas-json-refs: 1.0.1

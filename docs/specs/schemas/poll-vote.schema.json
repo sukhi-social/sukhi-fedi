@@ -1,6 +1,6 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sukhi.social/spec/schemas/poll-vote.schema.json",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "https://sukhi.social/spec/schemas/poll-vote.schema.json",
   "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
   "title": "Poll vote (Create of a Note)",
   "description": "Descriptive and sent by sukhi: a vote is a Create of a small Note whose `name` is the chosen option and whose `inReplyTo` is the poll. Misskey counts a Note with a matching `name` as a vote and creates no note (see misskey/poll.md).",
@@ -12,7 +12,9 @@
   ],
   "properties": {
     "type": {
-      "const": "Create"
+      "enum": [
+        "Create"
+      ]
     },
     "actor": {
       "type": "string",
@@ -36,7 +38,9 @@
       ],
       "properties": {
         "type": {
-          "const": "Note"
+          "enum": [
+            "Note"
+          ]
         },
         "attributedTo": {
           "type": "string",
@@ -50,27 +54,13 @@
           "type": "string",
           "format": "uri"
         },
-        "content": false,
-        "cc": false
+        "content": {
+          "not": {}
+        },
+        "cc": {
+          "not": {}
+        }
       }
     }
-  },
-  "examples": [
-    {
-      "type": "Create",
-      "actor": "https://sukhi.social/users/hina",
-      "to": [
-        "https://remote.example/users/a"
-      ],
-      "object": {
-        "type": "Note",
-        "attributedTo": "https://sukhi.social/users/hina",
-        "name": "Option 2",
-        "inReplyTo": "https://remote.example/notes/9",
-        "to": [
-          "https://remote.example/users/a"
-        ]
-      }
-    }
-  ]
+  }
 }

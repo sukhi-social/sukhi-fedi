@@ -1,6 +1,6 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sukhi.social/spec/schemas/misskey-reaction.schema.json",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "https://sukhi.social/spec/schemas/misskey-reaction.schema.json",
   "$comment": "SPDX-License-Identifier: AGPL-3.0-or-later",
   "title": "Emoji reaction (Like with content)",
   "description": "Descriptive: a reaction as Misskey sends it, and as sukhi sends it (without `_misskey_reaction`, which Misskey does not need). Misskey also accepts the types `EmojiReaction` and `EmojiReact` (see misskey/reactions.md).",
@@ -47,31 +47,5 @@
         "$ref": "emoji-tag.schema.json"
       }
     }
-  },
-  "examples": [
-    {
-      "id": "https://sukhi.social/likes/1",
-      "type": "Like",
-      "actor": "https://sukhi.social/users/hina",
-      "object": "https://remote.example/notes/1",
-      "content": ":blobcat:",
-      "tag": [
-        {
-          "type": "Emoji",
-          "name": ":blobcat:",
-          "icon": {
-            "type": "Image",
-            "url": "https://sukhi.social/emojis/blobcat.png"
-          }
-        }
-      ]
-    },
-    {
-      "type": "Like",
-      "actor": "https://remote.example/users/a",
-      "object": "https://sukhi.social/users/hina/notes/1",
-      "content": "👍",
-      "_misskey_reaction": "👍"
-    }
-  ]
+  }
 }

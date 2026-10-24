@@ -27,6 +27,8 @@ One file per feature. Each file states what Misskey does, as read from its sourc
 | [delivery.md](delivery.md) | retries and failure handling |
 | [extensions.md](extensions.md) | every Misskey-only term and how to support it |
 
+Each page begins with a one-paragraph summary. Where a page is about a JSON shape, it prints the JSON Schema, with example messages checked against it (`make check-specs`; see [schemas](../schemas/README.md)).
+
 Every statement is tagged with where it comes from.
 
 | Tag | Meaning |

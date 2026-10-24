@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # JSON Schemas
 
-Shapes of the JSON that the specifications talk about, written as JSON Schema (draft 2020-12). Each schema has an `$id` under `https://sukhi.social/spec/schemas/`, and carries `examples`.
+Shapes of the JSON that the specifications talk about, written as JSON Schema (draft 4). Each schema has an `id` under `https://sukhi.social/spec/schemas/`. The documents that use a schema print it in full, and show example messages directly under a link to it.
 
 A schema either **binds** (it states what a sukhi message looks like under a numbered specification) or **describes** (it states what Misskey sends or reads, with no duty on anyone). The `description` of each schema says which.
 
@@ -15,6 +15,14 @@ A schema either **binds** (it states what a sukhi message looks like under a num
 | [webfinger-jrd](webfinger-jrd.schema.json) | describes; sukhi sends it | [misskey/webfinger.md](../misskey/webfinger.md) |
 | [nodeinfo-metadata](nodeinfo-metadata.schema.json) | describes | [misskey/nodeinfo.md](../misskey/nodeinfo.md) |
 
-Checked on 2026-10-24: every schema is valid draft 2020-12, every example passes its schema, and four deliberately wrong messages (a quote with one form only, MFM `_misskey_content` without `source`, a `source` with another media type, a vote carrying `content`) are rejected. The check was run once by hand and is not part of `make test`.
+## Checking
+
+`make check-specs` runs [`check/check.cjs`](../check/check.cjs). It does three things:
+
+1. Every JSON example in a document that sits directly under a link to a `.schema.json` file is validated against that schema, with [skeemas-markdown-validation](https://github.com/skeemas/skeemas-markdown-validation).
+2. Every schema printed in a document (after `<!-- schema: NAME -->`) is identical to the file in this folder.
+3. The messages in [`check/negative.json`](../check/negative.json) are rejected by the schema they name.
+
+Why draft 4: skeemas validates draft 3 and 4 only, and it is not maintained. Draft 4 has no `contains`, so one rule (a quote has a `tag` `Link`) is stated in the schema's `description` and not checked. If this becomes a problem, the same check can be done with Ajv, which supports 2020-12.
 
 Not covered: a schema for whole Notes or actors. Their shapes are large and open (any extension may appear), so these schemas fix only the properties a specification is about.
