@@ -136,7 +136,8 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
 
     case Regex.run(~r|https://#{Regex.escape(domain)}/users/(.+)|, actor_id) do
       [_, username] ->
-        case SukhiFedi.Repo.get_by(SukhiFedi.Schema.Account, username: username) do
+        # 同名のリモートアカウントが居るので、username だけで引くと複数行になる。
+        case SukhiFedi.Accounts.by_local_username(username) do
           nil -> :error
           account -> {:ok, account.id}
         end
