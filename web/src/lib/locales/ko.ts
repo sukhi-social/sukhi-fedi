@@ -210,6 +210,7 @@ export const ko: Dict = {
   'settings.title': '설정',
   'settings.displayName': '표시 이름',
   'settings.bio': '자기소개',
+  'settings.bioHint': '게시물과 같은 Markdown과 :이모지: 를 쓸 수 있어요.',
   'settings.avatarNew': '새 아이콘 (저장 전)',
   'settings.avatarNow': '지금 아이콘',
   'settings.headerNew': '새 헤더 이미지 (저장 전)',

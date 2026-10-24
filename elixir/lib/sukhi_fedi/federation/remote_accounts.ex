@@ -88,6 +88,8 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
   # serves them from its own API. Read them in the background, only for actors
   # that say they are Misskey-family (so no other server is ever asked).
   defp then_decorate({:ok, %Account{id: id}} = ok, actor_json) do
+    learn_capabilities(actor_json)
+
     if misskey_family?(actor_json) do
       %{account_id: id}
       |> SukhiFedi.Federation.MisskeyDecorationsWorker.new()
@@ -98,6 +100,14 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
   end
 
   defp then_decorate(other, _actor_json), do: other
+
+  # FEP-844e: remember what the actor's host says it implements. A failure
+  # here must never fail the ingest that found the document.
+  defp learn_capabilities(actor_json) do
+    SukhiShared.PeerCapabilities.learn(Repo, actor_json)
+  rescue
+    e -> require Logger; Logger.warning("peer capabilities: #{Exception.message(e)}")
+  end
 
   # Misskey and its forks declare the `misskey` namespace in `@context`
   # (`"misskey": "https://misskey-hub.net/ns#"`) and publish `isCat`.
@@ -178,6 +188,7 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
   # http(s) URIs — a blank or non-URI entry would never match a Move's
   # actor anyway, and we don't want junk in the consent check.
   defp also_known_as(uris) when is_list(uris), do: uris |> Enum.flat_map(&aka_uri/1) |> Enum.uniq()
+
   defp also_known_as(uri) when is_binary(uri), do: aka_uri(uri)
   defp also_known_as(_), do: []
 

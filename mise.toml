@@ -11,3 +11,5 @@ erlang = "28.4.1"
 elixir = "1.20.0-otp-28"
 node = "24.22.1"
 pnpm = "10"
+# docs/specs/check (make check-specs) validates the spec examples
+cue = "0.13.2"

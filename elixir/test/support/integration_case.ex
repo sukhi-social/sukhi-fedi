@@ -45,6 +45,9 @@ defmodule SukhiFedi.IntegrationCase do
         unless tags[:async], do: Ecto.Adapters.SQL.Sandbox.mode(SukhiFedi.Repo, {:shared, self()})
     end
 
+    # Sandbox rows roll back; the emoji cache must not remember them.
+    SukhiFedi.CustomEmojis.clear_cache()
+
     bypass = Bypass.open()
 
     {:ok,

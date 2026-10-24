@@ -34,6 +34,12 @@ defmodule SukhiFedi.Application do
       # the series accrues for offline analysis. :ignore (no-op) unless
       # :metrics sample_interval_ms is set — the test env leaves it off.
       SukhiFedi.Metrics.Sampler,
+      # Pull Federation: counters folded into pull_stats in batches, the
+      # task pool the puller runs pulls in, and the puller itself (:ignore
+      # when :pull_federation tick_ms is nil, as in the test env).
+      {SukhiShared.PullStats, repo: SukhiFedi.Repo},
+      {Task.Supervisor, name: SukhiFedi.PullFederation.TaskSup},
+      SukhiFedi.PullFederation.Puller,
       # Holds the latest L4 telemetry snapshot the WebTransport edge relay
       # (wt-relay, x64) publishes over NATS, for the /admin/system page. After
       # the Gnat connection above; subscribes lazily and retries if NATS isn't

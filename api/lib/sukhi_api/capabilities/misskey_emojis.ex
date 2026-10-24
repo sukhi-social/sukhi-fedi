@@ -13,7 +13,7 @@ defmodule SukhiApi.Capabilities.MisskeyEmojis do
 
   use SukhiApi.Capability, addon: :misskey_api
 
-  alias SukhiApi.GatewayRpc
+  alias SukhiApi.{GatewayRpc, Revalidate}
   alias SukhiApi.Views.MisskeyEmoji
 
   @impl true
@@ -26,10 +26,10 @@ defmodule SukhiApi.Capabilities.MisskeyEmojis do
     ]
   end
 
-  def emojis(_req) do
+  def emojis(req) do
     case GatewayRpc.run(SukhiFedi.CustomEmojis, :list_local, []) do
       {:ok, list} when is_list(list) ->
-        ok(200, %{emojis: MisskeyEmoji.render_list(list)})
+        Revalidate.json(req, JSON.encode!(%{emojis: MisskeyEmoji.render_list(list)}))
 
       {:unavailable, why} ->
         ok(503, GatewayRpc.unavailable_body(why))

@@ -74,6 +74,10 @@
     position: relative;
     display: inline-block;
     flex-shrink: 0;
+    /* 投稿のように flex の行に置かれると、既定の stretch で行の高さまで
+       伸び、飾りの top: -50% が行の高さ基準になって星が上へずれていた。
+       アイコンと同じ高さに留める。 */
+    align-self: flex-start;
     line-height: 0;
   }
   .deco {
@@ -82,6 +86,11 @@
     left: -50%;
     width: 200%;
     height: 200%;
+    /* base.css の img { max-width: 100% } が 200% を 100% に縮めて、星が
+       左上にずれていた。この枠は親の 2 倍が正しいので外す。 */
+    max-width: none;
+    max-height: none;
+    z-index: 1;
     pointer-events: none;
     user-select: none;
   }

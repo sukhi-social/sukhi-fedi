@@ -90,7 +90,8 @@ defmodule SukhiFedi.Metrics do
   def prune(retention_days) when is_integer(retention_days) and retention_days > 0 do
     cutoff = DateTime.add(DateTime.utc_now(), -retention_days * 86_400, :second)
     {deleted, _} = Repo.delete_all(from(s in MetricSample, where: s.sampled_at < ^cutoff))
-    deleted
+    # The Pull Federation counters share the same retention.
+    deleted + SukhiFedi.PullFederation.Stats.prune(retention_days)
   end
 
   # ── snapshot → row ─────────────────────────────────────────────────────────

@@ -345,10 +345,72 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert is_list(errors[:display_name])
     end
 
-    test "Mastodon's `note` is mapped to `summary`" do
+    test "Mastodon's `note` is mapped to `summary`, rendered as Markdown" do
       a = create_account!("alice_note")
-      assert {:ok, updated} = Accounts.update_credentials(a.id, %{"note" => "new bio"})
-      assert updated.summary == "new bio"
+      assert {:ok, updated} = Accounts.update_credentials(a.id, %{"note" => "new **bio**"})
+      assert updated.summary =~ "new <strong>bio</strong>"
+      assert updated.summary_source == "new **bio**"
+    end
+
+    test "the bio keeps the custom emoji it wears" do
+      a = create_account!("alice_emoji")
+
+      {:ok, _} =
+        SukhiFedi.CustomEmojis.register(%{
+          shortcode: "blobcat",
+          image_url: "https://e.example/blobcat.png"
+        })
+
+      assert {:ok, updated} = Accounts.update_credentials(a.id, %{"note" => "hi :blobcat:"})
+      assert [%{"shortcode" => "blobcat", "url" => "https://e.example/blobcat.png"}] = updated.emojis
+    end
+
+    test "script in a bio is scrubbed" do
+      a = create_account!("alice_xss")
+
+      assert {:ok, updated} =
+               Accounts.update_credentials(a.id, %{"note" => "<script>alert(1)</script>ok"})
+
+      refute updated.summary =~ "<script"
+    end
+  end
+
+  describe "Accounts.set_roles/3" do
+    test "an admin hands out badges, cleaned by the gate, and it is audited" do
+      a = create_account!("badge_target")
+      admin = create_account!("badge_admin")
+
+      rows = [
+        %{"name" => " Moderator ", "color" => "#e5484d"},
+        %{"name" => "<b>x</b>", "color" => "red"},
+        %{"name" => "", "color" => "#fff"},
+        %{"name" => "c", "color" => "#abc"},
+        %{"name" => "d", "color" => ""}
+      ]
+
+      assert {:ok, updated} = Accounts.set_roles(a.id, admin.id, rows)
+
+      assert [
+               %{"name" => "Moderator", "color" => "#e5484d"},
+               %{"name" => "&lt;b&gt;x&lt;/b&gt;", "color" => ""},
+               %{"name" => "c", "color" => "#abc"}
+             ] = updated.roles
+
+      assert Repo.get_by!(SukhiFedi.Schema.AdminAudit, action: "roles_changed", target_account_id: a.id)
+    end
+
+    test "a remote account is not ours to badge" do
+      remote =
+        %SukhiFedi.Schema.Account{
+          username: "far",
+          domain: "far.example",
+          actor_uri: "https://far.example/users/far",
+          summary: ""
+        }
+        |> Repo.insert!()
+
+      admin = create_account!("badge_admin2")
+      assert {:error, :not_found} = Accounts.set_roles(remote.id, admin.id, [%{"name" => "x"}])
     end
   end
 

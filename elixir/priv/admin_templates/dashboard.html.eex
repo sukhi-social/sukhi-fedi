@@ -29,4 +29,9 @@
     <div class="n"><%= counts.instance_blocks %></div>
     <a href="/admin/instance_blocks" class="muted">Manage →</a>
   </div>
+  <div class="card">
+    <div class="label">POSTs avoided (24 h)</div>
+    <div class="n"><%= if pull.saved_pct, do: "#{pull.saved_pct}%", else: "–" %></div>
+    <a href="/admin/pull_federation" class="muted">Pull Federation →</a>
+  </div>
 </div>

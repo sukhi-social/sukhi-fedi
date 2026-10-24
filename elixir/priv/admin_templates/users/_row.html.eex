@@ -2,6 +2,15 @@
   <td><strong>@<%= h(user.username) %></strong></td>
   <td><%= h(user.display_name) %></td>
   <td>
+    <form hx-post="/admin/users/<%= user.id %>/roles"
+          hx-target="#user-<%= user.id %>"
+          hx-swap="outerHTML">
+      <input name="roles" size="18" placeholder="Moderator, …"
+             value="<%= h(Enum.map_join(user.roles, ", ", &SukhiFedi.HTML.unescape(&1["name"]))) %>">
+      <button>Save</button>
+    </form>
+  </td>
+  <td>
 <%= if user.suspended_at do %>
     <span class="pill suspended">Suspended</span>
 <% else %>

@@ -333,6 +333,14 @@
       {/if}
     </div>
 
+    {#if account.roles && account.roles.length > 0}
+      <p class="profile-roles">
+        {#each account.roles as r (r.id)}
+          <span class="role-badge" style:--role-color={r.color || null}>{@html r.name}</span>
+        {/each}
+      </p>
+    {/if}
+
     {#if account.note}
       <div class="profile-note">{@html renderEmojis(account.note, account.emojis)}</div>
     {/if}
@@ -592,6 +600,23 @@
     color: var(--color-text);
     border-block-end-color: var(--color-text);
   }
+  .profile-roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+  }
+  .role-badge {
+    --role-color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--role-color);
+    border-radius: 999px;
+    color: var(--role-color);
+    font-size: var(--text-sm);
+    line-height: 1.7;
+  }
   .profile-note {
     font-size: var(--text-base);
     overflow-wrap: anywhere;
@@ -599,6 +624,42 @@
 
   .profile-note :global(p) + :global(p) {
     margin-block-start: var(--space-2);
+  }
+
+  /* 自己紹介は投稿と同じ Markdown(ローカル)か、リモートの HTML。
+     Status の本文と同じ要素を、同じ静かさで整える。 */
+  .profile-note :global(blockquote) {
+    margin: var(--space-2) 0;
+    padding-inline-start: var(--space-3);
+    border-inline-start: 2px solid var(--color-border);
+    color: var(--color-text-muted);
+  }
+  .profile-note :global(code) {
+    font-size: 0.95em;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-1);
+  }
+  .profile-note :global(pre) {
+    overflow-x: auto;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+  }
+  .profile-note :global(pre) :global(code) {
+    display: block;
+    border: none;
+    background: none;
+    padding: 0;
+  }
+  .profile-note :global(h1),
+  .profile-note :global(h2),
+  .profile-note :global(h3) {
+    font-size: var(--text-base);
+    font-weight: 600;
+    margin: var(--space-2) 0 var(--space-1);
   }
 
   .profile-counts {

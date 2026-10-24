@@ -48,6 +48,25 @@ defmodule SukhiFedi.Integration.RemoteAccountsTest do
     assert refetched.public_key_pem == "PEMDATA"
   end
 
+  test "a remote bio is sanitized HTML and its emoji tags are mirrored" do
+    actor =
+      full_actor()
+      |> Map.put("summary", "<p>hi <script>alert(1)</script><br>:blobcat:</p>")
+      |> Map.put("tag", [
+        %{
+          "type" => "Emoji",
+          "name" => ":blobcat:",
+          "icon" => %{"type" => "Image", "url" => "https://remote.example/blobcat.png"}
+        }
+      ])
+
+    {:ok, a} = RemoteAccounts.upsert_from_actor_json(actor)
+
+    refute a.summary =~ "<script"
+    assert a.summary =~ "<br"
+    assert [%{"shortcode" => "blobcat", "url" => "https://remote.example/blobcat.png"}] = a.emojis
+  end
+
   test "a refetch still applies a genuinely-changed field" do
     {:ok, _} = RemoteAccounts.upsert_from_actor_json(full_actor())
 
@@ -73,6 +92,16 @@ defmodule SukhiFedi.Integration.RemoteAccountsTest do
     assert site == "<a href=\"https://x\">x</a>"
     refute bio =~ "script"
     assert bio =~ "safe"
+  end
+
+  test "a remote actor keeps up to 16 profile rows, not our own 4" do
+    rows =
+      for n <- 1..20,
+          do: %{"type" => "PropertyValue", "name" => "row#{n}", "value" => "v#{n}"}
+
+    {:ok, acct} = RemoteAccounts.upsert_from_actor_json(Map.put(full_actor(), "attachment", rows))
+
+    assert length(acct.fields) == 16
   end
 
   test "a brand-new sparse actor still gets the handle as display_name" do

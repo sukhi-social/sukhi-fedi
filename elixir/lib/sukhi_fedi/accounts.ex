@@ -273,7 +273,7 @@ defmodule SukhiFedi.Accounts do
   end
 
   defp do_update(%Account{} = account, attrs) do
-    cs = Account.changeset_credentials(account, attrs)
+    cs = account |> Account.changeset_credentials(attrs) |> put_emojis()
 
     Multi.new()
     |> Multi.update(:account, cs)
@@ -295,6 +295,27 @@ defmodule SukhiFedi.Accounts do
 
       {:error, _step, reason, _} ->
         {:error, reason}
+    end
+  end
+
+  # The custom emoji the profile wears — name, bio and field rows — resolved
+  # once on write and stored, so the view and the federated actor just echo
+  # the list (same as `notes.emojis`). Only when one of those texts changed;
+  # a avatar-only edit leaves the stored list alone.
+  defp put_emojis(cs) do
+    if Enum.any?([:display_name, :summary, :summary_source, :fields], &Map.has_key?(cs.changes, &1)) do
+      field_text =
+        cs
+        |> Ecto.Changeset.get_field(:fields)
+        |> Enum.map(fn row -> "#{row["name"]} #{row["value"]}" end)
+
+      text =
+        [Ecto.Changeset.get_field(cs, :display_name), Ecto.Changeset.get_field(cs, :summary_source) | field_text]
+        |> Enum.join(" ")
+
+      Ecto.Changeset.put_change(cs, :emojis, SukhiFedi.CustomEmojis.extract_from_text(text))
+    else
+      cs
     end
   end
 
@@ -435,6 +456,37 @@ defmodule SukhiFedi.Accounts do
           {:ok, %{account: a}} -> {:ok, a}
           {:error, _step, reason, _} -> {:error, reason}
         end
+    end
+  end
+
+  @doc """
+  Replace a local account's public badges with `rows` (`[%{"name", "color"}]`,
+  cleaned by `Account.changeset_roles/2`). Recorded in the audit trail with the
+  resulting names. Remote accounts are refused: their roles are not ours.
+  """
+  @spec set_roles(integer(), integer(), list()) ::
+          {:ok, Account.t()} | {:error, :not_found}
+  def set_roles(account_id, by_id, rows) when is_integer(account_id) and is_integer(by_id) do
+    case Repo.get(Account, account_id) do
+      %Account{domain: nil} = account ->
+        Multi.new()
+        |> Multi.update(:account, Account.changeset_roles(account, rows))
+        |> Multi.insert(:audit, fn %{account: a} ->
+          SukhiFedi.Schema.AdminAudit.changeset(%{
+            action: "roles_changed",
+            admin_account_id: by_id,
+            target_account_id: a.id,
+            metadata: %{roles: Enum.map(a.roles, & &1["name"])}
+          })
+        end)
+        |> Repo.transaction()
+        |> case do
+          {:ok, %{account: a}} -> {:ok, a}
+          {:error, _step, reason, _} -> {:error, reason}
+        end
+
+      _ ->
+        {:error, :not_found}
     end
   end
 

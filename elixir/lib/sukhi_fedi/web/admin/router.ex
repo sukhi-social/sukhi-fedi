@@ -17,7 +17,8 @@ defmodule SukhiFedi.Web.Admin.Router do
                               BubbleInstancesController, DashboardController,
                               InstanceBlocksController, InviteCodesController,
                               LoginController, MapPeersController, RelaysController,
-                              ReportsController, SystemController, UsersController}
+                              PullFederationController, ReportsController, SystemController,
+                              UsersController}
 
   plug :put_secret_key_base
 
@@ -76,6 +77,10 @@ defmodule SukhiFedi.Web.Admin.Router do
     Auth.with_admin(conn, &UsersController.suspend(&1, id))
   end
 
+  post "/users/:id/roles" do
+    Auth.with_admin(conn, &UsersController.roles(&1, id))
+  end
+
   post "/users/:id/unsuspend" do
     Auth.with_admin(conn, &UsersController.unsuspend(&1, id))
   end
@@ -118,6 +123,14 @@ defmodule SukhiFedi.Web.Admin.Router do
 
   post "/announcements/:id/delete" do
     Auth.with_admin(conn, &AnnouncementsController.delete(&1, id))
+  end
+
+  get "/pull_federation" do
+    Auth.with_admin(conn, &PullFederationController.index/1)
+  end
+
+  get "/pull_federation.json" do
+    Auth.with_admin(conn, &PullFederationController.json/1)
   end
 
   get "/system" do

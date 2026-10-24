@@ -81,3 +81,7 @@ config :sukhi_fedi, :s3,
   inbound_bucket: "inbound-test",
   outbound_bucket: "outbound-test",
   enabled: true
+
+# The Pull Federation scheduler polls the database on a timer; the tests
+# that exercise pulls call `Pull.run/1` directly instead.
+config :sukhi_fedi, :pull_federation, tick_ms: nil

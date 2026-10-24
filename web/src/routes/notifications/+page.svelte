@@ -10,6 +10,7 @@
   import {
     directTypeList,
     markAllSeen,
+    adoptServerSeen,
     clearCounts,
     seenId,
     isNewer,
@@ -57,9 +58,13 @@
       goto('/');
       return;
     }
-    seenEntry = { direct: seenId('direct'), ambient: seenId('ambient') };
-    // ベルを開いた = 通知を見に来た。両方の層をそっと既読にして気配を戻す。
-    void markAllSeen();
+    void (async () => {
+      // 別の端末で見た分を先に迎える。仕切り棒も、そこから引く。
+      await adoptServerSeen();
+      seenEntry = { direct: seenId('direct'), ambient: seenId('ambient') };
+      // ベルを開いた = 通知を見に来た。両方の層をそっと既読にして気配を戻す。
+      void markAllSeen();
+    })();
     void load(true);
   });
 

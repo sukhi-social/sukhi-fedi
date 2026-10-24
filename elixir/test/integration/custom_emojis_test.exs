@@ -8,6 +8,27 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
   alias SukhiFedi.Schema.Account
   alias SukhiFedi.Schema.CustomEmoji
 
+  describe "cache" do
+    test "a re-registered local emoji is seen at once, not after the TTL" do
+      assert {:ok, _} = CustomEmojis.register(%{name: "cache_t", url: "https://e.test/1.png"})
+      assert [%{image_url: "https://e.test/1.png"}] = Enum.filter(CustomEmojis.list_local(), &(&1.shortcode == "cache_t"))
+      assert %{image_url: "https://e.test/1.png"} = CustomEmojis.get_local("cache_t")
+
+      assert {:ok, _} = CustomEmojis.register(%{name: "cache_t", url: "https://e.test/2.png"})
+      assert %{image_url: "https://e.test/2.png"} = CustomEmojis.get_local("cache_t")
+      assert [%{image_url: "https://e.test/2.png"}] = Enum.filter(CustomEmojis.list_local(), &(&1.shortcode == "cache_t"))
+    end
+
+    test "lookup_many sees a remote emoji's new image after upsert_from_tag" do
+      tag = fn url -> %{"icon" => %{"url" => url}} end
+      :ok = CustomEmojis.upsert_from_tag("rc", tag.("https://r.test/1.png"), "r.test")
+      assert %{":rc@r.test:" => %{url: "https://r.test/1.png"}} = CustomEmojis.lookup_many([":rc@r.test:"])
+
+      :ok = CustomEmojis.upsert_from_tag("rc", tag.("https://r.test/2.png"), "r.test")
+      assert %{":rc@r.test:" => %{url: "https://r.test/2.png"}} = CustomEmojis.lookup_many([":rc@r.test:"])
+    end
+  end
+
   describe "register/1 and get_local/1" do
     test "registers a local custom emoji and finds it by shortcode, alias, and colon-wrapped format" do
       attrs = %{

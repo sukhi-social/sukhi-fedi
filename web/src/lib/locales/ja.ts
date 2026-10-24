@@ -209,6 +209,7 @@ export const ja = {
   'settings.title': '設定',
   'settings.displayName': '表示名',
   'settings.bio': '自己紹介',
+  'settings.bioHint': '投稿と同じ Markdown と、:絵文字: が使えます。',
   'settings.avatarNew': '新しいアイコン（保存前）',
   'settings.avatarNow': 'いまのアイコン',
   'settings.headerNew': '新しいヘッダ画像（保存前）',

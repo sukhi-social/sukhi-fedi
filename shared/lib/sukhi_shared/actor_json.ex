@@ -10,6 +10,8 @@ defmodule SukhiShared.ActorJson do
   reads fields off the account, so it works on either app's `Account`.
   """
 
+  alias SukhiShared.Capability
+
   @spec actor_uri(String.t(), map() | String.t()) :: String.t()
   def actor_uri(domain, %{username: u}), do: actor_uri(domain, u)
 
@@ -39,15 +41,17 @@ defmodule SukhiShared.ActorJson do
         "https://w3id.org/security/v1",
         "https://w3id.org/security/multikey/v1",
         "https://w3id.org/security/data-integrity/v1",
-        %{
+        "https://w3id.org/fep/844e",
+        Map.merge(Capability.context_terms(), %{
           "featured" => %{"@id" => "toot:featured", "@type" => "@id"},
           "discoverable" => "toot:discoverable",
           "indexable" => "toot:indexable",
           "toot" => "http://joinmastodon.org/ns#",
+          "Emoji" => "toot:Emoji",
           "pending" => "https://purl.archive.org/socialweb/pending#",
           "pendingFollowers" => %{"@id" => "pending:pendingFollowers", "@type" => "@id"},
           "pendingFollowing" => %{"@id" => "pending:pendingFollowing", "@type" => "@id"}
-        }
+        })
       ],
       "id" => actor_uri,
       "type" => "Person",
@@ -69,7 +73,7 @@ defmodule SukhiShared.ActorJson do
       # meaningful "no"), so a remote never has to guess our default.
       "discoverable" => account.discoverable || false,
       "indexable" => account.indexable || false,
-      "endpoints" => %{"sharedInbox" => "https://#{domain}/inbox"},
+      "endpoints" => Map.merge(%{"sharedInbox" => "https://#{domain}/inbox"}, Capability.endpoints(domain)),
       "publicKey" => %{
         "id" => "#{actor_uri}#main-key",
         "owner" => actor_uri,
@@ -77,12 +81,23 @@ defmodule SukhiShared.ActorJson do
       }
     }
     |> maybe_put_assertion_method(account, actor_uri)
+    |> maybe_put_generator()
     |> maybe_put_image("icon", account.avatar_url)
     |> maybe_put_image("image", account.banner_url)
     |> maybe_put_fields(account.fields)
+    |> maybe_put_emoji_tags(Map.get(account, :emojis))
     |> maybe_put_also_known_as(account.aliases)
     |> maybe_put_moved_to(account.moved_to_uri)
     |> maybe_put_pending_collections(account, actor_uri)
+  end
+
+  # FEP-844e: what this server implements, under `generator`. Omitted when
+  # nothing is advertised (`Capability.generator/0` is nil).
+  defp maybe_put_generator(map) do
+    case Capability.generator() do
+      nil -> map
+      gen -> Map.put(map, "generator", gen)
+    end
   end
 
   # FEP-4ccd: a locked actor advertises where its pending follow requests
@@ -106,6 +121,26 @@ defmodule SukhiShared.ActorJson do
   end
 
   defp maybe_put_fields(map, _), do: map
+
+  # The custom emoji the name / bio / fields wear, as AP `Emoji` tags — the
+  # same shape notes carry — so a remote viewer swaps `:blobcat:` for the
+  # image. Rows without a url can't be drawn there, so they are dropped.
+  defp maybe_put_emoji_tags(map, [_ | _] = emojis) do
+    tags =
+      for %{"shortcode" => sc, "url" => url} <- emojis,
+          is_binary(sc) and sc != "" and is_binary(url) and url != "" do
+        %{
+          "id" => url,
+          "type" => "Emoji",
+          "name" => ":#{sc}:",
+          "icon" => %{"type" => "Image", "url" => url}
+        }
+      end
+
+    if tags == [], do: map, else: Map.put(map, "tag", tags)
+  end
+
+  defp maybe_put_emoji_tags(map, _), do: map
 
   defp property_value(%{"name" => name, "value" => value}) do
     %{"type" => "PropertyValue", "name" => name, "value" => value}

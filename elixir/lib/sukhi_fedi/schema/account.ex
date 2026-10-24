@@ -3,10 +3,15 @@ defmodule SukhiFedi.Schema.Account do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @max_fields 4
+  @max_remote_fields 16
+
   schema "accounts" do
     field :username, :string
     field :display_name, :string
     field :summary, :string
+    # Local bios only: the Markdown as typed. `summary` is its rendered HTML.
+    field :summary_source, :string
     field :emojis, {:array, :map}, default: []
     # Profile fields: a person's own static key/value rows (Mastodon
     # `fields` / AP `attachment` PropertyValue). They federate, so a
@@ -36,6 +41,9 @@ defmodule SukhiFedi.Schema.Account do
     # `%{"url", "angle", "flip_h", "offset_x", "offset_y"}`.
     field :avatar_decorations, {:array, :map}, default: []
     field :is_admin, :boolean, default: false
+    # Public badges an admin gave this local account. Each row is
+    # `%{"name" => String.t(), "color" => String.t()}`; see `changeset_roles/2`.
+    field :roles, {:array, :map}, default: []
     # Manual follow approval (Mastodon `locked` / AP
     # `manuallyApprovesFollowers`). For remote rows this mirrors the
     # value from the upstream actor JSON.
@@ -129,9 +137,49 @@ defmodule SukhiFedi.Schema.Account do
       :last_fetched_at
     ])
     |> update_change(:summary, &SukhiFedi.HTML.sanitize/1)
-    |> update_change(:fields, &cast_fields/1)
+    |> update_change(:fields, &cast_fields(&1, @max_remote_fields))
     |> validate_required([:username, :domain, :actor_uri])
   end
+
+  @doc """
+  Changeset for the badges an admin hands to a local account. The one gate
+  for what reaches `roles`: at most 3 rows, each name plain text (escaped,
+  1..30 chars), each color a `#rgb` / `#rrggbb` hex or "" (the client picks
+  its default). Remote rows never pass through here.
+  """
+  def changeset_roles(account, rows) do
+    account
+    |> cast(%{roles: rows}, [:roles])
+    |> update_change(:roles, &cast_roles/1)
+  end
+
+  @max_roles 3
+  @max_role_name 30
+  defp cast_roles(rows) when is_list(rows) do
+    rows |> Enum.flat_map(&one_role/1) |> Enum.take(@max_roles)
+  end
+
+  defp cast_roles(_), do: []
+
+  defp one_role(%{} = row) do
+    name = row |> field_str("name") |> String.trim() |> String.slice(0, @max_role_name)
+    color = row |> field_str("color") |> String.trim()
+
+    case name do
+      "" ->
+        []
+
+      _ ->
+        [
+          %{
+            "name" => SukhiFedi.HTML.escape(name),
+            "color" => if(Regex.match?(~r/\A#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\z/, color), do: color, else: "")
+          }
+        ]
+    end
+  end
+
+  defp one_role(_), do: []
 
   @doc """
   Changeset for the decorations mirrored from a remote Misskey-family
@@ -166,10 +214,26 @@ defmodule SukhiFedi.Schema.Account do
       :discoverable,
       :indexable
     ])
-    |> update_change(:summary, &SukhiFedi.HTML.sanitize/1)
-    |> update_change(:fields, &cast_fields/1)
+    |> update_change(:fields, &cast_fields(&1, @max_fields))
     |> validate_length(:display_name, max: 100)
     |> validate_length(:summary, max: 1024)
+    |> render_summary()
+  end
+
+  # A local bio is Markdown, rendered once at write time through the same
+  # `Markdown.to_html/1` a note takes (which sanitises last), so the bio gets
+  # exactly the notes' formatting and `summary` stays the one HTML every
+  # reader and every federated peer sees. The source rides along for editing.
+  defp render_summary(changeset) do
+    case get_change(changeset, :summary) do
+      source when is_binary(source) ->
+        changeset
+        |> put_change(:summary_source, source)
+        |> put_change(:summary, SukhiFedi.Markdown.to_html(source))
+
+      _ ->
+        changeset
+    end
   end
 
   @doc """
@@ -225,22 +289,22 @@ defmodule SukhiFedi.Schema.Account do
   end
 
   # The one gate for profile `fields`, walked by both the local edit and
-  # the remote mirror (so a remote actor's `attachment` is held to the
-  # same caps as our own users'). Keeps at most 4 rows; each name is
-  # plain text (escaped, like local note content) and each value is run
-  # through the shared bio scrubber `HTML.sanitize/1` — never an inline
-  # second scrubber (CODE_STYLE §0/§3). Blank-named rows are dropped.
-  @max_fields 4
+  # the remote mirror. Our own users keep at most 4 rows; a remote actor
+  # keeps up to 16 (what Misskey allows — cutting it to our 4 hid the links
+  # and handles the person put there). Each name is plain text (escaped,
+  # like local note content) and each value is run through the shared bio
+  # scrubber `HTML.sanitize/1` — never an inline second scrubber
+  # (CODE_STYLE §0/§3). Blank-named rows are dropped.
   @max_field_name 255
   @max_field_value 512
-  defp cast_fields(rows) when is_list(rows) do
+  defp cast_fields(rows, max) when is_list(rows) do
     rows
     |> Enum.map(&one_field/1)
     |> Enum.reject(&is_nil/1)
-    |> Enum.take(@max_fields)
+    |> Enum.take(max)
   end
 
-  defp cast_fields(_), do: []
+  defp cast_fields(_, _max), do: []
 
   defp one_field(row) when is_map(row) do
     name = row |> field_str("name") |> String.slice(0, @max_field_name)

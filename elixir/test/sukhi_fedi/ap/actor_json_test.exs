@@ -13,7 +13,7 @@ defmodule SukhiFedi.AP.ActorJsonTest do
     @context id type url preferredUsername name summary inbox outbox
     followers following featured manuallyApprovesFollowers
     discoverable indexable pendingFollowers pendingFollowing endpoints
-    publicKey assertionMethod icon image
+    publicKey assertionMethod icon image generator
   )
 
   setup do
@@ -46,6 +46,10 @@ defmodule SukhiFedi.AP.ActorJsonTest do
     # 「プロフィールを開く」の行き先を作れない。
     assert person["url"] == "https://test.example/@alice"
     assert person["type"] == "Person"
+
+    # FEP-844e: what this server implements, so a peer can tell we pull.
+    assert [%{"href" => href}] = person["generator"]["implements"]
+    assert href == SukhiShared.Capability.pull_federation()
     assert person["manuallyApprovesFollowers"] == true
     assert person["discoverable"] == true
     assert person["indexable"] == true

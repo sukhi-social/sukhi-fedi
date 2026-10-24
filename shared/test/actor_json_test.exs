@@ -34,7 +34,7 @@ defmodule SukhiShared.ActorJsonTest do
   test "build_person keeps a bare actor bare, and adds the optional keys when set" do
     bare = ActorJson.build_person("a.example", account())
     assert bare["id"] == "https://a.example/users/alice"
-    assert bare["endpoints"] == %{"sharedInbox" => "https://a.example/inbox"}
+    assert bare["endpoints"]["sharedInbox"] == "https://a.example/inbox"
     assert bare["name"] == "alice"
     refute Map.has_key?(bare, "icon")
     refute Map.has_key?(bare, "pendingFollowers")
@@ -57,6 +57,20 @@ defmodule SukhiShared.ActorJsonTest do
     assert full["alsoKnownAs"] == ["https://old/u/a"]
     assert full["movedTo"] == "https://new/u/a"
     assert [%{"type" => "Multikey"}] = full["assertionMethod"]
+  end
+
+  test "the custom emoji a profile wears ride as AP Emoji tags" do
+    emojis = [
+      %{"shortcode" => "blobcat", "url" => "https://a.example/blobcat.png"},
+      %{"shortcode" => "nourl", "url" => nil}
+    ]
+
+    p = ActorJson.build_person("a.example", account(%{emojis: emojis}))
+
+    assert [%{"type" => "Emoji", "name" => ":blobcat:", "icon" => %{"url" => "https://a.example/blobcat.png"}}] =
+             p["tag"]
+
+    refute Map.has_key?(ActorJson.build_person("a.example", account()), "tag")
   end
 
   test "build_update wraps the person for followers" do

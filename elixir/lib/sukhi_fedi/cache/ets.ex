@@ -17,7 +17,9 @@ defmodule SukhiFedi.Cache.Ets do
     # signing-key / actor documents fetched by SukhiFedi.Fedi.Fetcher
     :fedi_documents,
     # 裏で encode した AVIF (Web.MediaTranscode.Worker が置く)
-    :media_variants
+    :media_variants,
+    # SukhiFedi.CustomEmojis: local directory + per-key reaction lookups
+    :custom_emojis
   ]
   @sweep_interval_ms 60_000
 

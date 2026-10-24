@@ -11,11 +11,19 @@
 //             流れてきても画面の前では動かさない — 変化の瞬間を
 //             誰も見ないことが「景色」の条件だから。
 //
-// 「どこまで見たか」は層ごとに localStorage で覚える(この端末の
-// 景色は、この端末のもの)。通知ページ(ベル)を開いたとき markAllSeen で
-// 両方とも最新まで進める ── 見に来たら気配は消える。
+// 「どこまで見たか」は層ごとに localStorage で覚え、そのうえでサーバの
+// markers(notifications)とも揃える。別の端末で見たものを、こちらで
+// もう一度「新着」と数えないため ── 手元の値はサーバ値と比べて新しい
+// ほうに寄せるだけで、戻ることはない。通知ページ(ベル)を開いたとき
+// markAllSeen で両方とも最新まで進め、サーバにも置く。
 import { writable } from 'svelte/store';
-import { getNotifications, type Notification, type NotificationType } from './api';
+import {
+  getNotificationMarker,
+  getNotifications,
+  setNotificationMarker,
+  type Notification,
+  type NotificationType
+} from './api';
 import { loadToken } from './auth';
 
 export type Tier = 'direct' | 'ambient';
@@ -59,12 +67,46 @@ function newerThan(id: string, seen: string): boolean {
 }
 
 /**
+ * サーバの「ここまで見た」を手元に迎える。層ごとの値より新しければ、
+ * 両方の層をそこまで進める(戻さない)。初めての端末でも、別の端末で
+ * 見た分で木が立たない。取れなければ何もしない。
+ */
+export async function adoptServerSeen(): Promise<void> {
+  let remote: string | null;
+  try {
+    remote = await getNotificationMarker();
+  } catch {
+    return;
+  }
+  if (!remote) return;
+  for (const tier of ['direct', 'ambient'] as const) {
+    const local = localStorage.getItem(SEEN_KEY[tier]);
+    if (local === null || newerThan(remote, local)) localStorage.setItem(SEEN_KEY[tier], remote);
+  }
+}
+
+/** 手元の「見た」をサーバに置く。層のうち新しいほう。失敗は次の機会に。 */
+async function pushSeen(): Promise<void> {
+  const ids = (['direct', 'ambient'] as const)
+    .map((tier) => localStorage.getItem(SEEN_KEY[tier]))
+    .filter((id): id is string => id !== null);
+  if (ids.length === 0) return;
+  const top = ids.reduce((a, b) => (newerThan(b, a) ? b : a));
+  try {
+    await setNotificationMarker(top);
+  } catch {
+    // そっとしておく。
+  }
+}
+
+/**
  * 最新の一ページを取って、層ごとの未見数を数えなおす。
  * AppNav がページ遷移の境界で呼ぶ — ambient の表示が動くのは
  * ここだけ。初めての端末では「いま」を起点にする(過去の分で
  * いきなり木が立たないように)。
  */
 export async function refreshUnseen(): Promise<void> {
+  await adoptServerSeen();
   let items: Notification[];
   try {
     items = (await getNotifications({ limit: 40 })).items;
@@ -131,6 +173,7 @@ export async function markAllSeen(): Promise<void> {
 
   directUnseen.set(0);
   ambientUnseen.set(0);
+  await pushSeen();
 }
 
 /** 「すべて消す」のあと。サーバ側が空なので、両方の数も空に。 */

@@ -13,17 +13,17 @@ defmodule SukhiApi.Capabilities.MastodonEmojis do
 
   use SukhiApi.Capability, addon: :mastodon_api
 
-  alias SukhiApi.GatewayRpc
+  alias SukhiApi.{GatewayRpc, Revalidate}
 
   @impl true
   def routes do
     [{:get, "/api/v1/custom_emojis", &index/1}]
   end
 
-  def index(_req) do
+  def index(req) do
     case GatewayRpc.run(SukhiFedi.CustomEmojis, :list_local, []) do
       {:ok, list} when is_list(list) ->
-        ok(200, Enum.map(list, &render/1))
+        Revalidate.json(req, JSON.encode!(Enum.map(list, &render/1)))
 
       {:unavailable, why} ->
         ok(503, GatewayRpc.unavailable_body(why))

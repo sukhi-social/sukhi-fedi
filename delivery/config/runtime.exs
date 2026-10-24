@@ -65,3 +65,7 @@ if config_env() == :prod do
         )
   end
 end
+
+# Must agree with the gateway: both read PULL_FEDERATION. Off ⇒ every
+# follower is pushed to and actors omit the FEP-844e `generator`.
+config :sukhi_shared, :pull_federation, System.get_env("PULL_FEDERATION", "on") != "off"

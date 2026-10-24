@@ -119,6 +119,11 @@ sukhi-fedi/
 │   │   ├── application.ex                 # supervision tree
 │   │   ├── addon.ex / addon/registry.ex   # addon ABI + discovery
 │   │   ├── repo.ex
+│   │   ├── pull_federation/               # Pull Federation, follower + serving side
+│   │   │                                    (notify, serve, gate, puller, stats);
+│   │   │                                    see docs/PULL_FEDERATION.md
+│   │   ├── ap/ingest.ex                   # the one admission path: inbox and
+│   │   │                                    pulled items both end here
 │   │   ├── outbox.ex                      # Outbox.enqueue / enqueue_multi
 │   │   │                                    (write side only; delivery
 │   │   │                                    node owns the Relay / read side)
