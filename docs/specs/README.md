@@ -97,4 +97,4 @@ These say what another server does. They bind nobody.
 | --- | --- |
 | [misskey/](misskey/README.md) | How Misskey behaves on the wire, one file per feature, with sukhi's matching actions |
 
-Identifier base: the domain `sukhi.social` is fixed (acquired 2026-10-24). The specifications use `https://sukhi.social/spec/<id>/<version>`. The `/spec/` path is proposed and not yet confirmed. Nothing is served at that address yet, so the identifiers do not resolve until the specification pages are published there.
+Identifier base: `https://sukhi.social/spec/<id>/<version>`. The domain `sukhi.social` (acquired 2026-10-24) and the `/spec/` path are fixed. The pages are meant to be public, for anyone interested in development. Nothing is served at that address yet, so the identifiers do not resolve until the specification pages are published there. Clashes with the ActivityPub side are avoided by WebFinger.

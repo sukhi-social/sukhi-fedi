@@ -2,7 +2,7 @@
 # sukhi-0004: Binding the signer to the claimed actor
 
 - Status: Draft. Implemented in `web/inbox_controller.ex:51-97` and `ap/instructions` (`trusted_inline_origin?/2`).
-- Identifier: `https://sukhi.social/spec/sukhi-0004/1` (domain fixed; the `/spec/` path is proposed, see [README](README.md)).
+- Identifier: `https://sukhi.social/spec/sukhi-0004/1` (domain and `/spec/` path fixed, see [README](README.md)).
 - Builds on: ActivityPub inbox delivery, RFC 9421, draft-cavage-12.
 
 ## 1. Problem
