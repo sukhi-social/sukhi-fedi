@@ -503,6 +503,66 @@ subtraction is what makes long-distance receivers workable.
 The first decline of a domain is compensated too, because B measures
 RTT from that same answer.
 
+### Part 9: both sides busy, and deadlock (`PullFederation.Mutual`)
+
+Two servers follow each other; each is origin and receiver at once.
+A's pull waits on B, and B's answer needs a worker that B's own pull
+is holding while it waits on A: the shape of a deadlock. The protocol
+never queues a request. Every wait becomes an immediate refusal
+(`{:busy, ms}` / `{:retry_at, ms}`) or a timeout, so a true deadlock
+cannot form. What can happen is **livelock** (both refuse each other
+again and again at the same moments) and **leaked slots**. `mix compare`
+prints the table; `test/mutual_test.exs` pins it.
+
+| case | everything delivered? |
+|---|---|
+| separate pools for serving and pulling | yes (last delivery 21 s, 16 requests) |
+| both servers busy 5-25 s | yes, 0.4 s after the window ends |
+| one worker shared by serving and pulling, lockstep backoff | **no**: 0/100 for ever, 10 refusals |
+| ... plus the tie-break | yes |
+| shared pool of 2, one reserved for serving | yes, 0 refusals |
+| receiver hangs mid-stream, origin has a stream timeout | yes, 4 slots reaped |
+| receiver hangs, no timeout | **no**: the slot is lost, the domain is locked out |
+
+Two bugs were found and fixed:
+
+1. **Shared single worker, symmetric retry.** Each node starts a pull
+   (using its only worker) and refuses the other's pull because it has no
+   worker left. With identical backoff (or none) they repeat for ever.
+   Random jitter usually escapes by luck; the fix does not depend on luck.
+   *Tie-break:* when a node's pool is full, it is itself waiting on the
+   requester, and its name is the greater, it drops its own pull and
+   serves. The lesser one never yields, so one of the two always makes
+   progress. The simpler rule that also works: keep at least one worker
+   for serving (`reserve: 1`, so a pool needs at least 2 workers).
+2. **A stream the receiver never closes held its slot for ever.** Now the
+   origin takes the slot back after `stream_timeout_ms` (30 s default,
+   `Origin.reap/2`). It is called on every request *and* by whoever
+   counts free slots before asking; the first version reaped only inside
+   `request_stream`, so a shared pool that refused before asking never
+   reaped (found by the random sweep). A late `close_stream` for a reaped
+   stream does not free a second slot.
+
+New origin rule: one open stream per domain. A second request while one
+is open gets `{:busy, remaining_timeout}`, so a receiver that lost track of
+a stream cannot take several slots (and a hammering receiver cannot
+double-count).
+
+Cost of a hang: the receiver's retries wait out the stream timeout, so the
+hang scenario finishes at 71 s instead of 21 s. The timeout trades slot
+recovery against slow readers: a stream legitimately longer than the
+timeout is cut, so it must be well above the longest real stream.
+
+The random sweep (`mutual_test.exs`, 40 random configurations with
+workers 1-4, shared or separate, any jitter, up to 3 busy windows,
+hanging receivers, RTT up to 2 s) completes in all cases with the
+tie-break; 120 configurations without it showed 22 failures, all of them
+one shared worker.
+
+Not covered: more than two servers in a cycle (A pulls B pulls C pulls A).
+It is the same argument (every wait is a refusal or timeout, nothing
+queues), but it is not simulated.
+
 ### What the model says
 
 **Pull wins when either side is the scarce one.** B's queue overflows

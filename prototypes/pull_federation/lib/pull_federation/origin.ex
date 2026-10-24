@@ -23,6 +23,9 @@ defmodule PullFederation.Origin do
             last_notified: %{},
             active_streams: 0,
             max_streams: 4,
+            open: %{},
+            stream_timeout_ms: 30_000,
+            reaped: 0,
             notify_quiet_ms: 3_000,
             decline_retry_ms: 5_000,
             bucket_versions: %{},
@@ -257,9 +260,39 @@ defmodule PullFederation.Origin do
   the minimum gap, a free slot.
   """
   def request_stream(%__MODULE__{} = o, domain, cursors, now) do
-    case known_domain(o, domain) do
+    o = reap(o, now)
+
+    with :ok <- known_domain(o, domain),
+         :ok <- not_streaming(o, domain, now) do
+      by_claim(o, domain, cursors, now, Calendar.claim(o.calendar, domain, now))
+    else
       {:error, _} = err -> {o, err}
-      :ok -> by_claim(o, domain, cursors, now, Calendar.claim(o.calendar, domain, now))
+    end
+  end
+
+  @doc """
+  A stream the receiver never closes (crashed, stalled, busy forever) must
+  not hold a slot for good: after `stream_timeout_ms` the slot is taken
+  back. Called on every request, and by whoever counts free slots before
+  asking (a caller with a shared worker pool).
+  """
+  def reap(%__MODULE__{} = o, now) do
+    {dead, live} = Enum.split_with(o.open, fn {_, at} -> now - at > o.stream_timeout_ms end)
+
+    %{
+      o
+      | open: Map.new(live),
+        active_streams: max(0, o.active_streams - length(dead)),
+        reaped: o.reaped + length(dead)
+    }
+  end
+
+  # one stream per domain at a time; asking again while one is open is a
+  # receiver that lost track of it, and will be served once it closes or times out
+  defp not_streaming(o, domain, now) do
+    case Map.fetch(o.open, domain) do
+      {:ok, at} -> {:error, {:busy, max(o.stream_timeout_ms - (now - at), 1)}}
+      :error -> :ok
     end
   end
 
@@ -310,6 +343,7 @@ defmodule PullFederation.Origin do
     o = %{
       o
       | active_streams: o.active_streams + 1,
+        open: Map.put(o.open, domain, now),
         resyncs: o.resyncs + resyncs,
         last_pull: Map.put(o.last_pull, domain, now),
         calendar: Calendar.release(o.calendar, domain),
@@ -335,15 +369,28 @@ defmodule PullFederation.Origin do
     end
   end
 
-  def close_stream(%__MODULE__{active_streams: n} = o) when n > 0,
-    do: %{o | active_streams: n - 1}
+  def close_stream(%__MODULE__{active_streams: n} = o) when n > 0 do
+    # without a domain, the oldest open stream is the one that ended
+    open =
+      case Enum.min_by(o.open, &elem(&1, 1), fn -> nil end) do
+        nil -> o.open
+        {domain, _} -> Map.delete(o.open, domain)
+      end
+
+    %{o | active_streams: n - 1, open: open}
+  end
 
   @doc """
   Close a stream and tell the calendar how long it really took, so the
   appointment spacing follows the actual stream time.
   """
   def close_stream(%__MODULE__{} = o, domain, now) do
-    o = close_stream(o)
+    # a stream that was already reaped gave its slot back; not twice
+    o =
+      case Map.pop(o.open, domain) do
+        {nil, _} -> o
+        {_, open} -> %{close_stream(o) | open: open}
+      end
 
     case Map.fetch(o.last_pull, domain) do
       {:ok, started} -> %{o | calendar: Calendar.observe_stream(o.calendar, now - started)}

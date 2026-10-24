@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Compare do
   @moduledoc "Run every scenario through push and pull and print the numbers."
   use Mix.Task
 
-  alias PullFederation.{Compare, FanOut, Flood, NotifyCost}
+  alias PullFederation.{Compare, FanOut, Flood, Mutual, NotifyCost}
 
   @shortdoc "Compare push and pull federation models"
 
@@ -45,6 +45,7 @@ defmodule Mix.Tasks.Compare do
     end
 
     flood_report()
+    mutual_report()
     rate_report()
 
     IO.puts("\n# Notification form (NotifyCost): inline vs bucket snapshots")
@@ -101,6 +102,28 @@ defmodule Mix.Tasks.Compare do
         "  #{String.pad_trailing(name, 50)} converged=#{r.converged} reqs=#{r.pull_requests_at_origin}" <>
           " declined=#{r.declined} peak/s=#{r.peak_requests_per_s} p50=#{r.p50_converged_ms} last=#{r.last_converged_ms}" <>
           " cost=#{r.origin_cost_units}"
+      )
+    end
+  end
+
+  defp mutual_report do
+    IO.puts("\n# Two servers pulling from each other (Mutual): everything delivered?")
+
+    for {name, o} <- [
+          {"separate pools", []},
+          {"both busy 5-25 s", [busy: [{5_000, 25_000}]]},
+          {"one shared worker, lockstep backoff", [workers: 1, shared: true, jitter: :same]},
+          {"one shared worker, lockstep, tie-break",
+           [workers: 1, shared: true, jitter: :same, tie_break: true]},
+          {"shared 2, reserve 1", [workers: 2, shared: true, reserve: 1, jitter: :same]},
+          {"receiver hangs, stream timeout", [stall: 2]},
+          {"receiver hangs, no timeout", [stall: 2, stream_timeout_ms: 100_000_000]}
+        ] do
+      r = Mutual.run(o)
+
+      IO.puts(
+        "  #{String.pad_trailing(name, 42)} complete=#{r.complete} a->b=#{r.a_to_b} b->a=#{r.b_to_a}" <>
+          " last=#{r.last_delivery_ms} reqs=#{r.requests} refused=#{r.refused} reaped=#{r.reaped} stuck_slots=#{r.slots_left}"
       )
     end
   end
