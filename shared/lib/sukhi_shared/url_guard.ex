@@ -33,7 +33,7 @@ defmodule SukhiShared.UrlGuard do
       true ->
         case URI.parse(url) do
           %URI{scheme: "https", host: host} when is_binary(host) and host != "" ->
-            host_safe?(host)
+            public_host?(host)
 
           _ ->
             false
@@ -43,7 +43,14 @@ defmodule SukhiShared.UrlGuard do
 
   def safe?(_), do: false
 
-  defp host_safe?(host) do
+  @doc """
+  True when `host` resolves, and only, to public addresses. `safe?/1` is
+  this plus the `https` rule; callers with their own scheme/port policy
+  (link previews allow plain http) call this directly so the address
+  rules stay in this one file.
+  """
+  @spec public_host?(String.t()) :: boolean()
+  def public_host?(host) when is_binary(host) do
     case resolve(host) do
       {:ok, [_ | _] = addrs} -> Enum.all?(addrs, &public_ip?/1)
       _ -> false
