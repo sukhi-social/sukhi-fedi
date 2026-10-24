@@ -25,6 +25,14 @@ Misskey puts each outgoing activity in a queue with one job per receiving inbox,
 - A 410 from a shared inbox also marks the whole server as gone, and Misskey stops sending to it.
 - When a delivery fails, Misskey marks the server as not responding. If it stays that way for a week, Misskey suspends it (`autoSuspendedForNotResponding`). The next success clears the mark.
 
+## A checklist for sending to Misskey
+
+1. Build the activity ([activities](activities.md)); give it an `id` on your own host (Misskey requires the `id` host to equal the signer's host).
+2. Serialise it, and make `Digest: SHA-256=<base64 of the body>`.
+3. Sign `(request-target) date host digest` with `rsa-sha256`; `keyId` is the actor's key URL, and its owner must be the activity's `actor` ([signatures](signatures.md)).
+4. `POST` to the shared inbox (`/inbox`) with `Content-Type: application/activity+json`, a body under 64 KB.
+5. A 2xx is done. A 202 is normal; it means queued. On a 5xx, 429, or network error, try again later; on any other 4xx, Misskey will not take it.
+
 ## Things to watch
 
 - A sender that retries for much less than a day can lose a delivery to a server that is down.

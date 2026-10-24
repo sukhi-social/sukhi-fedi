@@ -40,7 +40,7 @@ The WebFinger answer:
 4. For a known user whose stored URI differs from `self.href`, the new URI's host must equal the host being resolved, or resolution fails with `Invalid uri`. The stored URI is then replaced.
 5. A user not fetched for 24 hours is fetched again.
 
-How the request URL is built, the `host-meta` fallback, any check of the returned `subject`, and redirects belong to `WebfingerService`, which was **[not seen]**.
+The request, **[src]** `core/WebfingerService.ts`: for `user@host`, a `GET https://host/.well-known/webfinger?resource=acct:user@host` with `Accept: application/jrd+json, application/json` (plain `http` only if an environment switch is set, for tests). If the query is a URL, it asks the origin of that URL with `resource=<the URL>`. The answer is read as JSON. This file does not check `subject`, does not fall back to host-meta, and does not handle redirects itself (that is the HTTP client's).
 
 ## An example
 

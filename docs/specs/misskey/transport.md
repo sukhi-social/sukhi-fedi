@@ -17,9 +17,9 @@ Misskey takes activities by `POST` to an inbox, checks the form of the request, 
 | 2 | `Content-Type` is not `application/activity+json` or `application/ld+json` | 415 |
 | 3 | The body is empty or not JSON | 400 |
 | 4 | Federation is set to `none` | 403 |
-| 5 | The `Signature` header cannot be parsed, or does not sign `(request-target)`, `host`, and `date` | 401 |
-| 6 | `host` is not among the signed headers, or the `Host` header is not Misskey's own host | 401 |
-| 7 | `digest` is not among the signed headers, the `Digest` header is missing or malformed, its algorithm is not SHA-256, or it does not match the body | 401 |
+| 5 | The `Signature` header cannot be parsed, or its signed headers do not include `(request-target)`, `host`, and `date` | 401 |
+| 6 | The `Host` header is not Misskey's own host | 401 |
+| 7 | `digest` is not among the signed headers (so Misskey requires `(request-target)`, `host`, `date`, and `digest` signed), the `Digest` header is missing or malformed, its algorithm is not SHA-256, or it does not match the body | 401 |
 | 8 | The body has no `actor` | 400 |
 | otherwise | The activity and the parsed signature are queued | 202 |
 

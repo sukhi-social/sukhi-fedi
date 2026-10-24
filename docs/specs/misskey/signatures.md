@@ -13,8 +13,9 @@ Misskey verifies only the older draft-cavage signature. It does not read RFC 942
 
 At the route (the 401 list is in [transport](transport.md)), the `Signature` header is parsed with `@peertube/http-signature`: the signed headers must include `(request-target)`, `host`, and `date`, plus `digest`. Neither the route nor the queue mentions RFC 9421 or `Signature-Input`. A clock or `Date` window is not checked in either file; whether the library checks it was **[not seen]**.
 
-In the queue (**[src]** `queue/processors/InboxProcessorService.ts`) the steps run in this order:
+In the queue (**[src]** `queue/processors/InboxProcessorService.ts`) the steps run in this order (step 0 is a shortcut that comes first):
 
+0. A `Delete` of an actor that Misskey does not know is skipped before anything else.
 1. The host of the `keyId` must be allowed to federate, else `Blocked request`.
 2. A `keyId` that starts with `acct:` ends with `Old keyId is no longer supported.`
 3. The key is looked up by `keyId` in Misskey's database. If it is not there, Misskey looks the signer up by the activity's `actor`, and **fetches the actor from its server if it is unknown**. So the first delivery from a stranger can succeed. A 4xx while fetching ends the job for good; a 5xx makes it retry. If no user or no public key results, the job ends for good.
@@ -22,7 +23,6 @@ In the queue (**[src]** `queue/processors/InboxProcessorService.ts`) the steps r
 5. The key's owner (`user.uri`) must equal the activity's `actor`. A mismatch counts as a failed signature.
 6. Only if step 4 or 5 fails, and the activity has a `signature` of type `RsaSignature2017`, a Linked-Data signature is tried. Misskey fetches the actor named by `creator`, compacts the activity as JSON-LD (rejecting forbidden directives such as remote contexts), and verifies the signature over it. Any other signature type ends the job. If it passes, the HTTP signature is not looked at again.
 7. After either path, `activity.id` must be a string whose host equals the signer's host, else the job ends.
-8. A `Delete` of an actor that Misskey does not know is skipped (step 0, before the key lookup).
 
 A job that ends "for good" is not retried. FEP-8b32 proofs are not read at all.
 

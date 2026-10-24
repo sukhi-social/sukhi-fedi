@@ -8,7 +8,7 @@ This is what Misskey does when it federates, written for someone who knows Activ
 
 ## Where to start
 
-Read in this order if you are building a server that talks to Misskey. The first two steps are the minimum.
+Read in this order if you are building a server that talks to Misskey. Steps 1, 2, and 4 are the minimum: be found, receive, and send. Steps 3 and 5 add features and serving.
 
 **1. Be found.** Misskey looks you up by `user@host`.
 [webfinger](webfinger.md) → [nodeinfo](nodeinfo.md) → [actor](actor.md) (`#Person`)
@@ -39,6 +39,13 @@ Every page starts with *In one paragraph*, then says what Misskey does, then lis
 | `field?: T` | the property may be absent |
 | `A \| B` | either `A` or `B` |
 | `=~"^re$"`, `!=""`, `int`, `bool`, `string`, `null` | a pattern, "not empty", and the plain types |
+| `A & B` | both: a value must satisfy `A` and `B` |
+| `[...T]` | a list of any length whose items are `T`; `[T, ...T]` is a list of at least one |
+| `{...}`, `_` | an open struct, and "any value" |
+| `{ #Other, x: int }` | a struct that also has everything in `#Other` |
+| `x: y` where `y` is another field | `x` must equal `y` |
+| `_\|_` | "no value": a field set to it must not appear |
+| `text="name": T` | gives the field `name` the alias `text`, to refer to it in the same struct |
 
 A type with no `...` inside is **closed**: no property other than the ones listed may appear. The types for what Misskey writes are closed; they list every property it writes. The types for what Misskey reads (`#In...`) are open, because it ignores the rest. `if source != _|_ { ... }` means "when `source` is present, also require ...". A field whose name starts with an underscore is written in quotes (`"_misskey_content"`).
 
@@ -55,7 +62,6 @@ A type with no `...` inside is **closed**: no property other than the ones liste
 | **[not seen]** | Looked for and not found in the files read. This is not proof of absence. |
 | *name only* | The meaning is a guess from the name of a term; the code that uses it was not opened. |
 
-Files read: `ActivityPubServerService`, `ApInboxService`, `ApRendererService`, `ApNoteService`, `ApPersonService`, `ApQuestionService`, `ApImageService`, `ApMentionService`, `ApAudienceService`, `ApDeliverManagerService`, `ApRequestService`, `ApMfmService`, `InboxProcessorService`, `DeliverProcessorService`, `QueueService`, `QueueProcessorService`, `UserFollowingService`, `ReactionService`, `JsonLdService`, `WellKnownServerService`, `NodeinfoServerService`, `RemoteUserResolveService`, `FetchInstanceMetadataService`, `type.ts`, `misc/contexts.ts`.
 
 ## Terms
 
@@ -96,7 +102,7 @@ Files read: `ActivityPubServerService`, `ApInboxService`, `ApRendererService`, `
 
 ## Not researched
 
-- `WebfingerService` of Misskey (the request URL, the host-meta fallback, `subject` checks, redirects).
+- Redirect handling of Misskey's HTTP client (for WebFinger and other fetches).
 - The wrapper object of `/.well-known/nodeinfo` in Misskey.
 - Whether `@peertube/http-signature` checks the `Date` header, and the allowed difference.
 - Key refetch after a failed signature.
@@ -105,3 +111,7 @@ Files read: `ActivityPubServerService`, `ApInboxService`, `ApRendererService`, `
 - Behaviour of forks (Sharkey, Firefish, Iceshrimp).
 - Any behaviour that changed on `develop` after the dates above.
 - The grammar of `mfm-js`.
+
+## Sources
+
+Files read: `ActivityPubServerService`, `ApInboxService`, `ApRendererService`, `ApNoteService`, `ApPersonService`, `ApQuestionService`, `ApImageService`, `ApMentionService`, `ApAudienceService`, `ApDeliverManagerService`, `ApRequestService`, `ApMfmService`, `InboxProcessorService`, `DeliverProcessorService`, `QueueService`, `QueueProcessorService`, `UserFollowingService`, `ReactionService`, `JsonLdService`, `WellKnownServerService`, `NodeinfoServerService`, `RemoteUserResolveService`, `FetchInstanceMetadataService`, `type.ts`, `misc/contexts.ts`.
