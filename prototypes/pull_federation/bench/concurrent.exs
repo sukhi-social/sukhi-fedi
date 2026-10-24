@@ -20,6 +20,9 @@ defmodule Srv do
 
   def handle_call({:close, d}, _, s),
     do: {:reply, :ok, %{s | o: Origin.close_stream(s.o, d, now()), calls: s.calls + 1}}
+  def handle_call(:pids, _, s), do: {:reply, s.pids, s}
+  def handle_call(:origin, _, s), do: {:reply, s.o, s}
+
   def handle_call(:stats, _, s),
     do: {:reply, %{calls: s.calls, active: s.o.active_streams, booked: s.o.calendar.booked, dirty: map_size(s.o.dirty), reaped: s.o.reaped}, s}
   def handle_info(:tick, s) do
@@ -47,10 +50,15 @@ defmodule Recv do
       end
 
     # wake for a notification, or when a postponed pull is due
-    timeout = if map_size(b.pending) > 0, do: max(wait_for(b), 0), else: wait
+    timeout = if map_size(b.pending) > 0 or map_size(b.stale) > 0, do: max(wait_for(b), 0), else: wait
     receive do
+      {:dump, from} ->
+        send(from, {:state, domain, b})
+        loop(b, srv, domain, stream_ms, lag_tab)
+
       {:notify, ann} ->
-        {b, _} = Puller.notify(b, "o", ann, Srv.now())
+        {b, st} = Puller.notify(b, "o", ann, Srv.now())
+        :ets.insert(lag_tab, {:trace, domain, Srv.now(), {:notify, st, if(is_map(ann), do: map_size(ann), else: :buckets), map_size(Map.get(b.pending, "o", %{}))}})
 
         # a notification that points at snapshot buckets: fetch them (static GETs)
         b =
@@ -68,7 +76,10 @@ defmodule Recv do
     end
   end
 
-  defp wait_for(b), do: Map.get(b.not_before, "o", 0) - Srv.now()
+  defp wait_for(b) do
+    gap = if b.stale["o"], do: Map.get(b.last_accepted, "o", 0) + b.min_notify_gap_ms - Srv.now(), else: 0
+    max(Map.get(b.not_before, "o", 0) - Srv.now(), gap)
+  end
 
   defp pull(b, srv, domain, stream_ms, lag_tab) do
     case Puller.next_pull(b, Srv.now(), false) do
@@ -76,6 +87,7 @@ defmodule Recv do
         b = Puller.begin_pull(b, "o")
         t0 = Srv.now()
         ans = GenServer.call(srv, {:request, domain, cursors}, 60_000)
+        :ets.insert(lag_tab, {:trace, domain, Srv.now(), {:ans, (case ans do {:ok, ev, _} -> {:ok, length(ev)}; {:error, e} -> e end)}})
         :ets.insert(lag_tab, {:call_us, (Srv.now() - t0)})
 
         case ans do
@@ -97,10 +109,10 @@ defmodule Recv do
   end
 end
 
-[domains, rate, secs] =
+[domains, rate, secs, quiet] =
   case System.argv() do
-    [] -> [1000, 1000, 10]
-    args -> Enum.map(args, &String.to_integer/1)
+    [] -> [1000, 1000, 10, 1000]
+    args -> Enum.map(args, &String.to_integer/1) |> then(&(&1 ++ [1000]) |> Enum.take(4))
   end
 
 n_actors = 200
@@ -108,7 +120,7 @@ follow_per_actor = max(div(domains, 10), 1)
 :rand.seed(:exsss, {1, 1, 1})
 
 origin =
-  Enum.reduce(1..n_actors, Origin.new(max_streams: 64, notify_quiet_ms: 1000), fn a, o ->
+  Enum.reduce(1..n_actors, Origin.new(max_streams: 64, notify_quiet_ms: quiet), fn a, o ->
     for d <- Enum.take_random(1..domains, follow_per_actor), reduce: o do
       o -> Origin.follow(o, "d#{d}", "u#{a}")
     end
@@ -124,7 +136,7 @@ end
 
 ticker = spawn_link(fn -> Stream.repeatedly(fn -> Process.sleep(100); send(srv, :tick) end) |> Stream.run() end)
 
-IO.puts("domains=#{domains} actors=#{n_actors} each followed by #{follow_per_actor} domains; #{rate} posts/s for #{secs}s, 64 stream slots")
+IO.puts("quiet=#{quiet} domains=#{domains} actors=#{n_actors} each followed by #{follow_per_actor} domains; #{rate} posts/s for #{secs}s, 64 stream slots")
 t0 = Srv.now()
 interval = 100
 per = div(rate * interval, 1000)
@@ -165,4 +177,32 @@ IO.puts("expected deliveries=#{expected}")
 IO.puts("server stats: #{inspect(GenServer.call(srv, :stats))}  peak mailbox=#{:atomics.get(peak_q, 1)}")
 IO.puts("deliveries=#{length(lags)}  lag ms p50=#{pct.(lags, 0.5)} p99=#{pct.(lags, 0.99)} max=#{Enum.max(lags, fn -> 0 end)}")
 IO.puts("pull call (request_stream round trip) ms p50=#{pct.(calls, 0.5)} p99=#{pct.(calls, 0.99)} max=#{Enum.max(calls, fn -> 0 end)}  calls=#{length(calls)}  declined=#{inspect(Enum.frequencies(get.(:declined)))}")
+if System.get_env("DUMP") do
+  pids = GenServer.call(srv, :pids)
+  origin_state = GenServer.call(srv, :origin)
+  for {d, pid} <- pids, do: send(pid, {:dump, self()})
+  states =
+    for _ <- pids do
+      receive do {:state, d, b} -> {d, b} after 2000 -> nil end
+    end
+    |> Enum.reject(&is_nil/1)
+
+  behind =
+    for {d, b} <- states,
+        ann = Origin.announced(origin_state, d),
+        cur = Map.get(b.cursors, "o", %{}),
+        diff = PullFederation.Cursors.changed(cur, ann),
+        map_size(diff) > 0,
+        do: {d, map_size(diff), b.pending["o"] |> then(&(&1 && map_size(&1))), b.stale["o"], b.inflight["o"] |> is_nil(), Map.get(b.not_before, "o"), Map.has_key?(origin_state.dirty, d)}
+
+  IO.puts("domains behind: #{length(behind)} of #{length(states)}")
+  case behind do
+    [{d, _, _, _, _, _, _} | _] ->
+      IO.puts("trace of #{d}:")
+      for {:trace, ^d, t, ev} <- :ets.match_object(lag, {:trace, d, :_, :_}) |> Enum.sort_by(&elem(&1, 2)), do: IO.puts("  #{rem(t, 100_000)} #{inspect(ev)}")
+    _ -> :ok
+  end
+  IO.inspect(Enum.take(behind, 8), label: "{domain, keys_behind, pending, stale, no_inflight, not_before, origin_dirty}", limit: :infinity)
+end
+
 Process.exit(ticker, :kill); Process.exit(monitor, :kill)

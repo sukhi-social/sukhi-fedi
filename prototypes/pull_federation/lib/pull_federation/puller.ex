@@ -31,6 +31,8 @@ defmodule PullFederation.Puller do
             inflight: %{},
             rtt: %{},
             wanted: %{},
+            stale: %{},
+            stale_at_begin: %{},
             verify: nil
 
   @doc "`verify` is `(activity -> :ok | :error)`, the single signature check."
@@ -58,6 +60,7 @@ defmodule PullFederation.Puller do
          {:ok, inline, versions} <- parse_notification(notification) do
       b = %{b | last_accepted: Map.put(b.last_accepted, origin, now)}
       {b, status} = plan_inline(b, origin, inline)
+      b = if status == :pool_full, do: %{b | stale: bump_stale(b.stale, origin)}, else: b
       b = want_buckets(b, origin, versions)
 
       case Map.get(b.wanted, origin, %{}) == %{} do
@@ -66,10 +69,14 @@ defmodule PullFederation.Puller do
       end
     else
       :unknown_origin -> {b, :unknown_origin}
-      :rate_limited -> {b, :rate_limited}
+      # Dropping it would lose a wake-up for good: the origin considers us told.
+      # Remember only that we may be behind; one pull after the gap settles it.
+      :rate_limited -> {%{b | stale: bump_stale(b.stale, origin)}, :rate_limited}
       :error -> {b, :invalid}
     end
   end
+
+  defp bump_stale(stale, origin), do: Map.update(stale, origin, 1, &(&1 + 1))
 
   defp known_origin(b, origin) do
     case Map.has_key?(b.following, origin) do
@@ -177,8 +184,18 @@ defmodule PullFederation.Puller do
   whose retry time has passed, oldest name first for determinism.
   """
   def next_pull(%__MODULE__{} = b, now, busy?) do
+    waiting = for {origin, _} <- b.pending, do: origin
+
+    # a notification we had to ignore (rate limit): ask once the gap has passed
+    unread =
+      for {origin, _} <- b.stale,
+          gap_ok(b, origin, now) == :ok,
+          do: origin
+
     ready =
-      for {origin, _} <- b.pending, Map.get(b.not_before, origin, 0) <= now, do: origin
+      for origin <- Enum.uniq(waiting ++ unread),
+          Map.get(b.not_before, origin, 0) <= now,
+          do: origin
 
     case {busy?, Enum.sort(ready)} do
       {true, _} -> :postponed
@@ -257,7 +274,11 @@ defmodule PullFederation.Puller do
   the state the stream returned.
   """
   def begin_pull(%__MODULE__{} = b, origin) do
-    %{b | inflight: Map.put(b.inflight, origin, Map.get(b.pending, origin, %{}))}
+    %{
+      b
+      | inflight: Map.put(b.inflight, origin, Map.get(b.pending, origin, %{})),
+        stale_at_begin: Map.put(b.stale_at_begin, origin, Map.get(b.stale, origin, 0))
+    }
   end
 
   @doc """
@@ -276,10 +297,19 @@ defmodule PullFederation.Puller do
         _ -> Map.put(b.pending, origin, still_behind)
       end
 
+    # an ignored notification that arrived while this pull was running is still owed a pull
+    stale =
+      case Map.get(b.stale, origin) == Map.get(b.stale_at_begin, origin, 0) do
+        true -> Map.delete(b.stale, origin)
+        false -> b.stale
+      end
+
     %{
       b
       | cursors: cursors,
         pending: pending,
+        stale: stale,
+        stale_at_begin: Map.delete(b.stale_at_begin, origin),
         inflight: Map.delete(b.inflight, origin),
         failures: Map.delete(b.failures, origin)
     }

@@ -643,6 +643,41 @@ origin without the actor's key cannot forge her Deletes. The comparison
 with draft-cavage and RFC 9421, what pull needs and measured costs are in
 [SIGNATURES.md](SIGNATURES.md).
 
+### Part 12: how long to wait before notifying (and two lost wake-ups)
+
+`notify_quiet_ms` is the fixed delay between "something changed" and the
+notification. `bench/concurrent.exs DOMAINS RATE SECONDS QUIET_MS`, 1000
+domains, 1000 posts/s for 10 s, 1 000 000 deliveries expected:
+
+| quiet | pull requests | lag p50 | lag p99 | appointments |
+|---|---|---|---|---|
+| 0 ms | 33 999 | 726 ms | 2414 ms | 9609 |
+| 100 ms | 30 048 | 606 ms | 2298 ms | 9968 |
+| 300 ms | 21 420 | 512 ms | 1118 ms | 10 678 |
+| 1000 ms | 19 858 | 567 ms | 1669 ms | 9301 |
+| 3000 ms | 8 293 | 1592 ms | 3226 ms | 3786 |
+
+(One run each, so differences of tens of percent are noise.) Waiting
+300 ms to 1 s removes about 40% of the pulls and does not make the lag
+worse: with no wait every domain is told about every few posts and the
+origin spends its time refusing and booking. 3 s removes 75% of the pulls
+and pays for it with a 3x median lag.
+
+Two lost wake-ups, found because 1-5% of deliveries were missing at the end
+of the runs with a short wait (`Puller`, `stale`):
+
+1. A notification dropped by the notification floor or by a full pool was
+   gone for good, while the origin already considered the receiver told.
+   Now the receiver remembers that it ignored one (a counter per known
+   origin, so a flood costs one number) and makes one pull when the floor
+   has passed.
+2. A pull started for that reason and then declined with `retry_at` forgot
+   to come back, because the flag was cleared when the pull began. It is
+   now cleared only when a pull *succeeds* and no further notification was
+   ignored while it ran.
+
+With both fixed, every run delivers all 1 000 000 for every wait.
+
 ### What the model says
 
 **Pull wins when either side is the scarce one.** B's queue overflows

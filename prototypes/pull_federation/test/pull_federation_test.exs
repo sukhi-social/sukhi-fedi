@@ -171,6 +171,62 @@ defmodule PullFederationTest do
       assert {_, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 2)}, 1_000)
     end
 
+    test "a notification ignored by the rate limit is not lost: one pull follows after the gap" do
+      {_, p} = setup_pair()
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 0)
+      {p, :rate_limited} = Puller.notify(p, "a.example", %{@a => t(@a, 2)}, 500)
+      # the planned pull is served (the origin returns everything it has)
+      p = Puller.begin_pull(p, "a.example")
+      p = Puller.finish_pull(p, "a.example", {:ok, [], %{@a => t(@a, 1)}}, 600, fn _ -> 0 end)
+      {p, :rate_limited} = Puller.notify(p, "a.example", %{@a => t(@a, 3)}, 700)
+      assert :idle = Puller.next_pull(p, 700, false)
+      assert {:pull, "a.example", _} = Puller.next_pull(p, 1_000, false)
+      p = Puller.begin_pull(p, "a.example")
+      p = Puller.finish_pull(p, "a.example", {:ok, [], %{@a => t(@a, 3)}}, 1_000, fn _ -> 0 end)
+      assert :idle = Puller.next_pull(p, 5_000, false)
+    end
+
+    test "a declined pull started because of an ignored notification still comes back" do
+      {_, p} = setup_pair()
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 0)
+      p = Puller.begin_pull(p, "a.example")
+      p = Puller.finish_pull(p, "a.example", {:ok, [], %{@a => t(@a, 1)}}, 10, fn _ -> 0 end)
+      {p, :rate_limited} = Puller.notify(p, "a.example", %{@a => t(@a, 2)}, 500)
+      {:pull, _, _} = Puller.next_pull(p, 1_000, false)
+      p = Puller.begin_pull(p, "a.example")
+      p = Puller.finish_pull(p, "a.example", {:error, {:retry_at, 200}}, 1_000, fn _ -> 0 end)
+      assert :idle = Puller.next_pull(p, 1_100, false)
+      assert {:pull, _, _} = Puller.next_pull(p, 1_200, false)
+    end
+
+    test "an ignored notification that arrives during a pull is still owed one" do
+      {_, p} = setup_pair()
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 0)
+      p = Puller.begin_pull(p, "a.example")
+      {p, :rate_limited} = Puller.notify(p, "a.example", %{@a => t(@a, 2)}, 500)
+      p = Puller.finish_pull(p, "a.example", {:ok, [], %{@a => t(@a, 1)}}, 600, fn _ -> 0 end)
+      assert {:pull, _, _} = Puller.next_pull(p, 1_000, false)
+    end
+
+    test "a flood of ignored notifications costs one flag, one pull per gap" do
+      {_, p} = setup_pair()
+      {p, :planned} = Puller.notify(p, "a.example", %{@a => t(@a, 1)}, 0)
+
+      p =
+        Enum.reduce(1..500, p, fn i, p ->
+          elem(Puller.notify(p, "a.example", %{@a => "o.junk#{i}"}, 100), 0)
+        end)
+
+      assert map_size(p.stale) == 1
+    end
+
+    test "a notification refused because the pool is full is not lost either" do
+      p = Puller.new(max_pending: 1) |> Puller.follow("o1", "x") |> Puller.follow("o2", "y")
+      {p, :planned} = Puller.notify(p, "o1", %{"x" => "o.t1"}, 0)
+      {p, :pool_full} = Puller.notify(p, "o2", %{"y" => "o.t1"}, 0)
+      assert p.stale == %{"o2" => 1}
+    end
+
     test "pool is bounded; known origins still merge" do
       p = Puller.new(max_pending: 1) |> Puller.follow("o1", "x") |> Puller.follow("o2", "y")
       {p, :planned} = Puller.notify(p, "o1", %{"x" => "o.t1"}, 0)
