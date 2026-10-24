@@ -33,6 +33,8 @@
   let adminPickerOpen = $state(false);
   let displayName = $state('');
   let note = $state('');
+  let place = $state('');
+  let birthday = $state('');
   let locked = $state(false);
   let bot = $state(false);
   // 検索インデックスへの同意(FEP-5feb)。どちらも、はじめは「しない」。
@@ -102,13 +104,18 @@
       // それを開く。原文のない古い行だけ、note(HTML)から雑にタグを落とす
       // 最小処理で近づける。サーバが正本。
       note = me.source?.note ?? stripTags(me.note ?? '');
+      place = me.location ?? '';
+      birthday = me.birthday ?? '';
       locked = !!me.locked;
       bot = !!me.bot;
       discoverable = !!me.discoverable;
       indexable = !!me.indexable;
-      // 値は HTML で返ってくる(リンクを含むことがある)。編集はテキストで
-      // 扱いたいので、note と同じ最小処理でタグを落とす。サーバが正本。
-      fields = (me.fields ?? []).map((f) => ({ name: stripTags(f.name), value: stripTags(f.value) }));
+      // 値も Markdown で書く。source.fields が書いたままの原文(原文のない
+      // 古い行はサーバが平文に戻して返す)。名前は HTML のままなので落とす。
+      fields = (me.source?.fields ?? me.fields ?? []).map((f) => ({
+        name: stripTags(f.name),
+        value: f.value
+      }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       if (msg === 'unauthorized') {
@@ -232,6 +239,8 @@
       const updated = await updateCredentials({
         display_name: displayName,
         note,
+        location: place,
+        birthday,
         locked,
         bot,
         discoverable,
@@ -293,6 +302,16 @@
       <span>{$t('settings.bio')}</span>
       <textarea bind:value={note} rows="4" maxlength="500"></textarea>
       <small class="text-muted">{$t('settings.bioHint')}</small>
+    </label>
+
+    <label class="stack-tight">
+      <span>{$t('settings.location')}</span>
+      <input type="text" bind:value={place} maxlength="128" />
+    </label>
+
+    <label class="stack-tight">
+      <span>{$t('settings.birthday')}</span>
+      <input type="date" bind:value={birthday} />
     </label>
 
     <div class="stack-tight">

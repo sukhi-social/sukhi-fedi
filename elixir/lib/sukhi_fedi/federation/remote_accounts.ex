@@ -67,6 +67,11 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
         moved_to_uri: moved_to(actor_json["movedTo"])
       }
 
+      # Location and birthday are the person's to take back, so on a complete
+      # Person (one that carries its inbox) absence means "cleared" and the
+      # mirror drops them; a degraded doc leaves them alone, like the rest.
+      identity = Map.merge(identity, entries(actor_json))
+
       case Repo.get_by(Account, actor_uri: actor_uri) do
         nil ->
           # New row: blanks are fine; restore the historical defaults so a
@@ -215,6 +220,28 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
   # `fields` shape. Non-PropertyValue attachments (some servers attach
   # images here) are ignored. The values land in `changeset_remote`,
   # whose `cast_fields` gate sanitizes and caps them — same as our own.
+  defp entries(%{"inbox" => inbox} = actor_json) when is_binary(inbox) do
+    %{
+      location: text_or_nil(actor_json["vcard:Address"]),
+      birthday: birthday(actor_json["vcard:bday"])
+    }
+  end
+
+  defp entries(_), do: %{}
+
+  defp text_or_nil(v) when is_binary(v), do: if(String.trim(v) == "", do: nil, else: String.trim(v))
+  defp text_or_nil(_), do: nil
+
+  # Misskey sends `YYYY-MM-DD`; anything else (or a bad date) is no birthday.
+  defp birthday(<<date::binary-size(10), _::binary>>) do
+    case Date.from_iso8601(date) do
+      {:ok, d} -> d
+      _ -> nil
+    end
+  end
+
+  defp birthday(_), do: nil
+
   defp property_values(attachment) when is_list(attachment) do
     Enum.flat_map(attachment, fn
       %{"type" => "PropertyValue", "name" => name, "value" => value}

@@ -48,6 +48,7 @@ defmodule SukhiShared.ActorJson do
           "indexable" => "toot:indexable",
           "toot" => "http://joinmastodon.org/ns#",
           "Emoji" => "toot:Emoji",
+          "vcard" => "http://www.w3.org/2006/vcard/ns#",
           "pending" => "https://purl.archive.org/socialweb/pending#",
           "pendingFollowers" => %{"@id" => "pending:pendingFollowers", "@type" => "@id"},
           "pendingFollowing" => %{"@id" => "pending:pendingFollowing", "@type" => "@id"}
@@ -85,6 +86,7 @@ defmodule SukhiShared.ActorJson do
     |> maybe_put_image("icon", account.avatar_url)
     |> maybe_put_image("image", account.banner_url)
     |> maybe_put_fields(account.fields)
+    |> maybe_put_vcard(account)
     |> maybe_put_emoji_tags(Map.get(account, :emojis))
     |> maybe_put_also_known_as(account.aliases)
     |> maybe_put_moved_to(account.moved_to_uri)
@@ -121,6 +123,20 @@ defmodule SukhiShared.ActorJson do
   end
 
   defp maybe_put_fields(map, _), do: map
+
+  # Misskey-style location and birthday, as the `vcard:` keys Misskey and its
+  # forks read. Omitted when unset, so a bare actor stays bare.
+  defp maybe_put_vcard(map, account) do
+    map
+    |> put_present("vcard:Address", Map.get(account, :location))
+    |> put_present("vcard:bday", account |> Map.get(:birthday) |> bday())
+  end
+
+  defp put_present(map, _key, v) when v in [nil, ""], do: map
+  defp put_present(map, key, v), do: Map.put(map, key, v)
+
+  defp bday(%Date{} = d), do: Date.to_iso8601(d)
+  defp bday(_), do: nil
 
   # The custom emoji the name / bio / fields wear, as AP `Emoji` tags — the
   # same shape notes carry — so a remote viewer swaps `:blobcat:` for the

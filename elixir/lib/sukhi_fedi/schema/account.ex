@@ -5,6 +5,7 @@ defmodule SukhiFedi.Schema.Account do
 
   @max_fields 4
   @max_remote_fields 16
+  @max_location 128
 
   schema "accounts" do
     field :username, :string
@@ -41,6 +42,11 @@ defmodule SukhiFedi.Schema.Account do
     # `%{"url", "angle", "flip_h", "offset_x", "offset_y"}`.
     field :avatar_decorations, {:array, :map}, default: []
     field :is_admin, :boolean, default: false
+    # Misskey-style profile entries (`vcard:Address` / `vcard:bday`): plain
+    # text and a calendar date. Local rows are edited by their person; remote
+    # rows mirror the origin.
+    field :location, :string
+    field :birthday, :date
     # Public badges an admin gave this local account. Each row is
     # `%{"name" => String.t(), "color" => String.t()}`; see `changeset_roles/2`.
     field :roles, {:array, :map}, default: []
@@ -134,8 +140,11 @@ defmodule SukhiFedi.Schema.Account do
       :locked,
       :aliases,
       :moved_to_uri,
+      :location,
+      :birthday,
       :last_fetched_at
     ])
+    |> update_change(:location, &cut_location/1)
     |> update_change(:summary, &SukhiFedi.HTML.sanitize/1)
     |> update_change(:fields, &cast_fields(&1, @max_remote_fields))
     |> validate_required([:username, :domain, :actor_uri])
@@ -181,6 +190,9 @@ defmodule SukhiFedi.Schema.Account do
 
   defp one_role(_), do: []
 
+  defp cut_location(v) when is_binary(v), do: String.slice(v, 0, @max_location)
+  defp cut_location(v), do: v
+
   @doc """
   Changeset for the decorations mirrored from a remote Misskey-family
   origin. The one gate for what reaches `avatar_decorations`.
@@ -212,10 +224,13 @@ defmodule SukhiFedi.Schema.Account do
       :is_bot,
       :locked,
       :discoverable,
-      :indexable
+      :indexable,
+      :location,
+      :birthday
     ])
-    |> update_change(:fields, &cast_fields(&1, @max_fields))
+    |> update_change(:fields, &cast_local_fields/1)
     |> validate_length(:display_name, max: 100)
+    |> validate_length(:location, max: @max_location)
     |> validate_length(:summary, max: 1024)
     |> render_summary()
   end
@@ -306,9 +321,65 @@ defmodule SukhiFedi.Schema.Account do
 
   defp cast_fields(_, _max), do: []
 
+  # Our own users write a row's value as Markdown, like a bio or a note: it is
+  # cut to length as typed (cutting rendered HTML would leave a tag open),
+  # rendered once through `Markdown.to_html/1` (mentions linked, sanitised
+  # last), and the source rides along as `value_source` for the edit box.
+  # A one-paragraph value loses its <p> wrapper — a row is a line, not a block.
+  defp cast_local_fields(rows) when is_list(rows) do
+    rows
+    |> Enum.map(&one_local_field/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.take(@max_fields)
+  end
+
+  defp cast_local_fields(_), do: []
+
+  defp one_local_field(row) when is_map(row) do
+    name = row |> field_str("name") |> String.slice(0, @max_field_name)
+    source = row |> field_str("value_source") |> then(&if(&1 == "", do: field_str(row, "value"), else: &1))
+    source = String.slice(source, 0, @max_field_value)
+
+    case String.trim(name) do
+      "" ->
+        nil
+
+      _ ->
+        %{
+          "name" => SukhiFedi.HTML.escape(name),
+          "value" => render_value(source, &SukhiFedi.Linkify.known_account/1),
+          "value_source" => source
+        }
+    end
+  end
+
+  defp one_local_field(_), do: nil
+
+  # One row's value → the HTML a reader gets: Markdown (so `[label](url)` and a
+  # bare URL both become links, the way Misskey's MFM does), a <p>-less line,
+  # and every link marked `rel="me nofollow noopener"` — Misskey's own mark on
+  # a profile link, so the link is a rel=me claim and never passes rank.
+  defp render_value(source, lookup) do
+    source
+    |> SukhiFedi.Markdown.to_html(lookup)
+    |> unwrap_paragraph()
+    |> mark_links()
+  end
+
+  defp mark_links(html) do
+    Regex.replace(~r/<a (?![^>]*\brel=)/, html, ~s(<a rel="me nofollow noopener" ))
+  end
+
+  defp unwrap_paragraph(html) do
+    case Regex.run(~r/\A<p>\s*(.*?)\s*<\/p>\z/s, html) do
+      [_, inner] -> if String.contains?(inner, "<p>"), do: html, else: inner
+      _ -> html
+    end
+  end
+
   defp one_field(row) when is_map(row) do
     name = row |> field_str("name") |> String.slice(0, @max_field_name)
-    value = row |> field_str("value") |> SukhiFedi.HTML.sanitize() |> String.slice(0, @max_field_value)
+    value = row |> field_str("value") |> remote_value()
 
     case String.trim(name) do
       "" -> nil
@@ -317,6 +388,19 @@ defmodule SukhiFedi.Schema.Account do
   end
 
   defp one_field(_), do: nil
+
+  # A remote value with no markup in it is plain text — what Misskey sends
+  # for anything that isn't a bare URL, and what it then reads as MFM, links
+  # and all. Read it the same way (Markdown), minus the account lookup: this
+  # runs on ingest and must not reach the DB per row. Anything with markup is
+  # the origin's own HTML, sanitised as before and left to say what it says.
+  defp remote_value(value) do
+    if String.contains?(value, "<") do
+      value |> SukhiFedi.HTML.sanitize() |> String.slice(0, @max_field_value)
+    else
+      value |> String.slice(0, @max_field_value) |> render_value(fn _ -> nil end)
+    end
+  end
 
   # At most 4 decorations; the url must be http(s) (it is later proxied, never
   # fetched by a viewer's browser directly); angle is a turn (-0.5..0.5),

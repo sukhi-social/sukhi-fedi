@@ -216,7 +216,16 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
              {:ok, banner_url} <- maybe_upload(files["header"], account_id) do
           attrs =
             fields
-            |> Map.take(["display_name", "note", "locked", "bot", "discoverable", "indexable"])
+            |> Map.take([
+              "display_name",
+              "note",
+              "locked",
+              "bot",
+              "discoverable",
+              "indexable",
+              "location",
+              "birthday"
+            ])
             |> maybe_put("avatar_url", avatar_url)
             |> maybe_put("banner_url", banner_url)
             |> maybe_put("fields", decode_fields(fields["fields"]))
