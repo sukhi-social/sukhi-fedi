@@ -229,7 +229,9 @@ defmodule PullFederation.Flood do
           hammer: false,
           min_pull_gap_ms: 0,
           reserve_ms: 300_000,
-          horizon_ms: 900_000
+          horizon_ms: 900_000,
+          rtt_ms: 0,
+          compensate: true
         },
         Map.new(opts)
       )
@@ -304,13 +306,17 @@ defmodule PullFederation.Flood do
 
     case {next_b, next_c} do
       {nil, nil} -> st
-      {b, c} -> step(st, p, jit, pick(b, c))
+      {b, c} -> step(st, p, jit, pick(b, c, div(p.rtt_ms, 2)))
     end
   end
 
-  defp pick(nil, c), do: {:close, c}
-  defp pick(b, nil), do: {:wake, b}
-  defp pick({tb, _} = b, {tc, _} = c), do: if(tc <= tb, do: {:close, c}, else: {:wake, b})
+  # The origin sees a request half an RTT after B sends it, so the two
+  # event kinds are ordered by when the origin sees them.
+  defp pick(nil, c, _), do: {:close, c}
+  defp pick(b, nil, _), do: {:wake, b}
+
+  defp pick({tb, _} = b, {tc, _} = c, half),
+    do: if(tc <= tb + half, do: {:close, c}, else: {:wake, b})
 
   defp step(st, p, jit, {:close, {t, d} = item}) do
     done = :gb_sets.delete(item, st.done)
@@ -359,7 +365,9 @@ defmodule PullFederation.Flood do
         sec = div(t, 1_000)
         st = %{st | reqs: st.reqs + 1, per_sec: Map.update(st.per_sec, sec, 1, &(&1 + 1))}
 
-        {origin, answer} = Origin.request_stream(st.origin, d, cursors, t)
+        # the request reaches the origin half an RTT after B sends it
+        ta = t + div(p.rtt_ms, 2)
+        {origin, answer} = Origin.request_stream(st.origin, d, cursors, ta)
         st = %{st | origin: origin}
 
         case answer do
@@ -371,21 +379,24 @@ defmodule PullFederation.Flood do
               | origin: origin,
                 admitted: st.admitted + 1,
                 peak_active: max(st.peak_active, origin.active_streams),
-                done: :gb_sets.add({t + p.stream_ms, d}, st.done),
+                done: :gb_sets.add({ta + p.stream_ms, d}, st.done),
                 bs: Map.put(st.bs, d, %{bst | p: pl})
             }
 
             run(st, p, jit)
 
           {:error, err} ->
-            pl = Puller.finish_pull(pl, "a.example", {:error, err}, t, jit)
-            next = if p.hammer, do: t + 100, else: Map.get(pl.not_before, "a.example", t + 100)
+            # the answer is back at B a full RTT after B sent the request
+            tr = t + p.rtt_ms
+            pl = if p.compensate, do: Puller.observe_rtt(pl, "a.example", p.rtt_ms), else: pl
+            pl = Puller.finish_pull(pl, "a.example", {:error, err}, tr, jit)
+            next = if p.hammer, do: t + 100, else: Map.get(pl.not_before, "a.example", tr + 100)
 
             st = %{
               st
               | declined: st.declined + 1,
                 bs: Map.put(st.bs, d, %{bst | p: pl}),
-                queue: :gb_sets.add({next, d}, st.queue)
+                queue: :gb_sets.add({round(next), d}, st.queue)
             }
 
             run(st, p, jit)

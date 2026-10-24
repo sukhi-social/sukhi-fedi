@@ -88,5 +88,23 @@ defmodule FloodTest do
       # ... but they do cost the origin a request per 100 ms each
       assert r.pull_requests_at_origin > 20 * 300
     end
+
+    test "a long RTT does not disturb appointments when the receiver subtracts it" do
+      near = Flood.stampede(domains: 500)
+      far = Flood.stampede(domains: 500, rtt_ms: 3_000)
+      assert far.converged == "500/500"
+      assert far.pull_requests_at_origin < 1.2 * near.pull_requests_at_origin
+    end
+
+    test "without the subtraction an RTT beyond the grace period loses every slot" do
+      lost = Flood.stampede(domains: 200, rtt_ms: 3_000, compensate: false)
+      [n, _] = lost.converged |> String.split("/") |> Enum.map(&String.to_integer/1)
+      assert n < 20
+    end
+
+    test "an RTT inside the grace period is tolerated even without the subtraction" do
+      r = Flood.stampede(domains: 200, rtt_ms: 600, compensate: false)
+      assert r.converged == "200/200"
+    end
   end
 end

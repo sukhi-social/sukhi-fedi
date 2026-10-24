@@ -29,6 +29,7 @@ defmodule PullFederation.Puller do
             failures: %{},
             bucket_seen: %{},
             inflight: %{},
+            rtt: %{},
             wanted: %{},
             verify: nil
 
@@ -236,6 +237,20 @@ defmodule PullFederation.Puller do
   end
 
   @doc """
+  Feed in a measured round trip to `origin` (request sent to answer received).
+  Kept as a running average; used to arrive on time for an appointment.
+  """
+  def observe_rtt(%__MODULE__{} = b, origin, ms) do
+    rtt =
+      case Map.fetch(b.rtt, origin) do
+        :error -> ms * 1.0
+        {:ok, old} -> 0.3 * ms + 0.7 * old
+      end
+
+    %{b | rtt: Map.put(b.rtt, origin, rtt)}
+  end
+
+  @doc """
   Call when a pull starts. Remembers what was pending at that moment:
   tokens cannot be ordered, so after the stream ends only entries that
   *changed since this point* may still be news; the rest are covered by
@@ -276,9 +291,12 @@ defmodule PullFederation.Puller do
   end
 
   # An appointment: the origin named a time, so no guessing and no growing backoff.
+  # The answer needed half a trip to reach us and our next request needs
+  # half a trip to reach them: counted from receipt we would be a whole
+  # round trip late, so we subtract the one we measured.
   def finish_pull(%__MODULE__{} = b, origin, {:error, {:retry_at, ms}}, now, jitter) do
     # a few ms of jitter only: the appointment is already a distinct slot
-    wait = ms + jitter.(min(div(ms, 20), 20))
+    wait = max(0, ms - Map.get(b.rtt, origin, 0)) + jitter.(min(div(ms, 20), 20))
 
     %{
       b

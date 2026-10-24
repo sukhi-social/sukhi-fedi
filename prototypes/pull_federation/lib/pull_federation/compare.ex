@@ -63,6 +63,16 @@ defmodule PullFederation.Compare do
         queue: 100
       },
       %{name: "burst, 10% direct messages", origins: 20, events: mixed, cap: 50, queue: 100},
+      %{name: "steady, RTT 200 ms", origins: 5, events: steady, cap: 50, queue: 100, rtt_ms: 200},
+      %{name: "steady, RTT 600 ms", origins: 5, events: steady, cap: 50, queue: 100, rtt_ms: 600},
+      %{
+        name: "burst, RTT 200 ms",
+        origins: 20,
+        events: burst,
+        cap: 50,
+        queue: 100,
+        rtt_ms: 200
+      },
       %{
         name: "mixed: 18 quiet origins + 2 bursting",
         origins: 20,
@@ -147,6 +157,7 @@ defmodule PullFederation.Compare do
       recovery_sent: false,
       hjobs: [],
       hpushes: 0,
+      net: [],
       next_id: 0
     }
   end
@@ -161,11 +172,38 @@ defmodule PullFederation.Compare do
 
   defp tick(st, now) do
     st
+    |> deliver_net(now)
     |> publish_due(now)
     |> origins_send(now)
     |> recovery_broadcast(now)
     |> b_work(now)
     |> b_schedule_pull(now)
+  end
+
+  # One-way network delay, `rtt_ms / 2`. With no RTT the function runs at once,
+  # so scenarios without `rtt_ms` are exactly what they were before.
+  defp later(st, now, fun) do
+    case div(Map.get(st.sc, :rtt_ms, 0), 2) do
+      0 -> fun.(st, now)
+      half -> %{st | net: [{now + half, fun} | st.net]}
+    end
+  end
+
+  defp deliver_net(st, now) do
+    {due, rest} = Enum.split_with(st.net, fn {at, _} -> at <= now end)
+
+    case due do
+      [] ->
+        st
+
+      _ ->
+        st = %{st | net: rest}
+
+        due
+        |> Enum.sort_by(&elem(&1, 0))
+        |> Enum.reduce(st, fn {_at, fun}, st -> fun.(st, now) end)
+        |> deliver_net(now)
+    end
   end
 
   defp down?(%{sc: sc}, now) do
@@ -230,14 +268,16 @@ defmodule PullFederation.Compare do
     Enum.reduce(st.hjobs, %{st | hjobs: []}, fn {o, payload}, st ->
       st = %{st | hpushes: st.hpushes + 1}
 
-      case accept(st, now, {:hpush, o, payload}, rc(st) + @activity_cost + 2 * qc(st)) do
-        {:ok, st} ->
-          st
+      later(st, now, fn st, t ->
+        case accept(st, t, {:hpush, o, payload}, rc(st) + @activity_cost + 2 * qc(st)) do
+          {:ok, st} ->
+            st
 
-        {:error, st} ->
-          pull = Origin.push_failed(st.origins[o].pull, "b", payload.key, now)
-          put_in(st.origins[o].pull, pull)
-      end
+          {:error, st} ->
+            pull = Origin.push_failed(st.origins[o].pull, "b", payload.key, t)
+            put_in(st.origins[o].pull, pull)
+        end
+      end)
     end)
   end
 
@@ -246,13 +286,15 @@ defmodule PullFederation.Compare do
     st = put_in(st.origins[o].push, po)
 
     Enum.reduce(jobs, st, fn job, st ->
-      case accept(st, now, {:push, job}, rc(st) + @activity_cost + 2 * qc(st)) do
-        {:ok, st} ->
-          st
+      later(st, now, fn st, t ->
+        case accept(st, t, {:push, job}, rc(st) + @activity_cost + 2 * qc(st)) do
+          {:ok, st} ->
+            st
 
-        {:error, st} ->
-          put_in(st.origins[o].push, PushOrigin.result(st.origins[o].push, job, :fail, now))
-      end
+          {:error, st} ->
+            put_in(st.origins[o].push, PushOrigin.result(st.origins[o].push, job, :fail, t))
+        end
+      end)
     end)
   end
 
@@ -268,10 +310,12 @@ defmodule PullFederation.Compare do
   end
 
   defp deliver_note(st, o, announced, now) do
-    case accept(st, now, {:notify, o, announced}, rc(st)) do
-      {:ok, st} -> st
-      {:error, st} -> %{st | lost_notes: st.lost_notes + 1}
-    end
+    later(st, now, fn st, t ->
+      case accept(st, t, {:notify, o, announced}, rc(st)) do
+        {:ok, st} -> st
+        {:error, st} -> %{st | lost_notes: st.lost_notes + 1}
+      end
+    end)
   end
 
   # "Server Status Broadcast": when B comes back, each origin tells it, spread by jitter.
@@ -393,21 +437,20 @@ defmodule PullFederation.Compare do
     case Puller.next_pull(st.b, now, busy?) do
       {:pull, "o" <> n, cursors} ->
         o = String.to_integer(n)
-        st = count_request(%{st | b: Puller.begin_pull(st.b, "o#{o}")}, now)
+        st = count_request(%{st | b: Puller.begin_pull(st.b, "o#{o}"), inflight: o}, now)
+        sent_at = now
 
-        {pull, answer} = Origin.request_stream(st.origins[o].pull, "b", cursors, now)
-        st = put_in(st.origins[o].pull, pull)
+        # request travels to the origin ...
+        later(st, now, fn st, ta ->
+          {pull, answer} = Origin.request_stream(st.origins[o].pull, "b", cursors, ta)
+          st = put_in(st.origins[o].pull, pull)
 
-        case answer do
-          {:ok, events, announced} ->
-            cost = rc(st) + 4 * qc(st) + length(events) * (@activity_cost + @row_cost)
-            item = {:stream, o, events, announced}
-            %{st | queue: :queue.in({item, cost}, st.queue), qlen: st.qlen + 1, inflight: o}
-
-          {:error, _} = err ->
-            b = Puller.finish_pull(st.b, "o#{o}", err, now, &jitter/1)
-            %{st | b: b, declines: st.declines + 1}
-        end
+          # ... and the answer travels back
+          later(st, ta, fn st, tb ->
+            st = %{st | b: Puller.observe_rtt(st.b, "o#{o}", tb - sent_at)}
+            answered(st, o, answer, tb)
+          end)
+        end)
 
       _ ->
         st
@@ -415,6 +458,17 @@ defmodule PullFederation.Compare do
   end
 
   defp b_schedule_pull(st, _now), do: st
+
+  defp answered(st, o, {:ok, events, announced}, _tb) do
+    cost = rc(st) + 4 * qc(st) + length(events) * (@activity_cost + @row_cost)
+    item = {:stream, o, events, announced}
+    %{st | queue: :queue.in({item, cost}, st.queue), qlen: st.qlen + 1, inflight: o}
+  end
+
+  defp answered(st, o, {:error, _} = err, tb) do
+    b = Puller.finish_pull(st.b, "o#{o}", err, tb, &jitter/1)
+    %{st | b: b, declines: st.declines + 1, inflight: nil}
+  end
 
   # --- report ---------------------------------------------------------------
 
@@ -437,6 +491,8 @@ defmodule PullFederation.Compare do
       give_ups: dropped,
       lost_notifications: st.lost_notes,
       pull_declines: st.declines,
+      appointments_booked:
+        st.origins |> Map.values() |> Enum.map(& &1.pull.calendar.booked) |> Enum.sum(),
       latency_p50_ms: percentile(lat, 0.5),
       latency_p99_ms: percentile(lat, 0.99),
       latency_max_ms: List.last(lat)

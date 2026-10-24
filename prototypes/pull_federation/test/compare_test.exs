@@ -103,4 +103,19 @@ defmodule CompareTest do
       assert ratio > 8.5 and ratio < 10.0
     end
   end
+
+  test "ordinary traffic books no appointments and declines nothing" do
+    for sc <- Compare.scenarios(), model <- [:pull, :hybrid], sc.name =~ ~r/^(steady|mixed)/ do
+      r = Compare.run(model, sc)
+      assert r.appointments_booked == 0 and r.pull_declines == 0, "#{model} / #{sc.name}"
+    end
+  end
+
+  test "RTT adds one round trip to pull's two-step path and half to push" do
+    base = Compare.run(:pull, scenario("steady: "))
+    far = Compare.run(:pull, scenario("steady, RTT 600"))
+    push = Compare.run(:push, scenario("steady, RTT 600"))
+    assert far.latency_p50_ms - base.latency_p50_ms >= 600
+    assert push.latency_p50_ms < far.latency_p50_ms
+  end
 end

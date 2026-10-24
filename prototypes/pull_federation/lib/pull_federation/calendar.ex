@@ -50,7 +50,8 @@ defmodule PullFederation.Calendar do
             entries: %{},
             ewma_stream_ms: nil,
             alpha: 0.2,
-            utilization: 0.8
+            utilization: 0.8,
+            booked: 0
 
   @type t :: %__MODULE__{}
   @type claim :: :none | :due | :expired | {:early, pos_integer}

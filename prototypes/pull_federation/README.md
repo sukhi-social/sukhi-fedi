@@ -457,6 +457,52 @@ cover the hysteresis, not an adversarial rate), the mode state's memory
 (one small record per known domain), and the receiver telling the origin
 "pull me" explicitly (it only learns by failures today).
 
+### Part 8: RTT, and whether reservations are needed day to day
+
+"Ping" is read here as network round-trip time (RTT). `Compare` and
+`Flood.stampede` take `rtt_ms`; a message takes half of it each way.
+
+**Normal traffic never touches the calendar.** In every uncontended
+scenario (steady, mixed quiet origins) pull and hybrid show `booked=0`
+and `declines=0`; a test pins this (`appointments_booked == 0`). An
+appointment is only written when an origin refuses a stream, which only
+happens when all stream slots are busy. The cost in normal traffic is a
+lookup in an empty calendar.
+
+**RTT latency, steady 1 post/s (p50 of end-to-end delivery, ms):**
+
+| RTT | push | pull | hybrid |
+|---|---|---|---|
+| 200 | 100 | 300 | 100 |
+| 600 | 300 | 900 | 300 |
+
+Push is one way (RTT/2). Pull is notify (RTT/2) then request and answer
+(RTT), so 1.5 x RTT. This is the price of the second step and it is why
+the hybrid keeps sparse actors on push. In a burst with RTT 200, pull
+still delivers (p50 5.7 s, 89 requests) while push drowns B (p50 18 s,
+430 failed requests): RTT shifts everything by a constant, the queueing
+term is unchanged.
+
+**RTT matters for appointments.** `{:retry_at, ms}` is counted from the
+moment the origin answers, but the answer needs RTT/2 to reach B and the
+next request needs RTT/2 to come back, so a receiver that waits `ms` is
+a full RTT late. `Puller.observe_rtt` keeps an EWMA per origin and
+`finish_pull` waits `ms - rtt`. Stampede of 1000 domains, 8 slots:
+
+| case | requests | converged |
+|---|---|---|
+| RTT 0 | 2048 | 1000/1000 |
+| RTT 600, compensated | 2020 | 1000/1000 |
+| RTT 3 s, not compensated | 15237 | 8/1000 |
+| RTT 3 s, compensated | 2067 | 1000/1000 |
+
+Lateness up to `grace_ms` (2 s) is tolerated even without the
+subtraction (tested at 600 ms). Beyond that every slot is lost, so the
+subtraction is what makes long-distance receivers workable.
+
+The first decline of a domain is compensated too, because B measures
+RTT from that same answer.
+
 ### What the model says
 
 **Pull wins when either side is the scarce one.** B's queue overflows

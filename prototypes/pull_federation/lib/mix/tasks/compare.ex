@@ -21,7 +21,7 @@ defmodule Mix.Tasks.Compare do
           "  #{String.pad_trailing(to_string(r.model), 6)}" <>
             " delivered=#{r.delivered} reqs=#{r.requests_to_b} failed=#{r.failed_requests}" <>
             " peak/s=#{r.peak_requests_per_s} giveups=#{r.give_ups} lostnotes=#{r.lost_notifications}" <>
-            " declines=#{r.pull_declines} p50=#{r.latency_p50_ms} p99=#{r.latency_p99_ms} max=#{r.latency_max_ms}"
+            " declines=#{r.pull_declines} booked=#{r.appointments_booked} p50=#{r.latency_p50_ms} p99=#{r.latency_p99_ms} max=#{r.latency_max_ms}"
         )
       end
     end
@@ -88,6 +88,10 @@ defmodule Mix.Tasks.Compare do
            [domains: 1000, lazy_spread_ms: 30_000]},
           {"5000 domains, guess", [domains: 5000, reserve_ms: 0]},
           {"5000 domains, appointments", [domains: 5000]},
+          {"1000 domains, appointments, RTT 600 ms", [domains: 1000, rtt_ms: 600]},
+          {"1000 domains, appointments, RTT 3 s, not compensated",
+           [domains: 1000, rtt_ms: 3_000, compensate: false]},
+          {"1000 domains, appointments, RTT 3 s, compensated", [domains: 1000, rtt_ms: 3_000]},
           {"1000 receivers hammering every 100 ms (120 s)",
            [domains: 1000, hammer: true, horizon_ms: 120_000]}
         ] do
