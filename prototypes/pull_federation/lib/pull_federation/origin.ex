@@ -90,7 +90,7 @@ defmodule PullFederation.Origin do
   is routed by `Mode`: `:push` domains get the activity itself,
   `:pull` domains are marked for a notification.
 
-  Returns `{o, {:routed, seq}, pushes}` where `pushes` is
+  A Delete is always pushed (see the clause below). Returns `{o, {:routed, seq}, pushes}` where `pushes` is
   `[{domain, %{key:, etag:, prev:, activity:}}]`. `prev` is the ETag the
   receiver should hold before applying it: if it does, the receiver
   advances its cursor itself and needs no pull; if not, it knows it
@@ -100,6 +100,14 @@ defmodule PullFederation.Origin do
     case append(o, actor, vis, activity) do
       :push_only ->
         {o, :push_only, []}
+
+      # A Delete is pushed to everyone, whatever the density: it is small, it
+      # should land fast, and it does not count towards a domain's rate.
+      # If a push fails the domain falls back to a notification (`push_failed/4`),
+      # because the Delete is in the log like any activity.
+      {o, event, domains} when activity.type == :delete ->
+        pushes = for d <- Enum.sort(domains), do: {d, push_payload(event)}
+        {o, {:routed, event.seq}, pushes}
 
       {o, event, domains} ->
         {o, pushes, pulls} =

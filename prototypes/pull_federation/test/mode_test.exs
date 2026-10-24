@@ -99,6 +99,24 @@ defmodule ModeTest do
       assert Enum.map(pushes, &elem(&1, 0)) == ["c.example"]
     end
 
+    test "a Delete is pushed to every follower domain even when they are in pull mode" do
+      {o, _, _} = Origin.publish_routed(origin(), @a, note("1"), 0)
+      {o, _, []} = Origin.publish_routed(o, @a, note("2"), 100)
+      del = %{type: :delete, id: "d1", object: "1", visibility: :public}
+      {o2, {:routed, 3}, pushes} = Origin.publish_routed(o, @a, del, 200)
+      assert Enum.map(pushes, &elem(&1, 0)) == ["b.example", "c.example"]
+      assert elem(hd(pushes), 1).prev == "s.2"
+      # it did not touch the rate of anyone
+      assert o2.mode == o.mode
+    end
+
+    test "a Delete whose push fails reaches the domain through a notification" do
+      del = %{type: :delete, id: "d1", object: "1", visibility: :public}
+      {o, _, _} = Origin.publish_routed(origin(), @a, del, 0)
+      o = Origin.push_failed(o, "b.example", @a, 100)
+      assert Map.keys(o.dirty) == ["b.example"]
+    end
+
     test "direct messages are not routed at all" do
       assert {_, :push_only, []} = Origin.publish_routed(origin(), @a, note("dm", :direct), 0)
     end

@@ -678,6 +678,18 @@ of the runs with a short wait (`Puller`, `stale`):
 
 With both fixed, every run delivers all 1 000 000 for every wait.
 
+### Part 13: Delete goes by push
+
+`Origin.publish_routed/4` pushes a Delete to every follower domain
+whatever their density mode (it is small and should land fast), and it
+does not count towards a domain's rate, so a Delete never flips anyone to
+pull. It is appended to the log like any activity, so a failed push
+(`push_failed/4`) falls back to a notification and the domain catches up
+by pull. The receiver side was already order-independent: a Delete that
+arrives before its Create wins (`Puller`, tombstones). Distribution is
+parallel: all domains are contacted at once, each answers at its own pace
+(`bench/concurrent.exs` already runs one process per domain).
+
 ### What the model says
 
 **Pull wins when either side is the scarce one.** B's queue overflows
