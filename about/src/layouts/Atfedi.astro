@@ -1,0 +1,17 @@
+---
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import Page from './Page.astro';
+import { copy, ATFEDI_URL, type Locale } from '../content';
+interface Props { locale: Locale }
+const { locale } = Astro.props;
+const c = copy[locale].atfedi;
+---
+
+<Page locale={locale} page="atfedi" title={c.title} description={c.description}>
+  <h1 class="plain">{c.heading}</h1>
+  {c.what.map((t) => <p>{t}</p>)}
+  <ul class="facts">{c.facts.map((f) => <li>{f}</li>)}</ul>
+  <h2>{c.relHeading}</h2>
+  {c.rel.map((t) => <p>{t}</p>)}
+  <p><a class="more" href={ATFEDI_URL}>{c.open} →</a></p>
+</Page>

@@ -1,0 +1,28 @@
+---
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import Page from './Page.astro';
+import { copy, LOGIN_URL, type Locale } from '../content';
+interface Props { locale: Locale }
+const { locale } = Astro.props;
+const c = copy[locale];
+const base = locale === 'ja' ? '/' : '/ko/';
+---
+
+<Page locale={locale} page="gate" title={c.gate.title} description={c.gate.description}>
+  <section class="hero">
+    <h1>{c.slogan}</h1>
+    <p class="lead">{c.gate.lead}</p>
+    <p class="login">
+      <a class="button" href={LOGIN_URL}>{c.login}</a>
+      <span class="note">{c.loginNote}</span>
+    </p>
+  </section>
+  <section>
+    <h2>{c.gate.doorsHeading}</h2>
+    <ul class="cards">
+      {c.gate.doors.map((d) => (
+        <li><a href={`${base}${d.key}/`}><strong>{d.title}</strong><span>{d.text}</span></a></li>
+      ))}
+    </ul>
+  </section>
+</Page>

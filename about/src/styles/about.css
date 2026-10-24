@@ -59,3 +59,27 @@ h2 { font-size: 1.3rem; margin: 3rem 0 0.75rem; }
 .more { font-weight: 600; }
 footer { padding-block: 3rem 2.5rem; color: var(--muted); font-size: 0.9rem; }
 footer p { margin: 0.2rem 0; }
+
+/* ── pages / tabs ── */
+.lang { color: var(--muted); text-decoration: none; font-size: 0.9rem; }
+.tabs { max-width: var(--measure); margin-inline: auto; padding-inline: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tabs a {
+  padding: 0.25rem 0.9rem; border-radius: 999px; text-decoration: none;
+  color: var(--muted); background: var(--accent-soft); font-size: 0.92rem;
+}
+.tabs a[aria-current='page'] { background: var(--accent); color: #fff; font-weight: 600; }
+h1.plain { font-size: 1.7rem; margin: 2.5rem 0 1rem; }
+main { min-height: 50vh; }
+
+/* ── ちいさな遊び心。動きは、ほんの少しだけ。 ── */
+.cards a { transition: transform 0.15s ease, border-color 0.15s ease; }
+.cards a:hover { transform: translateY(-2px) rotate(-0.4deg); }
+.button { transition: transform 0.15s ease; }
+.button:hover { transform: scale(1.04); }
+.lost { text-align: center; padding-block: 3rem; }
+.lost .big { font-size: 2.2rem; margin: 0; }
+.lost section { margin-block: 2rem; }
+@media (prefers-reduced-motion: reduce) {
+  .cards a, .button { transition: none; }
+  .cards a:hover, .button:hover { transform: none; }
+}

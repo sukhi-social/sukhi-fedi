@@ -1,14 +1,21 @@
 ---
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import '../styles/about.css';
-import { copy, LOGIN_URL, ORG_URL, type Locale } from '../content';
+import { copy, ORG_URL, type Locale, type PageKey } from '../content';
 
 interface Props {
   locale: Locale;
+  page: PageKey;
+  title: string;
+  description: string;
 }
-const { locale } = Astro.props;
+const { locale, page, title, description } = Astro.props;
 const c = copy[locale];
-const other = locale === 'ja' ? '/ko/' : '/';
+const base = locale === 'ja' ? '/' : '/ko/';
+const path = (k: PageKey) => (k === 'gate' ? base : `${base}${k}/`);
+const otherBase = locale === 'ja' ? '/ko/' : '/';
+const otherPath = page === 'gate' ? otherBase : `${otherBase}${page}/`;
+const keys: PageKey[] = ['gate', 'projects', 'atfedi'];
 ---
 
 <!doctype html>
@@ -16,32 +23,22 @@ const other = locale === 'ja' ? '/ko/' : '/';
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{c.title}</title>
-    <meta name="description" content={c.description} />
+    <title>{title}</title>
+    <meta name="description" content={description} />
     <link rel="icon" href="/favicon.png" />
-    <link rel="alternate" hreflang="ja" href="/" />
-    <link rel="alternate" hreflang="ko" href="/ko/" />
+    <link rel="alternate" hreflang={locale} href={path(page)} />
+    <link rel="alternate" hreflang={locale === 'ja' ? 'ko' : 'ja'} href={otherPath} />
   </head>
   <body>
     <header class="bar">
-      <a class="mark" href={locale === 'ja' ? '/' : '/ko/'}>sukhi</a>
-      <nav aria-label="language">
-        <a href={other} hreflang={locale === 'ja' ? 'ko' : 'ja'}>{c.langSwitch}</a>
-      </nav>
+      <a class="mark" href={base}>{c.siteName}</a>
+      <a class="lang" href={otherPath} hreflang={locale === 'ja' ? 'ko' : 'ja'}>{c.langSwitch}</a>
     </header>
+    <nav class="tabs" aria-label={c.navLabel}>
+      {keys.map((k) => <a href={path(k)} aria-current={k === page ? 'page' : undefined}>{c.nav[k]}</a>)}
+    </nav>
 
-    <main>
-      <section class="hero">
-        <h1>{c.slogan}</h1>
-        <p class="lead">{c.lead}</p>
-        <p class="login">
-          <a class="button" href={LOGIN_URL}>{c.login}</a>
-          <span class="note">{c.loginNote}</span>
-        </p>
-      </section>
-
-      <slot />
-    </main>
+    <main><slot /></main>
 
     <footer>
       <p>{c.footer}</p>
