@@ -19,6 +19,7 @@
   import ImageCrop from '#lib/components/ImageCrop.svelte';
   import LangSwitch from '#lib/components/LangSwitch.svelte';
   import PushToggle from '#lib/components/PushToggle.svelte';
+  import { deliveryPrefs, setDeliveryOff } from '#lib/deliveryPrefs.svelte.js';
   import { t } from '#lib/i18n.js';
 
   let me = $state<Account | null>(null);
@@ -409,6 +410,16 @@
   </nav>
 
   <PushToggle />
+
+  <label class="stack-tight">
+    <input
+      type="checkbox"
+      checked={deliveryPrefs.off}
+      onchange={(e) => setDeliveryOff(e.currentTarget.checked)}
+    />
+    <span>{$t('settings.deliveryOff')}</span>
+  </label>
+  <p class="muted">{$t('settings.deliveryOffHint')}</p>
 
   <details class="rel-manage timeline" style="margin-top: var(--space-5);" ontoggle={onRelToggle}>
     <summary class="text-base clickable">{$t('settings.blockMute')}</summary>

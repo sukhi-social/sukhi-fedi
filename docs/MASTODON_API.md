@@ -68,6 +68,21 @@ note — the latter auto-fetches + mirrors via
 **not yet** wired into `create_status/2` — only standalone Poll
 read + vote endpoints are live (see Polls below).
 
+**Sukhi extension: `delivery`.** A Status the viewer wrote themself,
+within the last 2 days, carries `delivery`: `"delivering"` (still on its
+way out), `"delivered"` (nothing is waiting), or `"delayed"` (a send is
+being retried or was given up on). For anyone else's post it is `null`.
+`DELETE /api/v1/statuses/:id` returns it for the Delete's own trip. It is
+three words on purpose. `delivery_progress` is the same trip as a
+timeline: `stage` is `received` → `signing` → `queued` → `sending` →
+`done`, and `percent` (steps of 10, never 100 before `done`) is set only
+while `sending`. No server names and no exact counts are in the API, the
+web UI, or anything else the author sees (the admin pages are unchanged).
+The web client shows it in a small card at the bottom right (not inside the post), stepping through the stages one at a time, about 0.8 s apart,
+so a fast delivery is still readable (`web/src/lib/deliveryPace.ts`).
+Read from `outbox` + `oban_jobs` by `SukhiFedi.DeliveryStatus`; Pull
+Federation posts count as delivered once logged.
+
 **Deviation.** `visibility: "direct"` rejected with
 `:direct_visibility_not_supported`. Mention extraction + addressing
 land with DM work (OPEN_QUESTIONS Q4).

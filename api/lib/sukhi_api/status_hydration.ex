@@ -72,6 +72,26 @@ defmodule SukhiApi.StatusHydration do
         _ -> %{}
       end
 
-    MastodonStatus.render_list(notes, counts, viewer_flags, reactions, cards, parents)
+    deliveries = deliveries(notes, viewer_id)
+
+    MastodonStatus.render_list(notes, counts, viewer_flags, reactions, cards, parents, deliveries)
+  end
+
+  # Delivery state is the author's to see, so only the viewer's own notes
+  # are asked about; a feed of other people's posts costs no call at all.
+  defp deliveries(_notes, nil), do: %{}
+
+  defp deliveries(notes, viewer_id) do
+    own_ids =
+      for %{account_id: ^viewer_id} = n <- notes, not Map.get(n, :__boost__, false), do: n.id
+
+    if own_ids == [] do
+      %{}
+    else
+      case GatewayRpc.run(SukhiFedi.DeliveryStatus, :for_own_notes, [viewer_id, own_ids]) do
+        {:ok, m} when is_map(m) -> m
+        _ -> %{}
+      end
+    end
   end
 end

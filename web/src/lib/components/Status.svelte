@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { getAccountCached, type Status } from '#lib/api.js';
+  import { onDestroy } from 'svelte';
+  import { getAccountCached, getStatus, type Status } from '#lib/api.js';
   import Self from './Status.svelte';
   import Avatar from './Avatar.svelte';
   import CircleBadge from './CircleBadge.svelte';
@@ -9,9 +10,12 @@
   import StatusPoll from './StatusPoll.svelte';
   import PreviewCard from './PreviewCard.svelte';
   import Twemoji from './Twemoji.svelte';
+  import { putDeliveryToast, dropDeliveryToast } from '#lib/deliveryToasts.svelte.js';
+  import { deliveryPrefs } from '#lib/deliveryPrefs.svelte.js';
   import { renderEmojis } from '#lib/emoji.js';
   import { renderMfm } from '#lib/mfm.js';
   import { phrase } from '#lib/phrase.js';
+  import { STEPS, LINGER_MS, arrived, delayFor, stepToward, target, type Shown } from '#lib/deliveryPace.js';
   import { t, locale, type Locale, type TranslationKey } from '#lib/i18n.js';
 
   let {
@@ -45,6 +49,65 @@
   let name = $derived(status.account.display_name || status.account.username);
   let avatar = $derived(status.account.avatar || null);
   let ts = $derived(formatTime(status.created_at, $t, $locale));
+
+  // 配信の時系列(受付 → 署名 → キュー → 配信中 → 完了)。サーバの答えは
+  // 速ければ一度に飛ぶので、見せる段は deliveryPace の決めごとで 1 つずつ
+  // 間をあけて進める。最初に見たときにもう完了していた投稿は、何も出さない。
+  const DONE = STEPS.length - 1;
+  let live = $state<Status | null>(null);
+  let shown = $state<Shown | null>(null);
+  let timelineGone = $state(false);
+  let polls = 0;
+  let goal = $derived(target((live ?? status).delivery_progress));
+  let deliveryNow = $derived((live ?? status).delivery);
+  let timeline = $derived(shown !== null && !timelineGone);
+
+  $effect(() => {
+    if (!goal) return;
+    if (shown === null) {
+      if (goal.at === DONE) return;
+      shown = { at: 0, percent: null };
+      return;
+    }
+    if (arrived(shown, goal)) {
+      if (goal.at !== DONE) return;
+      const id = setTimeout(() => (timelineGone = true), LINGER_MS);
+      return () => clearTimeout(id);
+    }
+    const current = shown;
+    const id = setTimeout(() => (shown = stepToward(current, goal)), delayFor(current, goal));
+    return () => clearTimeout(id);
+  });
+
+  // 見せる先は投稿の中ではなく、右下の小さな枠(DeliveryToasts)。
+  $effect(() => {
+    if (timeline && shown && !deliveryPrefs.off) {
+      putDeliveryToast({
+        id: status.id,
+        at: shown.at,
+        percent: shown.percent,
+        delayed: deliveryNow === 'delayed'
+      });
+    } else {
+      dropDeliveryToast(status.id);
+    }
+  });
+  onDestroy(() => dropDeliveryToast(status.id));
+
+  // 完了するまで、ときどき本人の投稿を見に行く。遅れているときは間を
+  // 長く、回数にも上限を。見に行くのは、時系列が出る投稿だけ。
+  $effect(() => {
+    if (readonly || deliveryPrefs.off || !goal || timelineGone || deliveryNow === 'delivered' || polls >= 60) return;
+    const id = setTimeout(async () => {
+      polls += 1;
+      try {
+        live = await getStatus(status.id);
+      } catch {
+        // 見られなかったら、次の機会に。
+      }
+    }, deliveryNow === 'delayed' ? 10_000 : 2_500);
+    return () => clearTimeout(id);
+  });
   // リモートのアカウントは acct に「@ドメイン」が付く。そのときだけ
   // 元の投稿（status.url）への入口を出す。ローカルは詳細ページが本物。
   let isRemote = $derived(status.account.acct.includes('@'));
