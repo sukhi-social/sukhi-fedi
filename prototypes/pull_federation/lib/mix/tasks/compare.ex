@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Compare do
   @moduledoc "Run every scenario through push and pull and print the numbers."
   use Mix.Task
 
-  alias PullFederation.{Compare, FanOut, NotifyCost}
+  alias PullFederation.{Compare, FanOut, Flood, NotifyCost}
 
   @shortdoc "Compare push and pull federation models"
 
@@ -44,6 +44,8 @@ defmodule Mix.Tasks.Compare do
       end
     end
 
+    flood_report()
+
     IO.puts("\n# Notification form (NotifyCost): inline vs bucket snapshots")
 
     for {name, o} <- [
@@ -62,6 +64,39 @@ defmodule Mix.Tasks.Compare do
             " renders=#{r.origin_renders} wire_total=#{r.total_wire_bytes}"
         )
       end
+    end
+  end
+
+  defp flood_report do
+    IO.puts("\n# Forged notifications (Flood.fake_notifications)")
+
+    for r <- Flood.fake_notifications() do
+      IO.puts(
+        "  #{r.attack}: accepted=#{r.accepted}/#{r.sent} pulls=#{r.pulls_caused} state_growth=#{r.state_growth}"
+      )
+    end
+
+    IO.puts("\n# Pull stampede (Flood.stampede), 8 stream slots, 400 ms per stream")
+
+    for {name, o} <- [
+          {"1000 domains, receivers guess a backoff", [domains: 1000, reserve_ms: 0]},
+          {"1000 domains, guess, no jitter (horizon 300 s)",
+           [domains: 1000, reserve_ms: 0, jitter: :none, horizon_ms: 300_000]},
+          {"1000 domains, appointments", [domains: 1000]},
+          {"1000 domains, appointments + lazy start 30 s",
+           [domains: 1000, lazy_spread_ms: 30_000]},
+          {"5000 domains, guess", [domains: 5000, reserve_ms: 0]},
+          {"5000 domains, appointments", [domains: 5000]},
+          {"1000 receivers hammering every 100 ms (120 s)",
+           [domains: 1000, hammer: true, horizon_ms: 120_000]}
+        ] do
+      r = Flood.stampede(o)
+
+      IO.puts(
+        "  #{String.pad_trailing(name, 50)} converged=#{r.converged} reqs=#{r.pull_requests_at_origin}" <>
+          " declined=#{r.declined} peak/s=#{r.peak_requests_per_s} p50=#{r.p50_converged_ms} last=#{r.last_converged_ms}" <>
+          " cost=#{r.origin_cost_units}"
+      )
     end
   end
 

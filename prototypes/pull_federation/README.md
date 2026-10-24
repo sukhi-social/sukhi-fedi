@@ -20,7 +20,7 @@ mix test
 | 3. Compare with own ids, plan if different | `Puller.notify/4` → `Cursors.changed/2` (token differs?) |
 | 4. Busy → postpone | `Puller.next_pull(_, _, busy?)` |
 | 5. Pull when scheduled | `Puller.next_pull/3` |
-| 6. A busy → decline | `Origin.open_stream/4` → `{:error, {:busy, retry_ms}}`; B backs off with jitter in `finish_pull/5` |
+| 6. A busy → decline | `Origin.request_stream/4` → `{:error, {:retry_at, ms}}` (an appointment) or `{:busy, ms}`; B waits exactly that, or backs off with jitter (`finish_pull/5`) |
 | 7. Stream of relevant activities | `Origin.open_stream/4` returns events past B's cursors |
 | 8. B verifies signatures | `Puller.apply_activity/3` calls the injected `verify` |
 | 9. A waits a few seconds before the next notification | `notify_quiet_ms` coalescing |
@@ -256,6 +256,85 @@ What the prototype found along the way:
 
 Parts 1 and 2 were re-run on this version and are unchanged: they count
 requests and queries, not token bytes.
+
+### Part 5: hostile traffic (`PullFederation.Flood`)
+
+Both run with `mix compare` and are tests (`test/flood_test.exs`).
+
+**Forged notifications, aimed at B.** Authenticity of the sender (OIP,
+signatures) is assumed here, not modelled; these cases are about what a
+forged or flooding notification can *cost*.
+
+| Attack | Accepted | Pulls it caused | B's state growth |
+| --- | --- | --- | --- |
+| 11 malformed shapes (wrong types, bad tokens, negative numbers) | 0 / 11 | 0 | 0 |
+| oversize maps (1,001 entries; 257 buckets) | 0 / 2 | 0 | 0 |
+| 10,000 notifications from 10,000 invented origins | 0 / 10,000 | 0 | 0 |
+| 1,000 actors B does not follow, from a known origin | 0 / 1 | 0 | 2 entries |
+| 10,000 random-token notifications in 10 s from a known origin | 10 / 10,000 | 10 (all empty; the real post is delivered once) | 2 entries |
+| forged `s.999999999`, then a real update | 2 / 2 | 1 | the real update is still seen; cursor not poisoned |
+| bucket versions for all 256 buckets | 1 / 1 | 0 | fetches only the 1 bucket B follows |
+
+The first run found a real hole: a notification from an origin B follows
+nobody on still wrote that origin into B's tables, so 10,000 invented
+names meant 10,000 entries. `Puller.notify/4` now refuses unknown origins
+before touching any state. Everything else was already bounded: the
+per-origin floor (1 s) caps the work of a flood at one empty pull per
+second, and a cursor only ever moves from the origin's real answer, never
+from a notification, so a forged future token cannot hide real news.
+`state_growth` is one table entry per *known* origin, which is bounded by
+the follow list.
+
+**Pull stampede, aimed at A.** One post, D domains all want it at once.
+8 stream slots, 400 ms per stream (20 admissions/s at best), a decline
+costs A 1.3 units (verify + send), an admitted pull 3.3.
+
+| Setup | Requests at A | Per domain | p50 / last converged | Cost |
+| --- | --- | --- | --- | --- |
+| 1,000 domains, receivers guess a backoff (jitter) | 4,424 | 4.4 | 85 s / 220 s | 7,751 |
+| same, no jitter | 5,880 in 300 s | n/a | **48 of 1,000 converged after 300 s** | 7,740 |
+| 1,000 domains, **appointments** | 2,108 | 2.1 | 28 s / 56 s | 4,740 |
+| same + receivers start lazily over 30 s | 2,066 | 2.1 | 26 s / 54 s | 4,686 |
+| 5,000 domains, guess | 31,941 | 6.4 | 361 s / 879 s | 51,515 |
+| 5,000 domains, **appointments** | 10,547 | 2.1 | 139 s / 278 s | 23,711 |
+| 1,000 receivers hammering every 100 ms, ignoring declines | 250,488 in 50 s | 250 | 25 s / 50 s | 327,634 |
+
+What it shows:
+
+- **A never runs more than its slots** in any row (`peak_active_streams`
+  is 8 everywhere). Admission is the one place that decides.
+- **Guessing a backoff is the wrong answer.** Receivers back off
+  exponentially, but the origin's slots sit idle in between, and without
+  jitter every receiver retries in the same wave: 48 of 1,000 converged in
+  300 s. The fix is on the origin: when no slot is free it hands out the
+  next appointment, one per `slot_ms` (stream time / slots), as
+  `{:retry_at, ms}` (`Origin.request_stream/4`). The receiver waits
+  exactly that. State is one counter plus one entry per waiting domain;
+  past `max_reserve_ms` (300 s) it stops promising and sheds with
+  `{:busy, ms}`, and a domain that comes back early is turned away without
+  consuming another slot of the calendar. Requests per domain fall from
+  4.4 (6.4 at 5,000) to 2.1, and convergence is 3 to 4 times earlier.
+- **The 278 s for 5,000 domains is capacity, not protocol:** 20 admissions
+  per second need 250 s. A real small stream finishes faster than 400 ms;
+  `stream_ms` is a parameter.
+- **The first second is the same for everybody** (every receiver asks once,
+  peak 1,000/s) unless receivers start lazily: spreading their first pull
+  over 30 s cuts the peak to 74/s. That is the "B has the right to pull
+  lazily" idea, and it is the only thing that helps with the first wave.
+- **Hammering cannot be fixed by the protocol.** Receivers that ignore
+  declines turn 1,000 domains into 250,000 requests (327,634 units against
+  4,740), and `min_pull_gap_ms` adds nothing once appointments are on,
+  because early arrivals are already turned away. A decline is cheap but
+  not free, so this is an edge problem: per-IP rate limiting and answering
+  429 before the signature check, as for any public endpoint. It is not
+  worse than push, where the same attacker could POST an inbox; but pull
+  adds a read-shaped, database-touching endpoint, so the admission checks
+  run cheapest first (known domain, appointment, gap, slot) and nothing
+  touches the database until a slot is granted.
+
+Caveats: authenticity is assumed; the stream time is a constant; there is
+no network latency; `max_reserve_ms`, `slot_ms` and the slot count are
+tuning knobs I did not tune.
 
 ### What the model says
 

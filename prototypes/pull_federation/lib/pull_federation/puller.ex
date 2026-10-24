@@ -44,13 +44,16 @@ defmodule PullFederation.Puller do
   end
 
   @doc """
-  Step 3. Returns `{b, :planned | :up_to_date | :fetch | :rate_limited | :invalid | :pool_full}`;
+  Step 3. Returns `{b, :planned | :up_to_date | :fetch | :rate_limited | :invalid | :unknown_origin | :pool_full}`;
   `:fetch` means snapshot buckets are wanted (`wanted_buckets/2`, `ingest_bucket/5`).
   Announced actors we do not follow are dropped, so a notification can
-  never widen what we are willing to pull.
+  never widen what we are willing to pull. A notification from an origin
+  we follow nobody on is refused before any state is touched, so forged
+  origin names cannot grow our tables.
   """
   def notify(%__MODULE__{} = b, origin, notification, now) do
-    with :ok <- gap_ok(b, origin, now),
+    with :ok <- known_origin(b, origin),
+         :ok <- gap_ok(b, origin, now),
          {:ok, inline, versions} <- parse_notification(notification) do
       b = %{b | last_accepted: Map.put(b.last_accepted, origin, now)}
       {b, status} = plan_inline(b, origin, inline)
@@ -61,8 +64,16 @@ defmodule PullFederation.Puller do
         false -> {b, :fetch}
       end
     else
+      :unknown_origin -> {b, :unknown_origin}
       :rate_limited -> {b, :rate_limited}
       :error -> {b, :invalid}
+    end
+  end
+
+  defp known_origin(b, origin) do
+    case Map.has_key?(b.following, origin) do
+      true -> :ok
+      false -> :unknown_origin
     end
   end
 
@@ -207,6 +218,23 @@ defmodule PullFederation.Puller do
         pending: pending,
         inflight: Map.delete(b.inflight, origin),
         failures: Map.delete(b.failures, origin)
+    }
+  end
+
+  # The origin does not know us (it dropped or never had our follow): stop asking.
+  def finish_pull(%__MODULE__{} = b, origin, {:error, :unknown_domain}, _now, _jitter) do
+    %{b | pending: Map.delete(b.pending, origin), inflight: Map.delete(b.inflight, origin)}
+  end
+
+  # An appointment: the origin named a time, so no guessing and no growing backoff.
+  def finish_pull(%__MODULE__{} = b, origin, {:error, {:retry_at, ms}}, now, jitter) do
+    # a few ms of jitter only: the appointment is already a distinct slot
+    wait = ms + jitter.(min(div(ms, 20), 20))
+
+    %{
+      b
+      | inflight: Map.delete(b.inflight, origin),
+        not_before: Map.put(b.not_before, origin, now + wait)
     }
   end
 

@@ -27,7 +27,14 @@ defmodule PullFederation.Origin do
             decline_retry_ms: 5_000,
             bucket_versions: %{},
             inline_max: 5,
-            resyncs: 0
+            resyncs: 0,
+            known_domains: MapSet.new(),
+            last_pull: %{},
+            min_pull_gap_ms: 0,
+            reserved: %{},
+            next_slot: 0,
+            slot_ms: 50,
+            max_reserve_ms: 300_000
 
   @type event :: %{
           actor: String.t(),
@@ -43,7 +50,8 @@ defmodule PullFederation.Origin do
   def follow(%__MODULE__{} = o, domain, actor) do
     %{
       o
-      | followers: Map.update(o.followers, actor, MapSet.new([domain]), &MapSet.put(&1, domain))
+      | followers: Map.update(o.followers, actor, MapSet.new([domain]), &MapSet.put(&1, domain)),
+        known_domains: MapSet.put(o.known_domains, domain)
     }
   end
 
@@ -165,16 +173,93 @@ defmodule PullFederation.Origin do
   Decline when busy, otherwise reserve a slot and return the events the
   remote is missing. The caller must `close_stream/1` when done.
   """
-  def open_stream(%__MODULE__{} = o, domain, cursors, _now) do
-    case o.active_streams < o.max_streams do
-      false ->
-        {:error, {:busy, o.decline_retry_ms}}
+  def open_stream(%__MODULE__{} = o, domain, cursors, now) do
+    case request_stream(o, domain, cursors, now) do
+      {o, {:ok, events, announced}} -> {:ok, o, events, announced}
+      {_o, {:error, err}} -> {:error, err}
+    end
+  end
 
+  @doc """
+  Like `open_stream/4` but returns the updated origin on a decline too,
+  because a decline may *reserve a time*. Result:
+  `{o, {:ok, events, announced} | {:error, reason}}` with reason one of
+  `:unknown_domain`, `{:busy, ms}` (no room and no time to offer),
+  `{:retry_at, ms}` (come back in exactly `ms`: the slot is yours).
+
+  Reservations (the answer to a stampede): when every stream slot is
+  taken, the origin hands out the next free appointment, one every
+  `slot_ms` (stream time / slots), instead of making receivers guess a
+  backoff. State is one counter plus one entry per waiting domain.
+  Beyond `max_reserve_ms` ahead it stops promising and sheds with
+  `{:busy, max_reserve_ms}`. A domain that returns before its time is
+  turned away without a new reservation.
+  """
+  def request_stream(%__MODULE__{} = o, domain, cursors, now) do
+    # cheapest checks first: none of them touch the database
+    with :ok <- known_domain(o, domain),
+         :ok <- appointment_ok(o, domain, now),
+         :ok <- not_too_soon(o, domain, now) do
+      case o.active_streams < o.max_streams do
+        true -> admit(o, domain, cursors, now)
+        false -> reserve(o, domain, now)
+      end
+    else
+      {:error, :too_soon, retry} -> {o, {:error, {:retry_at, retry}}}
+      {:error, _} = err -> {o, err}
+    end
+  end
+
+  defp admit(o, domain, cursors, now) do
+    {events, resyncs} = events_for(o, domain, cursors)
+
+    o = %{
+      o
+      | active_streams: o.active_streams + 1,
+        resyncs: o.resyncs + resyncs,
+        last_pull: Map.put(o.last_pull, domain, now),
+        reserved: Map.delete(o.reserved, domain)
+    }
+
+    {o, {:ok, events, announced_for(o, domain)}}
+  end
+
+  defp reserve(o, domain, now) do
+    at = max(o.next_slot, now + o.slot_ms)
+
+    case at - now > o.max_reserve_ms do
       true ->
-        {events, resyncs} = events_for(o, domain, cursors)
+        {o, {:error, {:busy, o.max_reserve_ms}}}
 
-        {:ok, %{o | active_streams: o.active_streams + 1, resyncs: o.resyncs + resyncs}, events,
-         announced_for(o, domain)}
+      false ->
+        o = %{o | next_slot: at + o.slot_ms, reserved: Map.put(o.reserved, domain, at)}
+        {o, {:error, {:retry_at, at - now}}}
+    end
+  end
+
+  defp known_domain(o, domain) do
+    case MapSet.member?(o.known_domains, domain) do
+      true -> :ok
+      false -> {:error, :unknown_domain}
+    end
+  end
+
+  # Early arrival: tell the receiver how long is left, without a new reservation.
+  defp appointment_ok(o, domain, now) do
+    case Map.fetch(o.reserved, domain) do
+      {:ok, at} when now < at -> {:error, :too_soon, at - now}
+      _ -> :ok
+    end
+  end
+
+  # `min_pull_gap_ms` (0 = off): a domain asking again sooner is told to wait.
+  defp not_too_soon(o, domain, now) do
+    case Map.fetch(o.last_pull, domain) do
+      {:ok, at} when now - at < o.min_pull_gap_ms ->
+        {:error, :too_soon, o.min_pull_gap_ms - (now - at)}
+
+      _ ->
+        :ok
     end
   end
 
@@ -196,6 +281,9 @@ defmodule PullFederation.Origin do
   # The public index equals the public outbox, so its count is no secret.
   defp new_etag(:public, seq), do: Etag.ordered(seq)
   defp new_etag(:followers, _seq), do: Etag.opaque()
+
+  @doc "The current ETag of every key `domain` follows here."
+  def announced(o, domain), do: announced_for(o, domain)
 
   defp announced_for(o, domain) do
     for {actor, domains} <- o.followers,
