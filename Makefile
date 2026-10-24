@@ -3,7 +3,7 @@
 # One place to start from. `make` on its own lists everything.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev dev-web test test-shared test-elixir test-delivery test-api test-web \
+.PHONY: help setup dev dev-web test test-shared test-elixir test-delivery test-api test-web check-specs \
         test-pglite test-e2e check check-presets env-audit script-tests need-tsubaki up down preflight \
         push-static push-styles clear-static static-status \
         push-natadeco natadeco-images
@@ -88,6 +88,9 @@ test-e2e:  ## cross-browser SPA smoke (Playwright)
 # target useless. Run it by hand once credo catches up.
 check: check-presets  ## linters and type checks
 	cd web && $(RUN) pnpm run check
+
+check-specs:  ## run the CUE types in docs/specs against their examples
+	node docs/specs/check/check.cjs
 
 check-presets:
 	@bash scripts/check_presets_sync.sh
