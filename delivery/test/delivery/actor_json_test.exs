@@ -13,7 +13,7 @@ defmodule SukhiDelivery.AP.ActorJsonTest do
     @context id type url preferredUsername name summary inbox outbox
     followers following featured manuallyApprovesFollowers
     discoverable indexable pendingFollowers pendingFollowing endpoints
-    publicKey assertionMethod icon image
+    publicKey assertionMethod icon image generator
   )
 
   setup do
@@ -46,13 +46,21 @@ defmodule SukhiDelivery.AP.ActorJsonTest do
     # 「プロフィールを開く」の行き先を作れない。
     assert person["url"] == "https://test.example/@alice"
     assert person["type"] == "Person"
+
+    # FEP-844e: what this server implements, so a peer can tell we pull.
+    assert [%{"href" => href}] = person["generator"]["implements"]
+    assert href == SukhiShared.Capability.pull_federation()
     assert person["manuallyApprovesFollowers"] == true
     assert person["discoverable"] == true
     assert person["indexable"] == true
     # Locked → FEP-4ccd pending collections are advertised.
     assert person["pendingFollowers"] == "https://test.example/users/alice/pendingFollowers"
     assert person["pendingFollowing"] == "https://test.example/users/alice/pendingFollowing"
-    assert person["endpoints"] == %{"sharedInbox" => "https://test.example/inbox"}
+    assert person["endpoints"] ==
+             Map.merge(
+               %{"sharedInbox" => "https://test.example/inbox"},
+               SukhiShared.Capability.endpoints("test.example")
+             )
 
     assert MapSet.new(Map.keys(person["publicKey"])) ==
              MapSet.new(~w(id owner publicKeyPem))

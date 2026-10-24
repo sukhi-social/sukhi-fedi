@@ -362,6 +362,17 @@ defmodule SukhiFedi.Web.Router do
     InboxController.shared_inbox(conn, [])
   end
 
+  # ── Pull Federation (docs/PULL_FEDERATION.md) ───────────────────────────
+  # Notification in, log out. Both are HTTP-signed by the peer host and
+  # answer 404 unless this server advertises the capability.
+  post "/pull/v1/notify" do
+    SukhiFedi.Web.PullFederationController.notify(conn, [])
+  end
+
+  get "/pull/v1/stream" do
+    SukhiFedi.Web.PullFederationController.stream(conn, [])
+  end
+
   # ── NodeInfo (Elixir-native) ─────────────────────────────────────────────
 
   get "/.well-known/nodeinfo" do

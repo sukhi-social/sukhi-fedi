@@ -4,8 +4,8 @@ defmodule SukhiFedi.Web.InboxController do
 
   require Logger
 
-  alias SukhiFedi.AP.Instructions
-  alias SukhiFedi.Federation.FedifyClient
+  alias SukhiFedi.AP.Ingest
+  alias SukhiFedi.Web.SignedRequest
   alias SukhiFedi.Schema.Account
 
   # FEP-8fcf Collection-Synchronization format:
@@ -27,12 +27,6 @@ defmodule SukhiFedi.Web.InboxController do
     raw_json = conn.body_params
     raw_body = conn.assigns[:raw_body] || ""
     self_domain = Application.get_env(:sukhi_fedi, :domain) || conn.host
-    # Bind the signature base's `host` to our canonical public host rather
-    # than the proxy-forwarded Host header (cloudflared/kamal can rewrite
-    # it to an internal value). The remote signed `host: <domain>` when it
-    # delivered to https://<domain>/inbox.
-    headers = conn.req_headers |> Enum.into(%{}) |> Map.put("host", self_domain)
-    url = public_url(conn)
     sync_header = get_req_header(conn, "collection-synchronization") |> List.first()
 
     # A user-scoped inbox has a natural signer: the receiving account.
@@ -45,64 +39,34 @@ defmodule SukhiFedi.Web.InboxController do
     # verification needs this identity too, not only the inbox parse.
     sign_as = sign_as_for(conn) || SukhiFedi.Accounts.signing_identity()
 
-    verify_payload =
-      case sign_as do
-        nil -> %{raw: raw_body, headers: headers, method: "POST", url: url}
-        sign_as -> %{raw: raw_body, headers: headers, method: "POST", url: url, signAs: sign_as}
-      end
+    case SignedRequest.verify(conn, "POST", sign_as) do
+      {:ok, %{signer_host: signer_host}} ->
+        # Genuine original ⇒ archive to the `inbound` bucket off the hot
+        # path (Q10), after the policy/proof gates and before the parser,
+        # so a parse failure can't lose the record.
+        headers = conn.req_headers |> Enum.into(%{}) |> Map.put("host", self_domain)
+        archive = fn -> maybe_archive_inbound(raw_body, raw_json, headers, conn) end
 
-    inbox_payload =
-      case sign_as do
-        nil -> %{raw: raw_json, selfDomain: self_domain}
-        sign_as -> %{raw: raw_json, signAs: sign_as, selfDomain: self_domain}
-      end
-
-    case FedifyClient.verify(verify_payload) do
-      {:ok, %{"ok" => true} = verify_result} ->
-        cond do
-          actor_policy(raw_json) == :reject ->
-            # Domain is suspended (`:reject`). Accept-and-drop (202) so the
-            # blocked peer can't tell it's being filtered — but run no handlers
-            # and don't archive. A `:silence` domain is *not* rejected here: it
-            # falls through to materialize, and `Moderation.silenced_author_ids/0`
-            # keeps its notes off the home/public surfaces downstream.
+        case Ingest.run(raw_json, signer_host,
+               sign_as: sign_as,
+               self_domain: self_domain,
+               before_parse: archive
+             ) do
+          :accepted ->
+            maybe_enqueue_follower_sync(raw_json, sync_header)
             send_resp(conn, 202, "")
 
-          true ->
-            # FEP-8b32 runs after the suspension gate so a suspended peer
-            # can never make us fetch their key document.
-            case proof_verdict(raw_json) do
-              :failed ->
-                # The body carries an Object Integrity Proof we can check
-                # and it does not check out. Downgrade safety — a broken
-                # proof must not silently fall through to
-                # HTTP-signature-only handling.
-                send_resp(conn, 401, JSON.encode!(%{error: "object integrity proof failed"}))
+          :suppressed ->
+            send_resp(conn, 202, "")
 
-              verdict ->
-                # The signature checks out. Record *who* signed (the key owner's
-                # host) so Instructions can refuse to act on an activity whose
-                # claimed `actor` lives on a different host than the signer.
-                signer_host = signer_host(verify_result)
+          {:error, :proof_failed} ->
+            send_resp(conn, 401, JSON.encode!(%{error: "object integrity proof failed"}))
 
-                # Genuine original ⇒ archive to the `inbound` bucket off the hot
-                # path (Q10), right after verify and before the instruction
-                # parser, so a parse failure can't lose the record.
-                maybe_archive_inbound(raw_body, raw_json, headers, conn)
-
-                case FedifyClient.inbox(inbox_payload) do
-                  {:ok, instruction} ->
-                    Instructions.execute(instruction, signer_host, verdict == :author_signed)
-                    maybe_enqueue_follower_sync(raw_json, sync_header)
-                    send_resp(conn, 202, "")
-
-                  {:error, reason} ->
-                    send_resp(conn, 400, JSON.encode!(%{error: inspect(reason)}))
-                end
-            end
+          {:error, {:parse, reason}} ->
+            send_resp(conn, 400, JSON.encode!(%{error: inspect(reason)}))
         end
 
-      {:ok, _unverified} ->
+      :unverified ->
         # Verification ran but the signature did not check out. This
         # `{:ok, %{"ok" => false}}` shape used to slip through `{:ok, _}`
         # and the activity executed unsigned — reject it now.
@@ -110,67 +74,6 @@ defmodule SukhiFedi.Web.InboxController do
 
       {:error, reason} ->
         send_resp(conn, 400, JSON.encode!(%{error: inspect(reason)}))
-    end
-  end
-
-  # FEP-8b32 verdict, and the one place it is read:
-  #
-  #   :author_signed — a proof verified. `Oip.verify_inbound/1` binds the
-  #     proof key's `controller` to the activity's own `actor`, so this
-  #     says the *author* signed these exact bytes. Unlike the HTTP
-  #     signature, that survives being forwarded by a third party, which
-  #     is what lets a relayed post be believed without re-fetching it.
-  #   :unproven — no proof, or only cryptosuites we don't implement. The
-  #     HTTP signature (already checked above) is all we have.
-  #   :failed — a proof we *can* check did not check out.
-  @spec proof_verdict(term()) :: :author_signed | :unproven | :failed
-  defp proof_verdict(raw_json) when is_map(raw_json) do
-    case SukhiFedi.Fedi.Oip.verify_inbound(raw_json) do
-      :ok ->
-        :author_signed
-
-      :no_proof ->
-        :unproven
-
-      :no_checkable_proof ->
-        Logger.info("inbox: only unsupported-cryptosuite proofs on #{raw_json["id"]}; relying on the HTTP signature")
-        :unproven
-
-      {:error, reason} ->
-        Logger.warning("inbox: object integrity proof failed (#{inspect(reason)}) on #{raw_json["id"]}")
-        :failed
-    end
-  end
-
-  defp proof_verdict(_), do: :unproven
-
-  # The instance policy for the activity's actor host (the one place that
-  # decision lives is `Moderation.instance_policy/1`). `:reject` is the only
-  # value the gate acts on; `:silence`/`:pass` materialize.
-  defp actor_policy(raw_json) when is_map(raw_json) do
-    case raw_json |> Map.get("actor") |> actor_uri() |> uri_host() do
-      host when is_binary(host) -> SukhiFedi.Addons.Moderation.instance_policy(host)
-      _ -> :pass
-    end
-  end
-
-  defp actor_policy(_), do: :pass
-
-  defp actor_uri(uri) when is_binary(uri), do: uri
-  defp actor_uri(%{"id" => id}) when is_binary(id), do: id
-  defp actor_uri(_), do: nil
-
-  # Host of the actor that actually signed the request (the HTTP-signature
-  # key's owner; fall back to the keyId host). nil when neither is present
-  # or parseable.
-  defp signer_host(%{"owner" => owner}) when is_binary(owner), do: uri_host(owner)
-  defp signer_host(%{"keyId" => key_id}) when is_binary(key_id), do: uri_host(key_id)
-  defp signer_host(_), do: nil
-
-  defp uri_host(uri) when is_binary(uri) do
-    case URI.parse(uri) do
-      %URI{host: h} when is_binary(h) and h != "" -> String.downcase(h)
-      _ -> nil
     end
   end
 
@@ -199,15 +102,6 @@ defmodule SukhiFedi.Web.InboxController do
   end
 
   defp maybe_archive_inbound(_raw_body, _raw_json, _headers, _conn), do: :ok
-
-  # Reconstruct the public URL the remote signer signed against, even
-  # when cloudflared (or any reverse proxy) has rewritten Host to an
-  # internal value like `gateway:4000`.
-  defp public_url(conn) do
-    domain = Application.get_env(:sukhi_fedi, :domain) || conn.host
-    query = if conn.query_string in [nil, ""], do: "", else: "?" <> conn.query_string
-    "https://#{domain}#{conn.request_path}#{query}"
-  end
 
   # When the inbox is user-scoped (`/users/:name/inbox`), return the
   # receiving account's signing key so Bun's `getActor` call can do an

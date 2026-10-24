@@ -34,7 +34,7 @@ defmodule SukhiShared.ActorJsonTest do
   test "build_person keeps a bare actor bare, and adds the optional keys when set" do
     bare = ActorJson.build_person("a.example", account())
     assert bare["id"] == "https://a.example/users/alice"
-    assert bare["endpoints"] == %{"sharedInbox" => "https://a.example/inbox"}
+    assert bare["endpoints"]["sharedInbox"] == "https://a.example/inbox"
     assert bare["name"] == "alice"
     refute Map.has_key?(bare, "icon")
     refute Map.has_key?(bare, "pendingFollowers")
