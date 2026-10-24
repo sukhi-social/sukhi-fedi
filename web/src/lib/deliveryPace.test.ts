@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { STEPS, arrived, stepToward, target, type Shown } from './deliveryPace.ts';
+import { LINGER_MS, STEPS, STEP_MS, arrived, stepToward, target, type Shown } from './deliveryPace.ts';
 
 // 目標に着くまで動かして、通った道を集める。
 function walk(from: Shown, goal: Shown): Shown[] {
@@ -19,6 +19,11 @@ function walk(from: Shown, goal: Shown): Shown[] {
   return path;
 }
 
+test('間は 300ms、完了のあとは 10 秒残す', () => {
+  assert.equal(STEP_MS, 300);
+  assert.equal(LINGER_MS, 10_000);
+});
+
 test('受付から完了へ一度に飛んでも、段を飛ばさず 1 つずつ通る', () => {
   const path = walk({ at: 0, percent: null }, { at: STEPS.indexOf('done'), percent: 100 });
   assert.deepEqual(
@@ -27,12 +32,27 @@ test('受付から完了へ一度に飛んでも、段を飛ばさず 1 つず�
   );
 });
 
-test('配信中に入ったら 0% から、10 刻みで目標まで', () => {
-  const path = walk({ at: 2, percent: null }, { at: 3, percent: 30 });
+test('完了へ行く前に、配信中は 100% を見せる', () => {
+  const path = walk({ at: 3, percent: 40 }, { at: 4, percent: 100 });
+  assert.deepEqual(path, [
+    { at: 3, percent: 40 },
+    { at: 3, percent: 100 },
+    { at: 4, percent: 100 }
+  ]);
+});
+
+test('% は 10 ずつ上らず、実際の値へ一度で飛ぶ', () => {
+  const path = walk({ at: 3, percent: 10 }, { at: 3, percent: 70 });
   assert.deepEqual(
     path.map((s) => s.percent),
-    [null, 0, 10, 20, 30]
+    [10, 70]
   );
+});
+
+test('配信中に入るときは、実際の値からはじまる', () => {
+  const path = walk({ at: 2, percent: null }, { at: 3, percent: 30 });
+  assert.deepEqual(path.at(-1), { at: 3, percent: 30 });
+  assert.equal(path.length, 2);
 });
 
 test('目標が手前なら戻らない', () => {
