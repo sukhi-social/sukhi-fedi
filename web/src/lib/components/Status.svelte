@@ -178,6 +178,11 @@
       <a class="handle" href={`/@${status.account.acct}`}>@{status.account.acct}</a>
       <span class="sep">·</span>
       <a class="timestamp" href={`/@${status.account.acct}/${status.id}`} title={status.created_at}>{ts}</a>
+      {#if status.delivery === 'delivering' || status.delivery === 'delayed'}
+        <!-- 自分の投稿が、外へ出ていく途中のとき。どこへ、いくつ、は言わない。
+             届いたら、何も出さない。 -->
+        <span class="delivery" role="status">{$t(`status.delivery.${status.delivery}`)}</span>
+      {/if}
       {#if isRemote && status.url}
         <!-- リモートの投稿。元のサーバの本物へ、別タブでそっと開く入口。 -->
         <a
@@ -507,5 +512,9 @@
   }
   a.reply-to:hover {
     text-decoration: underline;
+  }
+  .delivery {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
   }
 </style>

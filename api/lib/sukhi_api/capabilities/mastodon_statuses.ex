@@ -174,8 +174,9 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
       %{} = v ->
         case GatewayRpc.run(SukhiFedi.Notes, :delete_note, [v, id]) do
           {:ok, note} ->
-            # Mastodon quirk: returns the deleted status's last form
-            ok(200, MastodonStatus.render(note))
+            # Mastodon quirk: returns the deleted status's last form. The
+            # `delivery` word is the Delete's own trip, not the post's.
+            ok(200, MastodonStatus.render(note, %{delivery: deletion_delivery(note.id)}))
 
           {:error, :not_found} ->
             ok(404, %{error: "not_found"})
@@ -189,6 +190,13 @@ defmodule SukhiApi.Capabilities.MastodonStatuses do
           _ ->
             ok(500, %{error: "internal_error"})
         end
+    end
+  end
+
+  defp deletion_delivery(note_id) do
+    case GatewayRpc.run(SukhiFedi.DeliveryStatus, :for_deleted_notes, [[note_id]]) do
+      {:ok, %{} = m} -> Map.get(m, note_id)
+      _ -> nil
     end
   end
 

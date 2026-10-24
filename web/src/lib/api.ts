@@ -123,6 +123,9 @@ export type Status = {
   reblogged?: boolean;
   reblogs_count?: number;
   bookmarked?: boolean;
+  // Sukhi extension: how far the viewer's own post has got on its way out.
+  // Only these three words; never which servers, never how many.
+  delivery?: 'delivering' | 'delivered' | 'delayed' | null;
   pinned?: boolean;
   poll?: Poll | null;
   card?: PreviewCard | null;

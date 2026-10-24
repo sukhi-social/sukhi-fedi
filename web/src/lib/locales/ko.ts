@@ -168,6 +168,8 @@ export const ko: Dict = {
   'status.reply': '답장',
   'status.replyTo': '@{acct} 님에게 답장',
   'status.replyToUnknown': '답장',
+  'status.delivery.delivering': '보내는 중…',
+  'status.delivery.delayed': '전달이 조금 늦어지고 있어요',
   'status.more': '다른 작업',
   'status.unpin': '고정 풀기',
   'status.pin': '고정하기',

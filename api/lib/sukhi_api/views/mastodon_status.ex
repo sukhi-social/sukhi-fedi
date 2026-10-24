@@ -98,9 +98,19 @@ defmodule SukhiApi.Views.MastodonStatus do
       # a plain-text excerpt — for surfaces that lay replies flat instead
       # of threading them (natadeco's talk decos, 友デコ). One level, never
       # the grandparent; nil when there is no parent or we don't hold it.
-      parent: render_parent(Map.get(ctx, :parent))
+      parent: render_parent(Map.get(ctx, :parent)),
+      # Sukhi extension. How far the author's own post has got on its way
+      # out: "delivering" | "delivered" | "delayed", or nil when it is not
+      # the viewer's own (or too old to say). Three words on purpose — no
+      # host names, no counts. See `SukhiFedi.DeliveryStatus`.
+      delivery: render_delivery(Map.get(ctx, :delivery))
     }
   end
+
+  defp render_delivery(state) when state in [:delivering, :delivered, :delayed],
+    do: Atom.to_string(state)
+
+  defp render_delivery(_), do: nil
 
   @doc """
   Render a list of notes, looking up per-note counts/viewer-flags
@@ -113,7 +123,8 @@ defmodule SukhiApi.Views.MastodonStatus do
         viewer_by_id \\ %{},
         reactions_by_id \\ %{},
         cards_by_id \\ %{},
-        parents_by_id \\ %{}
+        parents_by_id \\ %{},
+        delivery_by_id \\ %{}
       )
       when is_list(notes) do
     Enum.map(notes, fn n ->
@@ -126,7 +137,8 @@ defmodule SukhiApi.Views.MastodonStatus do
         viewer: Map.get(viewer_by_id, key, %{}),
         reactions: Map.get(reactions_by_id, key, []),
         card: Map.get(cards_by_id, key),
-        parent: Map.get(parents_by_id, key)
+        parent: Map.get(parents_by_id, key),
+        delivery: Map.get(delivery_by_id, key)
       })
     end)
   end

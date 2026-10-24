@@ -167,6 +167,8 @@ export const ja = {
   'status.reply': '返信',
   'status.replyTo': '@{acct} への返信',
   'status.replyToUnknown': '返信',
+  'status.delivery.delivering': '外へ出ています…',
+  'status.delivery.delayed': 'とどくのが、すこし遅れています',
   'status.more': 'その他の操作',
   'status.unpin': 'ピン留めを外す',
   'status.pin': 'ピン留め',
