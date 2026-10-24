@@ -293,9 +293,7 @@
       <ol class="delivery" aria-label={$t('status.delivery.label')}>
         {#each STEPS as step, i (step)}
           <li class:reached={i <= shown.at} class:current={i === shown.at}>
-            {$t(`status.delivery.${step}`)}{#if step === 'sending' && i === shown.at && shown.percent != null}
-              {shown.percent}%{/if}{#if i === shown.at && deliveryNow === 'delayed'}
-              · {$t('status.delivery.delayed')}{/if}
+            {$t(`status.delivery.${step}`)}{#if step === 'sending' && i === shown.at && shown.percent != null}{' '}{shown.percent}%{/if}{#if i === shown.at && deliveryNow === 'delayed'}{' '}· {$t('status.delivery.delayed')}{/if}
           </li>
         {/each}
       </ol>
