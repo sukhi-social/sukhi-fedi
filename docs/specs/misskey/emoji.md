@@ -1,8 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Custom emoji
 
-- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
-- Subject: Misskey `develop`, read on 2026-10-23.
+- Part of [the Misskey specification](README.md); source tags and terms are explained there.
 - Type: `#Emoji`, defined in [objects](objects.md)
 
 ## In one paragraph
@@ -14,7 +13,7 @@ A custom emoji travels as a `tag` item of type `Emoji` next to the text that use
 ### Receiving **[src]** `core/activitypub/models/ApNoteService.ts`, `extractEmojis`
 
 - It takes the `tag` items of type `Emoji`.
-- It strips the colons from `name` and converts the host to punycode.
+- It strips the colons from `name` and converts the host to punycode. The shortcode is made of letters, digits, `_`, `+`, and `-` (the reaction rule in [reactions](reactions.md)).
 - An existing row is updated when it has no `updatedAt`, has no URI while the tag has one, the tag's `updated` is newer, or the icon URL differs. Otherwise a row is inserted.
 - A failure is logged and ignored. The note is saved with an empty emoji list.
 

@@ -1,9 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Quotes
 
-- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
-- Subject: Misskey `develop`, read on 2026-10-23.
-- Type: `#Quote`, defined below
+- Part of [the Misskey specification](README.md); source tags and terms are explained there.
+- Type: `#Note`, defined in [objects](objects.md) (`quoteUrl` and `_misskey_quote` are two of its properties)
 
 ## In one paragraph
 
@@ -16,31 +15,31 @@ Misskey recognises a quote only from two properties, `_misskey_quote` and `quote
 - The first success becomes the quote.
 - If none succeeds and any failure was temporary, creation fails with `quote resolve failed`. If every failure was permanent, the note is saved without the quote.
 
-## An example
+## What Misskey writes **[src]** `renderNote`
 
-The quote part of a note (type `#Quote`):
+When a note quotes (renotes with text) another, Misskey writes the quoted note's URI into both `_misskey_quote` and `quoteUrl`, and appends a line to the `content` HTML: `<br><br><span class="quote-inline">RE: <a href="URI">URI</a></span>`. The class name `quote-inline` is there so that other servers can style the quote. Because `content` is then not plain, the MFM source is sent as well ([mfm](mfm.md)).
+
+A quoting note (type `#Note`):
 ```json
 {
+  "id": "https://misskey.example/notes/9abf",
   "type": "Note",
-  "content": "<p>Look at this</p>",
+  "attributedTo": "https://misskey.example/users/a1",
+  "content": "<p>Look at this</p><br><br><span class=\"quote-inline\">RE: <a href=\"https://other.example/notes/1\">https://other.example/notes/1</a></span>",
+  "_misskey_content": "Look at this",
+  "source": {
+    "content": "Look at this",
+    "mediaType": "text/x.misskeymarkdown"
+  },
+  "_misskey_quote": "https://other.example/notes/1",
   "quoteUrl": "https://other.example/notes/1",
-  "_misskey_quote": "https://other.example/notes/1"
-}
-```
-
-The type, in [CUE](https://cuelang.org):
-
-```cue
-// The quote properties of a Note as Misskey writes and reads them: either
-// one, or both. They hold the URL of the quoted note.
-#Quote: {
-	quoteUrl:          #URL
-	"_misskey_quote"?: #URL
-	...
-} | {
-	"_misskey_quote": #URL
-	quoteUrl?:        #URL
-	...
+  "published": "2026-10-23T09:15:00.000Z",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://misskey.example/users/a1/followers"],
+  "inReplyTo": null,
+  "attachment": [],
+  "sensitive": false,
+  "tag": []
 }
 ```
 

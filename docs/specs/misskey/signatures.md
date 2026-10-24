@@ -1,8 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: HTTP signatures
 
-- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
-- Subject: Misskey `develop`, read on 2026-10-23.
+- Part of [the Misskey specification](README.md); source tags and terms are explained there.
 
 ## In one paragraph
 
@@ -10,32 +9,37 @@ Misskey verifies only the older draft-cavage signature. It does not read RFC 942
 
 ## What Misskey does
 
-### At the route **[src]** `server/ActivityPubServerService.ts`
+### Checking an incoming delivery
 
-The `Signature` header is parsed with `@peertube/http-signature`. The signed headers must include `(request-target)`, `host`, and `date`. These answer **401**: a header that cannot be parsed; `host` not signed; a `Host` header different from the configured host; `digest` not signed; a malformed `Digest`; an algorithm other than SHA-256; a body hash that does not match. A missing raw body, or a body without `actor`, answers 400.
+At the route (the 401 list is in [transport](transport.md)), the `Signature` header is parsed with `@peertube/http-signature`: the signed headers must include `(request-target)`, `host`, and `date`, plus `digest`. Neither the route nor the queue mentions RFC 9421 or `Signature-Input`. A clock or `Date` window is not checked in either file; whether the library checks it was **[not seen]**.
 
-Misskey signs its own deliveries with cavage only, over `(request-target) date host digest`. **[study]** `ApRequestService.ts`
+In the queue (**[src]** `queue/processors/InboxProcessorService.ts`) the steps run in this order:
 
-Neither this file nor the queue processor mentions RFC 9421 or `Signature-Input`. **[src]** A clock or `Date` window is not checked in either file. Whether the signature library checks it was **[not seen]**.
-
-### In the queue **[src]** `queue/processors/InboxProcessorService.ts`
-
-The steps run in this order.
-
-1. The host of the `keyId` must be allowed to federate. Otherwise: `Blocked request`.
+1. The host of the `keyId` must be allowed to federate, else `Blocked request`.
 2. A `keyId` that starts with `acct:` ends with `Old keyId is no longer supported.`
-3. The key is found by `keyId`. If that fails, it is found by the activity's `actor`. A missing user, or a user without a public key, is a permanent failure.
-4. The signature is verified against that key. There is no refetch of the key after a failed check in this file.
-5. The key's owner must equal the activity's `actor`. A mismatch counts as a failed signature.
-6. Only if step 4 or 5 fails, an `RsaSignature2017` Linked-Data signature on the activity is tried. Its `creator` must resolve to a user and key and match the `actor`. Any other signature type is a permanent failure. If it passes, the HTTP signature is not looked at again.
-7. After either path, `activity.id` must be a string whose host equals the signer's host. Otherwise: permanent failure.
-8. A `Delete` of an actor that Misskey does not know is skipped.
+3. The key is looked up by `keyId` in Misskey's database. If it is not there, Misskey looks the signer up by the activity's `actor`, and **fetches the actor from its server if it is unknown**. So the first delivery from a stranger can succeed. A 4xx while fetching ends the job for good; a 5xx makes it retry. If no user or no public key results, the job ends for good.
+4. The signature is verified with that key. The key is not fetched again after a failed check in this file.
+5. The key's owner (`user.uri`) must equal the activity's `actor`. A mismatch counts as a failed signature.
+6. Only if step 4 or 5 fails, and the activity has a `signature` of type `RsaSignature2017`, a Linked-Data signature is tried. Misskey fetches the actor named by `creator`, compacts the activity as JSON-LD (rejecting forbidden directives such as remote contexts), and verifies the signature over it. Any other signature type ends the job. If it passes, the HTTP signature is not looked at again.
+7. After either path, `activity.id` must be a string whose host equals the signer's host, else the job ends.
+8. A `Delete` of an actor that Misskey does not know is skipped (step 0, before the key lookup).
 
-A permanent failure is not retried. FEP-8b32 proofs are not read at all. **[src]**
+A job that ends "for good" is not retried. FEP-8b32 proofs are not read at all.
+
+### Signing what Misskey sends
+
+**[src]** `core/activitypub/ApRequestService.ts`
+
+- A `POST` has the headers `Date` (HTTP date, UTC), `Host`, `Content-Type: application/activity+json`, `Digest: SHA-256=<base64 of the SHA-256 of the body>`, and `Signature`.
+- `Signature` is `keyId="<origin>/users/<id>#main-key",algorithm="rsa-sha256",headers="(request-target) date host digest",signature="<base64>"`. The signing string is the four lines `(request-target): post /path`, `date: ...`, `host: ...`, `digest: ...`, joined by newlines.
+- Keys are RSA; Misskey generates RSA pairs. Whether it accepts other key types on receipt was **[not seen]**.
+- Misskey also signs its `GET` requests when it fetches an object (headers `(request-target) date host`, with `Accept: application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"`), under the key of a local user.
+- Misskey adds the `RsaSignature2017` Linked-Data signature to some activities (`attachLdSignature`: `creator` is the same `#main-key`, plus a random `nonce`); [activities](activities.md) shows its shape.
 
 ## Things to watch
 
 - A sender that signs only with RFC 9421 is refused.
+- The `Digest` must be `SHA-256=...` and `host` must be signed; a signature without them is refused at the route, before the signature is looked at.
 - The key's owner must equal `actor`, and `activity.id` must be on the signer's host.
 - A FEP-8b32 proof adds nothing; the HTTP signature carries the trust.
 - `RsaSignature2017` is used only when the HTTP signature fails.
@@ -43,4 +47,4 @@ A permanent failure is not retried. FEP-8b32 proofs are not read at all. **[src]
 
 ## Not researched
 
-The size of the allowed clock difference; whether the signature library checks `Date`; whether a key is fetched again after a failed check.
+The size of the allowed clock difference; whether the signature library checks `Date`; whether a key is fetched again after a failed check (the lookup by `actor` in step 3 may refresh it; that code was not read).

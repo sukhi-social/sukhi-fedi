@@ -1,42 +1,5 @@
 [
   {
-    "type": "Quote",
-    "why": "a quote with neither quoteUrl nor _misskey_quote",
-    "instance": {
-      "type": "Note",
-      "content": "x"
-    }
-  },
-  {
-    "type": "NoteText",
-    "why": "_misskey_content without source",
-    "instance": {
-      "_misskey_content": "**x**"
-    }
-  },
-  {
-    "type": "NoteText",
-    "why": "source with another media type",
-    "instance": {
-      "_misskey_content": "x",
-      "source": {
-        "content": "x",
-        "mediaType": "text/markdown"
-      }
-    }
-  },
-  {
-    "type": "NoteText",
-    "why": "source that differs from _misskey_content",
-    "instance": {
-      "_misskey_content": "x",
-      "source": {
-        "content": "y",
-        "mediaType": "text/x.misskeymarkdown"
-      }
-    }
-  },
-  {
     "type": "Like",
     "why": "empty reaction string",
     "instance": {
@@ -213,6 +176,104 @@
       "url": {
         "href": "https://o.example/a.png"
       }
+    }
+  },
+  {
+    "type": "Note",
+    "why": "_misskey_content without source",
+    "instance": {
+      "id": "https://m.example/n/1",
+      "type": "Note",
+      "attributedTo": "https://m.example/users/a",
+      "published": "2026-10-23T09:00:00.000Z",
+      "to": [],
+      "cc": [],
+      "attachment": [],
+      "sensitive": false,
+      "tag": [],
+      "inReplyTo": null,
+      "_misskey_content": "**x**"
+    }
+  },
+  {
+    "type": "Note",
+    "why": "source with another media type",
+    "instance": {
+      "id": "https://m.example/n/1",
+      "type": "Note",
+      "attributedTo": "https://m.example/users/a",
+      "published": "2026-10-23T09:00:00.000Z",
+      "to": [],
+      "cc": [],
+      "attachment": [],
+      "sensitive": false,
+      "tag": [],
+      "inReplyTo": null,
+      "_misskey_content": "x",
+      "source": {
+        "content": "x",
+        "mediaType": "text/markdown"
+      }
+    }
+  },
+  {
+    "type": "Note",
+    "why": "source that differs from _misskey_content",
+    "instance": {
+      "id": "https://m.example/n/1",
+      "type": "Note",
+      "attributedTo": "https://m.example/users/a",
+      "published": "2026-10-23T09:00:00.000Z",
+      "to": [],
+      "cc": [],
+      "attachment": [],
+      "sensitive": false,
+      "tag": [],
+      "inReplyTo": null,
+      "_misskey_content": "x",
+      "source": {
+        "content": "y",
+        "mediaType": "text/x.misskeymarkdown"
+      }
+    }
+  },
+  {
+    "type": "Note",
+    "why": "quoteUrl without _misskey_quote",
+    "instance": {
+      "id": "https://m.example/n/1",
+      "type": "Note",
+      "attributedTo": "https://m.example/users/a",
+      "published": "2026-10-23T09:00:00.000Z",
+      "to": [],
+      "cc": [],
+      "attachment": [],
+      "sensitive": false,
+      "tag": [],
+      "inReplyTo": null,
+      "quoteUrl": "https://o.example/n/1"
+    }
+  },
+  {
+    "type": "Note",
+    "why": "a Question without any choices field is still a Note-shaped Question",
+    "instance": {
+      "id": "https://m.example/n/1",
+      "type": "Question",
+      "attributedTo": "https://m.example/users/a",
+      "published": "2026-10-23T09:00:00.000Z",
+      "to": [],
+      "cc": [],
+      "attachment": [],
+      "sensitive": false,
+      "tag": [],
+      "inReplyTo": null,
+      "oneOf": [
+        {
+          "type": "Note",
+          "name": "a"
+        }
+      ]
     }
   }
 ]

@@ -1,8 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Activities
 
-- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
-- Subject: Misskey `develop`, read on 2026-10-23.
+- Part of [the Misskey specification](README.md); source tags and terms are explained there.
 - Types: `#Create`, `#Announce`, `#Delete`, `#Update`, `#Follow`, `#Accept`, `#Reject`, `#Undo`, `#Like`, `#Block`, `#Flag`, `#Move`, `#Add`, `#Remove`, `#Vote`, defined below; objects they carry are in [objects](objects.md)
 
 ## In one paragraph
@@ -301,6 +300,20 @@ A `Move` (type `#Move`):
 }
 ```
 
+### Following, step by step
+
+**[src]** `UserFollowingService.ts` (`follow`), `ApInboxService.ts` (`follow`, `accept`, `reject`)
+
+When a remote user follows a local one (an incoming `Follow`, handled at once, not queued):
+
+1. The `object` must be a local user, else the activity is skipped.
+2. If the local user has blocked the follower, Misskey sends back a `Reject` and stops. If the follower has blocked the local user, the block is removed.
+3. If the follow already exists, Misskey sends an `Accept` again and stops.
+4. The follow needs approval if the local user is locked, or the follower's account is too new for the local user's rule, or the follower is a bot and the local user is careful about bots, or the follower's server is silenced. Then, unless one of the exceptions applies (already following; the local user follows the follower back and auto-accepts those they follow; the follower is a moved account whose old account was accepted), Misskey stores a follow request and **sends nothing yet**. The local user later answers with an `Accept` or a `Reject`.
+5. Otherwise the follower is added and an `Accept` is sent, carrying the original `Follow` with the id the follower gave it.
+
+When a local user follows a remote one, Misskey sends a `Follow` and waits as a pending request; the follow takes effect when an `Accept` arrives (an incoming `Accept` of a `Follow` whose `actor` is a local user). A `Reject` ends the request. An `Undo` of a `Follow` cancels a request or ends a follow. The `Follow` inside an `Accept` or `Reject` may be a bare URL, because Misskey fetches it; the URLs of Misskey's own follows can be fetched ([transport](transport.md)).
+
 ## Reactions and votes: Like, Create (vote)
 
 **Like** (`renderLike`, from `ReactionService`). See [reactions](reactions.md). `object` is the note's own URI if it has one (a remote note), otherwise the local note URL.
@@ -424,17 +437,17 @@ A `Flag` (type `#Flag`):
 
 | Type | What Misskey does |
 | --- | --- |
-| Create | Creates a `Post` only. `attributedTo` must equal the actor and the note id must share the actor's host. `bear:` URIs are skipped. |
+| Create | Creates a post only (`Note` and the other post types). `attributedTo` must equal the actor and the note id must share the actor's host. `bear:` URIs are skipped. |
 | Delete | The target type comes from `object.type`, or a Tombstone's `formerType`. A bare string has no known type. With no type, an object equal to the actor is a `Person`, otherwise a `Note`. A note is deleted only if the actor owns it. An actor is marked deleted and a deletion job is queued. |
 | Update | Only actors and `Question`. Anything else is skipped. A `Note` update is therefore not applied. |
 | Follow | The target must be a local user. It is handled at once. |
 | Accept, Reject | Only for `Follow`. Follow ids containing `follow-relay/` go to relay logic. |
 | Undo | Follow, Block, Like, Announce, Accept. Others are skipped. |
 | Like | See [reactions](reactions.md). |
-| Announce | The target must be a post and visible to the actor. Relay announces publish the note directly. A malformed `published` is rejected. |
+| Announce | The target must be a post and visible to the actor. A `bear:` target (a bearcap, a capability URL) is not supported and is skipped. Relay announces publish the note directly. A malformed `published` is rejected. |
 | Block | The target must be a local user. |
 | Flag | Collects `/users/` URIs, takes the first local user as the target, and puts the content in the report comment. |
-| Move | Needs a target `href`; otherwise the actor is refreshed. |
+| Move | Needs a target `href`; otherwise skipped. Misskey then fetches the actor again; the new account is taken from the refreshed document, and checking `alsoKnownAs` is done there (not read). |
 | Add, Remove | Only pin and unpin, when the target is the actor's `featured` collection. |
 | anything else | `unrecognized activity type`. |
 

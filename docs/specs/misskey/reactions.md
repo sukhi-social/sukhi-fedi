@@ -1,8 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Reactions
 
-- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
-- Subject: Misskey `develop`, read on 2026-10-23.
+- Part of [the Misskey specification](README.md); source tags and terms are explained there.
 - Type: `#Like`, defined in [activities](activities.md)
 
 ## In one paragraph
@@ -16,6 +15,17 @@ A reaction is a `Like` that carries an emoji in `content`. Misskey sends it that
 - It reads the reaction from `_misskey_reaction`, then `content`, then `name`. A second reaction by the same user on the same note is skipped (`already reacted`). **[src]** `ApInboxService.ts`
 - `Like`, `EmojiReaction`, and `EmojiReact` all go the same way. The type guard is `['Like', 'EmojiReaction', 'EmojiReact'].includes(type)`, and there is no separate handler. **[src]** `core/activitypub/type.ts`, `isLike`
 - `Undo` of a `Like` is handled, so a reaction can be taken back. **[src]** `ApInboxService.ts`
+
+## The reaction string
+
+**[src]** `core/ReactionService.ts`
+
+- A Unicode emoji is stored without variation selectors (U+FE0F), unless it is a ligature joined with U+200D. A few old names (`like`, `love`, `laugh`, ...) become emoji. Anything else that is not an emoji becomes the fallback heart, U+2764.
+- A custom emoji is `:name:` with `name` made of letters, digits, `_`, `+`, and `-`. Misskey looks the name up on the reacting server. If it is not known, or not allowed as a reaction, or the note's author has restricted reactions, the reaction becomes the heart.
+- Misskey stores a reaction by a local user as `:name:` and one by a remote user as `:name@host:`.
+- A `Like` with no reaction string at all is the heart.
+- One user has one reaction per note. A different one replaces the old; the same one again is skipped (`already reacted`).
+- A reaction to a plain renote is refused; to a quote, it is allowed.
 
 ## Examples
 

@@ -1,8 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Objects
 
-- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
-- Subject: Misskey `develop`, read on 2026-10-23.
+- Part of [the Misskey specification](README.md); source tags and terms are explained there.
 - Types: `#Note`, `#Person`, `#Emoji`, `#Hashtag`, `#Mention`, `#Document`, `#Image`, `#Key`, `#PropertyValue`, `#Tombstone`, `#Context`, defined below
 
 ## In one paragraph
@@ -134,6 +133,7 @@ Source of this page: **[src]** `ApRendererService.ts` (the `render*` functions n
 - A note with a poll has `type: "Question"` instead of `"Note"`, and gains `oneOf` (single choice) or `anyOf` (multiple choice), and `endTime` (or `closed` when the poll is over).
 - `inReplyTo` is `null` for a note that is not a reply, the URI of the parent when it has one, and a whole rendered note (one level deep) when the parent is local and not yet federated.
 - `_misskey_content` and `source` appear together, or not at all ([mfm](mfm.md)); `_misskey_quote` and `quoteUrl` appear together or not at all ([quote](quote.md)).
+- Misskey does not write `url` on a note, although it reads one.
 
 ```cue
 #NoteCore: {
@@ -142,21 +142,25 @@ Source of this page: **[src]** `ApRendererService.ts` (the `render*` functions n
 	attributedTo: #URL
 	summary?:     string // the content warning; U+200B when it is empty
 	content?:     string
+	// `_misskey_content` and `source` come together and say the same thing;
+	// `_misskey_quote` and `quoteUrl` likewise.
 	"_misskey_content"?: string
 	source?: {
 		content:   string
 		mediaType: "text/x.misskeymarkdown"
 	}
 	if source != _|_ {
-		"_misskey_content": source.content
+		text="_misskey_content": string
+		_sameText: text & source.content
 	}
 	if source == _|_ {
 		"_misskey_content"?: _|_
 	}
 	quoteUrl?:         #URL
-	"_misskey_quote"?: quoteUrl
+	"_misskey_quote"?: #URL
 	if quoteUrl != _|_ {
-		"_misskey_quote": quoteUrl
+		quote="_misskey_quote": #URL
+		_sameQuote: quote & quoteUrl
 	}
 	if quoteUrl == _|_ {
 		"_misskey_quote"?: _|_
@@ -223,7 +227,7 @@ A note with MFM, a quote, a hashtag, and a poll (type `#Note`):
   "id": "https://misskey.example/notes/9abd",
   "type": "Question",
   "attributedTo": "https://misskey.example/users/a1",
-  "content": "<p><b>Lunch?</b> #food<br /><br /><span class=\"quote-inline\">RE: <a href=\"https://other.example/notes/1\">https://other.example/notes/1</a></span></p>",
+  "content": "<p><b>Lunch?</b> <a href=\"https://misskey.example/tags/food\" rel=\"tag\">#food</a></p><br><br><span class=\"quote-inline\">RE: <a href=\"https://other.example/notes/1\">https://other.example/notes/1</a></span>",
   "_misskey_content": "**Lunch?** #food",
   "source": {
     "content": "**Lunch?** #food",

@@ -78,6 +78,10 @@ examples.forEach((e, k) => {
 });
 
 negative.forEach((n, k) => {
+  if (!cueParts.some((b) => new RegExp(`^#${n.type}:`, 'm').test(b))) {
+    fail(`negative case names a type that is not defined: #${n.type}`);
+    return;
+  }
   const f = path.join(dir, `negative${k}.json`);
   fs.writeFileSync(f, JSON.stringify(n.instance));
   const r = vet(f, '#' + n.type);

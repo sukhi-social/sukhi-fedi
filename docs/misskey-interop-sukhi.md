@@ -93,7 +93,7 @@ sukhi serves the featured collection at `/users/:name/featured` (`web/router.ex:
 
 ### Delivery
 
-sukhi retries for about 20 minutes (calculated). Misskey retries for about 1.3 days. A short outage at Misskey can lose a delivery from sukhi.
+sukhi retries for about 20 minutes (calculated). Misskey retries for about 1.35 days. A short outage at Misskey can lose a delivery from sukhi.
 
 ### MFM
 

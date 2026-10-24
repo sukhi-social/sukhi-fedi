@@ -1,53 +1,51 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: MFM (Misskey Flavored Markdown)
 
-- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
-- Subject: Misskey `develop`, read on 2026-10-23.
-- Type: `NoteText`, defined below
+- Part of [the Misskey specification](README.md); source tags and terms are explained there.
+- Type: `#Note`, defined in [objects](objects.md) (`_misskey_content` and `source` are two of its properties)
 
 ## In one paragraph
 
-MFM is Misskey's own markup for note text. ActivityPub has no place for it, so Misskey sends the source text beside the HTML, in two properties. It does so only when the text uses something beyond plain text, mentions, hashtags, URLs, and emoji. This page says when, what the HTML looks like, and how a server that reads it can use it.
+MFM is Misskey's own markup for note text. ActivityPub has no place for it, so Misskey sends the source text beside the HTML, in two properties that always come together. It does so only when the HTML would lose something: when the text uses more than plain text, mentions, hashtags, URLs, and emoji, or when Misskey appended extra HTML (a quote). A receiver that wants the formatting reads the source; one that does not reads `content`.
 
-A note whose text has MFM, as Misskey sends it (type `#NoteText`):
+**Reading flow for a receiver.** Take the text of a note from the first of these that is present: `source.content` (only if `source.mediaType` is `text/x.misskeymarkdown`), `_misskey_content`, then `content` (HTML, converted to MFM). If neither MFM property is there, `content` is complete.
+
+A note whose text has MFM (type `#Note`):
 ```json
 {
+  "id": "https://misskey.example/notes/9abc",
+  "type": "Note",
+  "attributedTo": "https://misskey.example/users/a1",
   "content": "<p><b>Hello</b></p>",
   "_misskey_content": "**Hello**",
   "source": {
     "content": "**Hello**",
     "mediaType": "text/x.misskeymarkdown"
-  }
+  },
+  "published": "2026-10-23T09:00:00.000Z",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://misskey.example/users/a1/followers"],
+  "inReplyTo": null,
+  "attachment": [],
+  "sensitive": false,
+  "tag": []
 }
 ```
 
-A note with plain text carries neither property (type `#NoteText`):
+A note with plain text carries neither property (type `#Note`):
 ```json
 {
-  "content": "<p>Hello</p>"
-}
-```
-
-The type, in [CUE](https://cuelang.org):
-
-```cue
-// The text of a Note. The two MFM properties come together, and say the
-// same thing, or neither is present.
-#NoteText: {
-	content?:            string
-	"_misskey_content"?: string
-	source?: {
-		content:   string
-		mediaType: "text/x.misskeymarkdown"
-		...
-	}
-	if source != _|_ {
-		"_misskey_content": source.content
-	}
-	if source == _|_ {
-		"_misskey_content"?: _|_
-	}
-	...
+  "id": "https://misskey.example/notes/9abd",
+  "type": "Note",
+  "attributedTo": "https://misskey.example/users/a1",
+  "content": "<p>Hello</p>",
+  "published": "2026-10-23T09:01:00.000Z",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://misskey.example/users/a1/followers"],
+  "inReplyTo": null,
+  "attachment": [],
+  "sensitive": false,
+  "tag": []
 }
 ```
 
@@ -61,41 +59,27 @@ From the user documentation. **[src]** `misskey-hub.net/en/docs/for-users/featur
 
 ## 2. When Misskey sends the source
 
-**[src]** `core/activitypub/ApMfmService.ts`, `getNoteHtml`
+**[src]** `core/activitypub/ApMfmService.ts`, `getNoteHtml`; `ApRendererService.ts`, `renderNote`
 
-Misskey parses the note text with `mfm-js` and sets `noMisskeyContent` to true only when both hold:
+`renderNote` appends extra HTML only when the note quotes another: `<br><br><span class="quote-inline">RE: <a href="URI">URI</a></span>` ([quote](quote.md)). `getNoteHtml` then parses the note text with `mfm-js` and sets `noMisskeyContent` to true only when both hold:
 
-1. there is no extra HTML to append (`extraHtml == null`), and
+1. there is no extra HTML to append, and
 2. every top-level node of the parsed text is one of `text`, `unicodeEmoji`, `emojiCode`, `mention`, `hashtag`, `url`.
 
-An empty text also gives true.
-
-**[src]** `core/activitypub/ApRendererService.ts`, `renderNote`: when `noMisskeyContent` is true, `_misskey_content` and `source` are left out. Otherwise both are written.
-
-What a receiver can conclude:
+An empty text also gives true. When `noMisskeyContent` is true, `_misskey_content` and `source` are left out; otherwise both are written.
 
 | What arrives | Meaning |
 | --- | --- |
-| `_misskey_content` and `source` present | The text uses at least one MFM node outside the six (bold, quote, code, a function, and so on), or Misskey added extra HTML. The `content` HTML is a lossy copy. |
-| neither present | The text is plain text, mentions, hashtags, URLs, and emoji only. The `content` HTML is a complete copy. |
+| `_misskey_content` and `source` present | The text uses at least one MFM node outside the six (bold, quote, code, a function, and so on), or the note quotes another. The `content` HTML is a lossy copy. |
+| neither present | The text is plain text, mentions, hashtags, URLs, and emoji only, and the note quotes nothing. The `content` HTML is a complete copy. |
 
-When `extraHtml` is set was **[not seen]** in these files. A quote is the likely case, but that is a guess.
+## 3. Reading the source
 
-## 3. Wire formats
+The two properties are typed in `#Note` ([objects](objects.md)): both present with the same text, or neither. The order in which Misskey takes the text of an incoming note is in the reading flow at the top. **[src]** `ApNoteService.ts`
 
-| Property | Value | Notes |
-| --- | --- | --- |
-| `_misskey_content` | the MFM source as a string | term `misskey:_misskey_content` |
-| `source` | `{ "content": "<source>", "mediaType": "text/x.misskeymarkdown" }` | the same text, in the AS2 `source` form |
+Whatever text a server puts in `_misskey_content` is read by Misskey as MFM, so a server that sends it should send MFM.
 
-When Misskey receives a note it takes text in this order. **[src]** `ApNoteService.ts`
-1. `source`, if its `mediaType` is `text/x.misskeymarkdown` and `content` is a string;
-2. `_misskey_content`;
-3. `content`, converted from HTML to MFM by `htmlToMfm` using the note's tags.
-
-So whatever text a server puts in `_misskey_content` is read by Misskey as MFM.
-
-## 4. What other servers see: MFM to HTML
+## 4. The HTML Misskey writes: MFM to HTML
 
 **[src]** `core/MfmService.ts`, `toHtml`. This is the `content` of a note from Misskey.
 
@@ -122,7 +106,7 @@ So whatever text a server puts in `_misskey_content` is read by Misskey as MFM.
 | any other function (`x2`, `fg`, `spin`, ...) | the content inside `<i>` |
 | newline | `<br />` |
 
-## 5. What Misskey makes of HTML: HTML to MFM
+## 5. The HTML Misskey reads: HTML to MFM
 
 **[src]** `core/MfmService.ts`, `fromHtml`. Used when a note has no `source` and no `_misskey_content`.
 
@@ -134,5 +118,4 @@ So whatever text a server puts in `_misskey_content` is read by Misskey as MFM.
 ## 6. Not researched
 
 - The grammar of `mfm-js` (which text counts as which node).
-- Whether `extraHtml` is set for quotes or other cases.
 - How Misskey escapes a `$[` in text that is not meant as a function.

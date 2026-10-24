@@ -1,55 +1,70 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Misskey: Note
 
-- Kind: descriptive. It says what Misskey does and nothing about any other server. Source tags: [README](README.md).
-- Subject: Misskey `develop`, read on 2026-10-23.
+- Part of [the Misskey specification](README.md); source tags and terms are explained there.
+- Type: `#Note` (what Misskey writes) and `#InNote` (what it reads), defined in [objects](objects.md)
 
 ## In one paragraph
 
-Misskey writes a normal `Note` with a few extra properties for MFM source and quotes. When it reads a note, it is strict about who may speak for whom: the note's `id` and `attributedTo` must be on the same host as the fetch.
+Misskey writes a normal `Note` with a few extra properties for MFM source and quotes, and reads one strictly: the note's `id` and `attributedTo` must be on the host it was fetched from, and the sender must be the author. Visibility is not a property; it is read from `to` and `cc`.
 
 ## Sending **[src]** `ApRendererService.ts`, `renderNote`
 
-- Fields: `id` (`/notes/{id}`), `type: "Note"`, `attributedTo`, `summary`, `content`, `published`, `inReplyTo`, `attachment`, `sensitive`, `tag`.
-- `summary` is the content warning. An empty warning becomes a zero-width space.
-- `sensitive` is true when a warning is set or any attached file is sensitive.
-- `_misskey_content` and `source` carry the MFM source. They are left out when the text has no MFM. See [mfm](mfm.md).
-- `_misskey_quote` and `quoteUrl` carry the quoted note's URI. See [quote](quote.md). `quoteUri` and a tag `Link` were **[not seen]**.
-- There is no `visibility` property. Visibility is only in `to` and `cc`.
-- `tag` mixes `Hashtag`, `Mention`, and `Emoji` items. Emoji marked local-only are skipped.
+Every property Misskey writes is in `#Note`. Points that the type cannot show:
 
-### Addressing **[study]** `ApRendererService.ts`
+- `summary` is the content warning. An empty warning becomes a zero-width space (U+200B).
+- `sensitive` is true when a warning is set or any attached file is sensitive.
+- `_misskey_content` and `source` carry the MFM source; see [mfm](mfm.md) for when they are present. `_misskey_quote` and `quoteUrl` carry the quoted note's URI; see [quote](quote.md).
+- There is no `visibility` property, and no `url`.
+- `tag` mixes `Hashtag`, `Mention`, and `Emoji` items. Emoji marked local-only are skipped.
+- A poll makes the note a `Question`; see [poll](poll.md).
+
+### Addressing
+
+In the table, *Public* is the IRI `https://www.w3.org/ns/activitystreams#Public`, *followers* is `<actor>/followers`, and *mentioned* are the remote users mentioned in the text.
 
 | Visibility | `to` | `cc` |
 | --- | --- | --- |
-| public | Public collection | followers, plus mentioned remote users |
-| home | followers | Public collection, plus mentioned remote users |
-| followers | followers | mentioned remote users |
-| direct | mentioned users | none |
+| public | Public | followers, mentioned |
+| home | followers | Public, mentioned |
+| followers | followers | mentioned |
+| direct | mentioned | none |
 
-Misskey accepts three spellings of Public: the full IRI, `as:Public`, and `Public`. **[study]**
+## Receiving
 
-## Receiving **[src]** `models/ApNoteService.ts`
+### Which notes are refused **[src]** `models/ApNoteService.ts`
 
-A note is **refused** when:
-- its type is not an accepted post type;
-- its `id` or `attributedTo` is on a different host from the one it was fetched from;
+A note is refused when:
+- its type is not an accepted post type (`Note`, `Question`, `Article`, `Audio`, `Document`, `Image`, `Page`, `Video`, `Event`);
+- its `id` or `attributedTo` is on a different host from the one it was fetched from, or `attributedTo` is not the sending actor;
 - `published` is malformed;
-- `id` is missing or `id`/`url` is not HTTPS;
-- `attributedTo` is missing, or the actor is suspended;
+- `id` is missing, or `id` or `url` is not https;
+- the actor is suspended;
 - the text contains prohibited words;
 - the host is on the block list.
 
-When it is accepted:
-- Text is taken in this order: `source` (media type `text/x.misskeymarkdown`); `_misskey_content`; `content` converted from HTML. Details in [mfm](mfm.md).
-- Visibility is derived from `to` and `cc`. A note fetched by bare URI that would have no visible users is made public.
+### What is kept when it is accepted **[src]** same file
+
+- The text is taken from `source`, `_misskey_content`, or `content` in that order ([mfm](mfm.md)).
+- Visibility comes from `to` and `cc` (next section). A note Misskey fetched by its bare URI, and would otherwise make "direct" with no recipients, is made public.
 - Each attachment's `sensitive` defaults to the note's `sensitive`.
 - Emoji tags are saved. A failure there is logged, and the note is saved anyway.
-- A reply to an unknown parent makes creation fail.
+- A reply to a parent Misskey cannot find makes creation fail.
 - A duplicate returns the existing note.
+
+### Visibility from `to` and `cc` **[src]** `ApAudienceService.ts`
+
+Misskey reads the ids in `to` and `cc` and sorts each into Public, the actor's followers collection, or other. Public is any of `https://www.w3.org/ns/activitystreams#Public`, `as:Public`, and `Public`. The followers collection is the actor's `followers` URL, or `<actor>/followers` if it has none. The first row that matches decides:
+
+| If | Visibility |
+| --- | --- |
+| Public is in `to` | public |
+| Public is in `cc` | home |
+| the followers collection is in `to` or `cc` | followers |
+| none of the above | direct; the other ids that are users are the recipients |
 
 ## Things to watch
 
-- A note whose `id` is on another host than the one it was fetched from is refused.
+- A note whose `id` is on another host than the one Misskey fetched it from is refused.
 - `https` is required for `id` and `url`.
 - A reply to a note that Misskey cannot find fails on the Misskey side.
