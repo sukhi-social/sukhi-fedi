@@ -97,8 +97,8 @@ async function user(id, stop, rec) {
     let status = 0;
     let queued = 0;
     // A browser client waits out a queued 503 (`error: "queued"`) and sends
-    // the same request again with its ticket, for up to 30 s; so does this.
-    const giveUp = Date.now() + 30_000;
+    // the same request again with its ticket, for up to 20 s; so does this.
+    const giveUp = Date.now() + 20_000;
     try {
       for (;;) {
         const res = await fetch(new URL(path, base), { headers, signal: AbortSignal.timeout(15_000) });

@@ -53,7 +53,7 @@ export function reasonText(body: unknown): string | null {
 
 export const QUEUE_TICKET_HEADER = 'x-queue-ticket';
 // 待つのは、合計でこの長さまで。過ぎたら、ふつうの 503(混雑の知らせ)に戻す。
-export const QUEUE_PATIENCE_MS = 30_000;
+export const QUEUE_PATIENCE_MS = 20_000;
 const QUEUE_MIN_MS = 100;
 const QUEUE_MAX_MS = 10_000;
 
