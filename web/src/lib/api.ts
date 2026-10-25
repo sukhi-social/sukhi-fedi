@@ -1,5 +1,15 @@
 import { loadToken, tryRefresh, redirectToLogin } from './auth';
 import { readPushConfig } from './push';
+import {
+  isBusyStatus,
+  retrySeconds,
+  reasonText,
+  markBusy,
+  clearBusy,
+  slowDown,
+  waitTurn,
+  isHeld
+} from './busy.svelte';
 
 export type Field = {
   name: string;
@@ -242,8 +252,16 @@ async function req(method: string, path: string, label: string, init: ReqInit = 
     if (attachAuth) Object.assign(headers, authHeader());
     return fetch(path, { method, headers, body });
   };
+  // 「ゆっくりさせてね」の間は、ここで順番を待つ(busy.svelte.ts)。
+  const sendPaced = async () => {
+    // 429 / 503 の待ちのあいだは、送らずに断る(送ると、サーバの「おいた」
+    // の数に入る)。message はサーバの 429 本文の `error` と同じにしてある。
+    if (isHeld()) throw new Error('rate_limited');
+    await waitTurn();
+    return send();
+  };
 
-  let res = await send();
+  let res = await sendPaced();
 
   // authed (非 optional) な呼び出しが 401 = access token が切れたか
   // revoke された。まず refresh で取り直し、取れたら新しい bearer で
@@ -252,11 +270,25 @@ async function req(method: string, path: string, label: string, init: ReqInit = 
   // (匿名読みは 401 でもセッションを終わらせない) ので素通り。
   if (attachAuth && init.auth !== 'optional' && res.status === 401) {
     const refreshed = await tryRefresh();
-    if (refreshed) res = await send();
+    if (refreshed) res = await sendPaced();
     if (res.status === 401) {
       redirectToLogin();
       throw new Error('unauthorized');
     }
+  }
+
+  // 混雑(429 / 503)は、どの画面から呼んでも一か所で受ける。待つ秒数を
+  // 置くだけで、throw はこれまでどおり ── 画面ごとの扱い(Composer の文言
+  // など)はそのまま働く。成功が返れば混雑は終わったと見る。
+  if (isBusyStatus(res.status)) {
+    const body = await res.clone().json().catch(() => null);
+    markBusy(retrySeconds(res.headers.get('retry-after'), body), reasonText(body));
+  } else if (res.ok) {
+    clearBusy();
+    // 枠の 8 割を超えた、というサーバの合図。まだ 429 ではないので、
+    // 画面には出さず、間隔だけあける。
+    const slow = res.headers.get('x-slow-down');
+    if (slow !== null) slowDown(retrySeconds(slow, null));
   }
 
   if (init.notFound && res.status === 404) throw new Error('not_found');

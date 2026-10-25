@@ -15,7 +15,7 @@ defmodule SukhiFedi.Web.PluginPlugTest do
 
       assert result.status == 503
       assert result.halted
-      assert JSON.decode!(result.resp_body) == %{"error" => "plugin_unavailable"}
+      assert JSON.decode!(result.resp_body) == %{"error" => "plugin_unavailable", "retry_after" => 5}
     end
   end
 

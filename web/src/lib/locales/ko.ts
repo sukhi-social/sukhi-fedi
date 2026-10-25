@@ -210,6 +210,8 @@ export const ko: Dict = {
   'update.available': '새로운 버전이 나왔어요.',
   'update.reload': '다시 읽기',
   'update.later': '나중에',
+  'busy.banner': '지금 혼잡해요. {seconds}초쯤 기다렸다가 다시 해 주세요. 쓴 내용은 그대로 남아 있어요.',
+  'busy.retry': '다시 읽기',
 
   // ── 공지 ─────────────────────────────────────────────
   'announce.label': '공지',

@@ -4,6 +4,7 @@
   import EmailNudge from '#lib/components/EmailNudge.svelte';
   import Feedback from '#lib/components/Feedback.svelte';
   import DeliveryToasts from '#lib/components/DeliveryToasts.svelte';
+  import BusyBanner from '#lib/components/BusyBanner.svelte';
   import UpdateBanner from '#lib/components/UpdateBanner.svelte';
   import AnnouncementsBanner from '#lib/components/AnnouncementsBanner.svelte';
   import { devAutoLogin } from '#lib/auth.js';
@@ -40,6 +41,7 @@
   <AnnouncementsBanner />
   <EmailNudge />
   <UpdateBanner />
+  <BusyBanner />
 
   {@render children?.()}
 

@@ -15,13 +15,14 @@ defmodule SukhiFedi.Web.AccessLogPlug do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    start = System.monotonic_time(:millisecond)
+    start = System.monotonic_time()
     # method は入り口で控える ── この後ろの Plug.Head が HEAD を GET に
     # 書き換えるので、返すときに読むと HEAD が一つも残らない。
     method = conn.method
 
     register_before_send(conn, fn conn ->
-      elapsed = System.monotonic_time(:millisecond) - start
+      duration = System.monotonic_time() - start
+      elapsed = System.convert_time_unit(duration, :native, :millisecond)
       ua = header(conn, "user-agent")
       accept = header(conn, "accept")
       sig = if header(conn, "signature") == "-", do: "unsigned", else: "signed"
@@ -32,6 +33,13 @@ defmodule SukhiFedi.Web.AccessLogPlug do
         "ACCESS #{method} #{conn.request_path}#{query} -> #{conn.status} " <>
           "(#{elapsed}ms) ip=#{remote} ua=#{inspect(ua)} accept=#{inspect(accept)} #{sig}"
       )
+
+      # Same moment, same numbers, for the metrics (PromEx.Load). Here and
+      # not in a second plug: this is the one place that sees every response.
+      :telemetry.execute([:sukhi_fedi, :http, :request], %{duration: duration}, %{
+        group: SukhiFedi.Web.RouteGroup.of(conn),
+        status: SukhiFedi.Web.RouteGroup.status_label(conn.status)
+      })
 
       conn
     end)

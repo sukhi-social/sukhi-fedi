@@ -53,6 +53,30 @@ defmodule SukhiFedi.Web.SpaRoutes do
     end
   end
 
+  @doc """
+  Is this request a browser asking for a page of the SPA — the shell, not
+  data? Used by the rate limiter to leave the shell uncounted: over the
+  limit the visitor still gets a page, and the page then shows the busy
+  notice for the API calls that are limited.
+
+  Only GET/HEAD that accept `text/html` and name a page of the build.
+  ActivityPub fetches of `/@alice` ask for `activity+json`, `__data.json`
+  is data, and with no manifest nothing is known to be a page — all counted.
+  """
+  @spec page_request?(Plug.Conn.t()) :: boolean()
+  def page_request?(%Plug.Conn{method: method} = conn) when method in ["GET", "HEAD"] do
+    html? =
+      conn
+      |> Plug.Conn.get_req_header("accept")
+      |> Enum.any?(&String.contains?(&1, "text/html"))
+
+    segments = conn.request_path |> String.split("/", trim: true)
+
+    html? and List.last(segments) != "__data.json" and classify(segments) == :page
+  end
+
+  def page_request?(_conn), do: false
+
   @doc false
   @spec compile(binary()) :: [[segment()]]
   def compile(json) do
