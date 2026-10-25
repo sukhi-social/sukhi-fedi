@@ -19,7 +19,17 @@ defmodule SukhiFedi.Cache.Ets do
     # 裏で encode した AVIF (Web.MediaTranscode.Worker が置く)
     :media_variants,
     # SukhiFedi.CustomEmojis: local directory + per-key reaction lookups
-    :custom_emojis
+    :custom_emojis,
+    # SukhiFedi.HotCache: 1〜数秒だけ持つ、全員共通の問い合わせ結果
+    :hot_cache,
+    # SukhiFedi.Web.RateIdentity: token hash -> {:ok, account_id} | nil
+    :rate_identity,
+    # SukhiFedi.RpcGate: pids of the calls inside (not TTL'd; the sweep skips them)
+    :rpc_gate,
+    # SukhiFedi.Web.AdmissionQueue: waiting tickets / running requests
+    :admission,
+    :admission_bg,
+    :admission_flight
   ]
   @sweep_interval_ms 60_000
 

@@ -29,10 +29,85 @@ defmodule SukhiFedi.RpcGate do
     :totp_last_used_step
   ]
 
-  @doc "Run `apply(mod, fun, args)` and return what leaves, scrubbed."
+  @table :rpc_gate
+  @default_max 64
+
+  @doc """
+  Run `apply(mod, fun, args)` and return what leaves, scrubbed.
+
+  At most `max_in_flight/0` calls run at once; the next answers
+  `{:badrpc, :overloaded}` at once, which the api node already turns into a
+  503. Past that point more concurrent work cannot finish sooner — it only
+  queues for the same few DB connections until the caller's own timeout
+  fires and the work is thrown away half-done. Refusing at the door costs
+  nothing and leaves the calls already inside room to finish.
+  """
   @spec call(module(), atom(), [term()]) :: term()
   def call(mod, fun, args) when is_atom(mod) and is_atom(fun) and is_list(args) do
-    mod |> apply(fun, args) |> scrub()
+    if admit() do
+      try do
+        mod |> apply(fun, args) |> scrub()
+      after
+        release()
+      end
+    else
+      {:badrpc, :overloaded}
+    end
+  end
+
+  def max_in_flight,
+    do: Application.get_env(:sukhi_fedi, :rpc_max_in_flight, @default_max)
+
+  # The slots are the pids of the calls inside, not a counter: a call killed
+  # by its caller's timeout never runs its `after`, and a counter would leak
+  # that slot for good. A pid entry is simply dropped once the process is
+  # gone — the table is swept only when it looks full.
+  defp admit do
+    ensure_table()
+    :ets.insert(@table, {self()})
+
+    if :ets.info(@table, :size) <= max_in_flight() do
+      true
+    else
+      sweep_dead()
+
+      if :ets.info(@table, :size) <= max_in_flight() do
+        true
+      else
+        :ets.delete(@table, self())
+        false
+      end
+    end
+  rescue
+    # The table is the limiter's, not the call's: if it is missing, let the
+    # call through rather than fail it.
+    ArgumentError -> true
+  end
+
+  # `Cache.Ets` makes the table at boot and keeps it for the node's life. An
+  # ETS table dies with the process that made it, and a call is a short-lived
+  # process, so a table made here would vanish under the calls beside it —
+  # this is only the way out for a test that never started `Cache.Ets`.
+  defp ensure_table do
+    if :ets.whereis(@table) == :undefined do
+      try do
+        :ets.new(@table, [:named_table, :public, :set, write_concurrency: true])
+      rescue
+        ArgumentError -> :ok
+      end
+    end
+  end
+
+  defp release do
+    :ets.delete(@table, self())
+  rescue
+    ArgumentError -> :ok
+  end
+
+  defp sweep_dead do
+    @table
+    |> :ets.tab2list()
+    |> Enum.each(fn {pid} -> if not Process.alive?(pid), do: :ets.delete(@table, pid) end)
   end
 
   @doc false

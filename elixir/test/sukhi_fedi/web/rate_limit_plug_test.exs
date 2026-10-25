@@ -108,4 +108,40 @@ defmodule SukhiFedi.Web.RateLimitPlugTest do
       assert retry == "60"
     end
   end
+
+  describe "identify" do
+    defp from_ip(path, ip), do: conn(:get, path) |> Plug.Conn.put_req_header("cf-connecting-ip", ip)
+
+    defp account_by_header(conn) do
+      case Plug.Conn.get_req_header(conn, "x-test-account") do
+        [id] -> {:ok, String.to_integer(id)}
+        _ -> nil
+      end
+    end
+
+    test "an identified request is counted as its account, not its address" do
+      o = opts(identify: &account_by_header/1)
+
+      # Two people behind one address, each with their own window of 2.
+      for id <- ["1", "2"], _ <- 1..2 do
+        c = from_ip("/api/x", "203.0.113.9") |> Plug.Conn.put_req_header("x-test-account", id)
+        refute RateLimitPlug.call(c, o).halted
+      end
+
+      # Nobody identified from the same address has a window of its own too.
+      refute RateLimitPlug.call(from_ip("/api/x", "203.0.113.9"), o).halted
+    end
+
+    test "the same account on another address shares its one window" do
+      o = opts(identify: &account_by_header/1)
+
+      for ip <- ["203.0.113.1", "203.0.113.2"] do
+        c = from_ip("/api/x", ip) |> Plug.Conn.put_req_header("x-test-account", "7")
+        refute RateLimitPlug.call(c, o).halted
+      end
+
+      c = from_ip("/api/x", "203.0.113.3") |> Plug.Conn.put_req_header("x-test-account", "7")
+      assert RateLimitPlug.call(c, o).status == 429
+    end
+  end
 end

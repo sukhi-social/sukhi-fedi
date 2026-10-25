@@ -23,6 +23,8 @@ defmodule SukhiFedi.Web.PluginPlug do
   import Plug.Conn
   require Logger
 
+  alias SukhiFedi.Web.AdmissionQueue
+
   @behaviour Plug
 
   @timeout 5_000
@@ -55,17 +57,40 @@ defmodule SukhiFedi.Web.PluginPlug do
         send_err(conn, 503, "plugin_unavailable")
 
       node ->
-        case build_request(conn) do
-          {:ok, req, conn} ->
-            forward(conn, node, mod, fun, req, timeout)
+        # Before the body is read: a request sent away to wait costs nothing.
+        case AdmissionQueue.admit(conn) do
+          :free ->
+            run(conn, node, mod, fun, timeout)
 
-          {:error, :body_too_large, conn} ->
-            send_err(conn, 413, "request_body_too_large")
+          :ok ->
+            started = System.monotonic_time()
 
-          {:error, reason, conn} ->
-            Logger.warning("PluginPlug: read_body failed #{inspect(reason)}")
-            send_err(conn, 400, "bad_request_body")
+            try do
+              run(conn, node, mod, fun, timeout)
+            after
+              AdmissionQueue.leave(started)
+            end
+
+          {:wait, ticket, position, retry_after_ms} ->
+            AdmissionQueue.respond_wait(conn, ticket, position, retry_after_ms)
+
+          {:full, seconds} ->
+            AdmissionQueue.respond_full(conn, seconds)
         end
+    end
+  end
+
+  defp run(conn, node, mod, fun, timeout) do
+    case build_request(conn) do
+      {:ok, req, conn} ->
+        forward(conn, node, mod, fun, req, timeout)
+
+      {:error, :body_too_large, conn} ->
+        send_err(conn, 413, "request_body_too_large")
+
+      {:error, reason, conn} ->
+        Logger.warning("PluginPlug: read_body failed #{inspect(reason)}")
+        send_err(conn, 400, "bad_request_body")
     end
   end
 

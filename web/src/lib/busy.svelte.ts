@@ -8,7 +8,17 @@
 
 import { slotFor } from './busy.js';
 
-export { isBusyStatus, retrySeconds, reasonText } from './busy.js';
+export {
+  isBusyStatus,
+  retrySeconds,
+  reasonText,
+  queueTicket,
+  QUEUE_TICKET_HEADER,
+  QUEUE_PATIENCE_MS,
+  QUEUE_PATIENCE_BG_MS,
+  PURPOSE_HEADER,
+  patienceMs
+} from './busy.js';
 
 export const busy = $state<{ until: number; reason: string | null }>({ until: 0, reason: null });
 

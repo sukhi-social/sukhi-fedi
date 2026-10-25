@@ -4,6 +4,10 @@ import {
   isBusyStatus,
   retrySeconds,
   reasonText,
+  queueTicket,
+  QUEUE_TICKET_HEADER,
+  PURPOSE_HEADER,
+  patienceMs,
   markBusy,
   clearBusy,
   slowDown,
@@ -231,6 +235,9 @@ type ReqInit = {
   json?: unknown; // JSON request body
   form?: FormData; // multipart request body
   notFound?: boolean; // map a 404 to Error('not_found')
+  // 画面の前で人が待っていない呼び出し(既読の控えなど)。混んでいれば人を
+  // 先に通してもらい、そのかわり長く黙って待つ。
+  background?: boolean;
 };
 
 async function req(method: string, path: string, label: string, init: ReqInit = {}): Promise<Response> {
@@ -247,21 +254,39 @@ async function req(method: string, path: string, label: string, init: ReqInit = 
 
   // 送るたびに今の token を読む ─ refresh で差し替わった直後の再送が
   // 古い bearer を掴まないように。
-  const send = () => {
+  const send = (ticket?: number) => {
     const headers = { ...baseHeaders };
     if (attachAuth) Object.assign(headers, authHeader());
+    if (ticket !== undefined) headers[QUEUE_TICKET_HEADER] = String(ticket);
+    if (init.background) headers[PURPOSE_HEADER] = 'background';
     return fetch(path, { method, headers, body });
   };
   // 「ゆっくりさせてね」の間は、ここで順番を待つ(busy.svelte.ts)。
-  const sendPaced = async () => {
+  const sendPaced = async (ticket?: number) => {
     // 429 / 503 の待ちのあいだは、送らずに断る(送ると、サーバの「おいた」
     // の数に入る)。message はサーバの 429 本文の `error` と同じにしてある。
     if (isHeld()) throw new Error('rate_limited');
     await waitTurn();
-    return send();
+    return send(ticket);
+  };
+  // 混んでいるとき、サーバは 503 に整理券を付けて返す。画面には出さず、言わ
+  // れた時間だけ待って、券を付けて送り直す(順番が来るまで)。待つのは
+  // patienceMs まで(人 20 秒、裏 120 秒)。過ぎたら、その 503 をふつうの混雑として扱う。
+  // 券つきの 503 は、サーバが仕事に手を付ける前に返したものなので、本文を
+  // 持つ POST も安全に送り直せる。
+  const sendQueued = async () => {
+    const giveUp = Date.now() + patienceMs(init.background === true);
+    let res = await sendPaced();
+    while (res.status === 503) {
+      const q = queueTicket(await res.clone().json().catch(() => null));
+      if (!q || Date.now() + q.waitMs > giveUp) break;
+      await new Promise((r) => setTimeout(r, q.waitMs));
+      res = await sendPaced(q.ticket);
+    }
+    return res;
   };
 
-  let res = await sendPaced();
+  let res = await sendQueued();
 
   // authed (非 optional) な呼び出しが 401 = access token が切れたか
   // revoke された。まず refresh で取り直し、取れたら新しい bearer で
@@ -270,7 +295,7 @@ async function req(method: string, path: string, label: string, init: ReqInit = 
   // (匿名読みは 401 でもセッションを終わらせない) ので素通り。
   if (attachAuth && init.auth !== 'optional' && res.status === 401) {
     const refreshed = await tryRefresh();
-    if (refreshed) res = await sendPaced();
+    if (refreshed) res = await sendQueued();
     if (res.status === 401) {
       redirectToLogin();
       throw new Error('unauthorized');
@@ -994,14 +1019,17 @@ export async function clearNotifications(): Promise<void> {
 // 「どこまで見たか」のサーバ側の控え(Mastodon の markers)。端末をまたいで
 // 同じ通知を「新着」と数えないための正本。取れなければ null。
 export async function getNotificationMarker(): Promise<string | null> {
-  const res = await req('GET', '/api/v1/markers?timeline[]=notifications', 'marker_get');
+  const res = await req('GET', '/api/v1/markers?timeline[]=notifications', 'marker_get', {
+    background: true
+  });
   const body = await json<{ notifications?: { last_read_id?: string } }>(res);
   return body.notifications?.last_read_id ?? null;
 }
 
 export async function setNotificationMarker(lastReadId: string): Promise<void> {
   await req('POST', '/api/v1/markers', 'marker_set', {
-    json: { notifications: { last_read_id: lastReadId } }
+    json: { notifications: { last_read_id: lastReadId } },
+    background: true
   });
 }
 

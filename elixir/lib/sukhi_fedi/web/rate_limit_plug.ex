@@ -39,6 +39,14 @@ defmodule SukhiFedi.Web.RateLimitPlug do
                      (see `:skip_if`): a banned browser gets the page that
                      explains, not a blank one.
 
+    * `:identify`  — `fun(conn) :: {:ok, account_id} | nil`. A request it
+                     names is counted under that account instead of the
+                     peer's IP (and sits out a penalty box under it too).
+                     For people who share a connection (a school, a
+                     carrier's NAT) with someone who does not play fair.
+                     `nil` leaves the request on its IP. Default: nobody
+                     is identified. See `SukhiFedi.Web.RateIdentity`.
+
   Example:
 
       plug SukhiFedi.Web.RateLimitPlug, bucket: "inbox", limit: 300, scale_ms: 60_000
@@ -56,6 +64,7 @@ defmodule SukhiFedi.Web.RateLimitPlug do
       bucket: Keyword.get(opts, :bucket, "rl"),
       skip_prefixes: Keyword.get(opts, :skip_prefixes, []),
       skip_if: Keyword.get(opts, :skip_if, fn _conn -> false end),
+      identify: Keyword.get(opts, :identify, fn _conn -> nil end),
       soft: Keyword.get(opts, :soft, 0.8),
       strikes: Keyword.get(opts, :strikes),
       strike_window_ms: Keyword.get(opts, :strike_window_ms, 600_000),
@@ -70,8 +79,12 @@ defmodule SukhiFedi.Web.RateLimitPlug do
       else: limit(conn, opts)
   end
 
-  defp limit(conn, %{bucket: bucket} = opts) do
-    id = peer_id(conn)
+  defp limit(conn, %{bucket: bucket, identify: identify} = opts) do
+    id =
+      case identify.(conn) do
+        {:ok, account_id} -> "acct:#{account_id}"
+        _ -> peer_id(conn)
+      end
 
     case banned_for(bucket, id, opts) do
       nil -> count(conn, bucket, id, opts)

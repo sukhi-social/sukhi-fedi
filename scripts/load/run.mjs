@@ -25,7 +25,8 @@
 //   --stages 10,50,100  concurrent users per stage
 //   --seconds 60        length of each stage
 //   --think 1           mean seconds between one user's requests
-//   --token T           bearer for the home timeline (omit: skipped)
+//   --token T[,T…]      bearer(s) for the home timeline, comma-separated; user N
+//                       uses the (N mod count)th (omit: home is skipped)
 //   --metrics-token T   bearer for /metrics (omit: skipped)
 //   --spread            give every user its own cf-connecting-ip (default);
 //                       --no-spread puts all of them behind one address,
@@ -73,6 +74,7 @@ const MIX = [
   ['shell', 1, '/', false, true],
   ['timeline_home', 3, '/api/v1/timelines/home?limit=20', true, false]
 ].filter((m) => !m[3] || o.token);
+const tokens = (o.token ?? '').split(',').filter(Boolean);
 const total = MIX.reduce((n, m) => n + m[1], 0);
 
 function pick() {
@@ -90,18 +92,36 @@ async function user(id, stop, rec) {
   while (Date.now() < stop) {
     const [group, , path, , html] = pick();
     const headers = { 'cf-connecting-ip': ip, accept: html ? 'text/html' : 'application/json' };
-    if (o.token && path.includes('/home')) headers.authorization = `Bearer ${o.token}`;
+    if (tokens.length && path.includes('/home')) headers.authorization = `Bearer ${tokens[id % tokens.length]}`;
     const t0 = performance.now();
     let status = 0;
+    let queued = 0;
+    // A browser client waits out a queued 503 (`error: "queued"`) and sends
+    // the same request again with its ticket, for up to 20 s; so does this.
+    const giveUp = Date.now() + 20_000;
     try {
-      const res = await fetch(new URL(path, base), { headers, signal: AbortSignal.timeout(15_000) });
-      await res.arrayBuffer();
-      status = res.status;
+      for (;;) {
+        const res = await fetch(new URL(path, base), { headers, signal: AbortSignal.timeout(15_000) });
+        const text = await res.text();
+        status = res.status;
+        if (status !== 503) break;
+        let q = null;
+        try {
+          q = JSON.parse(text);
+        } catch {}
+        const ticket = Number(q?.queue?.ticket);
+        if (q?.error !== 'queued' || !(ticket > 0)) break;
+        const wait = Math.min(10_000, Math.max(100, Number(q.retry_after_ms) || 1000));
+        if (Date.now() + wait > giveUp) break;
+        queued++;
+        await sleep(wait);
+        headers['x-queue-ticket'] = String(ticket);
+      }
     } catch {
       status = 0; // timeout or connection refused
     }
     const ms = performance.now() - t0;
-    (rec[group] ??= []).push({ status, ms });
+    (rec[group] ??= []).push({ status, ms, queued });
     await sleep(think * 1000 * (0.5 + Math.random()));
   }
 }
@@ -150,6 +170,7 @@ function report(users, rec, elapsed) {
       r429: n((x) => x.status === 429),
       r503: n((x) => x.status === 503),
       r5xx: n((x) => x.status >= 500 && x.status !== 503),
+      queued: xs.filter((x) => x.queued > 0).length, // requests that had to wait in line at least once
       err: n((x) => x.status === 0),
       p50: pct(ms, 0.5),
       p95: pct(ms, 0.95)
