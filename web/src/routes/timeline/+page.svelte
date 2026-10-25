@@ -63,20 +63,21 @@
   let tag = $state('');
   let pendingTag = $state('');
 
-  let items = $state<Status[]>(seed.page.items);
+  let items = $state<Status[]>([]);
   // WebTransport の live 新着はここに溜め、「新着 N 件」で明示的に見せる（calm-UX。
   // 勝手に頭へ差し込まない）。home のときだけ ── karutte が押す feed は local+user＝
   // まさにホームの構成なので、それを live で受ける。
   let incoming = $state<Status[]>([]);
-  let nextMaxId = $state<string | null>(seed.page.nextMaxId);
+  let nextMaxId = $state<string | null>(null);
   let loading = $state(false);
-  let error = $state<string | null>(seed.failed ? $t('common.deliverFailedRetry') : null);
+  let error = $state<string | null>(null);
   // 「繋がらなくて失敗した」状態。エラー文ではなく静かな待ち表示を出し、
   // つながりが戻ったら自動で読み直す(retry が裏で叩いている)。
-  let offline = $state(seed.offline);
+  let offline = $state(false);
   let retry: ReturnType<typeof autoRetry> | null = null;
-  // load が一枚を持っているので、初回の「読み込み中」は無い。
-  let initial = $state(false);
+  // 一枚目は load が取りに行っている最中。殻は先に出し、届くまでは
+  // 「読み込み中」を見せる(届く前にタブ・フィルターを触ったら、そちらが勝つ)。
+  let initial = $state(true);
 
   // 次のページを裏で先に取っておく置き場。クリックを待たずに用意して
   // おくので「もっと読む」が一瞬で返る。先読みが空なら本当に終わりと
@@ -99,17 +100,29 @@
   onMount(() => {
     loggedIn = isLoggedIn();
     retry = autoRetry(() => load(true));
-    if (data.unauthorized) {
-      clearToken();
-      void goto('/');
-      return () => retry?.stop();
-    }
-    // 初回の一枚は load が先に取っている。ここでは取り直さず、次ページの
-    // 先読みだけ起こす。繋がらなかったときは、静かな再試行の輪に入る。
-    if (data.offline) retry.fail();
-    if (nextMaxId) void prefetchNext(nextMaxId);
+    void settleFirst();
     return () => retry?.stop();
   });
+
+  // load が取りに行っている一枚目を受け取る。先に別の取得(タブ切替など)が
+  // 走っていたら、そちらが勝つので何もしない。
+  async function settleFirst() {
+    const first = await data.first;
+    if (!initial) return;
+    initial = false;
+    if (first.unauthorized) {
+      clearToken();
+      void goto('/');
+      return;
+    }
+    if (first.failed) error = $t('common.deliverFailedRetry');
+    items = first.page.items;
+    nextMaxId = first.page.nextMaxId;
+    // 繋がらなかったときは、静かな再試行の輪に入る。
+    if (first.offline) retry?.fail();
+    offline = first.offline;
+    if (nextMaxId) void prefetchNext(nextMaxId);
+  }
 
   // home のとき、WebTransport で live 新着を受ける。kind が変わると張り直す
   // （home 以外では止める）。届いた status は incoming に溜めるだけ（reveal で出す）。
@@ -149,6 +162,8 @@
     if (loading) return;
     loading = true;
     error = null;
+    // 一枚目の到着を待っている途中でも、こちらが勝つ(settleFirst は手を引く)。
+    initial = false;
 
     if (reset) {
       offline = false;
@@ -335,7 +350,7 @@
     <p class="loading">{$t('common.reconnecting')}</p>
   {:else if error}
     <p class="error">{error}</p>
-  {:else if initial && loading}
+  {:else if initial}
     <p class="loading">{$t('common.loading')}</p>
   {:else if items.length === 0 && !loading}
     <p class="prose-small">
