@@ -44,6 +44,10 @@ defmodule SukhiFedi.Web.RateIdentity do
       nil -> nil
       {kind, token} -> cached(conn, kind, token)
     end
+  rescue
+    # The cache table is not there (a unit test that never started
+    # `Cache.Ets`): nobody is identified, the request stays on its IP.
+    ArgumentError -> nil
   end
 
   defp cached(conn, kind, token) do

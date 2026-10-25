@@ -4,6 +4,12 @@ defmodule SukhiFedi.HotCacheTest do
 
   alias SukhiFedi.HotCache
 
+  # `mix test --no-start` (make test-elixir) leaves the cache tables unmade.
+  setup_all do
+    if Process.whereis(SukhiFedi.Cache.Ets) == nil, do: start_supervised!(SukhiFedi.Cache.Ets)
+    :ok
+  end
+
   defp counted(counter), do: fn -> Agent.get_and_update(counter, &{&1 + 1, &1 + 1}) end
 
   test "runs the function once within the TTL" do

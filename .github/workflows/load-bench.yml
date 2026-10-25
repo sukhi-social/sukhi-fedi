@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Load benchmark: the same read-only mix (scripts/load/run.mjs) against the
+# PR's head and against main, on one runner, one after the other, with the
+# server pinned to a single core and a real Postgres beside it. The table
+# lands in the job summary. It reports, it does not gate — except that a
+# 5xx other than 503 on head fails it. A shared runner is noisy: compare the
+# two columns, not the numbers against a box.
+#
+# This is also the only workflow that compiles and boots the Elixir code.
+name: load-bench
+
+on:
+  pull_request:
+    paths:
+      - "elixir/**"
+      - "api/**"
+      - "shared/**"
+      - "combined/**"
+      - "scripts/load/**"
+      - ".github/workflows/load-bench.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: head
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: base
+
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: head
+          install: true
+          cache: true
+
+      - name: Cache deps and builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            head/combined/deps
+            head/combined/_build
+            base/combined/deps
+            base/combined/_build
+          key: bench-${{ runner.os }}-${{ hashFiles('head/combined/mix.lock') }}-${{ github.sha }}
+          restore-keys: |
+            bench-${{ runner.os }}-${{ hashFiles('head/combined/mix.lock') }}-
+            bench-${{ runner.os }}-
+
+      - run: mix local.hex --force && mix local.rebar --force
+
+      - name: Benchmark main
+        working-directory: head
+        run: scripts/load/ci.sh ../base base
+        env:
+          OUT: ${{ github.workspace }}/out
+
+      - name: Benchmark head
+        working-directory: head
+        run: scripts/load/ci.sh . head
+        env:
+          OUT: ${{ github.workspace }}/out
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        working-directory: head
+        run: node scripts/load/compare.mjs ../out/base.json ../out/head.json | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: load-bench
+          path: out/
+          retention-days: 7
