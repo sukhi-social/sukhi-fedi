@@ -21,7 +21,9 @@ defmodule SukhiFedi.Cache.Ets do
     # SukhiFedi.CustomEmojis: local directory + per-key reaction lookups
     :custom_emojis,
     # SukhiFedi.HotCache: 1〜数秒だけ持つ、全員共通の問い合わせ結果
-    :hot_cache
+    :hot_cache,
+    # SukhiFedi.Web.RateIdentity: token hash -> {:ok, account_id} | nil
+    :rate_identity
   ]
   @sweep_interval_ms 60_000
 

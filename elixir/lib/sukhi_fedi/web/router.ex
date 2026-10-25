@@ -45,6 +45,10 @@ defmodule SukhiFedi.Web.Router do
     scale_ms: 60_000,
     skip_prefixes: ["/static/", "/_app/", "/twemoji/"],
     skip_if: &SukhiFedi.Web.SpaRoutes.page_request?/1,
+    # Signed in, a month old: counted as the account, not as the address
+    # (and boxed in as the account) — so a shared connection does not share
+    # one person's trouble. Everyone else stays on the IP.
+    identify: &SukhiFedi.Web.RateIdentity.identify/1,
     # Past 80% the answers say `x-slow-down` (the web client spaces itself).
     # An origin that still collects 20 denials in 10 minutes sits out 15.
     soft: 0.8,
