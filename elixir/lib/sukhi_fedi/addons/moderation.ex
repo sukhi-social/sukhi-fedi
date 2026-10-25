@@ -76,8 +76,19 @@ defmodule SukhiFedi.Addons.Moderation do
   """
   def hidden_author_ids(nil), do: []
 
-  def hidden_author_ids(account_id) when is_integer(account_id),
-    do: blocked_target_ids(account_id) ++ muted_target_ids(account_id)
+  def hidden_author_ids(account_id) when is_integer(account_id) do
+    # One round trip for both sets (blocks ∪ live mutes), not two.
+    now = DateTime.utc_now()
+
+    blocks = from b in Block, where: b.account_id == ^account_id, select: b.target_id
+
+    Repo.all(
+      from m in Mute,
+        where: m.account_id == ^account_id and (is_nil(m.expires_at) or m.expires_at > ^now),
+        select: m.target_id,
+        union: ^blocks
+    )
+  end
 
   @doc "Subset of `target_ids` that have blocked `account_id` (reverse blocks)."
   def blocked_by_ids(account_id, target_ids) when is_integer(account_id) and is_list(target_ids) do
@@ -334,13 +345,18 @@ defmodule SukhiFedi.Addons.Moderation do
   """
   @spec silenced_author_ids() :: [integer()]
   def silenced_author_ids do
-    Repo.all(
-      from a in Account,
-        join: i in InstanceBlock,
-        on: i.domain == a.domain,
-        where: i.severity == "silence",
-        select: a.id
-    )
+    # Same for every viewer and read on every timeline request, so it is
+    # kept a few seconds (SukhiFedi.HotCache) — a new silence takes effect
+    # within that window.
+    SukhiFedi.HotCache.fetch(:silenced_author_ids, SukhiFedi.HotCache.ttl(:moderation_sets), fn ->
+      Repo.all(
+        from a in Account,
+          join: i in InstanceBlock,
+          on: i.domain == a.domain,
+          where: i.severity == "silence",
+          select: a.id
+      )
+    end)
   end
 
   @doc """
@@ -375,7 +391,9 @@ defmodule SukhiFedi.Addons.Moderation do
   """
   @spec bubble_domains() :: [String.t()]
   def bubble_domains do
-    Repo.all(from b in BubbleInstance, select: b.domain)
+    SukhiFedi.HotCache.fetch(:bubble_domains, SukhiFedi.HotCache.ttl(:moderation_sets), fn ->
+      Repo.all(from b in BubbleInstance, select: b.domain)
+    end)
   end
 
   @spec add_bubble_instance(String.t(), integer()) ::

@@ -15,7 +15,7 @@ defmodule SukhiFedi.Timelines do
 
   import Ecto.Query
 
-  alias SukhiFedi.{Repo, Snowflake}
+  alias SukhiFedi.{HotCache, Repo, Snowflake}
   alias SukhiFedi.Lists
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Schema.{Account, Boost, Follow, Note, Tag}
@@ -42,7 +42,10 @@ defmodule SukhiFedi.Timelines do
   turns each into a reblog Status. Notes come back as `%Note{}` as before.
   """
   @spec home(Account.t() | integer(), keyword() | map()) :: [Note.t() | map()]
-  def home(%Account{id: id, username: username}, opts \\ []) do
+  def home(%Account{} = account, opts \\ []),
+    do: held(fn -> home_query(account, opts) end)
+
+  defp home_query(%Account{id: id, username: username}, opts) do
     opts = normalize_opts(opts)
     limit = opts |> Map.get(:limit, @default_limit) |> clamp_limit()
 
@@ -133,7 +136,7 @@ defmodule SukhiFedi.Timelines do
     # RT(ブースト)を隠すフィルタ。home だけがブーストを混ぜるので、ここで止める。
     # per-list の hide_boosts メンバーは boost_account_ids から既に引いてある。
     boosts =
-      if opts[:hide_boosts], do: [], else: home_boosts(boost_account_ids, opts, limit, id)
+      if opts[:hide_boosts], do: [], else: home_boosts(boost_account_ids, opts, limit, id, hidden)
 
     # Both notes (id) and boost wrappers (synthesized id) share one
     # time-sortable id space, so a plain id-desc merge is chronological.
@@ -156,14 +159,14 @@ defmodule SukhiFedi.Timelines do
   # public/unlisted notes surface — a followers-only or direct note must not
   # leak into the home feed via someone else's boost. Paged in the same
   # id space as notes (see `@snowflake_epoch_ms`).
-  defp home_boosts(account_ids, opts, limit, viewer_id) do
+  defp home_boosts(account_ids, opts, limit, viewer_id, hidden \\ nil) do
     # A boost carries its boosted note's author into the feed too, so drop
     # boosts of anyone the viewer has muted or blocked — the same authors
     # whose own notes are already hidden — plus anyone on a silenced instance.
     # (A muted *booster* is filtered upstream via `account_ids`; this closes
     # the other door, where someone the viewer follows boosts a muted or
     # silenced account's post.)
-    hidden = Moderation.hidden_author_ids(viewer_id) ++ Moderation.silenced_author_ids()
+    hidden = hidden || Moderation.hidden_author_ids(viewer_id) ++ Moderation.silenced_author_ids()
 
     # The boosted `Note` is a joined (non-leading) binding here, so the
     # visibility rules — hidden authors, public/unlisted — apply as `where`s
@@ -252,6 +255,10 @@ defmodule SukhiFedi.Timelines do
   @spec public(keyword() | map()) :: [Note.t()]
   def public(opts \\ []) do
     opts = normalize_opts(opts)
+    cached_head(:public, opts, :public_timeline, fn -> held(fn -> public_query(opts) end) end)
+  end
+
+  defp public_query(opts) do
     local? = Map.get(opts, :local, true)
 
     # Silenced instances stay off public too, for everyone (anonymous
@@ -289,6 +296,10 @@ defmodule SukhiFedi.Timelines do
   @spec bubble(keyword() | map()) :: [Note.t()]
   def bubble(opts \\ []) do
     opts = normalize_opts(opts)
+    cached_head(:bubble, opts, :bubble_timeline, fn -> held(fn -> bubble_query(opts) end) end)
+  end
+
+  defp bubble_query(opts) do
     viewer_id = Map.get(opts, :viewer_id)
 
     # The allow-set is the one gate (Moderation.bubble_domains/0). A trusted
@@ -328,6 +339,13 @@ defmodule SukhiFedi.Timelines do
   @spec tag(String.t(), keyword() | map()) :: [Note.t()]
   def tag(hashtag, opts \\ []) when is_binary(hashtag) do
     opts = normalize_opts(opts)
+
+    cached_head({:tag, hashtag}, opts, :tag_timeline, fn ->
+      held(fn -> tag_query(hashtag, opts) end)
+    end)
+  end
+
+  defp tag_query(hashtag, opts) do
     local? = Map.get(opts, :local, true)
     name = hashtag |> String.trim_leading("#") |> String.downcase()
 
@@ -348,6 +366,30 @@ defmodule SukhiFedi.Timelines do
     |> Repo.all()
     |> Repo.preload([:account, :media, :tags])
     |> SukhiFedi.Notes.with_refs()
+  end
+
+  # ── one connection, one short cache ─────────────────────────────────────
+
+  # A timeline asks the database ten-odd things in a row (the follow set,
+  # hidden authors, the page, then account / media / tags / refs for it).
+  # Left alone, each of those checks a connection out of the pool on its own
+  # and queues behind every other request's — and Ecto runs the preloads in
+  # parallel tasks, each taking another. Under load the pool's queue then
+  # drops whichever one is unlucky, and the request dies half-built. Holding
+  # one connection for the whole read means one wait, at the door: a request
+  # either gets in or fails at once, and its preloads run in sequence on the
+  # connection it already has.
+  defp held(fun), do: Repo.checkout(fun)
+
+  # Public, tag and bubble feeds read the same for everyone, so the first
+  # page (no cursor) is kept a second or two (SukhiFedi.HotCache). Cursor
+  # pages are not: they are different per client and rarely repeat.
+  defp cached_head(kind, opts, ttl_name, fun) do
+    if Enum.any?([:max_id, :since_id, :min_id], &(opts[&1] != nil)) do
+      fun.()
+    else
+      HotCache.fetch({:timeline, kind, opts}, HotCache.ttl(ttl_name), fun)
+    end
   end
 
   # ── paging ───────────────────────────────────────────────────────────────

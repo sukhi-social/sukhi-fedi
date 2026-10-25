@@ -29,6 +29,9 @@ config :sukhi_fedi, SukhiFedi.Repo,
   # lock is unnecessary here.
   migration_lock: false
 
+# Tests roll the DB back between cases; an answer kept in memory would not.
+config :sukhi_fedi, :hot_cache, false
+
 config :sukhi_fedi, Oban, testing: :inline
 
 # Link-preview generation fetches arbitrary URLs over the network; keep it

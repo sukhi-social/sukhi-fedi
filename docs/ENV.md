@@ -41,6 +41,8 @@ top — those win.
 | `DB_HOST` | no | `localhost` | Container DNS name. Compose: `postgres`. Kamal: `sukhi-fedi-postgres`. |
 | `DB_NAME` | no | `sukhi_fedi` | Database name. |
 | `DB_POOL_SIZE` | no | `10` (gateway) / `5` (delivery) | Ecto pool. Tune up if `pg_stat_activity` shows constant waits. |
+| `DB_QUEUE_TARGET_MS` / `DB_QUEUE_INTERVAL_MS` | no | `50` / `1000` | Gateway pool: a checkout that has waited past the target for a whole interval is dropped (503 `busy`). Raise only if drops happen while the DB is idle. |
+| `RPC_MAX_IN_FLIGHT` | no | `24` | Calls from the api node that may run on the gateway at once (`SukhiFedi.RpcGate`); the next gets `{:badrpc, :overloaded}` → 503 at once instead of queueing behind the DB pool. |
 
 ## NATS (gateway, delivery, bun)
 

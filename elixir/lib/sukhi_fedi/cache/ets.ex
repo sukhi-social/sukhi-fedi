@@ -19,7 +19,9 @@ defmodule SukhiFedi.Cache.Ets do
     # 裏で encode した AVIF (Web.MediaTranscode.Worker が置く)
     :media_variants,
     # SukhiFedi.CustomEmojis: local directory + per-key reaction lookups
-    :custom_emojis
+    :custom_emojis,
+    # SukhiFedi.HotCache: 1〜数秒だけ持つ、全員共通の問い合わせ結果
+    :hot_cache
   ]
   @sweep_interval_ms 60_000
 

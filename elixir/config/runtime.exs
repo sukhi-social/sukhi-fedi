@@ -216,7 +216,17 @@ if config_env() == :prod do
     username: System.fetch_env!("DB_USER"),
     password: System.fetch_env!("DB_PASS"),
     hostname: System.get_env("DB_HOST", "localhost"),
-    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10"))
+    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
+    # DBConnection drops a checkout that has waited longer than
+    # queue_target for a whole queue_interval. Defaults 50 / 1000 ms.
+    queue_target: String.to_integer(System.get_env("DB_QUEUE_TARGET_MS", "50")),
+    queue_interval: String.to_integer(System.get_env("DB_QUEUE_INTERVAL_MS", "1000"))
+
+  # Calls the api node may have running on this node at once
+  # (SukhiFedi.RpcGate); the next is refused, not queued.
+  config :sukhi_fedi,
+         :rpc_max_in_flight,
+         String.to_integer(System.get_env("RPC_MAX_IN_FLIGHT", "24"))
 
   config :sukhi_fedi, :nats,
     host: System.get_env("NATS_HOST", "127.0.0.1"),
