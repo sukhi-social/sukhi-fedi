@@ -44,7 +44,13 @@ defmodule SukhiFedi.Web.Router do
     limit: 500,
     scale_ms: 60_000,
     skip_prefixes: ["/static/", "/_app/", "/twemoji/"],
-    skip_if: &SukhiFedi.Web.SpaRoutes.page_request?/1
+    skip_if: &SukhiFedi.Web.SpaRoutes.page_request?/1,
+    # Past 80% the answers say `x-slow-down` (the web client spaces itself).
+    # An origin that still collects 20 denials in 10 minutes sits out 15.
+    soft: 0.8,
+    strikes: 20,
+    strike_window_ms: 600_000,
+    ban_ms: 900_000
   )
 
   # HEAD を GET として捌く。Plug.Router の `get` は GET しか拾わないので、

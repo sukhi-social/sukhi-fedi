@@ -16,7 +16,7 @@ defmodule SukhiFedi.PromEx.Load do
       Tags: `result` (`ok`, or the `badrpc` reason such as `timeout`).
       Duration bucketed up to the 5 s timeout: a pile in the top bucket
       is the "fails slowly" shape from the 0.5 OCPU test.
-    * `[:sukhi_fedi, :rate_limit, :deny]` — `RateLimitPlug`. Tag `bucket`.
+    * `[:sukhi_fedi, :rate_limit, :deny]` — `RateLimitPlug`. Tags `bucket` and `reason` (`limit`, or `penalty` for a peer in the penalty box).
 
   Read them with `GET /metrics` (bearer), or the load test's summary.
   """
@@ -49,8 +49,9 @@ defmodule SukhiFedi.PromEx.Load do
       counter(
         [:sukhi_fedi, :rate_limit, :deny, :total],
         event_name: [:sukhi_fedi, :rate_limit, :deny],
-        description: "Requests turned away with 429, by limiter bucket.",
-        tags: [:bucket]
+        description:
+          "Requests turned away with 429, by limiter bucket and reason (limit | penalty).",
+        tags: [:bucket, :reason]
       )
     ])
   end

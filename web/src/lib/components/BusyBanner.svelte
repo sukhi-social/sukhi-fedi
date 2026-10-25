@@ -22,7 +22,10 @@
 
 {#if show}
   <aside class="busy-banner" role="status" aria-live="polite">
-    <p>{$t('busy.banner', { seconds })}</p>
+    <p>
+      {$t('busy.banner', { seconds })}
+      {#if busy.reason}<br /><strong>{busy.reason}</strong>{/if}
+    </p>
     <button type="button" class="btn secondary px-3 py-1" onclick={() => window.location.reload()}>
       {$t('busy.retry')}
     </button>

@@ -20,3 +20,27 @@ export function retrySeconds(header: string | null, body: unknown): number {
   const n = [fromHeader, fromBody].find((x) => Number.isFinite(x) && x > 0) ?? FALLBACK_SECONDS;
   return Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, Math.ceil(n)));
 }
+
+// 「ゆっくりさせてね」の間、リクエストの開始を、この間隔より詰めない。
+// 500 回/分の枠に対して 1 秒に 1 回(60 回/分)なら、慌てなくても超えない。
+export const SLOW_GAP_MS = 1000;
+
+// ゆっくりのあいだ、次のリクエストをいつ始めてよいか。`slowUntil` を過ぎて
+// いれば待たない。`nextFree` は、前のリクエストの後ろに並ぶ位置。
+export function slotFor(
+  now: number,
+  slowUntil: number,
+  nextFree: number,
+  gap: number = SLOW_GAP_MS
+): { wait: number; nextFree: number } {
+  if (now >= slowUntil) return { wait: 0, nextFree: now };
+  const start = Math.max(now, nextFree);
+  return { wait: start - now, nextFree: start + gap };
+}
+
+// 本文の `reason`(おいたはダメだよ〜 のような、人向けのひとこと)。
+export function reasonText(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null || !('reason' in body)) return null;
+  const r = (body as { reason: unknown }).reason;
+  return typeof r === 'string' && r.trim() !== '' ? r.trim().slice(0, 200) : null;
+}
