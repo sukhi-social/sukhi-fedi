@@ -7,7 +7,8 @@ import {
   markBusy,
   clearBusy,
   slowDown,
-  waitTurn
+  waitTurn,
+  isHeld
 } from './busy.svelte';
 
 export type Field = {
@@ -253,6 +254,9 @@ async function req(method: string, path: string, label: string, init: ReqInit = 
   };
   // 「ゆっくりさせてね」の間は、ここで順番を待つ(busy.svelte.ts)。
   const sendPaced = async () => {
+    // 429 / 503 の待ちのあいだは、送らずに断る(送ると、サーバの「おいた」
+    // の数に入る)。message はサーバの 429 本文の `error` と同じにしてある。
+    if (isHeld()) throw new Error('rate_limited');
     await waitTurn();
     return send();
   };

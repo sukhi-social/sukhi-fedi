@@ -18,6 +18,15 @@ export function markBusy(seconds: number, reason: string | null = null, now: num
   slowDown(seconds, now);
 }
 
+// 429 / 503 を受けたら、`retry-after` が過ぎるまで、こちらからは送らない。
+// 送れば、そのぶん 429 がまた返り、返るたびにサーバ側の「おいた」の数に
+// 入る。ゆっくり(間隔をあける)だけでは、制限の窓の中にいるあいだ 1 秒に
+// 1 回ずつ叩き続けて、長めの制限に入ってしまう。`busy.until` は表示用、
+// こちらは送るかどうかの判断。成功が返れば(clearBusy)解く。
+export function isHeld(now: number = Date.now()): boolean {
+  return now < busy.until;
+}
+
 export function clearBusy() {
   if (busy.until !== 0) busy.until = 0;
   busy.reason = null;
