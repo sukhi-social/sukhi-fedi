@@ -45,6 +45,7 @@ top — those win.
 | `RPC_MAX_IN_FLIGHT` | no | `64` | Backstop: calls from the api node that may run on the gateway at once (`SukhiFedi.RpcGate`); the next gets `{:badrpc, :overloaded}` → 503. The queue below normally keeps this from being reached. |
 | `ADMISSION_MAX_IN_FLIGHT` | no | `64` | `/api/*` requests running at once (`Web.AdmissionQueue`). The next gets `503` + `x-queue-ticket` + its place in line; the client comes back for its turn. |
 | `ADMISSION_HOLD_MS` | no | `300` | How long a request waits for a slot before it is given a ticket (and a ticket holder before it is told to come back). |
+| `ADMISSION_MAX_WAIT_MS` | no | `15000` | A place in line expected to take longer than this is refused up front: a plain 503 with `retry-after` and `x-slow-down`, so the client stays away rather than queue for longer than a person will wait. |
 | `ADMISSION_QUEUE_MAX` | no | `500` | Longest line. Past it, a plain 503 with no ticket. |
 
 ## NATS (gateway, delivery, bun)

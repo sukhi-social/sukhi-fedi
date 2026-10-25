@@ -139,7 +139,8 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
     running()
     running()
     assert {:wait, _, 1, _} = AdmissionQueue.admit(plain())
-    assert AdmissionQueue.admit(plain()) == :full
+    assert {:full, secs} = AdmissionQueue.admit(plain())
+    assert secs >= 5
   end
 
   test "a request waits a moment for a slot before it is sent away" do
@@ -158,6 +159,26 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
     Application.put_env(:sukhi_fedi, :admission_hold_ms, 500)
     spawn(fn -> Process.sleep(60) && send(a, :done) end)
     assert AdmissionQueue.admit(with_ticket(t1)) == :ok
+  end
+
+  test "a place that would take too long is refused up front, with how long to stay away" do
+    running()
+    running()
+    # a request takes 10 s here, two at a time: place 4 would wait 20 s
+    :ets.insert(:admission, {:ewma, 10_000.0})
+    assert {:wait, _, 1, _} = AdmissionQueue.admit(plain())
+    assert {:wait, _, 2, _} = AdmissionQueue.admit(plain())
+    assert {:wait, _, 3, _} = AdmissionQueue.admit(plain())
+    assert {:full, secs} = AdmissionQueue.admit(plain())
+    assert secs >= 20
+  end
+
+  test "the refusal says how long to stay away and asks the client to slow down" do
+    c = AdmissionQueue.respond_full(plain(), 12)
+    assert c.status == 503
+    assert Plug.Conn.get_resp_header(c, "retry-after") == ["12"]
+    assert Plug.Conn.get_resp_header(c, "x-slow-down") == ["12"]
+    assert %{"error" => "busy", "retry_after" => 12} = JSON.decode!(c.resp_body)
   end
 
   test "the queued 503 carries the ticket in the header and the place in the body" do

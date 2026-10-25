@@ -71,8 +71,8 @@ defmodule SukhiFedi.Web.PluginPlug do
           {:wait, ticket, position, retry_after_ms} ->
             AdmissionQueue.respond_wait(conn, ticket, position, retry_after_ms)
 
-          :full ->
-            send_err(conn, 503, "plugin_busy")
+          {:full, seconds} ->
+            AdmissionQueue.respond_full(conn, seconds)
         end
     end
   end

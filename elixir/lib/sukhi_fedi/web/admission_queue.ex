@@ -41,16 +41,18 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   @default_ewma_ms 150
   @min_wait_ms 50
   @default_hold_ms 300
+  @default_max_wait_ms 15_000
   @poll_ms 10
   @max_wait_ms 5_000
 
   @type verdict ::
           :ok
-          | :full
+          | {:full, retry_after_s :: pos_integer()}
           | {:wait, ticket :: pos_integer(), position :: pos_integer(), retry_after_ms :: pos_integer()}
 
   def max, do: Application.get_env(:sukhi_fedi, :admission_max, @default_max)
   def queue_max, do: Application.get_env(:sukhi_fedi, :admission_queue_max, @default_queue_max)
+  def max_wait_ms, do: Application.get_env(:sukhi_fedi, :admission_max_wait_ms, @default_max_wait_ms)
   def hold_ms, do: Application.get_env(:sukhi_fedi, :admission_hold_ms, @default_hold_ms)
 
   @doc """
@@ -123,12 +125,16 @@ defmodule SukhiFedi.Web.AdmissionQueue do
       {:wait, t, rank, wait}
     else
       waiting = live_count(now)
+      rank = waiting + 1
+      total = total_wait_ms(rank)
 
-      if waiting >= queue_max() do
-        :full
+      # Say no early, and say when to come back, rather than promise a wait
+      # longer than a person will sit through: the line is full, or this
+      # place would take longer than `max_wait_ms/0`.
+      if waiting >= queue_max() or total > max_wait_ms() do
+        {:full, refuse_seconds(total)}
       else
         n = :ets.update_counter(@tickets, :next, 1, {:next, 0})
-        rank = waiting + 1
         wait = estimate_ms(rank)
         :ets.insert(@tickets, {n, now + wait, div(now, 1000) + @ticket_ttl_s})
         {:wait, n, rank, wait}
@@ -192,6 +198,21 @@ defmodule SukhiFedi.Web.AdmissionQueue do
     |> halt()
   end
 
+  @doc """
+  Send the plain refusal: a 503 that says how long to stay away, in
+  `retry-after`, and asks well-behaved clients to space their requests
+  (`x-slow-down`) for that long.
+  """
+  @spec respond_full(Plug.Conn.t(), pos_integer()) :: Plug.Conn.t()
+  def respond_full(conn, seconds) do
+    conn
+    |> put_resp_header("retry-after", Integer.to_string(seconds))
+    |> put_resp_header("x-slow-down", Integer.to_string(seconds))
+    |> put_resp_content_type("application/json")
+    |> send_resp(503, JSON.encode!(%{error: "busy", retry_after: seconds}))
+    |> halt()
+  end
+
   # ── internals ────────────────────────────────────────────────────────────
 
   defp enter, do: :ets.insert(@flight, {self()})
@@ -237,10 +258,15 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   # How long until `rank` slots are likely to have freed: the node finishes
   # `max/0` requests per average request time, so the nth in line waits
   # about n/max of it.
-  defp estimate_ms(rank) do
-    per = lookup(:ewma) || @default_ewma_ms
-    round(min(@max_wait_ms, Kernel.max(@min_wait_ms, per * rank / max())))
-  end
+  defp estimate_ms(rank), do: round(min(@max_wait_ms, Kernel.max(@min_wait_ms, total_wait_ms(rank))))
+
+  # The whole wait for place `rank`, not clamped to one visit.
+  defp total_wait_ms(rank), do: (lookup(:ewma) || @default_ewma_ms) * rank / max()
+
+  # How long to tell a refused client to stay away: about as long as the line
+  # is, but never under 5 s (a retry that soon only adds to the pile) or over
+  # a minute.
+  defp refuse_seconds(total_ms), do: trunc(min(60, Kernel.max(5, total_ms / 1000)))
 
   defp lookup(key) do
     case :ets.lookup(@tickets, key) do

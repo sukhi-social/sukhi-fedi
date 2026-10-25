@@ -240,6 +240,10 @@ if config_env() == :prod do
          String.to_integer(System.get_env("ADMISSION_HOLD_MS", "300"))
 
   config :sukhi_fedi,
+         :admission_max_wait_ms,
+         String.to_integer(System.get_env("ADMISSION_MAX_WAIT_MS", "15000"))
+
+  config :sukhi_fedi,
          :admission_queue_max,
          String.to_integer(System.get_env("ADMISSION_QUEUE_MAX", "500"))
 
