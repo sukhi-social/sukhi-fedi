@@ -60,6 +60,7 @@ defmodule SukhiFedi.Web.AdmissionQueue do
 
   @type verdict ::
           :ok
+          | :free
           | {:full, retry_after_s :: pos_integer()}
           | {:wait, ticket :: pos_integer(), position :: pos_integer(), retry_after_ms :: pos_integer()}
 
@@ -73,7 +74,7 @@ defmodule SukhiFedi.Web.AdmissionQueue do
 
   @doc """
   Ask to run this request now. `:ok` means a slot is held — pair it with
-  `leave/1`. `{:wait, …}` carries the ticket to hand the client.
+  `leave/1`; `:free` means the request is too cheap to count (`heavy?/1`). `{:wait, …}` carries the ticket to hand the client.
 
   An interactive request is first held for a moment (`hold_ms/0`, a few
   hundred milliseconds, re-checking every few): a burst usually clears in
@@ -83,13 +84,32 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   """
   @spec admit(Plug.Conn.t()) :: verdict()
   def admit(%Plug.Conn{} = conn) do
-    ensure_tables()
-    cls = class(conn)
-    await(cls, ticket(conn), now_ms() + hold(cls))
+    if heavy?(conn) do
+      ensure_tables()
+      cls = class(conn)
+      await(cls, ticket(conn), now_ms() + hold(cls))
+    else
+      :free
+    end
   rescue
     # The tables are the queue's, not the request's: with no line to keep,
     # run the request rather than refuse it.
     ArgumentError -> :ok
+  end
+
+  @doc """
+  False for a request that costs next to nothing: an anonymous read with no
+  cursor, which is served from the short cache. Those never join the line --
+  they would only be stuck behind the slow ones that fill the slots. Writes,
+  anything signed in (the home timeline, notifications) and anything paging
+  past the cached head are heavy.
+  """
+  @spec heavy?(Plug.Conn.t()) :: boolean()
+  def heavy?(%Plug.Conn{} = conn) do
+    conn.method not in ["GET", "HEAD"] or
+      get_req_header(conn, "authorization") != [] or
+      get_req_header(conn, "x-queue-ticket") != [] or
+      Regex.match?(~r/(^|&)(max_id|since_id|min_id|offset)=/, conn.query_string)
   end
 
   @doc "`:background` when the client says nobody is watching; else `:interactive`."

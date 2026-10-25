@@ -59,6 +59,9 @@ defmodule SukhiFedi.Web.PluginPlug do
       node ->
         # Before the body is read: a request sent away to wait costs nothing.
         case AdmissionQueue.admit(conn) do
+          :free ->
+            run(conn, node, mod, fun, timeout)
+
           :ok ->
             started = System.monotonic_time()
 

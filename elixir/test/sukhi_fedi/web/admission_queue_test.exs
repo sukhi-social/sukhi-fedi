@@ -29,7 +29,7 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
   end
 
   defp background, do: Plug.Conn.put_req_header(plain(), "x-sukhi-purpose", "background")
-  defp plain, do: conn(:get, "/api/v1/timelines/public")
+  defp plain, do: conn(:get, "/api/v1/timelines/home") |> Plug.Conn.put_req_header("authorization", "Bearer t")
   defp with_ticket(t), do: Plug.Conn.put_req_header(plain(), "x-queue-ticket", Integer.to_string(t))
 
   # A request that is running: admitted in its own process, held until told.
@@ -224,5 +224,14 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
     bg = Plug.Conn.put_req_header(background(), "x-queue-ticket", Integer.to_string(t))
     :ets.insert(:admission_bg, {t, 0, System.system_time(:second) + 30})
     assert AdmissionQueue.ticket_due?(bg)
+  end
+
+  test "a cheap anonymous read never joins the line, even when it is full" do
+    running()
+    running()
+    assert {:wait, _, _, _} = AdmissionQueue.admit(plain())
+    assert AdmissionQueue.admit(conn(:get, "/api/v1/timelines/public")) == :free
+    assert AdmissionQueue.heavy?(conn(:get, "/api/v1/timelines/public?max_id=5"))
+    assert AdmissionQueue.heavy?(conn(:post, "/api/v1/statuses"))
   end
 end
