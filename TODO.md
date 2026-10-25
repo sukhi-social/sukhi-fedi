@@ -125,6 +125,19 @@ endpoint surface is mapped out in [`docs/MISSKEY_API.md`](docs/MISSKEY_API.md).
       capability that returns `{upload_url, fields}`. Design in
       [OPEN_QUESTIONS Q5](OPEN_QUESTIONS.md#q5-メディア-8-mib--presigned-url-の-capability-形).
 
+- [ ] **混んでいるときの表示を、正直に、ゆったりと (クライアント)。**
+      (1) **SPA の白紙を解く。** 混雑で 503 / 429 になったとき、画面が白紙のまま
+      何も言わないことがある。何が起きているか (混んでいる、少し待てば戻る) を
+      そのまま画面に出し、白紙にしない。待機列の番号は人には見せず
+      (`web/src/lib/api.ts` の `sendQueued` が静かに待つ)、見せるのは「混んでいる」
+      という事実と、いつ戻すかだけ。
+      (2) **表示に遅れを入れて、早すぎる転換を減らす。** 読み込み中 → 内容 →
+      エラーが一瞬で入れ替わると、せわしなく感じる。表示の切り替えに短い遅れ
+      (読み込み中の表示は少し待ってから出す、出したら最低限の間は消さない、
+      など) を入れて、ちらつきを減らし、ゆったり待つことに慣れてもらう。
+      遅れの長さは、実機で見て決める (仮: 出すまで 150 ms、出したら 400 ms 以上)。
+      関連: PR #64 (待機列と `x-sukhi-purpose`)。
+
 - [ ] **`custom_emojis` のローカル絵文字に一意制約が効いていない.**
       `unique_index(:custom_emojis, [:shortcode, :domain])` は、`domain` が
       NULL (= ローカル) の行どうしを「別物」として扱うので、同じ shortcode が
