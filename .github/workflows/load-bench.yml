@@ -69,7 +69,10 @@ jobs:
             bench-${{ runner.os }}-${{ hashFiles('head/combined/mix.lock') }}-
             bench-${{ runner.os }}-
 
-      - run: mix local.hex --force && mix local.rebar --force
+      # In head/: mise's shims pick their version from the mise.toml above the cwd.
+      - name: Hex and rebar
+        working-directory: head
+        run: mix local.hex --force && mix local.rebar --force
 
       - name: Benchmark main
         working-directory: head
