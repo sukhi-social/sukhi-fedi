@@ -17,6 +17,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
       actor_for: 1,
       followee_endpoints: 1,
       follower_uri_to_account: 1,
+      followed_inboxes: 1,
       followers_inboxes: 1,
       local_actor_uri: 1,
       note_author_inbox: 1,
@@ -302,14 +303,19 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
   # The owner closed the account (SukhiFedi.AccountDeletion). One `Delete`
   # whose object is the actor itself — the shape Mastodon and Misskey take
   # as "forget this person". It is enqueued after the notes are gone and
-  # the follow rows are kept, so the followers are still here to read.
+  # the follow rows are kept, so both the followers and the accounts this
+  # one followed (which hold its Follow) are still here to read.
   def actor_deleted(%{"account_id" => account_id}) do
     case actor_for(account_id) do
       nil ->
         :no_actor
 
       %{actor_uri: actor_uri} ->
-        recipients = followers_inboxes(actor_uri) ++ relay_inboxes()
+        recipients =
+          Enum.uniq(
+            followers_inboxes(actor_uri) ++ followed_inboxes(actor_uri) ++ relay_inboxes()
+          )
+
         activity_id = "#{actor_uri}#delete"
 
         payload = %{
