@@ -54,6 +54,14 @@ export function reasonText(body: unknown): string | null {
 export const QUEUE_TICKET_HEADER = 'x-queue-ticket';
 // 待つのは、合計でこの長さまで。過ぎたら、ふつうの 503(混雑の知らせ)に戻す。
 export const QUEUE_PATIENCE_MS = 20_000;
+// 人が画面を見て待つ呼び出しと、裏で走るもの(既読の控え、定期の取得)は、待ち
+// 方が違う。裏のものは「後ろに回してよい」と名乗り(x-sukhi-purpose)、サーバは
+// 人を先に通す。そのかわり、こちらは長く黙って待てる。
+export const PURPOSE_HEADER = 'x-sukhi-purpose';
+export const QUEUE_PATIENCE_BG_MS = 120_000;
+export function patienceMs(background: boolean): number {
+  return background ? QUEUE_PATIENCE_BG_MS : QUEUE_PATIENCE_MS;
+}
 const QUEUE_MIN_MS = 100;
 const QUEUE_MAX_MS = 10_000;
 

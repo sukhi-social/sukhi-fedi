@@ -22,7 +22,7 @@
 
   async function poll() {
     try {
-      const res = await fetch('/api/map');
+      const res = await fetch('/api/map', { headers: { 'x-sukhi-purpose': 'background' } });
       if (!res.ok) throw new Error(String(res.status));
       sample = await res.json();
       failed = false;

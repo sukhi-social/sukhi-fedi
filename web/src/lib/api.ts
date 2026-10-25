@@ -6,7 +6,8 @@ import {
   reasonText,
   queueTicket,
   QUEUE_TICKET_HEADER,
-  QUEUE_PATIENCE_MS,
+  PURPOSE_HEADER,
+  patienceMs,
   markBusy,
   clearBusy,
   slowDown,
@@ -234,6 +235,9 @@ type ReqInit = {
   json?: unknown; // JSON request body
   form?: FormData; // multipart request body
   notFound?: boolean; // map a 404 to Error('not_found')
+  // 画面の前で人が待っていない呼び出し(既読の控えなど)。混んでいれば人を
+  // 先に通してもらい、そのかわり長く黙って待つ。
+  background?: boolean;
 };
 
 async function req(method: string, path: string, label: string, init: ReqInit = {}): Promise<Response> {
@@ -254,6 +258,7 @@ async function req(method: string, path: string, label: string, init: ReqInit = 
     const headers = { ...baseHeaders };
     if (attachAuth) Object.assign(headers, authHeader());
     if (ticket !== undefined) headers[QUEUE_TICKET_HEADER] = String(ticket);
+    if (init.background) headers[PURPOSE_HEADER] = 'background';
     return fetch(path, { method, headers, body });
   };
   // 「ゆっくりさせてね」の間は、ここで順番を待つ(busy.svelte.ts)。
@@ -266,11 +271,11 @@ async function req(method: string, path: string, label: string, init: ReqInit = 
   };
   // 混んでいるとき、サーバは 503 に整理券を付けて返す。画面には出さず、言わ
   // れた時間だけ待って、券を付けて送り直す(順番が来るまで)。待つのは
-  // QUEUE_PATIENCE_MS まで。過ぎたら、その 503 をふつうの混雑として扱う。
+  // patienceMs まで(人 20 秒、裏 120 秒)。過ぎたら、その 503 をふつうの混雑として扱う。
   // 券つきの 503 は、サーバが仕事に手を付ける前に返したものなので、本文を
   // 持つ POST も安全に送り直せる。
   const sendQueued = async () => {
-    const giveUp = Date.now() + QUEUE_PATIENCE_MS;
+    const giveUp = Date.now() + patienceMs(init.background === true);
     let res = await sendPaced();
     while (res.status === 503) {
       const q = queueTicket(await res.clone().json().catch(() => null));
@@ -1014,14 +1019,17 @@ export async function clearNotifications(): Promise<void> {
 // 「どこまで見たか」のサーバ側の控え(Mastodon の markers)。端末をまたいで
 // 同じ通知を「新着」と数えないための正本。取れなければ null。
 export async function getNotificationMarker(): Promise<string | null> {
-  const res = await req('GET', '/api/v1/markers?timeline[]=notifications', 'marker_get');
+  const res = await req('GET', '/api/v1/markers?timeline[]=notifications', 'marker_get', {
+    background: true
+  });
   const body = await json<{ notifications?: { last_read_id?: string } }>(res);
   return body.notifications?.last_read_id ?? null;
 }
 
 export async function setNotificationMarker(lastReadId: string): Promise<void> {
   await req('POST', '/api/v1/markers', 'marker_set', {
-    json: { notifications: { last_read_id: lastReadId } }
+    json: { notifications: { last_read_id: lastReadId } },
+    background: true
   });
 }
 

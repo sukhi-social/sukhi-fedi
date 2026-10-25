@@ -13,11 +13,23 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   *without* one gets in only when nobody is waiting, so a late arrival
   cannot jump the line.
 
-  Everything is in two ETS tables owned by `Cache.Ets`:
+  **A person waiting and a program waiting are not the same.** A request
+  that carries `x-sukhi-purpose: background` (a poll, a read-marker sync,
+  anything nobody is watching) goes behind every interactive request in line,
+  is never held on a socket, is told to come back less often, and is
+  refused only when its place would take minutes (`max_wait_bg_ms/0`), not
+  seconds (`max_wait_ms/0`). Everything else is interactive: a person is
+  looking at it, so it is held briefly for a slot, ticketed with short waits,
+  and refused up front when the wait would pass what a person will sit
+  through.
+
+  Everything is in three ETS tables owned by `Cache.Ets`:
 
     * `:admission` — `{ticket, not_before_ms, expires_s}` per waiting ticket,
       plus `{:next, n}` (the next ticket number) and `{:ewma, ms}` (how long
       a request takes, for the wait estimate). Only the 3-tuples are swept.
+    * `:admission_bg` — the same `{ticket, not_before_ms, expires_s}` rows for
+      background tickets (numbers come from the one counter).
     * `:admission_flight` — `{pid}` per request running. A pid, not a
       counter, so a request that dies without cleaning up frees its slot.
 
@@ -34,6 +46,7 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   import Plug.Conn
 
   @tickets :admission
+  @bg :admission_bg
   @flight :admission_flight
   @ticket_ttl_s 30
   @default_max 64
@@ -42,8 +55,8 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   @min_wait_ms 50
   @default_hold_ms 300
   @default_max_wait_ms 15_000
+  @default_max_wait_bg_ms 120_000
   @poll_ms 10
-  @max_wait_ms 5_000
 
   @type verdict ::
           :ok
@@ -53,61 +66,77 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   def max, do: Application.get_env(:sukhi_fedi, :admission_max, @default_max)
   def queue_max, do: Application.get_env(:sukhi_fedi, :admission_queue_max, @default_queue_max)
   def max_wait_ms, do: Application.get_env(:sukhi_fedi, :admission_max_wait_ms, @default_max_wait_ms)
+  def max_wait_bg_ms,
+    do: Application.get_env(:sukhi_fedi, :admission_max_wait_bg_ms, @default_max_wait_bg_ms)
+
   def hold_ms, do: Application.get_env(:sukhi_fedi, :admission_hold_ms, @default_hold_ms)
 
   @doc """
   Ask to run this request now. `:ok` means a slot is held — pair it with
   `leave/1`. `{:wait, …}` carries the ticket to hand the client.
 
-  Before sending anyone away, wait for them (`hold_ms/0`, a few hundred
-  milliseconds, re-checking every few): a burst usually clears in that time,
-  and a client that holds a ticket takes its slot the moment one is free
-  rather than at its next visit. Only a request that is still blocked after
-  that is turned into a place in line.
+  An interactive request is first held for a moment (`hold_ms/0`, a few
+  hundred milliseconds, re-checking every few): a burst usually clears in
+  that time, and a ticket holder takes its slot the moment one is free
+  rather than at its next visit. A background request is not held. Only a
+  request still blocked is turned into a place in line.
   """
   @spec admit(Plug.Conn.t()) :: verdict()
   def admit(%Plug.Conn{} = conn) do
     ensure_tables()
-    await(ticket(conn), now_ms() + hold_ms())
+    cls = class(conn)
+    await(cls, ticket(conn), now_ms() + hold(cls))
   rescue
     # The tables are the queue's, not the request's: with no line to keep,
     # run the request rather than refuse it.
     ArgumentError -> :ok
   end
 
-  defp await(t, deadline) do
+  @doc "`:background` when the client says nobody is watching; else `:interactive`."
+  @spec class(Plug.Conn.t()) :: :interactive | :background
+  def class(%Plug.Conn{} = conn) do
+    case get_req_header(conn, "x-sukhi-purpose") do
+      ["background" | _] -> :background
+      _ -> :interactive
+    end
+  end
+
+  defp hold(:interactive), do: hold_ms()
+  defp hold(:background), do: 0
+
+  defp await(cls, t, deadline) do
     now = now_ms()
 
-    case try_enter(t, now) do
+    case try_enter(cls, t, now) do
       :ok ->
         :ok
 
       :blocked ->
         if now < deadline do
           Process.sleep(@poll_ms)
-          await(t, deadline)
+          await(cls, t, deadline)
         else
-          park(t, now)
+          park(cls, t, now)
         end
     end
   end
 
   # A live ticket gets in when fewer tickets are ahead of it than there are
   # free slots. No ticket (or a dead one) gets in only if there are more free
-  # slots than tickets waiting — it cannot take a place a ticket holds.
-  defp try_enter(t, now) do
+  # slots than tickets ahead of it — it cannot take a place a ticket holds.
+  defp try_enter(cls, t, now) do
     free = max() - in_flight()
 
-    if is_integer(t) and live?(t, now) do
-      if rank(t, now) <= free do
-        :ets.delete(@tickets, t)
+    if is_integer(t) and live?(cls, t, now) do
+      if rank(cls, t, now) <= free do
+        :ets.delete(table(cls), t)
         enter()
         :ok
       else
         :blocked
       end
     else
-      if free > live_count(now) do
+      if free > waiting(cls, now) do
         enter()
         :ok
       else
@@ -117,26 +146,27 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   end
 
   # Still blocked after the hold: keep (or start) a place in line.
-  defp park(t, now) do
-    if is_integer(t) and live?(t, now) do
-      rank = rank(t, now)
-      wait = estimate_ms(rank)
-      touch(t, now, wait)
+  defp park(cls, t, now) do
+    if is_integer(t) and live?(cls, t, now) do
+      rank = rank(cls, t, now)
+      wait = estimate_ms(cls, rank)
+      touch(cls, t, now, wait)
       {:wait, t, rank, wait}
     else
-      waiting = live_count(now)
-      rank = waiting + 1
+      ahead = waiting(cls, now)
+      rank = ahead + 1
       total = total_wait_ms(rank)
 
       # Say no early, and say when to come back, rather than promise a wait
-      # longer than a person will sit through: the line is full, or this
-      # place would take longer than `max_wait_ms/0`.
-      if waiting >= queue_max() or total > max_wait_ms() do
-        {:full, refuse_seconds(total)}
+      # longer than this kind of client will sit through: the line is full,
+      # or this place would take longer than the limit for its class.
+      if live_count(@tickets, now) + live_count(@bg, now) >= queue_max() or
+           total > max_wait(cls) do
+        {:full, refuse_seconds(cls, total)}
       else
         n = :ets.update_counter(@tickets, :next, 1, {:next, 0})
-        wait = estimate_ms(rank)
-        :ets.insert(@tickets, {n, now + wait, div(now, 1000) + @ticket_ttl_s})
+        wait = estimate_ms(cls, rank)
+        :ets.insert(table(cls), {n, now + wait, div(now, 1000) + @ticket_ttl_s})
         {:wait, n, rank, wait}
       end
     end
@@ -164,7 +194,7 @@ defmodule SukhiFedi.Web.AdmissionQueue do
       t when is_integer(t) ->
         now = now_ms()
 
-        case :ets.lookup(@tickets, t) do
+        case :ets.lookup(table(class(conn)), t) do
           [{^t, not_before, expires_s}] -> expires_s > div(now, 1000) and now >= not_before
           _ -> false
         end
@@ -233,40 +263,56 @@ defmodule SukhiFedi.Web.AdmissionQueue do
     end
   end
 
-  defp live?(t, now) do
-    match?([{^t, _, exp}] when exp > div(now, 1000), :ets.lookup(@tickets, t))
+  defp table(:interactive), do: @tickets
+  defp table(:background), do: @bg
+
+  defp max_wait(:interactive), do: max_wait_ms()
+  defp max_wait(:background), do: max_wait_bg_ms()
+
+  defp live?(cls, t, now) do
+    match?([{^t, _, exp}] when exp > div(now, 1000), :ets.lookup(table(cls), t))
   end
 
-  # Tickets ahead of `t` that are still live, plus itself.
-  defp rank(t, now) do
+  # Interactive tickets all stand ahead of background ones.
+  defp rank(:interactive, t, now), do: 1 + count_below(@tickets, t, now)
+  defp rank(:background, t, now), do: 1 + live_count(@tickets, now) + count_below(@bg, t, now)
+
+  # Tickets ahead of a newcomer of this class.
+  defp waiting(:interactive, now), do: live_count(@tickets, now)
+  defp waiting(:background, now), do: live_count(@tickets, now) + live_count(@bg, now)
+
+  defp count_below(tab, t, now) do
     s = div(now, 1000)
 
-    1 +
-      :ets.select_count(@tickets, [
-        {{:"$1", :_, :"$2"}, [{:andalso, {:<, :"$1", t}, {:>, :"$2", s}}], [true]}
-      ])
+    :ets.select_count(tab, [
+      {{:"$1", :_, :"$2"}, [{:andalso, {:<, :"$1", t}, {:>, :"$2", s}}], [true]}
+    ])
   end
 
-  defp live_count(now) do
+  defp live_count(tab, now) do
     s = div(now, 1000)
-    :ets.select_count(@tickets, [{{:_, :_, :"$1"}, [{:>, :"$1", s}], [true]}])
+    :ets.select_count(tab, [{{:_, :_, :"$1"}, [{:>, :"$1", s}], [true]}])
   end
 
-  defp touch(t, now, wait),
-    do: :ets.insert(@tickets, {t, now + wait, div(now, 1000) + @ticket_ttl_s})
+  defp touch(cls, t, now, wait),
+    do: :ets.insert(table(cls), {t, now + wait, div(now, 1000) + @ticket_ttl_s})
 
-  # How long until `rank` slots are likely to have freed: the node finishes
-  # `max/0` requests per average request time, so the nth in line waits
-  # about n/max of it.
-  defp estimate_ms(rank), do: round(min(@max_wait_ms, Kernel.max(@min_wait_ms, total_wait_ms(rank))))
+  # How long until a slot is likely to be theirs, for one visit. A person
+  # gets short waits; a program, long ones (it has nothing else to do).
+  defp estimate_ms(:interactive, rank),
+    do: round(min(5_000, Kernel.max(@min_wait_ms, total_wait_ms(rank))))
 
-  # The whole wait for place `rank`, not clamped to one visit.
+  defp estimate_ms(:background, rank),
+    do: round(min(10_000, Kernel.max(500, total_wait_ms(rank))))
+
+  # The whole wait for place `rank`: the node finishes `max/0` requests per
+  # average request time, so the nth in line waits about n/max of it.
   defp total_wait_ms(rank), do: (lookup(:ewma) || @default_ewma_ms) * rank / max()
 
   # How long to tell a refused client to stay away: about as long as the line
-  # is, but never under 5 s (a retry that soon only adds to the pile) or over
-  # a minute.
-  defp refuse_seconds(total_ms), do: trunc(min(60, Kernel.max(5, total_ms / 1000)))
+  # is — a person's within 5-60 s, a program's within 30-300 s.
+  defp refuse_seconds(:interactive, total_ms), do: trunc(min(60, Kernel.max(5, total_ms / 1000)))
+  defp refuse_seconds(:background, total_ms), do: trunc(min(300, Kernel.max(30, total_ms / 1000)))
 
   defp lookup(key) do
     case :ets.lookup(@tickets, key) do
@@ -290,7 +336,7 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   # (an ETS table dies with the process that made it). This is only the way
   # out for a test that never started it.
   defp ensure_tables do
-    for {name, opts} <- [{@tickets, [:set]}, {@flight, [:set]}] do
+    for {name, opts} <- [{@tickets, [:set]}, {@bg, [:set]}, {@flight, [:set]}] do
       if :ets.whereis(name) == :undefined do
         try do
           :ets.new(name, [:named_table, :public, write_concurrency: true] ++ opts)

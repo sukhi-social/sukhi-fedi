@@ -25,7 +25,7 @@ defmodule SukhiFedi.Web.CorsPlug do
   import Plug.Conn
 
   @allow_methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-  @default_allow_headers "authorization, content-type, idempotency-key, x-queue-ticket"
+  @default_allow_headers "authorization, content-type, idempotency-key, x-queue-ticket, x-sukhi-purpose"
   @expose_headers "link, x-ratelimit-limit, x-ratelimit-remaining, x-ratelimit-reset, x-queue-ticket, retry-after"
 
   # Defence-in-depth response headers, attached to every response.

@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isBusyStatus, queueTicket, reasonText, retrySeconds, slotFor } from './busy.ts';
+import { isBusyStatus, patienceMs, QUEUE_PATIENCE_MS, queueTicket, reasonText, retrySeconds, slotFor } from './busy.ts';
 
 test('retrySeconds prefers the header, then the body, then a default', () => {
   assert.equal(retrySeconds('30', { retry_after: 5 }), 30);
@@ -65,4 +65,9 @@ test('queueTicket is null for anything that is not a queued 503', () => {
   assert.equal(queueTicket({ error: 'plugin_busy', retry_after: 5 }), null);
   assert.equal(queueTicket({ error: 'queued', queue: { ticket: 0 } }), null);
   assert.equal(queueTicket({ error: 'queued', queue: {} }), null);
+});
+
+test('a background caller is willing to wait longer than a person', () => {
+  assert.ok(patienceMs(true) > patienceMs(false));
+  assert.equal(patienceMs(false), QUEUE_PATIENCE_MS);
 });

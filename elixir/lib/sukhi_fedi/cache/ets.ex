@@ -28,6 +28,7 @@ defmodule SukhiFedi.Cache.Ets do
     :rpc_gate,
     # SukhiFedi.Web.AdmissionQueue: waiting tickets / running requests
     :admission,
+    :admission_bg,
     :admission_flight
   ]
   @sweep_interval_ms 60_000

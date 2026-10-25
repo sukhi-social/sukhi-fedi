@@ -46,6 +46,7 @@ top — those win.
 | `ADMISSION_MAX_IN_FLIGHT` | no | `64` | `/api/*` requests running at once (`Web.AdmissionQueue`). The next gets `503` + `x-queue-ticket` + its place in line; the client comes back for its turn. |
 | `ADMISSION_HOLD_MS` | no | `300` | How long a request waits for a slot before it is given a ticket (and a ticket holder before it is told to come back). |
 | `ADMISSION_MAX_WAIT_MS` | no | `15000` | A place in line expected to take longer than this is refused up front: a plain 503 with `retry-after` and `x-slow-down`, so the client stays away rather than queue for longer than a person will wait. |
+| `ADMISSION_MAX_WAIT_BG_MS` | no | `120000` | The same limit for requests that send `x-sukhi-purpose: background` (polls, read-marker syncs — nobody watching): they queue behind every interactive request and are refused only past this. |
 | `ADMISSION_QUEUE_MAX` | no | `500` | Longest line. Past it, a plain 503 with no ticket. |
 
 ## NATS (gateway, delivery, bun)

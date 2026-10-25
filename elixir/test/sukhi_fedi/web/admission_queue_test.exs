@@ -12,9 +12,9 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
     Application.put_env(:sukhi_fedi, :admission_hold_ms, 0)
     # Tables are made lazily by whoever asks first; keep them alive and empty.
     owner = spawn(fn -> Process.sleep(:infinity) end)
-    for t <- [:admission, :admission_flight], :ets.whereis(t) != :undefined, do: :ets.delete(t)
+    for t <- [:admission, :admission_bg, :admission_flight], :ets.whereis(t) != :undefined, do: :ets.delete(t)
 
-    for {name, opts} <- [{:admission, [:set]}, {:admission_flight, [:set]}] do
+    for {name, opts} <- [{:admission, [:set]}, {:admission_bg, [:set]}, {:admission_flight, [:set]}] do
       :ets.give_away(:ets.new(name, [:named_table, :public] ++ opts), owner, nil)
     end
 
@@ -28,6 +28,7 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
     :ok
   end
 
+  defp background, do: Plug.Conn.put_req_header(plain(), "x-sukhi-purpose", "background")
   defp plain, do: conn(:get, "/api/v1/timelines/public")
   defp with_ticket(t), do: Plug.Conn.put_req_header(plain(), "x-queue-ticket", Integer.to_string(t))
 
@@ -193,5 +194,35 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
              "retry_after_ms" => 1400,
              "retry_after" => 2
            } = JSON.decode!(c.resp_body)
+  end
+
+  test "a program that can wait is told to wait longer than a person is" do
+    running()
+    running()
+    :ets.insert(:admission, {:ewma, 10_000.0})
+    :ets.insert(:admission_bg, {:ewma, 10_000.0})
+    # a person is turned away once the wait passes their patience ...
+    for _ <- 1..3, do: assert({:wait, _, _, _} = AdmissionQueue.admit(plain()))
+    assert {:full, _} = AdmissionQueue.admit(plain())
+    # ... a background caller still gets a place, behind every person
+    assert {:wait, _, 4, _} = AdmissionQueue.admit(background())
+  end
+
+  test "background requests are not held waiting for a slot" do
+    Application.put_env(:sukhi_fedi, :admission_hold_ms, 500)
+    running()
+    running()
+    t0 = System.monotonic_time(:millisecond)
+    assert {:wait, _, _, _} = AdmissionQueue.admit(background())
+    assert System.monotonic_time(:millisecond) - t0 < 200
+  end
+
+  test "a background ticket is only due in the background line" do
+    running()
+    running()
+    {:wait, t, _, _} = AdmissionQueue.admit(background())
+    bg = Plug.Conn.put_req_header(background(), "x-queue-ticket", Integer.to_string(t))
+    :ets.insert(:admission_bg, {t, 0, System.system_time(:second) + 30})
+    assert AdmissionQueue.ticket_due?(bg)
   end
 end
