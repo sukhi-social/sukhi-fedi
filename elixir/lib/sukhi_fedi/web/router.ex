@@ -3,6 +3,10 @@ defmodule SukhiFedi.Web.Router do
   use Plug.Router
   use Plug.ErrorHandler
 
+  @doc false
+  def uncounted?(conn),
+    do: SukhiFedi.Web.SpaRoutes.page_request?(conn) or SukhiFedi.Web.AdmissionQueue.ticket_due?(conn)
+
   alias SukhiFedi.Web.InboxController
   alias SukhiFedi.Web.WebfingerController
   alias SukhiFedi.Web.NodeinfoController
@@ -44,7 +48,9 @@ defmodule SukhiFedi.Web.Router do
     limit: 500,
     scale_ms: 60_000,
     skip_prefixes: ["/static/", "/_app/", "/twemoji/"],
-    skip_if: &SukhiFedi.Web.SpaRoutes.page_request?/1,
+    # A SPA page, or a client polling its place in the admission line at the
+    # pace it was told (the ticket was issued to a request already counted).
+    skip_if: &SukhiFedi.Web.Router.uncounted?/1,
     # Signed in, a month old: counted as the account, not as the address
     # (and boxed in as the account) — so a shared connection does not share
     # one person's trouble. Everyone else stays on the IP.

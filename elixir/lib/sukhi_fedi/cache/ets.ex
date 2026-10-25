@@ -25,7 +25,10 @@ defmodule SukhiFedi.Cache.Ets do
     # SukhiFedi.Web.RateIdentity: token hash -> {:ok, account_id} | nil
     :rate_identity,
     # SukhiFedi.RpcGate: pids of the calls inside (not TTL'd; the sweep skips them)
-    :rpc_gate
+    :rpc_gate,
+    # SukhiFedi.Web.AdmissionQueue: waiting tickets / running requests
+    :admission,
+    :admission_flight
   ]
   @sweep_interval_ms 60_000
 

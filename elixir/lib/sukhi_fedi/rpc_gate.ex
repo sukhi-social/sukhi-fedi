@@ -30,7 +30,7 @@ defmodule SukhiFedi.RpcGate do
   ]
 
   @table :rpc_gate
-  @default_max 24
+  @default_max 64
 
   @doc """
   Run `apply(mod, fun, args)` and return what leaves, scrubbed.

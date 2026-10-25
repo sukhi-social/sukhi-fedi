@@ -4,6 +4,9 @@ import {
   isBusyStatus,
   retrySeconds,
   reasonText,
+  queueTicket,
+  QUEUE_TICKET_HEADER,
+  QUEUE_PATIENCE_MS,
   markBusy,
   clearBusy,
   slowDown,
@@ -247,21 +250,38 @@ async function req(method: string, path: string, label: string, init: ReqInit = 
 
   // 送るたびに今の token を読む ─ refresh で差し替わった直後の再送が
   // 古い bearer を掴まないように。
-  const send = () => {
+  const send = (ticket?: number) => {
     const headers = { ...baseHeaders };
     if (attachAuth) Object.assign(headers, authHeader());
+    if (ticket !== undefined) headers[QUEUE_TICKET_HEADER] = String(ticket);
     return fetch(path, { method, headers, body });
   };
   // 「ゆっくりさせてね」の間は、ここで順番を待つ(busy.svelte.ts)。
-  const sendPaced = async () => {
+  const sendPaced = async (ticket?: number) => {
     // 429 / 503 の待ちのあいだは、送らずに断る(送ると、サーバの「おいた」
     // の数に入る)。message はサーバの 429 本文の `error` と同じにしてある。
     if (isHeld()) throw new Error('rate_limited');
     await waitTurn();
-    return send();
+    return send(ticket);
+  };
+  // 混んでいるとき、サーバは 503 に整理券を付けて返す。画面には出さず、言わ
+  // れた時間だけ待って、券を付けて送り直す(順番が来るまで)。待つのは
+  // QUEUE_PATIENCE_MS まで。過ぎたら、その 503 をふつうの混雑として扱う。
+  // 券つきの 503 は、サーバが仕事に手を付ける前に返したものなので、本文を
+  // 持つ POST も安全に送り直せる。
+  const sendQueued = async () => {
+    const giveUp = Date.now() + QUEUE_PATIENCE_MS;
+    let res = await sendPaced();
+    while (res.status === 503) {
+      const q = queueTicket(await res.clone().json().catch(() => null));
+      if (!q || Date.now() + q.waitMs > giveUp) break;
+      await new Promise((r) => setTimeout(r, q.waitMs));
+      res = await sendPaced(q.ticket);
+    }
+    return res;
   };
 
-  let res = await sendPaced();
+  let res = await sendQueued();
 
   // authed (非 optional) な呼び出しが 401 = access token が切れたか
   // revoke された。まず refresh で取り直し、取れたら新しい bearer で
@@ -270,7 +290,7 @@ async function req(method: string, path: string, label: string, init: ReqInit = 
   // (匿名読みは 401 でもセッションを終わらせない) ので素通り。
   if (attachAuth && init.auth !== 'optional' && res.status === 401) {
     const refreshed = await tryRefresh();
-    if (refreshed) res = await sendPaced();
+    if (refreshed) res = await sendQueued();
     if (res.status === 401) {
       redirectToLogin();
       throw new Error('unauthorized');

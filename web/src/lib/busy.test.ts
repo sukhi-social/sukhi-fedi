@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isBusyStatus, reasonText, retrySeconds, slotFor } from './busy.ts';
+import { isBusyStatus, queueTicket, reasonText, retrySeconds, slotFor } from './busy.ts';
 
 test('retrySeconds prefers the header, then the body, then a default', () => {
   assert.equal(retrySeconds('30', { retry_after: 5 }), 30);
@@ -46,4 +46,23 @@ test('reasonText takes a short human line, or nothing', () => {
   assert.equal(reasonText({ reason: '' }), null);
   assert.equal(reasonText({ reason: 5 }), null);
   assert.equal(reasonText(null), null);
+});
+
+test('queueTicket reads the ticket and the wait from a queued 503', () => {
+  const body = { error: 'queued', queue: { ticket: 7, position: 3 }, retry_after_ms: 1400, retry_after: 2 };
+  assert.deepEqual(queueTicket(body), { ticket: 7, waitMs: 1400 });
+});
+
+test('queueTicket keeps the wait within a sane range', () => {
+  const at = (ms: number) => queueTicket({ error: 'queued', queue: { ticket: 1 }, retry_after_ms: ms })?.waitMs;
+  assert.equal(at(1), 100);
+  assert.equal(at(999_999), 10_000);
+  assert.equal(queueTicket({ error: 'queued', queue: { ticket: 1 } })?.waitMs, 1000);
+});
+
+test('queueTicket is null for anything that is not a queued 503', () => {
+  assert.equal(queueTicket(null), null);
+  assert.equal(queueTicket({ error: 'plugin_busy', retry_after: 5 }), null);
+  assert.equal(queueTicket({ error: 'queued', queue: { ticket: 0 } }), null);
+  assert.equal(queueTicket({ error: 'queued', queue: {} }), null);
 });

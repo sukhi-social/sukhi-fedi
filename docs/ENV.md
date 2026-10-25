@@ -42,7 +42,9 @@ top — those win.
 | `DB_NAME` | no | `sukhi_fedi` | Database name. |
 | `DB_POOL_SIZE` | no | `10` (gateway) / `5` (delivery) | Ecto pool. Tune up if `pg_stat_activity` shows constant waits. |
 | `DB_QUEUE_TARGET_MS` / `DB_QUEUE_INTERVAL_MS` | no | `50` / `1000` | Gateway pool: a checkout that has waited past the target for a whole interval is dropped (503 `busy`). Raise only if drops happen while the DB is idle. |
-| `RPC_MAX_IN_FLIGHT` | no | `24` | Calls from the api node that may run on the gateway at once (`SukhiFedi.RpcGate`); the next gets `{:badrpc, :overloaded}` → 503 at once instead of queueing behind the DB pool. |
+| `RPC_MAX_IN_FLIGHT` | no | `64` | Backstop: calls from the api node that may run on the gateway at once (`SukhiFedi.RpcGate`); the next gets `{:badrpc, :overloaded}` → 503. The queue below normally keeps this from being reached. |
+| `ADMISSION_MAX_IN_FLIGHT` | no | `32` | `/api/*` requests running at once (`Web.AdmissionQueue`). The next gets `503` + `x-queue-ticket` + its place in line; the client comes back for its turn. |
+| `ADMISSION_QUEUE_MAX` | no | `500` | Longest line. Past it, a plain 503 with no ticket. |
 
 ## NATS (gateway, delivery, bun)
 

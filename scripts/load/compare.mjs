@@ -12,7 +12,7 @@ const [baseFile, headFile] = process.argv.slice(2);
 const base = JSON.parse(readFileSync(baseFile, 'utf8'));
 const head = JSON.parse(readFileSync(headFile, 'utf8'));
 
-const cell = (r) => (r ? `${r.p50.toFixed(0)} / ${r.p95.toFixed(0)} ms, ${r.ok}/${r.requests} ok, ${r.r429} 429, ${r.r503} 503` : '–');
+const cell = (r) => (r ? `${r.p50.toFixed(0)} / ${r.p95.toFixed(0)} ms, ${r.ok}/${r.requests} ok, ${r.r429} 429, ${r.r503} 503, ${r.queued ?? 0} queued` : '–');
 let bad = 0;
 
 console.log('| users | group | base (p50 / p95) | head (p50 / p95) |');

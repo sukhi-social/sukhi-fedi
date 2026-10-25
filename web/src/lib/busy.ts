@@ -44,3 +44,28 @@ export function reasonText(body: unknown): string | null {
   const r = (body as { reason: unknown }).reason;
   return typeof r === 'string' && r.trim() !== '' ? r.trim().slice(0, 200) : null;
 }
+
+// ── 待機列 ──
+// 混んでいるとき、サーバは 503 に「整理券」を付けて返す(`error: "queued"`、
+// 本文の `queue.ticket` と `retry_after_ms`)。画面には出さず、api.ts が
+// 言われた時間だけ待って、同じリクエストに `x-queue-ticket` を付けて送り直す。
+// 順番が来るまで、それを繰り返す。
+
+export const QUEUE_TICKET_HEADER = 'x-queue-ticket';
+// 待つのは、合計でこの長さまで。過ぎたら、ふつうの 503(混雑の知らせ)に戻す。
+export const QUEUE_PATIENCE_MS = 30_000;
+const QUEUE_MIN_MS = 100;
+const QUEUE_MAX_MS = 10_000;
+
+export type QueueTicket = { ticket: number; waitMs: number };
+
+export function queueTicket(body: unknown): QueueTicket | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const b = body as { error?: unknown; queue?: { ticket?: unknown }; retry_after_ms?: unknown };
+  if (b.error !== 'queued') return null;
+  const ticket = Number(b.queue?.ticket);
+  if (!Number.isInteger(ticket) || ticket <= 0) return null;
+  const ms = Number(b.retry_after_ms);
+  const waitMs = Math.min(QUEUE_MAX_MS, Math.max(QUEUE_MIN_MS, Number.isFinite(ms) ? ms : 1000));
+  return { ticket, waitMs };
+}

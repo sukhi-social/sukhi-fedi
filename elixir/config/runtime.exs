@@ -226,7 +226,18 @@ if config_env() == :prod do
   # (SukhiFedi.RpcGate); the next is refused, not queued.
   config :sukhi_fedi,
          :rpc_max_in_flight,
-         String.to_integer(System.get_env("RPC_MAX_IN_FLIGHT", "24"))
+         String.to_integer(System.get_env("RPC_MAX_IN_FLIGHT", "64"))
+
+  # The front door for /api/* (SukhiFedi.Web.AdmissionQueue): requests running
+  # at once, and the longest line. Past the first, a request gets a ticket
+  # (503 + x-queue-ticket) and the client comes back for its turn.
+  config :sukhi_fedi,
+         :admission_max,
+         String.to_integer(System.get_env("ADMISSION_MAX_IN_FLIGHT", "32"))
+
+  config :sukhi_fedi,
+         :admission_queue_max,
+         String.to_integer(System.get_env("ADMISSION_QUEUE_MAX", "500"))
 
   config :sukhi_fedi, :nats,
     host: System.get_env("NATS_HOST", "127.0.0.1"),
