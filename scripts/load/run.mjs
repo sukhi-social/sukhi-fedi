@@ -25,7 +25,8 @@
 //   --stages 10,50,100  concurrent users per stage
 //   --seconds 60        length of each stage
 //   --think 1           mean seconds between one user's requests
-//   --token T           bearer for the home timeline (omit: skipped)
+//   --token T[,T…]      bearer(s) for the home timeline, comma-separated; user N
+//                       uses the (N mod count)th (omit: home is skipped)
 //   --metrics-token T   bearer for /metrics (omit: skipped)
 //   --spread            give every user its own cf-connecting-ip (default);
 //                       --no-spread puts all of them behind one address,
@@ -73,6 +74,7 @@ const MIX = [
   ['shell', 1, '/', false, true],
   ['timeline_home', 3, '/api/v1/timelines/home?limit=20', true, false]
 ].filter((m) => !m[3] || o.token);
+const tokens = (o.token ?? '').split(',').filter(Boolean);
 const total = MIX.reduce((n, m) => n + m[1], 0);
 
 function pick() {
@@ -90,7 +92,7 @@ async function user(id, stop, rec) {
   while (Date.now() < stop) {
     const [group, , path, , html] = pick();
     const headers = { 'cf-connecting-ip': ip, accept: html ? 'text/html' : 'application/json' };
-    if (o.token && path.includes('/home')) headers.authorization = `Bearer ${o.token}`;
+    if (tokens.length && path.includes('/home')) headers.authorization = `Bearer ${tokens[id % tokens.length]}`;
     const t0 = performance.now();
     let status = 0;
     try {

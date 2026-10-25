@@ -23,7 +23,9 @@ defmodule SukhiFedi.Cache.Ets do
     # SukhiFedi.HotCache: 1〜数秒だけ持つ、全員共通の問い合わせ結果
     :hot_cache,
     # SukhiFedi.Web.RateIdentity: token hash -> {:ok, account_id} | nil
-    :rate_identity
+    :rate_identity,
+    # SukhiFedi.RpcGate: pids of the calls inside (not TTL'd; the sweep skips them)
+    :rpc_gate
   ]
   @sweep_interval_ms 60_000
 

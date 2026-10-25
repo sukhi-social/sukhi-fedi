@@ -43,5 +43,5 @@ for _ in $(seq 1 120); do
 done
 curl -fs http://127.0.0.1:4000/api/v1/instance >/dev/null || { tail -50 "$OUT/$LABEL.server.log"; exit 1; }
 
-node "$HERE/run.mjs" --base http://127.0.0.1:4000 --stages "${STAGES:-20,60}" --seconds "${SECONDS_PER_STAGE:-30}" \
-  --token "$(cat "$LOAD_TOKEN_FILE")" --metrics-token "$METRICS_TOKEN" --out "$OUT/$LABEL.json"
+node "$HERE/run.mjs" --base http://127.0.0.1:4000 --stages "${STAGES:-50,200,400}" --seconds "${SECONDS_PER_STAGE:-30}" \
+  --token "$(paste -sd, "$LOAD_TOKEN_FILE")" --metrics-token "$METRICS_TOKEN" --out "$OUT/$LABEL.json"

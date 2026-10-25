@@ -29,7 +29,7 @@ defmodule SukhiFedi.RpcGate do
     :totp_last_used_step
   ]
 
-  @table :sukhi_rpc_gate
+  @table :rpc_gate
   @default_max 24
 
   @doc """
@@ -48,7 +48,7 @@ defmodule SukhiFedi.RpcGate do
       try do
         mod |> apply(fun, args) |> scrub()
       after
-        :ets.delete(@table, self())
+        release()
       end
     else
       {:badrpc, :overloaded}
@@ -63,14 +63,7 @@ defmodule SukhiFedi.RpcGate do
   # that slot for good. A pid entry is simply dropped once the process is
   # gone — the table is swept only when it looks full.
   defp admit do
-    if :ets.whereis(@table) == :undefined do
-      try do
-        :ets.new(@table, [:named_table, :public, :set, write_concurrency: true])
-      rescue
-        ArgumentError -> :ok
-      end
-    end
-
+    ensure_table()
     :ets.insert(@table, {self()})
 
     if :ets.info(@table, :size) <= max_in_flight() do
@@ -85,6 +78,30 @@ defmodule SukhiFedi.RpcGate do
         false
       end
     end
+  rescue
+    # The table is the limiter's, not the call's: if it is missing, let the
+    # call through rather than fail it.
+    ArgumentError -> true
+  end
+
+  # `Cache.Ets` makes the table at boot and keeps it for the node's life. An
+  # ETS table dies with the process that made it, and a call is a short-lived
+  # process, so a table made here would vanish under the calls beside it —
+  # this is only the way out for a test that never started `Cache.Ets`.
+  defp ensure_table do
+    if :ets.whereis(@table) == :undefined do
+      try do
+        :ets.new(@table, [:named_table, :public, :set, write_concurrency: true])
+      rescue
+        ArgumentError -> :ok
+      end
+    end
+  end
+
+  defp release do
+    :ets.delete(@table, self())
+  rescue
+    ArgumentError -> :ok
   end
 
   defp sweep_dead do
