@@ -937,6 +937,25 @@ export async function executeCleanup(olderThanDays: number, reauth: Reauth): Pro
   return await settingsPost('/settings/cleanup/execute', { older_than_days: olderThanDays, ...reauth }) as CleanupPreview;
 }
 
+// アカウントを閉じる(設定の「アカウントを閉じる」)。押してから1日は
+// 取り消せる。pending は「閉じる予約」。なければ null。
+export type CloseState = { pending: { scheduled_for: string } | null };
+
+export async function fetchCloseState(): Promise<CloseState> {
+  const res = await fetch('/settings/close/status', { credentials: 'same-origin' });
+  if (!res.ok) throw new Error(`failed_${res.status}`);
+  return await res.json() as CloseState;
+}
+
+export async function requestClose(reauth: Reauth): Promise<CloseState> {
+  return await settingsPost('/settings/close/request', reauth) as CloseState;
+}
+
+// 取り消しに本人確認は要らない。ログインしている、が確認。
+export async function cancelClose(): Promise<CloseState> {
+  return await settingsPost('/settings/close/cancel', {}) as CloseState;
+}
+
 // Navigate to the shared check page. Anubis challenges this path; the
 // page picks up `intent` and finishes the flow on the other side.
 //

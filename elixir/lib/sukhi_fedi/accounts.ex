@@ -45,8 +45,29 @@ defmodule SukhiFedi.Accounts do
   def by_local_username(nil), do: nil
 
   def by_local_username(username) when is_binary(username) do
-    Repo.one(from(a in Account, where: a.username == ^username and is_nil(a.domain), limit: 1))
+    Repo.one(
+      from(a in Account,
+        where: a.username == ^username and is_nil(a.domain) and is_nil(a.deleted_at),
+        limit: 1
+      )
+    )
   end
+
+  @doc """
+  Whether `username` belonged to a local account its owner closed. The actor
+  endpoint answers those with `410 Gone` instead of `404`, which is what a
+  remote server needs to accept the actor `Delete` it is verifying.
+  """
+  @spec closed_local_username?(String.t() | nil) :: boolean()
+  def closed_local_username?(username) when is_binary(username) do
+    Repo.exists?(
+      from(a in Account,
+        where: a.username == ^username and is_nil(a.domain) and not is_nil(a.deleted_at)
+      )
+    )
+  end
+
+  def closed_local_username?(_), do: false
 
   @doc """
   An HTTP-signature identity for signing outbound fetches against

@@ -16,11 +16,9 @@ defmodule SukhiFedi.Web.SelfCleanupController do
 
   import Plug.Conn
 
-  alias SukhiFedi.Auth.EmailAuth
-  alias SukhiFedi.LocalAccounts
   alias SukhiFedi.Schema.Account
   alias SukhiFedi.SelfCleanup
-  alias SukhiFedi.Web.Auth.SessionCookie
+  alias SukhiFedi.Web.Auth.{SecurityController, SessionCookie}
 
   # A history cleanup is heavy and self-targeted; one burst is plenty.
   @execute_rate {3, 60 * 60 * 1000}
@@ -37,7 +35,7 @@ defmodule SukhiFedi.Web.SelfCleanupController do
     with_session(conn, fn account ->
       days = older_than_days(conn)
 
-      with :ok <- reauth_ok(conn, account),
+      with :ok <- SecurityController.reauth_ok(conn, account),
            :ok <- execute_rate_ok(account) do
         result =
           SelfCleanup.run(account.id, :execute,
@@ -76,24 +74,6 @@ defmodule SukhiFedi.Web.SelfCleanupController do
     case SessionCookie.account(conn) do
       %Account{} = account -> fun.(account)
       nil -> json(conn, 401, %{error: "unauthorized"})
-    end
-  end
-
-  # The same owner-re-proof rule as SecurityController: password when the
-  # account has one, otherwise a fresh reauth code mailed to the verified
-  # address. (Kept in step with that module by intent; if the rule there
-  # changes, change it here too — both gate destructive owner actions.)
-  defp reauth_ok(conn, %Account{password_hash: hash} = account) when is_binary(hash) do
-    case LocalAccounts.check_password(account, to_string(conn.body_params["password"] || "")) do
-      :ok -> :ok
-      {:error, :invalid} -> {:error, :reauth}
-    end
-  end
-
-  defp reauth_ok(conn, %Account{} = account) do
-    case EmailAuth.confirm_reauth(account, to_string(conn.body_params["reauth_code"] || "")) do
-      :ok -> :ok
-      {:error, _} -> {:error, :reauth}
     end
   end
 
