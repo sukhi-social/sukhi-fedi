@@ -453,3 +453,18 @@ git status
       SQL で足りる、という見立て(未着手)。
 - [ ] **管理画面の EEx 約 1800 行 → SPA の `/admin` へ** (`/api/admin/*` の JSON API は既にある)。
       下の Admin frontend (htmx) 計画の見直しと同じ話。
+
+## spec.sukhi.social (2026-10-25 の相談から)
+仕様の置き場。識別子は永久に変えない前提で、見た目と運びを後から整える。
+- [ ] 識別子の基準を `https://spec.sukhi.social/sukhi-<番号>/<版>` に直す。`docs/specs/README.md` 末尾と
+      `docs/spec-declaration-notes.md` は、まだ `https://sukhi.social/spec/<id>/<version>` と書いている。
+- [ ] 番号は 4 桁のゼロ埋め連番(`sukhi-0001`)。5 桁へ広げてよいと仕様に書く。採番したら再利用しない。
+- [ ] 任意のカテゴリを URL に挟める(`/activitypub/sukhi-0001/1`)。識別子は正規形だけ。カテゴリ入りは
+      301 で正規形へ飛ばし、canonical を付け、読む側は `sukhi-0001/1` の部分だけで照合する。
+- [ ] 一覧ページ(番号・題・状態・カテゴリ)と、仕様ごとの固定ページを静的に配信する。
+- [ ] 規範は STE-100 の英文。日本語の「こんな意図で書いたよ」欄を横に置く(規範ではない、と見た目で分かる形。畳める)。
+- [ ] 実装した仕様の宣言(FEP-844e の `implements`、NodeInfo `metadata.implements`)を、一覧と同じ元データから出す。
+- [ ] HTCPCP(RFC 2324)と HTCPCP-TEA(RFC 7168)を実装する。`BREW` / `WHEN` / `PROPFIND`、
+      茶の `Accept-Additions`、`418 I'm a teapot`。遊びなので本体の経路から切り離し、`docs/specs/README.md` の
+      「実装している仕様」には、実装後に `partial` または `yes` の根拠つきで足す。
+
