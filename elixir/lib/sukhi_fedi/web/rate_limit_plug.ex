@@ -63,6 +63,7 @@ defmodule SukhiFedi.Web.RateLimitPlug do
         # The body carries `retry_after` too (as api's TokenRateLimit does):
         # the web client reads one place, not a header some proxies drop.
         retry_after = div(scale_ms, 1_000)
+        :telemetry.execute([:sukhi_fedi, :rate_limit, :deny], %{count: 1}, %{bucket: bucket})
 
         conn
         |> put_resp_header("retry-after", Integer.to_string(retry_after))

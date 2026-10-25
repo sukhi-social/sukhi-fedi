@@ -8,7 +8,8 @@ defmodule SukhiFedi.PromEx do
       PromEx.Plugins.Application,
       PromEx.Plugins.Beam,
       {PromEx.Plugins.Ecto, otp_app: :sukhi_fedi, repos: [SukhiFedi.Repo]},
-      {PromEx.Plugins.Oban, queue_poll_rate: 5_000}
+      {PromEx.Plugins.Oban, queue_poll_rate: 5_000},
+      SukhiFedi.PromEx.Load
     ]
   end
 end

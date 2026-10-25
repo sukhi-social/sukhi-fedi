@@ -70,7 +70,16 @@ defmodule SukhiFedi.Web.PluginPlug do
   end
 
   defp forward(conn, node, mod, fun, req, timeout) do
-    case :rpc.call(node, mod, fun, [req], timeout) do
+    started = System.monotonic_time()
+    result = :rpc.call(node, mod, fun, [req], timeout)
+
+    :telemetry.execute(
+      [:sukhi_fedi, :rpc, :call],
+      %{duration: System.monotonic_time() - started},
+      %{result: rpc_label(result)}
+    )
+
+    case result do
       {:ok, resp} ->
         respond(conn, resp)
 
@@ -83,6 +92,12 @@ defmodule SukhiFedi.Web.PluginPlug do
         send_err(conn, 500, "plugin_unexpected_response")
     end
   end
+
+  defp rpc_label({:badrpc, {:EXIT, _}}), do: "exit"
+  defp rpc_label({:badrpc, reason}) when is_atom(reason), do: Atom.to_string(reason)
+  defp rpc_label({:badrpc, _}), do: "badrpc"
+  defp rpc_label({:ok, _}), do: "ok"
+  defp rpc_label(_), do: "unexpected"
 
   defp build_request(conn) do
     # JSON / urlencoded は Plug.Parsers が済ませているので body_params を
