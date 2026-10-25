@@ -1,5 +1,6 @@
 import { loadToken, tryRefresh, redirectToLogin } from './auth';
 import { readPushConfig } from './push';
+import { isBusyStatus, retrySeconds, markBusy, clearBusy } from './busy.svelte';
 
 export type Field = {
   name: string;
@@ -257,6 +258,16 @@ async function req(method: string, path: string, label: string, init: ReqInit = 
       redirectToLogin();
       throw new Error('unauthorized');
     }
+  }
+
+  // 混雑(429 / 503)は、どの画面から呼んでも一か所で受ける。待つ秒数を
+  // 置くだけで、throw はこれまでどおり ── 画面ごとの扱い(Composer の文言
+  // など)はそのまま働く。成功が返れば混雑は終わったと見る。
+  if (isBusyStatus(res.status)) {
+    const body = await res.clone().json().catch(() => null);
+    markBusy(retrySeconds(res.headers.get('retry-after'), body));
+  } else if (res.ok) {
+    clearBusy();
   }
 
   if (init.notFound && res.status === 404) throw new Error('not_found');

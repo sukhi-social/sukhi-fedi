@@ -39,4 +39,21 @@ defmodule SukhiFedi.Web.RateLimitPlugTest do
     refute hit("/staticky", o).halted
     assert hit("/staticky", o).status == 429
   end
+
+  test "the 429 body carries retry_after, matching the header" do
+    o = opts()
+    for _ <- 1..2, do: hit("/api/x", o)
+    c = hit("/api/x", o)
+    assert [secs] = Plug.Conn.get_resp_header(c, "retry-after")
+    assert %{"error" => "rate_limited", "retry_after" => n} = JSON.decode!(c.resp_body)
+    assert Integer.to_string(n) == secs
+  end
+
+  test "skip_if leaves matching requests uncounted, others still limited" do
+    o = opts(skip_if: &(&1.request_path == "/shell"))
+    for _ <- 1..10, do: refute(hit("/shell", o).halted)
+    refute hit("/api/x", o).halted
+    refute hit("/api/x", o).halted
+    assert hit("/api/x", o).status == 429
+  end
 end

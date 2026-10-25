@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Web.Router do
   use Plug.Router
+  use Plug.ErrorHandler
 
   alias SukhiFedi.Web.InboxController
   alias SukhiFedi.Web.WebfingerController
@@ -42,7 +43,8 @@ defmodule SukhiFedi.Web.Router do
     bucket: "global",
     limit: 500,
     scale_ms: 60_000,
-    skip_prefixes: ["/static/", "/_app/", "/twemoji/"]
+    skip_prefixes: ["/static/", "/_app/", "/twemoji/"],
+    skip_if: &SukhiFedi.Web.SpaRoutes.page_request?/1
   )
 
   # HEAD を GET として捌く。Plug.Router の `get` は GET しか拾わないので、
@@ -689,6 +691,21 @@ defmodule SukhiFedi.Web.Router do
   match _ do
     send_resp(conn, 404, "not found")
   end
+
+  # A DB pool that is full is "busy", not "a bug": the checkout waited its
+  # turn and was dropped from the queue (`DBConnection.ConnectionError`).
+  # Say 503 + Retry-After so the client waits and retries, instead of a 500
+  # that reads as broken. Anything else keeps Plug's 500.
+  @retry_after 5
+  @impl Plug.ErrorHandler
+  def handle_errors(conn, %{reason: %DBConnection.ConnectionError{}}) do
+    conn
+    |> put_resp_header("retry-after", Integer.to_string(@retry_after))
+    |> put_resp_content_type("application/json")
+    |> send_resp(503, JSON.encode!(%{error: "busy", retry_after: @retry_after}))
+  end
+
+  def handle_errors(conn, _), do: conn
 
   # natadeco のフロントは `/@alice` `/@alice/123` を持たない(人は
   # `/people/<id>`、投稿は `/d/<slug>/p/<id>`)。連合に出ている `url` は

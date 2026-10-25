@@ -209,6 +209,8 @@ export const ja = {
   'update.available': '新しい版が、来ました。',
   'update.reload': '読み込みなおす',
   'update.later': 'あとで',
+  'busy.banner': 'いま混み合っています。{seconds} 秒ほど待ってから、もう一度どうぞ。書いたものは、そのまま残っています。',
+  'busy.retry': '読み込みなおす',
 
   // ── おしらせ ─────────────────────────────────────────
   'announce.label': 'おしらせ',

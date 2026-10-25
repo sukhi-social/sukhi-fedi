@@ -202,6 +202,16 @@ defmodule SukhiFedi.Web.PluginPlug do
     send_err(conn, 500, "plugin_response_malformed")
   end
 
+  # 503 means "busy, try again": say when, in the header and the body, so
+  # the client's one 429/503 notice has a number to show.
+  defp send_err(conn, 503, code) do
+    conn
+    |> put_resp_header("retry-after", "5")
+    |> put_resp_content_type("application/json")
+    |> send_resp(503, JSON.encode!(%{error: code, retry_after: 5}))
+    |> halt()
+  end
+
   defp send_err(conn, status, code) do
     conn
     |> put_resp_content_type("application/json")
