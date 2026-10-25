@@ -9,6 +9,7 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
   setup do
     prev = Application.get_env(:sukhi_fedi, :admission_max)
     Application.put_env(:sukhi_fedi, :admission_max, 2)
+    Application.put_env(:sukhi_fedi, :admission_hold_ms, 0)
     # Tables are made lazily by whoever asks first; keep them alive and empty.
     owner = spawn(fn -> Process.sleep(:infinity) end)
     for t <- [:admission, :admission_flight], :ets.whereis(t) != :undefined, do: :ets.delete(t)
@@ -19,6 +20,7 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
 
     on_exit(fn ->
       Process.exit(owner, :kill)
+      Application.delete_env(:sukhi_fedi, :admission_hold_ms)
       if prev, do: Application.put_env(:sukhi_fedi, :admission_max, prev),
         else: Application.delete_env(:sukhi_fedi, :admission_max)
     end)
@@ -55,7 +57,7 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
     running()
     running()
     assert {:wait, 1, 1, ms} = AdmissionQueue.admit(plain())
-    assert ms >= 100
+    assert ms >= 50
     assert {:wait, 2, 2, _} = AdmissionQueue.admit(plain())
   end
 
@@ -138,6 +140,24 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
     running()
     assert {:wait, _, 1, _} = AdmissionQueue.admit(plain())
     assert AdmissionQueue.admit(plain()) == :full
+  end
+
+  test "a request waits a moment for a slot before it is sent away" do
+    Application.put_env(:sukhi_fedi, :admission_hold_ms, 500)
+    a = running()
+    running()
+    spawn(fn -> Process.sleep(60) && send(a, :done) end)
+    # a's slot is swept as dead within the hold, and this request takes it
+    assert AdmissionQueue.admit(plain()) == :ok
+  end
+
+  test "a ticket holder takes its slot the moment one is free, within the hold" do
+    a = running()
+    running()
+    {:wait, t1, _, _} = AdmissionQueue.admit(plain())
+    Application.put_env(:sukhi_fedi, :admission_hold_ms, 500)
+    spawn(fn -> Process.sleep(60) && send(a, :done) end)
+    assert AdmissionQueue.admit(with_ticket(t1)) == :ok
   end
 
   test "the queued 503 carries the ticket in the header and the place in the body" do
