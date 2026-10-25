@@ -233,7 +233,7 @@ if config_env() == :prod do
   # (503 + x-queue-ticket) and the client comes back for its turn.
   config :sukhi_fedi,
          :admission_max,
-         String.to_integer(System.get_env("ADMISSION_MAX_IN_FLIGHT", "32"))
+         String.to_integer(System.get_env("ADMISSION_MAX_IN_FLIGHT", "64"))
 
   config :sukhi_fedi,
          :admission_queue_max,

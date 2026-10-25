@@ -36,10 +36,10 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   @tickets :admission
   @flight :admission_flight
   @ticket_ttl_s 30
-  @default_max 32
+  @default_max 64
   @default_queue_max 500
   @default_ewma_ms 150
-  @min_wait_ms 200
+  @min_wait_ms 100
   @max_wait_ms 5_000
 
   @type verdict ::
@@ -149,7 +149,9 @@ defmodule SukhiFedi.Web.AdmissionQueue do
     waiting = live_count(now)
 
     cond do
-      free > 0 and waiting == 0 ->
+      # Room for everyone already waiting, and for me: no need to queue. (The
+      # waiting hold their places; `rank <= free` above still serves them.)
+      free > waiting ->
         enter()
         :ok
 

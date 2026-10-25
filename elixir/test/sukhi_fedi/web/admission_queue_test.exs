@@ -55,7 +55,7 @@ defmodule SukhiFedi.Web.AdmissionQueueTest do
     running()
     running()
     assert {:wait, 1, 1, ms} = AdmissionQueue.admit(plain())
-    assert ms >= 200
+    assert ms >= 100
     assert {:wait, 2, 2, _} = AdmissionQueue.admit(plain())
   end
 
