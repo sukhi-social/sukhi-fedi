@@ -52,7 +52,7 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   @default_max 64
   @default_queue_max 500
   @default_ewma_ms 150
-  @min_wait_ms 50
+  @min_wait_ms 100
   @default_hold_ms 300
   @default_max_wait_ms 15_000
   @default_max_wait_bg_ms 120_000
@@ -299,8 +299,14 @@ defmodule SukhiFedi.Web.AdmissionQueue do
 
   # How long until a slot is likely to be theirs, for one visit. A person
   # gets short waits; a program, long ones (it has nothing else to do).
-  defp estimate_ms(:interactive, rank),
-    do: round(min(5_000, Kernel.max(@min_wait_ms, total_wait_ms(rank))))
+  # Asking again is cheap (one ETS read), so a person is told to come back
+  # soon -- 100 ms near the front, never more than 1 s -- with a little spread
+  # so a crowd does not knock in step. The refusal above, not this, is what
+  # bounds the whole wait.
+  defp estimate_ms(:interactive, rank) do
+    base = min(1_000, Kernel.max(@min_wait_ms, total_wait_ms(rank)))
+    round(base * (0.8 + :rand.uniform() * 0.4))
+  end
 
   defp estimate_ms(:background, rank),
     do: round(min(10_000, Kernel.max(500, total_wait_ms(rank))))
