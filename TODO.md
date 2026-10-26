@@ -107,9 +107,6 @@ endpoint surface is mapped out in [`docs/MISSKEY_API.md`](docs/MISSKEY_API.md).
       「メールコードでログイン」(事実上の回復経路) か admin eval。
       バックアップコード 10 枚方式を足すなら hashed-codes カラム
       1 本 + 表示 UI。
-- [ ] **メール変更時の旧アドレスへの通知.** 乗っ取り検知の定石。
-      Mailer はあるので、confirm_verification の成功後に一通
-      送るだけ。
 - [ ] **ログイン時の suspension チェック.** password 経路が元々
       見ていないのに合わせて email/passkey 経路も見ていない
       (parity)。API 側の gate 任せでよいか、入口で締めるか決める。
