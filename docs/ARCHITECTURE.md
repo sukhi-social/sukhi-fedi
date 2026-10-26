@@ -68,9 +68,10 @@ Since **v0.3.0** the left-bottom box (「翻訳家 + 印鑑職人」) runs **nat
 Elixir as `SukhiFedi.Fedi`**, in-process on the gateway (and delivery). It
 answers the same `fedify.*.v1` NATS Micro subjects on the same `fedify-workers`
 queue group, so the topology above is unchanged — only the responder moved from
-a Bun sidecar into the BEAM. The Bun worker under `bun/` is retired, kept as a
-rollback path and as the oracle that mints the golden fixtures the native port
-is checked against. Read "Bun" below as "the `fedify` service", now native.
+a sidecar into the BEAM. The worker under `bun/` is retired — and it never
+ran on Bun: it is Node.js 24+ under the old directory name. It is kept as a
+rollback path and as the build-time oracle that mints the golden fixtures the
+native port is checked against (see `bun/README.md`). Read "Bun" below as "the `fedify` service", now native.
 
 Rules enforced by this split:
 
@@ -232,9 +233,11 @@ sukhi-fedi/
 │   ├── mix.exs
 │   └── Dockerfile
 │
-├── bun/                                   # 翻訳家 + 印鑑職人 (RETIRED v0.3.0;
+├── bun/                                   # Node.js 24+ (NOT Bun; old dir name).
+│   │                                         翻訳家 + 印鑑職人, RETIRED v0.3.0:
 │   │                                         served natively by SukhiFedi.Fedi.
-│   │                                         kept for rollback + golden fixtures)
+│   │                                         kept for rollback + golden fixtures
+│   │                                         (build/test-time verifier; README.md)
 │   ├── services/fedify_service.ts         # ★ NATS Micro service (only entrypoint)
 │   ├── handlers/
 │   │   ├── build/{note,follow,accept,announce,actor,dm,collection_op,
@@ -253,10 +256,10 @@ sukhi-fedi/
 │   │   ├── types.ts                       # BunAddon + TranslateHandler
 │   │   ├── mastodon_api/manifest.ts
 │   │   └── misskey_api/manifest.ts
-│   ├── package.json                       # TS 6.0.3, @fedify/fedify 1.x,
+│   ├── package.json                       # TS 6.0.3, @fedify/fedify 2.x,
 │   │                                        @js-temporal/polyfill, @nats-io/*
 │   ├── tsconfig.json
-│   └── Dockerfile                         # node:22-alpine
+│   └── Dockerfile                         # node:24-alpine
 │
 ├── api/                                   # ★ Mastodon/Misskey REST plugin node
 │   ├── mix.exs                            # independent :sukhi_api app
