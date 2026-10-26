@@ -36,6 +36,32 @@ defmodule SukhiFedi.Integration.EmailAuthTest do
       assert %DateTime{} = updated.email_verified_at
     end
 
+    test "changing a verified address mails the old one once", %{account: account, email: email} do
+      assert :ok = EmailAuth.request_verification(account, email)
+      assert {:ok, verified} = EmailAuth.confirm_verification(account, code_from_mail(email))
+      refute Mailer.Capture.last_to(email) |> Map.fetch!(:subject) =~ "変更"
+
+      Mailer.Capture.clear()
+      new_email = "new_" <> email
+
+      # Swapping a verified address needs the account as it now stands.
+      assert :ok = EmailAuth.request_verification(verified, new_email)
+      assert {:ok, _} = EmailAuth.confirm_verification(verified, code_from_mail(new_email))
+
+      assert %{subject: subject, body: body} = Mailer.Capture.last_to(email)
+      assert subject =~ "変更"
+      assert body =~ "ne***@"
+      refute body =~ new_email
+    end
+
+    test "first-time verification mails nobody else", %{account: account, email: email} do
+      assert :ok = EmailAuth.request_verification(account, email)
+      code = code_from_mail(email)
+      Mailer.Capture.clear()
+      assert {:ok, _} = EmailAuth.confirm_verification(account, code)
+      assert Mailer.Capture.last_to(email) == nil
+    end
+
     test "normalizes case and refuses junk addresses", %{account: account, email: email} do
       assert :ok = EmailAuth.request_verification(account, "  " <> String.upcase(email) <> " ")
       assert {:ok, updated} = EmailAuth.confirm_verification(account, code_from_mail(email))

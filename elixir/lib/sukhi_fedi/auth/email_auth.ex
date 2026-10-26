@@ -32,6 +32,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
 
   alias Ecto.Multi
   alias SukhiFedi.{Mailer, Repo}
+  alias SukhiFedi.Auth.EmailChangeNotice
   alias SukhiFedi.Schema.{Account, EmailCode}
 
   @code_ttl_seconds 600
@@ -56,7 +57,9 @@ defmodule SukhiFedi.Auth.EmailAuth do
   Check the code and land the address on the account: `email` +
   `email_verified_at` in one transaction with the code row's removal.
   A lost race on the unique index surfaces as `:email_taken` and the
-  code stays usable, so retrying is honest.
+  code stays usable, so retrying is honest. Swapping away from a
+  previously verified address mails that old address once
+  (`EmailChangeNotice`).
   """
   @spec confirm_verification(Account.t(), String.t()) ::
           {:ok, Account.t()}
@@ -76,7 +79,12 @@ defmodule SukhiFedi.Auth.EmailAuth do
       |> Multi.delete(:code, row)
       |> Repo.transaction()
       |> case do
-        {:ok, %{account: updated}} -> {:ok, updated}
+        {:ok, %{account: updated}} ->
+          # After the commit, best effort: a failed courtesy mail to the
+          # old address never undoes the change.
+          _ = EmailChangeNotice.deliver(account, updated)
+          {:ok, updated}
+
         {:error, :account, %Ecto.Changeset{errors: errors}, _} -> verify_update_error(errors)
         {:error, _step, _reason, _} -> {:error, :invalid_code}
       end
