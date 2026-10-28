@@ -1,0 +1,17 @@
+[package]
+name = "job_queue_dbsp"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Prototype: incremental-Datalog 'which job may run now' brain for a delivery queue, on DBSP"
+
+[dependencies]
+# Default features on: with `default-features = false` dbsp 0.370.0 itself does
+# not compile (distinct.rs / waterline.rs). Under `backend-mode` the typed
+# antijoin/distinct/aggregate are cfg'd out, so anti-joins below are written as
+# `A - (A semijoin B)` over Z-sets, with B made a set by `weighted_count`.
+dbsp = "=0.370.0"
+anyhow = "1"
+
+[profile.release]
+debug = false
