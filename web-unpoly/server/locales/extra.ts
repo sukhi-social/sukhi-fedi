@@ -15,7 +15,7 @@ export const jaExtra = {
   'compose.withdrawn': 'とりやめました。',
   'compose.withdrawFailed': 'とりやめられませんでした。すこしあとで、もう一度どうぞ。',
   'notif.holdNote': '反応は、一刻ほど置いてから、ポツポツお届けしています。',
-  'notif.holdingMore': 'まだ、道の途中のものがあります。'
+  'notif.groupOthers': '、ほか'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -32,5 +32,5 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'compose.withdrawn': '거두었어요.',
   'compose.withdrawFailed': '거두지 못했어요. 잠시 뒤에 다시 해 주세요.',
   'notif.holdNote': '반응은 한 시간쯤 두었다가, 하나둘 전해 드리고 있어요.',
-  'notif.holdingMore': '아직 오는 길에 있는 것이 있어요.'
+  'notif.groupOthers': ' 외'
 };

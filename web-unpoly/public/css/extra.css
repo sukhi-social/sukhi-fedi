@@ -87,3 +87,14 @@ html:lang(ja) .chip {
 html:lang(ko) .hero h1 {
   letter-spacing: normal;
 }
+
+/* gateway がまとめた通知の、二人目から先の名前(一人目は .notif-who)。 */
+.notif-also {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.notif-also a {
+  color: inherit;
+  text-decoration: none;
+}

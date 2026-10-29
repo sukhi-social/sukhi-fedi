@@ -479,7 +479,11 @@ function signupPage(ctx: Ctx, v: SignupView = {}, status = 200): Reply {
               ${t("check.codeSentTo", { email: v.email ?? "" })}
             </p>
             <form class="form stack" method="post" action="/signup">
-              <input type="hidden" name="step" value="confirm" />${hidden}
+              <input type="hidden" name="step" value="confirm" /><input
+                type="hidden"
+                name="agree"
+                value="1"
+              />${hidden}
               <label class="stack-tight"
                 ><span>${t("login.code")}</span>
                 <input

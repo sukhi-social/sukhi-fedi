@@ -247,8 +247,18 @@ route('POST', '/compose/withdraw', async (ctx) => {
 //   あなたへ  返信・フォロー申請。会話で、相手が待っている。だからすぐ出す。
 //   反応      お気に入り・ブースト・フォローなど。うれしいけれど、急がない。
 //             だから NOTIFY_HOLD_MIN(既定 一刻)ほど置いてから、ポツポツ出す。
+//             置くのも、同じ投稿への反応を一つにまとめるのも、gateway がやる(アカウントごとの
+//             設定と、同じ規則。docs/MASTODON_API.md の「Pace」)。ここは、設定にかかわらず
+//             いつも hold_minutes と grouping を添えて、より遅く・まとめる側に寄せるだけ。
 // 未読の数も、点も、出さない。「新しい通知は、ここまで」の境い目も、引く必要がない。
 const DIRECT: NotificationType[] = ['mention', 'follow_request'];
+
+// 通知を読む・片づける呼び出しには、いつもこれを添える。gateway は、アカウントの設定より
+// 遅く・まとめる側にだけ、これを効かせる。
+const pace = (): Record<string, string> => ({
+  hold_minutes: String(config.notifyHoldMin),
+  grouping: 'true'
+});
 
 route('GET', '/notifications', async (ctx) => {
   const t = ctx.t;
@@ -257,16 +267,14 @@ route('GET', '/notifications', async (ctx) => {
   const tier = q.get('tier') === 'ambient' ? 'ambient' : 'direct';
   const maxId = q.get('max_id') ?? undefined;
 
-  const query: Record<string, string | string[] | undefined> = { limit: '30', max_id: maxId };
+  const query: Record<string, string | string[] | undefined> = { limit: '30', max_id: maxId, ...pace() };
   if (tier === 'direct') query['types[]'] = DIRECT;
   else query['exclude_types[]'] = DIRECT;
 
   const page = await gwPage<Notification>(ctx, '/api/v1/notifications', { query });
 
-  // 反応は、置く時間が過ぎたものだけを出す。道の途中のものがあるかは、言うだけ(数は言わない)。
-  const cutoff = Date.now() - config.notifyHoldMin * 60_000;
-  const arrived = tier === 'ambient' ? page.items.filter((n) => Date.parse(n.created_at) <= cutoff) : page.items;
-  const holding = arrived.length < page.items.length;
+  // 置く時間が過ぎたものだけが、gateway から来る。道の途中のものがあるかは、こちらからは見えない。
+  const arrived = page.items;
 
   const summary = (n: Notification): string => {
     switch (n.type) {
@@ -283,6 +291,16 @@ route('GET', '/notifications', async (ctx) => {
     }
   };
 
+  // まとめた行は、名前だけを並べる(数は言わない)。三人まで、あとは「ほか」。
+  const NAMED = 3;
+  const who = (n: Notification) => {
+    const rest = (n.group?.accounts ?? []).slice(1);
+    if (rest.length === 0) return '';
+    return html`${rest.slice(0, NAMED - 1).map(
+      (a) => html`<span class="notif-also">、<a href="/@${a.acct}">${nameHtml(a)}</a></span>`
+    )}${rest.length > NAMED - 1 ? html`<span class="notif-also">${t('notif.groupOthers')}</span>` : ''}`;
+  };
+
   const replyAccts = await replyAcctsFor(ctx, arrived.flatMap((n) => (n.status ? [n.status] : [])));
   const moreHref = page.nextMaxId ? `/notifications?tier=${tier}&max_id=${encodeURIComponent(page.nextMaxId)}` : null;
   const tabLink = (k: string, label: string) => html`<a class="tab" href="/notifications?tier=${k}" aria-current="${tier === k ? 'true' : null}">${label}</a>`;
@@ -295,13 +313,13 @@ route('GET', '/notifications', async (ctx) => {
     </header>
     <nav class="tabs timeline" aria-label="${t('notif.tabsLabel')}">${tabLink('direct', t('notif.tabToYou'))}${tabLink('ambient', t('notif.tabReactions'))}</nav>
     <section class="timeline" id="nf-section">
-      ${tier === 'ambient' ? html`<p class="prose-small">${t('notif.holdNote')}${holding ? html` ${t('notif.holdingMore')}` : ''}</p>` : ''}
-      ${arrived.length === 0 && !holding ? html`<p class="prose-small">${tier === 'direct' ? t('notif.emptyToYou') : t('notif.emptyReactions')}</p>` : ''}
+      ${tier === 'ambient' ? html`<p class="prose-small">${t('notif.holdNote')}</p>` : ''}
+      ${arrived.length === 0 ? html`<p class="prose-small">${tier === 'direct' ? t('notif.emptyToYou') : t('notif.emptyReactions')}</p>` : ''}
       <div id="nf-items">
         ${arrived.map(
           (n) => html`<article class="notif" id="nf-${n.id}">
             <header class="notif-head">
-              <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span></a>
+              <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span></a>${who(n)}
               <span class="notif-summary">${summary(n)}</span>
               <form class="notif-dismiss" method="post" action="/notifications/${n.id}/dismiss" in-place>
                 <button type="submit" class="chip" aria-label="${t('notif.dismiss')}">×</button>
@@ -323,7 +341,7 @@ route('GET', '/notifications', async (ctx) => {
         ${arrived.map(
           (n) => html`<article class="notif" id="nf-${n.id}">
             <header class="notif-head">
-              <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span></a>
+              <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span></a>${who(n)}
               <span class="notif-summary">${summary(n)}</span>
               <form class="notif-dismiss" method="post" action="/notifications/${n.id}/dismiss" in-place>
                 <button type="submit" class="chip" aria-label="${t('notif.dismiss')}">×</button>
@@ -344,13 +362,13 @@ route('GET', '/notifications', async (ctx) => {
 
 route('POST', '/notifications/clear', async (ctx) => {
   await needMe(ctx);
-  await gw(ctx, 'POST', '/api/v1/notifications/clear', { json: {} });
+  await gw(ctx, 'POST', '/api/v1/notifications/clear', { json: {}, query: pace() });
   return redirect('/notifications');
 });
 
 route('POST', '/notifications/:id/dismiss', async (ctx) => {
   await needMe(ctx);
-  await gw(ctx, 'POST', `/api/v1/notifications/${encodeURIComponent(ctx.params.id)}/dismiss`, { json: {} });
+  await gw(ctx, 'POST', `/api/v1/notifications/${encodeURIComponent(ctx.params.id)}/dismiss`, { json: {}, query: pace() });
   return backOr(ctx, html`<div class="notif notif-dismissed" id="nf-${ctx.params.id}"></div>`);
 });
 
