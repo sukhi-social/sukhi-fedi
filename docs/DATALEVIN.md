@@ -126,8 +126,8 @@ Be careful with this list; it is the honest part.
 
 ## Where the test suite stands
 
-`SUKHI_STORE=datalevin mix test --only integration`: **831 of 839 pass**
-(Postgres, `make test-pglite`: 836; the same 3 fail on both, and on main).
+`SUKHI_STORE=datalevin mix test --only integration`: **843 of 851 pass**
+(Postgres, `make test-pglite`: 848; the same 3 fail on both, and on main).
 About 2.8 minutes. The 5 that fail only here:
 
 | Count | Why |

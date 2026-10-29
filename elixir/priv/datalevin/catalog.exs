@@ -18,9 +18,9 @@
       %{
         name: "follow_invites_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -57,16 +57,16 @@
       %{
         name: "decos_created_by_id_fkey",
         columns: ["created_by_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       },
       %{
         name: "decos_topic_by_id_fkey",
         columns: ["topic_by_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -95,16 +95,16 @@
       %{
         name: "note_tags_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       },
       %{
         name: "note_tags_tag_id_fkey",
         columns: ["tag_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "tags",
-        on_delete: :cascade
+        ref_table: "tags"
       }
     ],
     pk: []
@@ -130,9 +130,9 @@
       %{
         name: "markers_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -154,16 +154,16 @@
       %{
         name: "deco_notes_deco_id_fkey",
         columns: ["deco_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "decos",
-        on_delete: :cascade
+        ref_table: "decos"
       },
       %{
         name: "deco_notes_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       }
     ],
     pk: ["id"]
@@ -188,9 +188,9 @@
       %{
         name: "scheduled_statuses_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -215,16 +215,16 @@
       %{
         name: "mutes_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "mutes_target_id_fkey",
         columns: ["target_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -259,16 +259,16 @@
       %{
         name: "oauth_access_tokens_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "oauth_access_tokens_app_id_fkey",
         columns: ["app_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "oauth_apps",
-        on_delete: :cascade
+        ref_table: "oauth_apps"
       }
     ],
     pk: ["id"]
@@ -316,9 +316,9 @@
       %{
         name: "nodeinfo_snapshots_monitored_instance_id_fkey",
         columns: ["monitored_instance_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "monitored_instances",
-        on_delete: :cascade
+        ref_table: "monitored_instances"
       }
     ],
     pk: ["id"]
@@ -462,9 +462,9 @@
       %{
         name: "follows_followee_id_fkey",
         columns: ["followee_id"],
+        on_delete: :none,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :none
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -487,16 +487,16 @@
       %{
         name: "boosts_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "boosts_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       }
     ],
     pk: ["id"]
@@ -528,23 +528,23 @@
       %{
         name: "notifications_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "notifications_from_account_id_fkey",
         columns: ["from_account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "notifications_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       }
     ],
     pk: ["id"]
@@ -575,9 +575,9 @@
       %{
         name: "notes_drafts_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -598,16 +598,16 @@
       %{
         name: "list_accounts_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "list_accounts_list_id_fkey",
         columns: ["list_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "lists",
-        on_delete: :cascade
+        ref_table: "lists"
       }
     ],
     pk: []
@@ -632,9 +632,9 @@
       %{
         name: "note_cleanup_ledger_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -659,9 +659,9 @@
       %{
         name: "webauthn_challenges_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -693,9 +693,9 @@
       %{
         name: "email_codes_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -718,30 +718,30 @@
       %{
         name: "reports_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       },
       %{
         name: "reports_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :nilify
+        ref_table: "notes"
       },
       %{
         name: "reports_resolved_by_id_fkey",
         columns: ["resolved_by_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       },
       %{
         name: "reports_target_id_fkey",
         columns: ["target_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -770,16 +770,16 @@
       %{
         name: "oauth_authorization_codes_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "oauth_authorization_codes_app_id_fkey",
         columns: ["app_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "oauth_apps",
-        on_delete: :cascade
+        ref_table: "oauth_apps"
       }
     ],
     pk: ["id"]
@@ -837,9 +837,9 @@
       %{
         name: "quote_authorizations_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       }
     ],
     pk: ["id"]
@@ -863,23 +863,23 @@
       %{
         name: "poll_votes_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "poll_votes_option_id_fkey",
         columns: ["option_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "poll_options",
-        on_delete: :cascade
+        ref_table: "poll_options"
       },
       %{
         name: "poll_votes_poll_id_fkey",
         columns: ["poll_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "polls",
-        on_delete: :cascade
+        ref_table: "polls"
       }
     ],
     pk: ["id"]
@@ -937,7 +937,8 @@
       %{default: nil, name: "summary_source", type: "text", null: true},
       %{default: "ARRAY[]::jsonb[]", name: "roles", type: "ARRAY", null: false},
       %{default: nil, name: "location", type: "character varying", null: true},
-      %{default: nil, name: "birthday", type: "date", null: true}
+      %{default: nil, name: "birthday", type: "date", null: true},
+      %{default: nil, name: "deleted_at", type: "timestamp without time zone", null: true}
     ],
     unique: [
       %{name: "accounts_actor_uri_index", keys: [col: "actor_uri"], where: [not_null: "actor_uri"]},
@@ -957,9 +958,9 @@
       %{
         name: "accounts_suspended_by_id_fkey",
         columns: ["suspended_by_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -986,16 +987,16 @@
       %{
         name: "feedback_items_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       },
       %{
         name: "feedback_items_handled_by_id_fkey",
         columns: ["handled_by_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1043,9 +1044,9 @@
       %{
         name: "monitored_instances_actor_id_fkey",
         columns: ["actor_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1074,16 +1075,16 @@
       %{
         name: "deco_reads_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "deco_reads_deco_id_fkey",
         columns: ["deco_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "decos",
-        on_delete: :cascade
+        ref_table: "decos"
       }
     ],
     pk: ["id"]
@@ -1106,9 +1107,9 @@
       %{
         name: "bubble_instances_created_by_id_fkey",
         columns: ["created_by_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1144,9 +1145,9 @@
       %{
         name: "push_subscriptions_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1175,16 +1176,16 @@
       %{
         name: "pinned_notes_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "pinned_notes_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       }
     ],
     pk: ["id"]
@@ -1267,9 +1268,9 @@
       %{
         name: "follow_requests_followee_id_fkey",
         columns: ["followee_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1325,9 +1326,9 @@
       %{
         name: "preview_cards_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       }
     ],
     pk: ["id"]
@@ -1386,16 +1387,16 @@
       %{
         name: "blocks_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "blocks_target_id_fkey",
         columns: ["target_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1432,9 +1433,9 @@
       %{
         name: "media_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1463,9 +1464,9 @@
       %{
         name: "conversation_participants_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1522,9 +1523,9 @@
       %{
         name: "instance_blocks_created_by_id_fkey",
         columns: ["created_by_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1553,9 +1554,9 @@
       %{
         name: "deco_followers_deco_id_fkey",
         columns: ["deco_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "decos",
-        on_delete: :cascade
+        ref_table: "decos"
       }
     ],
     pk: ["id"]
@@ -1576,9 +1577,9 @@
       %{
         name: "sessions_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1597,9 +1598,9 @@
       %{
         name: "polls_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       }
     ],
     pk: ["id"]
@@ -1632,9 +1633,9 @@
       %{
         name: "oauth_apps_owner_account_id_fkey",
         columns: ["owner_account_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1662,16 +1663,16 @@
       %{
         name: "invite_code_uses_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       },
       %{
         name: "invite_code_uses_invite_code_id_fkey",
         columns: ["invite_code_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "invite_codes",
-        on_delete: :cascade
+        ref_table: "invite_codes"
       }
     ],
     pk: ["id"]
@@ -1706,9 +1707,9 @@
       %{
         name: "lists_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1730,16 +1731,16 @@
       %{
         name: "note_media_media_id_fkey",
         columns: ["media_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "media",
-        on_delete: :cascade
+        ref_table: "media"
       },
       %{
         name: "note_media_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       }
     ],
     pk: ["id"]
@@ -1769,16 +1770,16 @@
       %{
         name: "account_notes_author_account_id_fkey",
         columns: ["author_account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "account_notes_target_account_id_fkey",
         columns: ["target_account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1796,9 +1797,42 @@
       %{
         name: "map_peers_created_by_id_fkey",
         columns: ["created_by_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
+      }
+    ],
+    pk: ["id"]
+  },
+  "account_deletions" => %{
+    columns: [
+      %{
+        default: "nextval('account_deletions_id_seq'::regclass)",
+        name: "id",
+        type: "bigint",
+        null: false
+      },
+      %{default: nil, name: "account_id", type: "bigint", null: false},
+      %{default: nil, name: "requested_at", type: "timestamp without time zone", null: false},
+      %{default: nil, name: "scheduled_for", type: "timestamp without time zone", null: false},
+      %{default: nil, name: "cancelled_at", type: "timestamp without time zone", null: true},
+      %{default: nil, name: "started_at", type: "timestamp without time zone", null: true},
+      %{default: nil, name: "finished_at", type: "timestamp without time zone", null: true}
+    ],
+    unique: [
+      %{
+        name: "account_deletions_live_index",
+        keys: [col: "account_id"],
+        where: [null: "cancelled_at", null: "finished_at"]
+      }
+    ],
+    fks: [
+      %{
+        name: "account_deletions_account_id_fkey",
+        columns: ["account_id"],
+        on_delete: :none,
+        ref_columns: ["id"],
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1825,16 +1859,16 @@
       %{
         name: "invite_codes_issued_by_id_fkey",
         columns: ["issued_by_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       },
       %{
         name: "invite_codes_on_behalf_of_id_fkey",
         columns: ["on_behalf_of_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1862,9 +1896,9 @@
       %{
         name: "webauthn_credentials_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1892,16 +1926,16 @@
       %{
         name: "announcement_dismissals_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "announcement_dismissals_announcement_id_fkey",
         columns: ["announcement_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "announcements",
-        on_delete: :cascade
+        ref_table: "announcements"
       }
     ],
     pk: ["id"]
@@ -1923,9 +1957,9 @@
       %{
         name: "relays_created_by_id_fkey",
         columns: ["created_by_id"],
+        on_delete: :nilify,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :nilify
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -1948,9 +1982,9 @@
       %{
         name: "poll_options_poll_id_fkey",
         columns: ["poll_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "polls",
-        on_delete: :cascade
+        ref_table: "polls"
       }
     ],
     pk: ["id"]
@@ -1974,16 +2008,16 @@
       %{
         name: "bookmarks_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "bookmarks_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       }
     ],
     pk: ["id"]
@@ -2013,9 +2047,9 @@
       %{
         name: "notes_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       }
     ],
     pk: ["id"]
@@ -2063,16 +2097,16 @@
       %{
         name: "reactions_account_id_fkey",
         columns: ["account_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "accounts",
-        on_delete: :cascade
+        ref_table: "accounts"
       },
       %{
         name: "reactions_note_id_fkey",
         columns: ["note_id"],
+        on_delete: :cascade,
         ref_columns: ["id"],
-        ref_table: "notes",
-        on_delete: :cascade
+        ref_table: "notes"
       }
     ],
     pk: ["id"]
