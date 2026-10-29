@@ -32,7 +32,7 @@
    `:db.fulltext/autoDomain is not true` で落ちる。`:db.fulltext/autoDomain true` を足した。
 2. **日本語が当たらない。** 既定の分かち書きは日本語を切らず、「猫」で「日本語の猫」が見つからない。
    dtlv の `exec` からは analyzer を差し替えられなかった(組み込み側なら可能かもしれない)。
-   当面は、日本語の検索は Elixir 側で絞る前提にして、未決事項に残す。
+   分かち書きは Elixir 側で行い、結果を `tokens` 属性に入れる(下の「決定済み」)。
 3. **tuple の範囲検索は eid で。** 境界に lookup ref(`[:actor/id "…"]`)を渡すと ClassCastException。
    先に actor の eid を引いてから `[aid t0]`〜`[aid t1]` を渡す。クエリ層で 1 か所にまとめる。
 4. **`to` / `cc` の行き先が定義されていなかった。** `as:Public` や followers は actor ではないので ref の先がない。
@@ -82,10 +82,14 @@ B 層まで手で設計し直す価値は小さく、変えるほどバグの面
 3. 一致を見てから書き込みを切り替え、Ecto 形のテーブルを A 層から外す。
 4. `sid` は Postgres の `id` をそのまま引き継ぐ。
 
+## 決定済み(ひなたさん)
+
+- 日本語は分かち書きを入れる。元の本文は変えず、分かち書き済みの検索用文字列を `:object/tokens` / `:content/tokens`(全文検索の属性)に別に持つ。クエリにも同じ分かち書きをかける。
+- ホームは読み込み時に merge する。`entry` は予備で、今は空のまま。
+- `content` は HTML(表示用)。ソースが Misskey の MFM のときは `:object/mfm` にも保存し、HTML だけの投稿は HTML だけ。
+
 ## 未決事項
 
-- 日本語の全文検索(分かち書きの方法)。
-- ホームを書き込み時に配るか、読むとき merge か。entry は後者の間は空。
-- `:object/content` が HTML かソース(MFM)か。今は HTML を想定し、`mfm` は別に持つ。
+- 分かち書きの実装(どの形態素解析器を Elixir 側に置くか。インデックス時とクエリ時で同じものを使う)。
 - 掃除で落とす対象を `:object/retained?` だけで決めてよいか(ローカルの関与の定義)。
 - 大きい `raw` の置き場(同じ DB か、別の blob か)。10 万件・短い `raw` の実測しかない。

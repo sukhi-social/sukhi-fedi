@@ -70,8 +70,9 @@
  :object/mentions      {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
  :object/emojis        {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
  :object/title         {:db/valueType :db.type/string}
- :object/content       {:db/valueType :db.type/string :db/fulltext true :db.fulltext/autoDomain true}
- :object/mfm           {:db/valueType :db.type/string}
+ :object/content       {:db/valueType :db.type/string} ;; HTML(表示用)
+ :object/mfm           {:db/valueType :db.type/string} ;; Misskey のソース(MFM)があるときだけ。HTML だけの投稿には付けない
+ :object/tokens        {:db/valueType :db.type/string :db/fulltext true :db.fulltext/autoDomain true} ;; 検索用。本文を分かち書きして空白区切りにしたもの。クエリも同じ分かち書きをかける
  :object/summary       {:db/valueType :db.type/string} ;; CW
  :object/sensitive?    {:db/valueType :db.type/boolean}
  :object/language      {:db/valueType :db.type/string}
@@ -90,7 +91,8 @@
  :content/object {:db/valueType :db.type/ref}
  :content/lang   {:db/valueType :db.type/string}
  :content/kind   {:db/valueType :db.type/keyword} ;; :content :summary :name
- :content/text   {:db/valueType :db.type/string :db/fulltext true :db.fulltext/autoDomain true}
+ :content/text   {:db/valueType :db.type/string}
+ :content/tokens {:db/valueType :db.type/string :db/fulltext true :db.fulltext/autoDomain true} ;; text の分かち書き
  :content/key    {:db/valueType :db.type/tuple
                   :db/tupleAttrs [:content/object :content/lang :content/kind]
                   :db/unique :db.unique/identity}
@@ -175,7 +177,8 @@
  ;; ───────── Home(畳み込み込みの実体化。使わない間は空) ─────────
  ;; (owner, object) が identity なので、同じ投稿が別の人のブーストで再び来ても upsert で 1 件に畳まれる。
  ;; :entry/via は多値で、「BさんとCさんがブースト」はそのまま via の集合。
- ;; 配り方は書き込み時 fan-out にするか読み取り時の merge にするかを決めるまで、読み取り時 merge を既定とする。
+ ;; ホームは読み込み時に merge すると決定済み(followee の author+published と Announce を束ねる)。
+ ;; したがって entry は今は使わない。畳み込みを読み込み側で済ませられなくなったときの予備。
  :entry/owner  {:db/valueType :db.type/ref}
  :entry/object {:db/valueType :db.type/ref}
  :entry/via    {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
