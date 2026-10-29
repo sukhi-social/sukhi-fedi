@@ -301,7 +301,7 @@ defmodule SukhiFedi.Graph.Local do
   defp note_with_refs(id) do
     case Repo.get(Note, id) do
       nil -> nil
-      note -> Repo.preload(note, [:media, poll: :options])
+      note -> Repo.preload(note, [:media, :tags, poll: :options])
     end
   end
 

@@ -15,7 +15,7 @@ defmodule SukhiFedi.Timelines do
 
   import Ecto.Query
 
-  alias SukhiFedi.{HotCache, Repo, Snowflake}
+  alias SukhiFedi.{Graph, HotCache, Repo, Snowflake}
   alias SukhiFedi.Lists
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Schema.{Account, Boost, Follow, Note, Tag}
@@ -264,6 +264,10 @@ defmodule SukhiFedi.Timelines do
     # `Moderation.silenced_author_ids/0` either way.
     silenced = Moderation.silenced_author_ids()
 
+    graph_page(opts, silenced, &Graph.Read.public/1) || relational_public(opts, local?, silenced)
+  end
+
+  defp relational_public(opts, local?, silenced) do
     Note
     |> where([n], n.visibility == "public")
     |> where([n], n.account_id not in ^silenced)
@@ -346,6 +350,10 @@ defmodule SukhiFedi.Timelines do
     local? = Map.get(opts, :local, true)
     name = hashtag |> String.trim_leading("#") |> String.downcase()
 
+    graph_page(opts, [], &Graph.Read.tagged(name, &1)) || relational_tag(name, opts, local?)
+  end
+
+  defp relational_tag(name, opts, local?) do
     base =
       from(n in Note,
         join: nt in "note_tags",
@@ -388,6 +396,20 @@ defmodule SukhiFedi.Timelines do
       HotCache.fetch({:timeline, kind, opts}, HotCache.ttl(ttl_name), fun)
     end
   end
+
+  # With `SUKHI_GRAPH_READ=1` the graph picks the page (SukhiFedi.Graph.Timelines);
+  # `nil` means it could not answer exactly and the relational query runs.
+  defp graph_page(opts, silenced, read) do
+    if Graph.read?() do
+      with {:ok, iris} <- Graph.Timelines.page(opts, read) do
+        iris |> Graph.Timelines.notes(silenced: silenced) |> hydrate()
+      else
+        _ -> nil
+      end
+    end
+  end
+
+  defp hydrate(notes), do: notes |> Repo.preload([:account, :media, :tags]) |> SukhiFedi.Notes.with_refs()
 
   # ── paging ───────────────────────────────────────────────────────────────
 

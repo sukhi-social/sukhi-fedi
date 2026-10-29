@@ -216,6 +216,12 @@ if System.get_env("SUKHI_GRAPH") in ["1", "true"] do
   config :sukhi_fedi, :graph, true
 end
 
+# Let the public and tag timelines pick their posts from the graph
+# (SukhiFedi.Graph.Timelines). Only meaningful with SUKHI_GRAPH.
+if System.get_env("SUKHI_GRAPH_READ") in ["1", "true"] do
+  config :sukhi_fedi, :graph_read, true
+end
+
 # Which database holds the business data (docs/DATALEVIN.md). Everything
 # else about it is read by SukhiFedi.Datalevin.Config when the store starts.
 if System.get_env("SUKHI_STORE", "postgres") == "datalevin" do

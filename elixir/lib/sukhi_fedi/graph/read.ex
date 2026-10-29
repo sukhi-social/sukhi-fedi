@@ -59,6 +59,22 @@ defmodule SukhiFedi.Graph.Read do
     )
   end
 
+  @doc "Public posts with a hashtag (lower-cased, no `#`); `local: true` for this server's own."
+  @spec tagged(String.t(), keyword()) :: [row()]
+  def tagged(tag, opts \\ []) do
+    local = if opts[:local], do: "[?o :object/local? true]", else: ""
+
+    select(
+      [
+        "[?t :tagging/tag #{lit(tag)}]",
+        "[?t :tagging/object ?o]",
+        "[?o :object/visibility :public]",
+        local
+      ],
+      opts
+    )
+  end
+
   @doc "Everything in a thread, oldest first."
   @spec thread(String.t(), keyword()) :: [row()]
   def thread(object_iri, opts \\ []) do

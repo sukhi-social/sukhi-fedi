@@ -23,6 +23,10 @@ defmodule SukhiFedi.Graph do
   @spec enabled?() :: boolean()
   def enabled?, do: Application.get_env(:sukhi_fedi, :graph, false) == true
 
+  @doc "Do the public and tag timelines choose their posts from the graph? (`SUKHI_GRAPH_READ=1`, needs the graph on.)"
+  @spec read?() :: boolean()
+  def read?, do: enabled?() and Application.get_env(:sukhi_fedi, :graph_read, false) == true
+
   @doc "Children for the application's supervisor: the graph's `dtlv` and the mirror queue; none when off."
   @spec children() :: [module()]
   def children,

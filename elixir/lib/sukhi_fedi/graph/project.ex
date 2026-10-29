@@ -92,6 +92,7 @@ defmodule SukhiFedi.Graph.Project do
       "attachment" => Enum.map(media, &attachment/1),
       "tag" =>
         Enum.map(note.emojis || [], &emoji_tag/1) ++
+          Enum.map(hashtags(note), &%{"type" => "Hashtag", "name" => "#" <> &1}) ++
           Enum.map(mentions, &%{"type" => "Mention", "href" => &1})
     }
     |> Map.merge(poll_fields(poll))
@@ -192,6 +193,9 @@ defmodule SukhiFedi.Graph.Project do
     }
     |> Map.reject(fn {_, v} -> is_nil(v) end)
   end
+
+  defp hashtags(%Note{tags: tags}) when is_list(tags), do: Enum.map(tags, & &1.name)
+  defp hashtags(_), do: []
 
   defp poll_fields(nil), do: %{}
 
