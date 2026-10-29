@@ -11,9 +11,12 @@ defmodule SukhiFedi.Integration.PullFederationHttpTest do
   import Plug.Conn
   import Plug.Test
 
+  import Ecto.Query, only: [from: 2]
+
   alias SukhiFedi.Cache.Ets
   alias SukhiFedi.Fedi.{HttpSignature, JWK}
   alias SukhiFedi.FediGolden
+  alias SukhiFedi.PullTables
   alias SukhiFedi.Schema.{Account, Follow}
   alias SukhiFedi.Web.Router
 
@@ -114,7 +117,7 @@ defmodule SukhiFedi.Integration.PullFederationHttpTest do
 
   describe "POST /pull/v1/notify" do
     test "an origin that never published its endpoints gets 404, so its sender pushes" do
-      Repo.query!("DELETE FROM peer_capabilities WHERE host = $1", [@peer])
+      Repo.delete_all(from(p in "peer_capabilities", where: p.host == ^@peer))
 
       conn =
         signed_post("/pull/v1/notify", %{
@@ -138,8 +141,7 @@ defmodule SukhiFedi.Integration.PullFederationHttpTest do
 
       assert conn.status == 202
 
-      assert [[actor, 4]] =
-               Repo.query!("SELECT actor_uri, head FROM pull_pending WHERE host = $1", [@peer]).rows
+      assert [[actor, 4]] = PullTables.pending(@peer)
 
       assert actor == FediGolden.actor()
     end
@@ -161,7 +163,7 @@ defmodule SukhiFedi.Integration.PullFederationHttpTest do
         |> Router.call(@opts)
 
       assert conn.status == 401
-      assert Repo.query!("SELECT 1 FROM pull_pending").rows == []
+      assert Repo.all(from(p in "pull_pending", select: 1)) == []
     end
 
     test "the signer must be the origin it names" do
@@ -225,18 +227,17 @@ defmodule SukhiFedi.Integration.PullFederationHttpTest do
         state: "accepted"
       })
 
-      Repo.query!("INSERT INTO pull_heads (account_id, seq) VALUES ($1, 2)", [alice.id])
+      PullTables.put_head(alice.id, 2)
 
       for seq <- 1..2 do
-        Repo.query!(
-          "INSERT INTO pull_log (account_id, seq, activity_id, body) VALUES ($1, $2, $3, $4)",
-          [
-            alice.id,
-            seq,
-            "act-#{seq}",
-            %{"id" => "act-#{seq}", "type" => "Create"}
-          ]
-        )
+        Repo.insert_all("pull_log", [
+          %{
+            account_id: alice.id,
+            seq: seq,
+            activity_id: "act-#{seq}",
+            body: %{"id" => "act-#{seq}", "type" => "Create"}
+          }
+        ])
       end
 
       {:ok,

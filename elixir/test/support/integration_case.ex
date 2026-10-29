@@ -50,8 +50,12 @@ defmodule SukhiFedi.IntegrationCase do
      mock_remote_url: "http://localhost:#{bypass.port}"}
   end
 
-  # The Datalevin store has no sandbox: every test starts from an empty database.
-  defp wipe_datalevin, do: SukhiFedi.Datalevin.Admin.wipe!()
+  # The Datalevin store has no sandbox: every test starts from an empty
+  # database, and from an empty job queue (the jobs live in SQLite).
+  defp wipe_datalevin do
+    SukhiFedi.Datalevin.Admin.wipe!()
+    SukhiFedi.QueueRepo.delete_all("oban_jobs")
+  end
 
   defp sandbox_checkout(tags) do
     :ok = checkout_with_retry()

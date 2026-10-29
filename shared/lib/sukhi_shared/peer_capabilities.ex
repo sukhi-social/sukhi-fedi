@@ -14,8 +14,11 @@ defmodule SukhiShared.PeerCapabilities do
   `capable_hosts/3` is the single predicate the rest of the system asks
   ("may I send this host pull-federation traffic?"). The gateway writes
   (`learn/3`); the delivery node reads. Both go through the `repo` they are
-  given, so this module carries no Ecto dependency of its own.
+  given, and the queries are plain Ecto ones, so they run on whatever store
+  that repo is.
   """
+
+  import Ecto.Query, only: [from: 2]
 
   alias SukhiShared.Capability
 
@@ -43,20 +46,7 @@ defmodule SukhiShared.PeerCapabilities do
       host ->
         {notify, stream} = Capability.pull_endpoints(actor_json) || {nil, nil}
 
-        repo.query!(
-          """
-          INSERT INTO peer_capabilities (host, hrefs, seen_at, pull_notify, pull_stream)
-          VALUES ($1, $2, $3, $4, $5)
-          ON CONFLICT (host) DO UPDATE SET
-            hrefs = EXCLUDED.hrefs, seen_at = EXCLUDED.seen_at,
-            pull_notify = EXCLUDED.pull_notify, pull_stream = EXCLUDED.pull_stream
-          WHERE peer_capabilities.hrefs IS DISTINCT FROM EXCLUDED.hrefs
-             OR peer_capabilities.pull_notify IS DISTINCT FROM EXCLUDED.pull_notify
-             OR peer_capabilities.pull_stream IS DISTINCT FROM EXCLUDED.pull_stream
-             OR peer_capabilities.seen_at < EXCLUDED.seen_at - interval '1 hour'
-          """,
-          [host, Capability.hrefs(actor_json), DateTime.to_naive(now), notify, stream]
-        )
+        remember(repo, host, Capability.hrefs(actor_json), DateTime.to_naive(now), notify, stream)
 
         :ok
     end
@@ -78,17 +68,55 @@ defmodule SukhiShared.PeerCapabilities do
   def capable_hosts(repo, hosts, href, now) do
     since = now |> DateTime.add(-@fresh_days * 86_400, :second) |> DateTime.to_naive()
 
-    %{rows: rows} =
-      repo.query!(
-        """
-        SELECT host FROM peer_capabilities
-        WHERE host = ANY($1) AND $2 = ANY(hrefs) AND seen_at > $3
-          AND pull_notify IS NOT NULL AND pull_stream IS NOT NULL
-        """,
-        [Enum.uniq(hosts), href, since]
-      )
+    from(p in "peer_capabilities",
+      where:
+        p.host in ^Enum.uniq(hosts) and p.seen_at > type(^since, :naive_datetime) and
+          not is_nil(p.pull_notify) and not is_nil(p.pull_stream),
+      select: {p.host, type(p.hrefs, {:array, :string})}
+    )
+    |> repo.all()
+    |> Enum.filter(fn {_host, hrefs} -> href in hrefs end)
+    |> MapSet.new(&elem(&1, 0))
+  end
 
-    rows |> List.flatten() |> MapSet.new()
+  # A changed row, or none yet: the first sighting inserts, later ones write
+  # only when what the host declared changed or the sighting is over an hour
+  # old. Read, then one write, so the same code runs on any store.
+  defp remember(repo, host, hrefs, seen_at, notify, stream) do
+    current =
+      from(p in "peer_capabilities",
+        where: p.host == ^host,
+        select: {type(p.hrefs, {:array, :string}), type(p.seen_at, :naive_datetime), p.pull_notify, p.pull_stream}
+      )
+      |> repo.one()
+
+    row = %{host: host, hrefs: hrefs, seen_at: seen_at, pull_notify: notify, pull_stream: stream}
+
+    case current do
+      nil ->
+        repo.insert_all("peer_capabilities", [row], on_conflict: :nothing, conflict_target: [:host])
+
+      {^hrefs, old_seen, ^notify, ^stream} ->
+        if NaiveDateTime.diff(seen_at, old_seen) > 3600, do: update(repo, row)
+
+      _ ->
+        update(repo, row)
+    end
+  end
+
+  defp update(repo, row) do
+    from(p in "peer_capabilities",
+      where: p.host == ^row.host,
+      update: [
+        set: [
+          hrefs: ^row.hrefs,
+          seen_at: type(^row.seen_at, :naive_datetime),
+          pull_notify: ^row.pull_notify,
+          pull_stream: ^row.pull_stream
+        ]
+      ]
+    )
+    |> repo.update_all([])
   end
 
   @doc """
@@ -100,16 +128,19 @@ defmodule SukhiShared.PeerCapabilities do
   def endpoints(repo, host, now \\ DateTime.utc_now()) do
     since = now |> DateTime.add(-@fresh_days * 86_400, :second) |> DateTime.to_naive()
 
-    case repo.query!(
-           """
-           SELECT pull_notify, pull_stream FROM peer_capabilities
-           WHERE host = $1 AND $2 = ANY(hrefs) AND seen_at > $3
-             AND pull_notify IS NOT NULL AND pull_stream IS NOT NULL
-           """,
-           [String.downcase(host), Capability.pull_federation(), since]
-         ) do
-      %{rows: [[notify, stream]]} -> %{notify: notify, stream: stream}
-      _ -> nil
+    host = String.downcase(host)
+    href = Capability.pull_federation()
+
+    from(p in "peer_capabilities",
+      where:
+        p.host == ^host and p.seen_at > type(^since, :naive_datetime) and
+          not is_nil(p.pull_notify) and not is_nil(p.pull_stream),
+      select: {p.pull_notify, p.pull_stream, type(p.hrefs, {:array, :string})}
+    )
+    |> repo.one()
+    |> case do
+      {notify, stream, hrefs} -> if href in hrefs, do: %{notify: notify, stream: stream}
+      nil -> nil
     end
   end
 

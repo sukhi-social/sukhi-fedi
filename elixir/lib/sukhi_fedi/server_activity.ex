@@ -112,7 +112,7 @@ defmodule SukhiFedi.ServerActivity do
         group_by: [j.queue, j.state],
         select: {j.queue, j.state, count(j.id)}
       )
-      |> Repo.all()
+      |> SukhiFedi.Queue.repo().all()
 
     rows
     |> Enum.group_by(&elem(&1, 0))
@@ -164,7 +164,7 @@ defmodule SukhiFedi.ServerActivity do
         errors: j.errors
       }
     )
-    |> Repo.all()
+    |> SukhiFedi.Queue.repo().all()
     |> Enum.map(fn j ->
       %{
         worker: j.worker,

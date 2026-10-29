@@ -189,7 +189,7 @@ defmodule SukhiFedi.Integration.QuoteFederationTest do
   end
 
   defp delivered_jobs do
-    Repo.all(from(j in Oban.Job, where: j.worker == "SukhiDelivery.Delivery.Worker"))
+    SukhiFedi.Queue.repo().all(from(j in Oban.Job, where: j.worker == "SukhiDelivery.Delivery.Worker"))
   end
 
   defp delivered_activity do

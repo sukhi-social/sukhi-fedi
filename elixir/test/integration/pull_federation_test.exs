@@ -9,7 +9,10 @@ defmodule SukhiFedi.Integration.PullFederationTest do
   use SukhiFedi.IntegrationCase, async: false
   @moduletag :integration
 
+  import Ecto.Query
+
   alias SukhiFedi.PullFederation.{Notify, Pull, Puller, Serve}
+  alias SukhiFedi.PullTables
   alias SukhiFedi.Schema.{Account, Follow, Note}
 
   @peer "peer.example"
@@ -44,28 +47,12 @@ defmodule SukhiFedi.Integration.PullFederationTest do
     do: Repo.insert!(%Follow{follower_uri: follower_uri, followee_id: followee.id, state: state})
 
   defp log!(account, seq, body \\ %{"type" => "Create"}) do
-    Repo.query!(
-      "INSERT INTO pull_heads (account_id, seq) VALUES ($1, $2) ON CONFLICT (account_id) DO UPDATE SET seq = GREATEST(pull_heads.seq, $2)",
-      [account.id, seq]
-    )
-
-    Repo.query!(
-      "INSERT INTO pull_log (account_id, seq, activity_id, body) VALUES ($1, $2, $3, $4)",
-      [
-        account.id,
-        seq,
-        "act-#{account.id}-#{seq}",
-        body
-      ]
-    )
+    PullTables.put_head(account.id, seq)
+    PullTables.put_log(account.id, seq, body)
   end
 
-  defp pending(host),
-    do:
-      Repo.query!("SELECT actor_uri, head FROM pull_pending WHERE host = $1 ORDER BY 1", [host]).rows
-
-  defp cursor(uri),
-    do: Repo.query!("SELECT seq FROM pull_cursors WHERE actor_uri = $1", [uri]).rows
+  defp pending(host), do: PullTables.pending(host)
+  defp cursor(uri), do: PullTables.cursor(uri)
 
   describe "Notify.accept/2" do
     test "remembers heads for actors a local user follows, ignores the rest" do
@@ -107,10 +94,7 @@ defmodule SukhiFedi.Integration.PullFederationTest do
       bob = remote!("bob", @peer)
       follow!("https://local.example/users/#{reader.username}", bob)
 
-      Repo.query!(
-        "INSERT INTO pull_cursors (actor_uri, host, seq, updated_at) VALUES ($1, $2, 7, now())",
-        [bob.actor_uri, @peer]
-      )
+      PullTables.put_cursor(bob.actor_uri, @peer, 7)
 
       assert {:dropped, :nothing_wanted} = Notify.accept(@peer, [{bob.actor_uri, 7}])
       assert {:ok, 1} = Notify.accept(@peer, [{bob.actor_uri, 8}])
@@ -196,8 +180,8 @@ defmodule SukhiFedi.Integration.PullFederationTest do
     end
 
     test "a cursor behind the prune line is told to resync", %{alice: alice, uri: uri} do
-      Repo.query!("DELETE FROM pull_log WHERE account_id = $1 AND seq <= 3", [alice.id])
-      Repo.query!("UPDATE pull_heads SET pruned_through = 3 WHERE account_id = $1", [alice.id])
+      PullTables.delete_log_through(alice.id, 3)
+      PullTables.prune_through(alice.id, 3)
 
       assert {:ok, page} = Serve.page(@peer, [{uri, 1}], "local.example")
       assert page["resync"] == [uri]
@@ -205,7 +189,7 @@ defmodule SukhiFedi.Integration.PullFederationTest do
     end
 
     test "a gap from a retracted activity is not a resync", %{alice: alice, uri: uri} do
-      Repo.query!("DELETE FROM pull_log WHERE account_id = $1 AND seq = 3", [alice.id])
+      PullTables.delete_log_at(alice.id, 3)
       assert {:ok, page} = Serve.page(@peer, [{uri, 1}], "local.example")
       assert page["resync"] == []
       assert Enum.map(page["items"], & &1["seq"]) == [2, 4, 5]
@@ -223,10 +207,7 @@ defmodule SukhiFedi.Integration.PullFederationTest do
       bob = remote!("bob", @peer)
       follow!("https://local.example/users/#{reader.username}", bob)
 
-      Repo.query!(
-        "INSERT INTO pull_pending (host, actor_uri, head, received_at) VALUES ($1, $2, 2, now())",
-        [@peer, bob.actor_uri]
-      )
+      PullTables.put_pending(@peer, bob.actor_uri, 2)
 
       {:ok, bob: bob}
     end
@@ -345,16 +326,18 @@ defmodule SukhiFedi.Integration.PullFederationTest do
 
       Puller.record(@peer, outcome)
 
-      assert [[1, ms]] =
-               Repo.query!(
-                 "SELECT failures, (extract(epoch from next_pull_at - now()) * 1000)::int FROM pull_hosts WHERE host = $1",
-                 [@peer]
-               ).rows
+      assert [{1, next_pull_at}] =
+               Repo.all(
+                 from(h in "pull_hosts",
+                   where: h.host == ^@peer,
+                   select: {h.failures, type(h.next_pull_at, :naive_datetime_usec)}
+                 )
+               )
 
-      assert ms > 0
+      assert NaiveDateTime.compare(next_pull_at, NaiveDateTime.utc_now()) == :gt
 
       Puller.record(@peer, {:ok, %{applied: 0, more: false}})
-      assert [[0]] = Repo.query!("SELECT failures FROM pull_hosts WHERE host = $1", [@peer]).rows
+      assert [0] = Repo.all(from(h in "pull_hosts", where: h.host == ^@peer, select: h.failures))
     end
 
     test "a malformed page is a failure, not a crash", %{mock_remote: bypass} do
@@ -369,7 +352,7 @@ defmodule SukhiFedi.Integration.PullFederationTest do
     end
 
     test "nothing pending is idle and makes no request" do
-      Repo.query!("DELETE FROM pull_pending")
+      Repo.delete_all("pull_pending")
       assert :idle = Pull.run(@peer)
     end
   end

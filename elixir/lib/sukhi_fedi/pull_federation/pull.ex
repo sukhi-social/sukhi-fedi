@@ -16,6 +16,8 @@ defmodule SukhiFedi.PullFederation.Pull do
 
   require Logger
 
+  import Ecto.Query
+
   alias SukhiFedi.AP.Ingest
   alias SukhiFedi.Fedi.Fetcher
   alias SukhiFedi.Repo
@@ -58,15 +60,25 @@ defmodule SukhiFedi.PullFederation.Pull do
 
   # [{actor_uri, head, cursor}] — heads ahead of what we have applied.
   defp pending(host) do
-    Repo.query!(
-      """
-      SELECT p.actor_uri, p.head, COALESCE(c.seq, 0)
-      FROM pull_pending p LEFT JOIN pull_cursors c ON c.actor_uri = p.actor_uri
-      WHERE p.host = $1 ORDER BY p.received_at LIMIT $2
-      """,
-      [host, @max_cursors]
-    ).rows
-    |> Enum.map(fn [uri, head, cursor] -> {uri, head, cursor} end)
+    rows =
+      from(p in "pull_pending",
+        where: p.host == ^host,
+        order_by: p.received_at,
+        limit: ^@max_cursors,
+        select: {p.actor_uri, p.head}
+      )
+      |> Repo.all()
+
+    cursors =
+      from(c in "pull_cursors",
+        where: c.actor_uri in ^Enum.map(rows, &elem(&1, 0)),
+        select: {c.actor_uri, c.seq}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    rows
+    |> Enum.map(fn {uri, head} -> {uri, head, Map.get(cursors, uri, 0)} end)
     |> drop_satisfied(host)
   end
 
@@ -75,10 +87,8 @@ defmodule SukhiFedi.PullFederation.Pull do
     {done, todo} = Enum.split_with(rows, fn {_, head, cursor} -> head <= cursor end)
 
     if done != [] do
-      Repo.query!("DELETE FROM pull_pending WHERE host = $1 AND actor_uri = ANY($2)", [
-        host,
-        Enum.map(done, &elem(&1, 0))
-      ])
+      uris = Enum.map(done, &elem(&1, 0))
+      Repo.delete_all(from(p in "pull_pending", where: p.host == ^host and p.actor_uri in ^uris))
     end
 
     todo
@@ -212,25 +222,44 @@ defmodule SukhiFedi.PullFederation.Pull do
   defp advance(_host, reached) when map_size(reached) == 0, do: :ok
 
   defp advance(host, reached) do
+    now = NaiveDateTime.utc_now()
+
+    for {uri, seq} <- reached do
+      Repo.insert_all(
+        "pull_cursors",
+        [%{actor_uri: uri, host: host, seq: seq, updated_at: now}],
+        on_conflict: :nothing,
+        conflict_target: [:actor_uri]
+      )
+
+      from(c in "pull_cursors", where: c.actor_uri == ^uri and c.seq < ^seq)
+      |> Repo.update_all(set: [seq: seq])
+
+      from(c in "pull_cursors", where: c.actor_uri == ^uri)
+      |> Repo.update_all(set: [updated_at: now])
+    end
+
+    # Whatever the cursors now cover is no longer pending.
     uris = Map.keys(reached)
-    seqs = Enum.map(uris, &Map.fetch!(reached, &1))
 
-    Repo.query!(
-      """
-      INSERT INTO pull_cursors (actor_uri, host, seq, updated_at)
-      SELECT u, $1, s, now() FROM unnest($2::text[], $3::bigint[]) AS t(u, s)
-      ON CONFLICT (actor_uri) DO UPDATE SET seq = GREATEST(pull_cursors.seq, EXCLUDED.seq), updated_at = now()
-      """,
-      [host, uris, seqs]
-    )
+    cursors =
+      from(c in "pull_cursors", where: c.actor_uri in ^uris, select: {c.actor_uri, c.seq})
+      |> Repo.all()
+      |> Map.new()
 
-    Repo.query!(
-      """
-      DELETE FROM pull_pending p USING pull_cursors c
-      WHERE p.host = $1 AND c.actor_uri = p.actor_uri AND p.head <= c.seq
-      """,
-      [host]
-    )
+    done =
+      for {uri, head} <-
+            Repo.all(
+              from(p in "pull_pending",
+                where: p.host == ^host and p.actor_uri in ^uris,
+                select: {p.actor_uri, p.head}
+              )
+            ),
+          head <= Map.get(cursors, uri, 0),
+          do: uri
+
+    if done != [],
+      do: Repo.delete_all(from(p in "pull_pending", where: p.host == ^host and p.actor_uri in ^done))
 
     :ok
   end

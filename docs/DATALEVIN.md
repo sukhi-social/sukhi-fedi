@@ -96,24 +96,27 @@ Be careful with this list; it is the honest part.
 - **Transactions.** `Repo.transaction` takes a writer lock and writes
   through with an undo log. Rollback works. A crash in the middle leaves the
   written part, and another reader can see uncommitted writes meanwhile.
-- **Raw SQL** (`Repo.query!`) does not work. The sites are the pull
-  federation (`PullFederation.*`), `Maintenance.RebuildRemoteNotes*`, and
-  the `mix sukhi.datalevin.catalog` task (which is meant for Postgres). They
-  need a port to Ecto queries first. On this branch the pull federation
-  therefore does not run on Datalevin.
-- **Oban's tables are in SQLite, not in `Repo`.** Tests and tools that look at
-  `oban_jobs` through `Repo` (a few of them: DeliveryStatus, QuoteFederation,
-  WebPush) see nothing; go through `SukhiFedi.QueueRepo`.
+- **Raw SQL** (`Repo.query!`) does not work, so the code that runs on both
+  stores is written as Ecto queries. That is done for the pull federation,
+  `SukhiShared.PullStats` and `SukhiShared.PeerCapabilities` (the shared
+  library now depends on Ecto, which every node already has). Still raw SQL,
+  and Postgres-only: `Maintenance.RebuildRemoteNotes` / `RebuildRemoteNoteIds`
+  (one-off repair tasks), and `mix sukhi.datalevin.catalog` (which reads
+  Postgres on purpose).
+- **Oban's tables are in SQLite, not in `Repo`.** Code that reads `oban_jobs`
+  goes through `SukhiFedi.Queue.repo/0` (the delivery status, the server
+  activity page and the metrics do). Jobs are not in the same store as the
+  business rows.
 - **Constraints.** Unique indexes, `on_conflict`, defaults and
   `ON DELETE` are enforced by the writer. Foreign keys are not checked on
   insert; `NOT NULL` and check constraints are not enforced.
 - **Postgres triggers** are not there. Tests that rely on them (admin audit
   rows) fail.
 - **`lower()` unique keys** scan candidates, they are not index lookups.
-- **Fragments.** `ILIKE` and other fragments run in Elixir, or raise
-  `Unsupported`. Example: a home timeline for a viewer who owns a list with a
-  keyword filter uses such a fragment and is not supported yet; everyone
-  else is unaffected.
+- **Fragments.** Common ones (`lower`, `length`, JSON `->>`, `EXISTS (SELECT
+  1 FROM t WHERE t.c = ?)`, a row comparison) run in Elixir; the rest raise
+  `Unsupported`. `LIKE` is always checked in Elixir: dtlv 1.2.10's native
+  image cannot run its own `like`.
 - **Sort and limit on a nullable column** happen in memory.
 - **Speed.** The integration suite is about 3 to 4 times slower per test than
   on PGlite so far. This is a first implementation, not a tuned one.
@@ -123,17 +126,14 @@ Be careful with this list; it is the honest part.
 
 ## Where the test suite stands
 
-`SUKHI_STORE=datalevin mix test --only integration`: **774 of 839 pass**
-(Postgres: 836; the 3 that fail there fail here too). About 2.5 minutes.
-The 65 that do not:
+`SUKHI_STORE=datalevin mix test --only integration`: **831 of 839 pass**
+(Postgres, `make test-pglite`: 836; the same 3 fail on both, and on main).
+About 2.8 minutes. The 5 that fail only here:
 
 | Count | Why |
 |---|---|
-| 50 | raw SQL in the pull federation, rebuild tasks, PeerCapabilities |
-| 6 | the test reads Oban jobs through `Repo` (jobs are in SQLite here) |
-| 2 | Postgres triggers (admin audits are append-only by trigger) |
-| 2 | home timeline for a viewer with a keyword list (fragment) |
-| 5 | 3 `/licenses` and `/credits` pages (they fail on Postgres main too), a map page, and one `Relays` case, not yet looked at |
+| 3 | `RebuildRemoteNotes`: the one-off repair task is raw SQL, and its test leans on a Postgres trigger |
+| 2 | `AdminAudits`: the audit table is append-only by a Postgres trigger |
 
 ## Switching an existing instance
 

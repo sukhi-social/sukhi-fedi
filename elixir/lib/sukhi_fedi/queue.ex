@@ -20,6 +20,14 @@ defmodule SukhiFedi.Queue do
     if Store.datalevin?(), do: [SukhiFedi.QueueRepo, SukhiFedi.Queue.Migrate], else: []
   end
 
+  @doc "The repo that holds this gateway's `oban_jobs`."
+  @spec repo() :: module()
+  def repo, do: if(Store.datalevin?(), do: SukhiFedi.QueueRepo, else: SukhiFedi.Repo)
+
+  @doc "Every repo to read `oban_jobs` from: ours, and any extra queue store (the SQLite delivery queue in a combined release)."
+  @spec job_repos() :: [module()]
+  def job_repos, do: Enum.uniq([repo() | Application.get_env(:sukhi_fedi, :extra_job_repos, [])])
+
   @doc "The keyword list `{Oban, …}` is started with."
   @spec oban_config() :: keyword()
   def oban_config do

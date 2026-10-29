@@ -5,6 +5,8 @@ defmodule SukhiFedi.DeliveryStatusTest do
 
   @moduletag :integration
 
+  import Ecto.Query, only: [from: 2]
+
   alias SukhiFedi.{DeliveryStatus, Notes}
   alias SukhiFedi.Schema.Account
 
@@ -131,19 +133,21 @@ defmodule SukhiFedi.DeliveryStatusTest do
   end
 
   defp mark_outbox(subject, note_id, status) do
-    Repo.query!(
-      "UPDATE outbox SET status = $1 WHERE subject = $2 AND aggregate_id = $3",
-      [status, subject, to_string(note_id)]
+    aggregate_id = to_string(note_id)
+
+    Repo.update_all(
+      from(o in "outbox", where: o.subject == ^subject and o.aggregate_id == ^aggregate_id),
+      set: [status: status]
     )
   end
 
   defp send_job(activity_id, inbox, state) do
-    Repo.query!(
-      """
-      INSERT INTO oban_jobs (state, queue, worker, args, max_attempts)
-      VALUES ($1, 'delivery', 'SukhiDelivery.Delivery.Worker', $2, 10)
-      """,
-      [state, %{"activity_id" => activity_id, "inbox_url" => inbox}]
-    )
+    SukhiFedi.Queue.repo().insert!(%Oban.Job{
+      state: state,
+      queue: "delivery",
+      worker: "SukhiDelivery.Delivery.Worker",
+      args: %{"activity_id" => activity_id, "inbox_url" => inbox},
+      max_attempts: 10
+    })
   end
 end

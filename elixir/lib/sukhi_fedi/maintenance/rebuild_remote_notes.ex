@@ -90,6 +90,19 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNotes do
 
   @doc "Every `(table, column)` whose FOREIGN KEY points at `notes(id)`."
   def note_fk_refs do
+    if SukhiFedi.Store.datalevin?(), do: note_fk_refs_from_catalog(), else: note_fk_refs_from_db()
+  end
+
+  # Datalevin has no information_schema; the catalog snapshot is its list of
+  # foreign keys (docs/DATALEVIN.md).
+  defp note_fk_refs_from_catalog do
+    for {child, fk} <- SukhiFedi.Datalevin.Catalog.referencing("notes"),
+        fk.ref_columns == ["id"],
+        column <- fk.columns,
+        do: {child, column}
+  end
+
+  defp note_fk_refs_from_db do
     sql = """
     SELECT tc.table_name, kcu.column_name
     FROM information_schema.table_constraints tc

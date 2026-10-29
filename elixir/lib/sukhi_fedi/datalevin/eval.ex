@@ -34,8 +34,10 @@ defmodule SukhiFedi.Datalevin.Eval do
     end
   end
 
-  def eval({:^, _, [ix]}, %{params: params}), do: Enum.at(params, ix)
-  def eval({:^, _, [ix, len]}, %{params: params}), do: Enum.slice(params, ix, len)
+  # A parameter an untyped (schemaless) query carries as the caller gave it:
+  # compare it as the store keeps it.
+  def eval({:^, _, [ix]}, %{params: params}), do: param(Enum.at(params, ix))
+  def eval({:^, _, [ix, len]}, %{params: params}), do: params |> Enum.slice(ix, len) |> Enum.map(&param/1)
   def eval(%Ecto.Query.Tagged{value: v}, env), do: eval(v, env)
 
   def eval(%Ecto.SubQuery{} = sq, %{params: params}),
@@ -240,6 +242,10 @@ defmodule SukhiFedi.Datalevin.Eval do
         raise Unsupported, "fragment not supported by the Datalevin store: #{inspect(template)}"
     end
   end
+
+  defp param(v) when is_list(v), do: Enum.map(v, &param/1)
+  defp param(%struct{} = v) when struct in [DateTime, NaiveDateTime, Date, Time], do: SukhiFedi.Datalevin.Types.store(v, nil)
+  defp param(v), do: v
 
   defp ts(%DateTime{} = t), do: DateTime.to_unix(t, :microsecond)
 

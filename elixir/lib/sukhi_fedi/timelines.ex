@@ -449,23 +449,22 @@ defmodule SukhiFedi.Timelines do
   defp normalize_opts(opts) when is_list(opts), do: Map.new(opts)
   defp normalize_opts(opts) when is_map(opts), do: opts
 
-  # See the keyword-gate note in home/2. Skipped (no extra clause at all) for a
-  # viewer with no keyword list, which is nearly everyone.
+  # See the keyword-gate note in home/2. One clause per keyword list the
+  # viewer owns (none for nearly everyone): the post passes if its author is
+  # not on that list, or its content has the keyword, or it carries the tag
+  # the keyword names. Plain Ecto, so it reads the same on either store.
   defp keyword_gate(query, viewer_id) do
-    if Lists.keyword_gate?(viewer_id) do
+    Enum.reduce(Lists.keyword_gates(viewer_id), query, fn {members, keyword}, q ->
+      pattern = "%" <> String.downcase(keyword) <> "%"
+      tag = keyword |> String.trim_leading("#") |> String.downcase()
+      tagged = from(nt in "note_tags", join: t in "tags", on: t.id == nt.tag_id, where: t.name == ^tag, select: nt.note_id)
+
       where(
-        query,
+        q,
         [n],
-        fragment(
-          "NOT EXISTS (SELECT 1 FROM list_accounts la JOIN lists l ON l.id = la.list_id WHERE l.account_id = ? AND l.exclusive = false AND la.account_id = ? AND COALESCE(l.filter_keyword, '') <> '' AND NOT (? ILIKE '%' || l.filter_keyword || '%' OR EXISTS (SELECT 1 FROM note_tags nt JOIN tags t ON t.id = nt.tag_id WHERE nt.note_id = ? AND t.name = lower(ltrim(l.filter_keyword, '#')))))",
-          ^viewer_id,
-          n.account_id,
-          n.content,
-          n.id
-        )
+        n.account_id not in ^members or is_nil(n.content) or
+          like(fragment("lower(?)", n.content), ^pattern) or n.id in subquery(tagged)
       )
-    else
-      query
-    end
+    end)
   end
 end

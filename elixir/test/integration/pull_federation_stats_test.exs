@@ -4,14 +4,15 @@ defmodule SukhiFedi.Integration.PullFederationStatsTest do
   @moduletag :integration
 
   alias SukhiFedi.PullFederation.Stats
+  alias SukhiFedi.PullTables
   alias SukhiFedi.Web.Admin.Render
   alias SukhiShared.{Capability, PeerCapabilities, PullStats}
 
   setup do
     # Counters are one global table; start from empty so the assertions are exact.
     PullStats.flush(Repo)
-    Repo.query!("DELETE FROM pull_stats")
-    Repo.query!("DELETE FROM pull_peer_stats")
+    Repo.delete_all("pull_stats")
+    Repo.delete_all("pull_peer_stats")
     :ok
   end
 
@@ -21,7 +22,7 @@ defmodule SukhiFedi.Integration.PullFederationStatsTest do
     PullStats.bump("notify_failed", host: "a.example")
     PullStats.bump("pull_routed", n: 5)
 
-    assert Repo.query!("SELECT count(*) FROM pull_stats").rows == [[0]]
+    assert Repo.aggregate("pull_stats", :count) == 0
     assert PullStats.flush(Repo) > 0
 
     totals = Stats.totals(1)
@@ -50,9 +51,7 @@ defmodule SukhiFedi.Integration.PullFederationStatsTest do
     PullStats.bump("pull_ok", n: 3, host: "quiet.example")
     PullStats.flush(Repo)
 
-    Repo.query!(
-      "INSERT INTO pull_peers (host, failures, last_error, notified_at) VALUES ('busy.example', 2, 'status 503', now())"
-    )
+    PullTables.put_peer("busy.example", 2, "status 503")
 
     assert [busy, quiet] = Stats.peers(10)
     assert busy.host == "busy.example"
@@ -72,13 +71,8 @@ defmodule SukhiFedi.Integration.PullFederationStatsTest do
   end
 
   test "gauges read the tables" do
-    Repo.query!(
-      "INSERT INTO pull_pending (host, actor_uri, head, received_at) VALUES ('p.example', 'https://p.example/users/a', 3, now())"
-    )
-
-    Repo.query!(
-      "INSERT INTO pull_hosts (host, next_pull_at, failures) VALUES ('p.example', now(), 2)"
-    )
+    PullTables.put_pending("p.example", "https://p.example/users/a", 3)
+    PullTables.put_host("p.example", 2)
 
     g = Stats.gauges()
     assert g.pending_hosts == 1 and g.pending_actors == 1
@@ -87,12 +81,15 @@ defmodule SukhiFedi.Integration.PullFederationStatsTest do
   end
 
   test "prune drops old buckets only" do
-    Repo.query!(
-      "INSERT INTO pull_stats (bucket, kind, n) VALUES (now() - interval '100 days', 'pull_ok', 1), (now(), 'pull_ok', 1)"
-    )
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+    Repo.insert_all("pull_stats", [
+      %{bucket: NaiveDateTime.add(now, -100 * 86_400), kind: "pull_ok", n: 1},
+      %{bucket: now, kind: "pull_ok", n: 1}
+    ])
 
     assert Stats.prune(90) == 1
-    assert Repo.query!("SELECT count(*) FROM pull_stats").rows == [[1]]
+    assert Repo.aggregate("pull_stats", :count) == 1
   end
 
   test "the admin page renders with data, with none, and the dashboard card renders" do
@@ -102,9 +99,7 @@ defmodule SukhiFedi.Integration.PullFederationStatsTest do
     PullStats.bump("notify_failed", host: "h.example")
     PullStats.flush(Repo)
 
-    Repo.query!(
-      "INSERT INTO pull_peers (host, failures, last_error, notified_at) VALUES ('h.example', 1, '<b>x</b>', now())"
-    )
+    PullTables.put_peer("h.example", 1, "<b>x</b>")
 
     assigns = fn ->
       totals = Stats.totals(24)
@@ -125,8 +120,8 @@ defmodule SukhiFedi.Integration.PullFederationStatsTest do
     refute html =~ "<b>x</b>"
     assert html =~ "&lt;b&gt;x&lt;/b&gt;"
 
-    Repo.query!("DELETE FROM pull_stats")
-    Repo.query!("DELETE FROM pull_peer_stats")
+    Repo.delete_all("pull_stats")
+    Repo.delete_all("pull_peer_stats")
 
     assert Render.render_template("pull_federation/index.html.eex", assigns.()) =~
              "No peer has exchanged anything yet."
