@@ -2,7 +2,7 @@
 # Datalevin のデータ構造(ひなたさんのドラフトの見直し)
 
 ドラフトを土台に、dtlv 1.2.10 で実際に読み込んで動かし、穴と直し方をまとめた。
-改訂版のスキーマは [`datalevin/schema.edn`](datalevin/schema.edn)(159 属性、そのまま読み込める)。
+改訂版のスキーマは [`elixir/priv/datalevin/schema.edn`](../elixir/priv/datalevin/schema.edn)(166 属性、そのまま読み込める。正本はこの 1 つ)。
 まだ実装には接続していない。今の `SUKHI_STORE=datalevin` は Postgres のカタログを 1 対 1 で写した構造で動いている([DATALEVIN.md](DATALEVIN.md))。
 
 ## 前提(変えていない)
@@ -74,6 +74,18 @@
 
 A 層(グラフの芯)だけ作り直し、B 層は今の 1 対 1 のまま残す、という切り分けを提案する。
 B 層まで手で設計し直す価値は小さく、変えるほどバグの面積が増える。
+
+## 実装の状況
+
+出来ている(単体テスト済み、どれも今のストアには未接続):
+
+- `SukhiFedi.RawStore`(+ `Config` `SQLite` `S3`): inline / ポインタの振り分け、hash 検証、GC。`raw_blobs` 表はキューの SQLite に起動時に作る。環境変数は `docs/ENV.md`。
+- `SukhiFedi.Tokenizer`(+ `Sudachi` `Whitespace`): 言語で切り替え。Sudachi が落ちていても書き込みは止めず、元の文字列で代替(`:degraded`)。Sudachi 側の HTTP 契約は `Tokenizer.Sudachi` の moduledoc。
+- `SukhiFedi.Datalevin.SchemaFile`: `priv/datalevin/schema.edn` を読み、構造を検査(全文検索の autoDomain、tuple の部品の定義など)。
+
+まだ(グラフのストア本体を書いてから):
+
+- A 層の Datalog による読み書き、掃除(保持ルールのクエリ)、`tokens` の書き込み、`sid` の採番。
 
 ## 移行の道筋
 

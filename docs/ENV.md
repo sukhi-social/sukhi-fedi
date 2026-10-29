@@ -60,6 +60,11 @@ what to set on a small box.
 | `SUKHI_QUEUE_DB` | no | `/var/lib/sukhi/queue.db` | datalevin mode: the SQLite file Oban lives in. |
 | `SUKHI_QUEUE_SYNCHRONOUS` | no | `full` | datalevin mode: SQLite `synchronous` (`full`, `normal`, `off`). |
 | `SUKHI_QUEUE_POOL_SIZE` | no | `5` | datalevin mode: SQLite pool. |
+| `SUKHI_RAW_BACKEND` | no | `sqlite` | datalevin mode: where large originals (`raw`) go: `sqlite` (a table in the queue file) or `s3` (S3-compatible, same credentials as media). |
+| `SUKHI_RAW_INLINE_MAX` | no | `4096` | datalevin mode: bytes of `raw` kept on the entity itself; larger is stored as a pointer. |
+| `SUKHI_RAW_GRACE_S` | no | `86400` | datalevin mode: how old an unreferenced blob must be before GC may delete it. |
+| `SUKHI_RAW_BUCKET` | no | `S3_BUCKET` | `SUKHI_RAW_BACKEND=s3`: bucket for blobs (keys `raw/sha256/<xx>/<hex>`). |
+| `SUKHI_SUDACHI_URL` | no | — | Sudachi segmentation service (`POST /segment`). Unset: Japanese text is indexed unsegmented. |
 | `DATALEVIN_DIR` | no | `/var/lib/sukhi/datalevin` | Database directory. |
 | `DATALEVIN_BIN` | no | `dtlv` | The native `dtlv` binary. |
 | `DATALEVIN_DURABILITY` | no | `strict` | `strict` / `relaxed` / `extra` (write-ahead log), `lmdb` (no log, sync per commit), `nosync` (no log, no sync; tests only). |
