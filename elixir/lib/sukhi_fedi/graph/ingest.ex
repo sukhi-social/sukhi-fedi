@@ -130,7 +130,8 @@ defmodule SukhiFedi.Graph.Ingest do
       |> Map.merge(Map.new(raw_attrs, fn {k, v} -> {":" <> Atom.to_string(k), v} end))
 
     tx =
-      [%{":db/id" => @author, ":actor/id" => author}] ++
+      dropped_attachments(json, id) ++
+        [%{":db/id" => @author, ":actor/id" => author}] ++
         Enum.map(addressees, & &1.entity) ++
         Enum.map(mentions, & &1.entity) ++
         parent_entities(id, parent, root_iri, root_stub) ++
@@ -325,6 +326,18 @@ defmodule SukhiFedi.Graph.Ingest do
         ":attachment/height" => if(is_integer(a["height"]), do: a["height"])
       })
     end)
+  end
+
+  # An edit that removed an attachment: the ones we hold that the object no longer lists.
+  defp dropped_attachments(json, id) do
+    keep = for %{"url" => url} <- List.wrap(json["attachment"]), is_binary(url), do: url
+
+    for [e, url] <-
+          Graph.query!(
+            "[:find ?a ?u :where [?o :object/id #{lit(id)}] [?a :attachment/object ?o] [?a :attachment/url ?u]]"
+          ),
+        url not in keep,
+        do: [":db.fn/retractEntity", e]
   end
 
   # A Question: its choices (`oneOf` = single, `anyOf` = multiple) and end time.

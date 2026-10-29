@@ -180,6 +180,38 @@ defmodule SukhiFedi.Graph.ProjectTest do
 
     assert [["<p>なおした</p>"]] = Graph.query!("[:find ?h :where [?o :object/content-html ?h]]")
 
+    # an edit that drops an attachment drops it from the graph too
+    m = fn url -> %Media{url: url, type: "image/png"} end
+
+    two =
+      Project.note_activity(
+        "Update",
+        edited,
+        c.alice,
+        [m.("https://cdn/1.png"), m.("https://cdn/2.png")],
+        nil,
+        ~U[2026-10-29 03:30:00Z]
+      )
+
+    assert :ok = record(two, c)
+    assert [[2]] = Graph.query!("[:find (count ?x) :where [?x :attachment/url _]]")
+
+    one =
+      Project.note_activity(
+        "Update",
+        edited,
+        c.alice,
+        [m.("https://cdn/2.png")],
+        nil,
+        ~U[2026-10-29 03:40:00Z]
+      )
+
+    assert :ok = record(one, c)
+    assert [["https://cdn/2.png"]] = Graph.query!("[:find ?u :where [?x :attachment/url ?u]]")
+    none = Project.note_activity("Update", edited, c.alice, [], nil, ~U[2026-10-29 03:50:00Z])
+    assert :ok = record(none, c)
+    assert [] = Graph.query!("[:find ?u :where [?x :attachment/url ?u]]")
+
     assert :ok = record(Project.delete(n.ap_id, c.alice), c)
     assert [[":Tombstone"]] = Graph.query!("[:find ?t :where [?o :object/type ?t]]")
     assert [] == Graph.query!("[:find ?h :where [?o :object/content-html ?h]]")
