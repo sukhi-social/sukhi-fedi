@@ -37,6 +37,22 @@ defmodule SukhiFedi.Datalevin.SchemaFile do
     end)
   end
 
+  @doc """
+  The shape `datalevin_open_database` takes: every key and every keyword
+  value as `":ns/name"` text (JSON has no keywords).
+  """
+  @spec to_dtlv(schema()) :: %{String.t() => %{String.t() => term()}}
+  def to_dtlv(schema) do
+    for {attr, props} <- schema, into: %{} do
+      {kw(attr), Map.new(props, fn {k, v} -> {kw(k), wire(v)} end)}
+    end
+  end
+
+  defp wire(v) when is_list(v), do: Enum.map(v, &wire/1)
+  defp wire(v) when is_atom(v) and not is_boolean(v) and not is_nil(v), do: kw(v)
+  defp wire(v), do: v
+  defp kw(atom), do: ":" <> Atom.to_string(atom)
+
   @doc "Problems in `schema`; `[]` when it is sound."
   @spec check(schema()) :: [String.t()]
   def check(schema) do

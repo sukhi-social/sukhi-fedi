@@ -6,6 +6,9 @@
 ;; 配送キューは SQLite 側。ここには持たない。
 ;; 層: A = グラフの芯(この表で作り直す) / B = 運用・ローカルアカウント(カタログから機械的に写す。ここには書かない)
 ;;
+;; 時刻(*/published など)は :db.type/long、Unix epoch からのマイクロ秒。MCP の JSON では instant を書けない(実測: "Expect java.util.Date")ため、
+;; 既存の Datalevin ストア(SukhiFedi.Datalevin.Types)と同じ約束に揃えた。
+;;
 ;; 読み書きの約束(実測で踏んだもの):
 ;;  - tuple の範囲検索 (index-range) の境界は lookup ref ではなく eid。先に actor の eid を引く。
 ;;  - tuple の部品が nil でも tuple は作られる(その行は [x nil] として索引に入る)。
@@ -25,13 +28,13 @@
  :actor/avatar       {:db/valueType :db.type/string}
  :actor/banner       {:db/valueType :db.type/string}
  :actor/bot?         {:db/valueType :db.type/boolean}
- :actor/suspended-at {:db/valueType :db.type/instant}
+ :actor/suspended-at {:db/valueType :db.type/long}
  :actor/inbox        {:db/valueType :db.type/string}
  :actor/outbox       {:db/valueType :db.type/string}
  :actor/shared-inbox {:db/valueType :db.type/string}
  :actor/raw          {:db/valueType :db.type/string}
  :actor/raw-ref      {:db/valueType :db.type/string}
- :actor/fetched-at   {:db/valueType :db.type/instant}
+ :actor/fetched-at   {:db/valueType :db.type/long}
  :actor/handle       {:db/valueType :db.type/tuple
                       :db/tupleAttrs [:actor/username :actor/host]
                       :db/unique :db.unique/identity} ;; @user@host の一意。ローカルは host = nil
@@ -42,7 +45,7 @@
  :key/type       {:db/valueType :db.type/keyword}
  :key/public     {:db/valueType :db.type/string}
  :key/private    {:db/valueType :db.type/string}
- :key/revoked-at {:db/valueType :db.type/instant}
+ :key/revoked-at {:db/valueType :db.type/long}
 
  ;; ───────── アドレス先(to/cc の行き先で actor 以外) ─────────
  ;; as:Public と各 actor の followers/following は entity にして ref で指す。
@@ -57,11 +60,11 @@
  :object/type          {:db/valueType :db.type/keyword}
  :object/attributed-to {:db/valueType :db.type/ref}
  :object/local?        {:db/valueType :db.type/boolean}
- :object/published     {:db/valueType :db.type/instant}
- :object/updated       {:db/valueType :db.type/instant}
- :object/received-at   {:db/valueType :db.type/instant}
- :object/fetched-at    {:db/valueType :db.type/instant}
- :object/touched-at    {:db/valueType :db.type/instant} ;; 最後に読まれた/配られた時刻。掃除の猶予の基準(保持の理由は保存せず、掃除のときに Datalog で導く)
+ :object/published     {:db/valueType :db.type/long}
+ :object/updated       {:db/valueType :db.type/long}
+ :object/received-at   {:db/valueType :db.type/long}
+ :object/fetched-at    {:db/valueType :db.type/long}
+ :object/touched-at    {:db/valueType :db.type/long} ;; 最後に読まれた/配られた時刻。掃除の猶予の基準(保持の理由は保存せず、掃除のときに Datalog で導く)
  :object/in-reply-to   {:db/valueType :db.type/ref}
  :object/root          {:db/valueType :db.type/ref}   ;; スレッドの根(Postgres の conversation_ap_id の代わり)
  :object/quote-of      {:db/valueType :db.type/ref}
@@ -84,7 +87,7 @@
  :object/raw-size      {:db/valueType :db.type/long}
  :object/proof-verified? {:db/valueType :db.type/boolean}
  :object/proof-key     {:db/valueType :db.type/ref}
- :object/deleted-at    {:db/valueType :db.type/instant} ;; Tombstone。中身は消して印だけ残す
+ :object/deleted-at    {:db/valueType :db.type/long} ;; Tombstone。中身は消して印だけ残す
 
  ;; 時系列の索引。範囲検索は eid で: (index-range db :object/author+published [aid t0] [aid t1])
  :object/author+published {:db/valueType :db.type/tuple :db/tupleAttrs [:object/attributed-to :object/published]}
@@ -109,7 +112,7 @@
  :activity/type      {:db/valueType :db.type/keyword}
  :activity/actor     {:db/valueType :db.type/ref}
  :activity/object    {:db/valueType :db.type/ref} ;; object か actor
- :activity/published {:db/valueType :db.type/instant}
+ :activity/published {:db/valueType :db.type/long}
  :activity/local?    {:db/valueType :db.type/boolean}
  :activity/raw       {:db/valueType :db.type/string}
  :activity/raw-ref   {:db/valueType :db.type/string}
@@ -124,7 +127,7 @@
  :follow/followee {:db/valueType :db.type/ref}
  :follow/state    {:db/valueType :db.type/keyword} ;; :pending :accepted
  :follow/activity {:db/valueType :db.type/ref}
- :follow/at       {:db/valueType :db.type/instant}
+ :follow/at       {:db/valueType :db.type/long}
  :follow/pair     {:db/valueType :db.type/tuple
                    :db/tupleAttrs [:follow/follower :follow/followee]
                    :db/unique :db.unique/identity}
@@ -138,14 +141,14 @@
  :emoji/image-url  {:db/valueType :db.type/string}
  :emoji/static-url {:db/valueType :db.type/string}
  :emoji/category   {:db/valueType :db.type/string}
- :emoji/updated-at {:db/valueType :db.type/instant}
+ :emoji/updated-at {:db/valueType :db.type/long}
 
  :reaction/id      {:db/valueType :db.type/string :db/unique :db.unique/identity}
  :reaction/actor   {:db/valueType :db.type/ref}
  :reaction/object  {:db/valueType :db.type/ref}
  :reaction/emoji   {:db/valueType :db.type/ref}
  :reaction/key     {:db/valueType :db.type/string} ;; "u:❤" / "e:<emoji IRI>"。異体字セレクタは保存時に揃える
- :reaction/at      {:db/valueType :db.type/instant}
+ :reaction/at      {:db/valueType :db.type/long}
  :reaction/uniq    {:db/valueType :db.type/tuple
                     :db/tupleAttrs [:reaction/actor :reaction/object :reaction/key]
                     :db/unique :db.unique/identity}
@@ -162,7 +165,7 @@
  :attachment/height     {:db/valueType :db.type/long}
 
  :poll/object   {:db/valueType :db.type/ref :db/unique :db.unique/identity}
- :poll/ends-at  {:db/valueType :db.type/instant}
+ :poll/ends-at  {:db/valueType :db.type/long}
  :poll/multiple? {:db/valueType :db.type/boolean}
  :choice/poll   {:db/valueType :db.type/ref}
  :choice/title  {:db/valueType :db.type/string}
@@ -175,7 +178,7 @@
 
  :tagging/tag       {:db/valueType :db.type/string} ;; 小文字に正規化
  :tagging/object    {:db/valueType :db.type/ref}
- :tagging/published {:db/valueType :db.type/instant}
+ :tagging/published {:db/valueType :db.type/long}
  :tagging/tag+published {:db/valueType :db.type/tuple :db/tupleAttrs [:tagging/tag :tagging/published]}
  :tagging/uniq      {:db/valueType :db.type/tuple
                      :db/tupleAttrs [:tagging/tag :tagging/object]
@@ -189,7 +192,7 @@
  :entry/owner  {:db/valueType :db.type/ref}
  :entry/object {:db/valueType :db.type/ref}
  :entry/via    {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
- :entry/at     {:db/valueType :db.type/instant} ;; 最後にこの投稿が現れた時刻(ページ送りのキー)
+ :entry/at     {:db/valueType :db.type/long} ;; 最後にこの投稿が現れた時刻(ページ送りのキー)
  :entry/key    {:db/valueType :db.type/tuple
                 :db/tupleAttrs [:entry/owner :entry/object]
                 :db/unique :db.unique/identity}
@@ -200,15 +203,15 @@
  :notification/type      {:db/valueType :db.type/keyword}
  :notification/source    {:db/valueType :db.type/ref}
  :notification/from      {:db/valueType :db.type/ref}
- :notification/at        {:db/valueType :db.type/instant}
- :notification/read-at   {:db/valueType :db.type/instant}
- :notification/dismissed-at {:db/valueType :db.type/instant}
+ :notification/at        {:db/valueType :db.type/long}
+ :notification/read-at   {:db/valueType :db.type/long}
+ :notification/dismissed-at {:db/valueType :db.type/long}
  :notification/recipient+at {:db/valueType :db.type/tuple :db/tupleAttrs [:notification/recipient :notification/at]}
 
  ;; ───────── 本人の整理(ブックマーク・ピン・リスト) ─────────
  :bookmark/actor  {:db/valueType :db.type/ref}
  :bookmark/object {:db/valueType :db.type/ref}
- :bookmark/at     {:db/valueType :db.type/instant}
+ :bookmark/at     {:db/valueType :db.type/long}
  :bookmark/uniq   {:db/valueType :db.type/tuple
                    :db/tupleAttrs [:bookmark/actor :bookmark/object]
                    :db/unique :db.unique/identity}
@@ -222,6 +225,10 @@
  :list/title   {:db/valueType :db.type/string}
  :list/members {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
 
+ ;; ───────── Report(掃除の保持ルールが参照する。残りは B 層) ─────────
+ :report/object {:db/valueType :db.type/ref}
+ :report/actor  {:db/valueType :db.type/ref}
+
  ;; ───────── Block / Mute / Instance ─────────
  :block/actor  {:db/valueType :db.type/ref}
  :block/target {:db/valueType :db.type/ref}
@@ -230,7 +237,7 @@
                 :db/unique :db.unique/identity}
  :mute/actor   {:db/valueType :db.type/ref}
  :mute/target  {:db/valueType :db.type/ref}
- :mute/expires-at {:db/valueType :db.type/instant}
+ :mute/expires-at {:db/valueType :db.type/long}
  :mute/uniq    {:db/valueType :db.type/tuple
                 :db/tupleAttrs [:mute/actor :mute/target]
                 :db/unique :db.unique/identity}
@@ -238,7 +245,7 @@
  :instance/host  {:db/valueType :db.type/string :db/unique :db.unique/identity}
  :instance/state {:db/valueType :db.type/keyword} ;; :ok :silenced :blocked(Postgres の instance_blocks.severity)
  :instance/reason {:db/valueType :db.type/string}
- :instance/last-failure-at {:db/valueType :db.type/instant}
+ :instance/last-failure-at {:db/valueType :db.type/long}
 
  ;; ───────── Local user ─────────
  :user/actor     {:db/valueType :db.type/ref :db/unique :db.unique/identity}

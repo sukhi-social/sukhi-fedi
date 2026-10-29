@@ -61,16 +61,20 @@ defmodule SukhiFedi.RawStore do
   end
 
   @doc """
-  Delete every blob not in `referenced` (an enumerable of refs the store
-  still points at) and older than the grace period. Returns how many went.
+  Delete every blob that is older than the grace period and not referenced.
+  `referenced` is either an enumerable of refs the store still points at, or
+  a one-argument function asking the store about one ref (use it when the set
+  is too big to list: the caller's answer must be exact, since a wrong
+  "unreferenced" loses an original). Returns how many went.
   """
-  @spec gc(Enumerable.t(), Config.t()) :: {:ok, non_neg_integer()} | {:error, term()}
+  @spec gc(Enumerable.t() | (String.t() -> boolean()), Config.t()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
   def gc(referenced, %Config{} = config \\ Config.current()) do
-    keep = MapSet.new(referenced)
+    referenced? = referenced_fun(referenced)
     cutoff = System.os_time(:second) - config.grace_s
 
     with {:ok, candidates} <- config.backend.list_older_than(cutoff, config.backend_opts) do
-      doomed = Enum.reject(candidates, &MapSet.member?(keep, &1))
+      doomed = Enum.reject(candidates, referenced?)
 
       Enum.reduce_while(doomed, {:ok, 0}, fn ref, {:ok, n} ->
         case config.backend.delete(ref, config.backend_opts) do
@@ -79,6 +83,13 @@ defmodule SukhiFedi.RawStore do
         end
       end)
     end
+  end
+
+  defp referenced_fun(fun) when is_function(fun, 1), do: fun
+
+  defp referenced_fun(refs) do
+    set = MapSet.new(refs)
+    &MapSet.member?(set, &1)
   end
 
   @doc "`sha256:<hex>` of the original bytes."

@@ -2,7 +2,7 @@
 # Datalevin のデータ構造(ひなたさんのドラフトの見直し)
 
 ドラフトを土台に、dtlv 1.2.10 で実際に読み込んで動かし、穴と直し方をまとめた。
-改訂版のスキーマは [`elixir/priv/datalevin/schema.edn`](../elixir/priv/datalevin/schema.edn)(166 属性、そのまま読み込める。正本はこの 1 つ)。
+改訂版のスキーマは [`elixir/priv/datalevin/schema.edn`](../elixir/priv/datalevin/schema.edn)(168 属性、そのまま読み込める。正本はこの 1 つ)。
 まだ実装には接続していない。今の `SUKHI_STORE=datalevin` は Postgres のカタログを 1 対 1 で写した構造で動いている([DATALEVIN.md](DATALEVIN.md))。
 
 ## 前提(変えていない)
@@ -77,15 +77,35 @@ B 層まで手で設計し直す価値は小さく、変えるほどバグの面
 
 ## 実装の状況
 
-出来ている(単体テスト済み、どれも今のストアには未接続):
+出来ている(単体テストと、実際の `dtlv` を使う通しテスト済み。どれも既存のアプリには未接続):
 
-- `SukhiFedi.RawStore`(+ `Config` `SQLite` `S3`): inline / ポインタの振り分け、hash 検証、GC。`raw_blobs` 表はキューの SQLite に起動時に作る。環境変数は `docs/ENV.md`。
-- `SukhiFedi.Tokenizer`(+ `Sudachi` `Whitespace`): 言語で切り替え。Sudachi が落ちていても書き込みは止めず、元の文字列で代替(`:degraded`)。Sudachi 側の HTTP 契約は `Tokenizer.Sudachi` の moduledoc。
-- `SukhiFedi.Datalevin.SchemaFile`: `priv/datalevin/schema.edn` を読み、構造を検査(全文検索の autoDomain、tuple の部品の定義など)。
+- `SukhiFedi.Graph`(+ `Supervisor`): グラフ用の別 DB(`<DATALEVIN_DIR>/graph`)と専用の `dtlv` 子プロセス。
+- `Graph.Ingest.object/2`: 1 件の取り込み(IRI で upsert)。author・宛先・メンションを stub で作り、`to`/`cc` を actor / collection に結び、
+  `visibility` を `Audience` で導き、`root`(順序が逆に届いても、後から親が来た時点で付け替える)、`sid`(Snowflake、再取り込みで不変)、
+  `raw`(`RawStore` 経由)、`content-html` と `content-mfm`、contentMap の展開、ハッシュタグを 1 トランザクションで書く。
+  `tombstone/2` は本文・原本・言語別の本文を消して `deleted-at` を付ける。
+- `Graph.Tokens`: 分かち書きのバッチ。`tokens` の無いものを `limit` 件ずつ処理し、サービスが落ちていれば最初の失敗で止まる。
+  `reset/0` で作り直せる。リアルタイムの分かち書きは(MAY として)持たない。検索側は `query_text/3` で同じ分かち書きをかける。
+- `Graph.Sweep`: 掃除。候補は索引(`received-at`)で取り、保持ルール(`local_thread` `young_thread` `local_touch` `followed`)を batch に 1 回だけ当て、
+  残りと子(`content` `attachment` `tagging` `reaction` `poll`→`choice`→`vote` など)を 1 トランザクションで消す。`:dry_run` は理由ごとの内訳を返す。
+  `gc/1` は blob を 1 つずつグラフに問い合わせて、参照のないものだけ消す(参照の全列挙はしない)。
+  スキーマの ref 属性がすべて「子」か「辺」に分類されていることをテストで見ている(新しい ref を足すと落ちて、扱いを決めさせる)。
+- `RawStore` / `Tokenizer` / `SchemaFile`: 前の段のとおり。
 
-まだ(グラフのストア本体を書いてから):
+実測で分かって直したこと:
 
-- A 層の Datalog による読み書き、掃除(保持ルールのクエリ)、`tokens` の書き込み、`sid` の採番。
+- **時刻は instant ではなく long(µs)にした。** `dtlv mcp` の JSON では instant を書けない(`Expect java.util.Date`)。
+  既存のストア(`Datalevin.Types`)と同じ約束で、範囲比較もそのまま通る。
+- キーワード値、lookup ref、`ground` によるコレクション束縛、`:order-by`/`:limit`、`not`/`not-join`、`retractEntity` は JSON 経由で通る。
+- 同じミリ秒に複数の object が来ても、`sid` はそのミリ秒の最大値+1 を取るので重ならない(65,536 件を超えたら明示的に失敗する)。
+- 取り込みの速さ: `strict`(WAL を毎回 fsync)で 1 件あたり約 6ms(500 件)。バックフィルは束ねて書く余地がある(未実装)。
+
+まだ(この先):
+
+- 既存アプリとの接続(受信 → `Ingest`、タイムライン・スレッド・通知の読み取り、`sid` を API の ID に)。
+- 添付、リアクション、通知、フォローなど `Ingest.object` 以外の取り込み。
+- 掃除と `Tokens` を cron に載せること、サイズ予算での前倒し削除。
+- 韓国語の分かち書き。
 
 ## 移行の道筋
 
