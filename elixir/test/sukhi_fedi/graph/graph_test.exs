@@ -282,4 +282,71 @@ defmodule SukhiFedi.Graph.GraphTest do
       assert live - 2 == Agent.get(blobs, &map_size/1)
     end
   end
+
+  describe "sweep over more objects than one answer holds" do
+    test "walks in pages: the oldest all-kept page does not stall it, and the 10 000 cap is not hit" do
+      now = 1_900_000_000_000_000
+      old = now - 30 * @day
+
+      # 10 500 old objects, the oldest 1 000 pinned by a local bookmark; written in chunks the engine accepts.
+      objs = for i <- 1..10_500, do: {i, "https://r/o/b#{i}"}
+
+      objs
+      |> Enum.chunk_every(1_000)
+      |> Enum.each(fn chunk ->
+        tx =
+          for {i, id} <- chunk do
+            %{
+              ":object/id" => id,
+              ":object/local?" => false,
+              ":object/received-at" => old + i
+            }
+          end
+
+        {:ok, _} = Graph.transact(tx)
+      end)
+
+      keep =
+        for {i, id} <- objs,
+            i <= 1_000,
+            do: %{":bookmark/object" => [":object/id", id], ":bookmark/actor" => -1}
+
+      keep
+      |> Enum.chunk_every(200)
+      |> Enum.each(fn chunk ->
+        me = %{":db/id" => -1, ":actor/id" => "https://l/u/me", ":actor/local?" => true}
+        {:ok, _} = Graph.transact([me | chunk])
+      end)
+
+      # a run limited to the first page sees only kept objects and deletes none
+      assert %{delete: 0, candidates: 400} = Sweep.run(:dry_run, now: now, limit: 400)
+
+      # a larger limit walks past them
+      r = Sweep.run(:dry_run, now: now, limit: 11_000)
+      assert r.candidates == 10_500
+      assert r.delete == 9_500
+      assert r.kept.local_touch == 1_000
+
+      assert %{deleted: 9_500} = Sweep.run(:execute, now: now, limit: 11_000)
+      assert [[1_000]] = Graph.query!("[:find (count ?o) :where [?o :object/local? false]]")
+    end
+  end
+
+  test "an ordered answer longer than the server's page is read on, not cut" do
+    tx = for i <- 1..650, do: %{":object/id" => "https://r/o/p#{i}", ":object/received-at" => i}
+
+    tx |> Enum.chunk_every(300) |> Enum.each(fn c -> {:ok, _} = Graph.transact(c) end)
+
+    ask = fn tail ->
+      Graph.query!("[:find ?r ?o :where [?o :object/received-at ?r] :order-by [?r :asc] #{tail}]")
+    end
+
+    assert 650 == length(ask.(""))
+    assert 450 == length(ask.(":limit 450"))
+    rows = ask.(":offset 100 :limit 450")
+    assert [[101, _] | _] = rows
+    assert 450 == length(rows)
+    assert [[650, _]] = Enum.take(ask.(":limit 650"), -1)
+    assert Enum.map(ask.(""), &hd/1) == Enum.to_list(1..650)
+  end
 end

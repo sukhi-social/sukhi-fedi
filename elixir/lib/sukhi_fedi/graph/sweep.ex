@@ -29,6 +29,8 @@ defmodule SukhiFedi.Graph.Sweep do
   alias SukhiFedi.Datalevin.Client
 
   @day 86_400
+  # Candidates judged (and deleted) per round trip.
+  @page 400
 
   # Entities that exist *for* an object and point at their owner: when the
   # owner goes, they go. The list is complete by test: every ref attribute of
@@ -59,26 +61,19 @@ defmodule SukhiFedi.Graph.Sweep do
     cutoff_other = now - ttl_other * 1_000_000
     cutoff_followed = now - ttl_followed * 1_000_000
 
-    candidates = candidates(cutoff_other, limit)
-    kept = kept(candidates, cutoff_other, cutoff_followed)
-    doomed = candidates -- (kept |> Map.values() |> Enum.concat() |> Enum.uniq())
-    children = children(doomed)
+    scan = scan(mode, cutoff_other, cutoff_followed, limit)
 
     report = %{
       mode: mode,
-      candidates: length(candidates),
-      kept: Map.new(kept, fn {reason, eids} -> {reason, length(eids)} end),
-      delete: length(doomed),
-      dependents: length(children)
+      candidates: scan.examined,
+      kept: Map.new(scan.kept, fn {reason, eids} -> {reason, length(eids)} end),
+      delete: scan.doomed,
+      dependents: scan.dependents
     }
 
-    if mode == :execute and doomed != [] do
-      tx = for e <- children ++ doomed, do: [":db.fn/retractEntity", e]
-      {:ok, _} = Graph.transact(tx)
-      Map.put(report, :deleted, length(doomed))
-    else
-      report
-    end
+    if mode == :execute and scan.doomed > 0,
+      do: Map.put(report, :deleted, scan.doomed),
+      else: report
   end
 
   @doc """
@@ -100,14 +95,79 @@ defmodule SukhiFedi.Graph.Sweep do
 
   # ------------------------------------------------------------ candidates
 
-  defp candidates(cutoff, limit) do
-    "[:find ?o ?r :where [?o :object/local? false] [?o :object/received-at ?r] [(< ?r #{cutoff})]
-      (not [?o :object/deleted-at _])
-      (not-join [?o] [?o :object/touched-at ?t] [(>= ?t #{cutoff})])]"
-    |> Graph.query!()
-    |> Enum.sort_by(fn [_, r] -> r end)
-    |> Enum.take(limit)
-    |> Enum.map(fn [o, _] -> o end)
+  # The engine caps one answer at 10 000 items and a transaction at about as
+  # many datoms, so the sweep walks the candidates oldest first in pages and
+  # judges (and, on `:execute`, deletes) each page on its own. A page that is
+  # all kept does not stall the run: the next page starts after it.
+  defp scan(mode, cutoff_other, cutoff_followed, limit) do
+    scan_page(
+      %{examined: 0, kept: %{}, doomed: 0, dependents: 0, after: 0, seen: MapSet.new()},
+      mode,
+      cutoff_other,
+      cutoff_followed,
+      limit
+    )
+  end
+
+  defp scan_page(%{examined: n} = acc, _, _, _, limit) when n >= limit, do: acc
+
+  defp scan_page(acc, mode, cutoff_other, cutoff_followed, limit) do
+    want = min(@page, limit - acc.examined)
+    page = candidates(cutoff_other, acc.after, want + MapSet.size(acc.seen))
+    fresh = Enum.reject(page, fn [o, _] -> MapSet.member?(acc.seen, o) end) |> Enum.take(want)
+
+    if fresh == [] do
+      acc
+    else
+      eids = Enum.map(fresh, fn [o, _] -> o end)
+      kept = kept(eids, cutoff_other, cutoff_followed)
+      doomed = eids -- (kept |> Map.values() |> Enum.concat() |> Enum.uniq())
+      children = children(doomed)
+      if mode == :execute, do: delete(children ++ doomed)
+
+      [_, last] = List.last(fresh) |> then(fn [o, r] -> [o, r] end)
+      at_last = for [o, r] <- fresh, r == last, do: o
+
+      seen =
+        if last == acc.after,
+          do: MapSet.union(acc.seen, MapSet.new(at_last)),
+          else: MapSet.new(at_last)
+
+      acc = %{
+        acc
+        | examined: acc.examined + length(eids),
+          kept: Map.merge(acc.kept, kept, fn _, a, b -> Enum.uniq(a ++ b) end),
+          doomed: acc.doomed + length(doomed),
+          dependents: acc.dependents + length(children),
+          after: last,
+          seen: seen
+      }
+
+      if length(fresh) < want,
+        do: acc,
+        else: scan_page(acc, mode, cutoff_other, cutoff_followed, limit)
+    end
+  end
+
+  defp delete(eids) do
+    eids
+    |> Enum.chunk_every(1_000)
+    |> Enum.each(fn chunk ->
+      {:ok, _} = Graph.transact(for e <- chunk, do: [":db.fn/retractEntity", e])
+    end)
+  end
+
+  # `[[eid, received-at], …]` oldest first, from `after` on (inclusive: several
+  # objects can share a microsecond, the caller drops the ones it has seen).
+  defp candidates(cutoff, after_r, take) do
+    Graph.query!("""
+    [:find ?r ?o :where [?o :object/local? false] [?o :object/received-at ?r]
+                        [(>= ?r #{after_r})] [(< ?r #{cutoff})]
+                        (not [?o :object/deleted-at _])
+                        (not-join [?o] [?o :object/touched-at ?t] [(>= ?t #{cutoff})])
+     :order-by [?r :asc] :limit #{take}]
+    """)
+    |> Enum.map(fn [r, o] -> [o, r] end)
   end
 
   # reason => eids (among the candidates) that must stay. One round trip.
