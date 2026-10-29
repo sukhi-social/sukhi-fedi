@@ -359,7 +359,10 @@ export function serve(port: number): ReturnType<typeof createServer> {
     let status = 500;
 
     try {
-      if ((req.method === 'GET' || req.method === 'HEAD') && (await serveStatic(req, res, pathname))) return;
+      if ((req.method === 'GET' || req.method === 'HEAD') && (await serveStatic(req, res, pathname))) {
+        status = res.statusCode;
+        return;
+      }
 
       if (isProxied(pathname)) {
         await proxy(req, res);
