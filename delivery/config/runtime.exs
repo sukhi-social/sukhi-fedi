@@ -49,10 +49,11 @@ if config_env() == :prod do
   if System.get_env("DELIVERY_QUEUE", "postgres") == "sqlite" do
     config :sukhi_delivery, :queue_backend, :sqlite
 
-    # Combined release only (one BEAM): lets the gateway's delivery status and
-    # discarded-job count read the SQLite queue too. Harmless on a lone
+    # Combined release only (one BEAM): lets the gateway enqueue its delivery sends
+    # into the SQLite queue and read it for delivery status / discarded count. Harmless on a lone
     # delivery node, where :sukhi_fedi isn't running.
     config :sukhi_fedi, :extra_job_repos, [SukhiDelivery.QueueRepo]
+    config :sukhi_fedi, :delivery_oban, SukhiDelivery.QueueOban
 
     config :sukhi_delivery, SukhiDelivery.QueueRepo,
       database: System.get_env("DELIVERY_QUEUE_DB", "/var/lib/sukhi/delivery_queue.db"),

@@ -85,8 +85,7 @@ defmodule SukhiFedi.AP.Instructions.Follows do
   end
 
   defp deliver_accept(reply, inbox_url, followee_uri) do
-    Oban.insert!(
-      SukhiFedi.Oban,
+    SukhiFedi.DeliveryQueue.insert!(
       Oban.Job.new(
         %{raw_json: reply, inbox_url: inbox_url, actor_uri: followee_uri},
         worker: @delivery_worker,
@@ -101,7 +100,6 @@ defmodule SukhiFedi.AP.Instructions.Follows do
     maybe_enqueue_actor_update(followee_uri, inbox_url)
     maybe_backfill_recent_notes(followee_uri, inbox_url)
   end
-
 
   # Park a Follow aimed at a locked account. Idempotent on (followee,
   # follower) so a re-sent Follow doesn't pile up, and it notifies the
@@ -228,8 +226,7 @@ defmodule SukhiFedi.AP.Instructions.Follows do
       "object" => follow_activity
     }
 
-    Oban.insert!(
-      SukhiFedi.Oban,
+    SukhiFedi.DeliveryQueue.insert!(
       Oban.Job.new(
         %{raw_json: reply, inbox_url: inbox_url, actor_uri: actor_uri},
         worker: @delivery_worker,
@@ -398,8 +395,7 @@ defmodule SukhiFedi.AP.Instructions.Follows do
       %Account{} = account ->
         update_json = SukhiFedi.AP.ActorJson.build_update(account)
 
-        Oban.insert!(
-          SukhiFedi.Oban,
+        SukhiFedi.DeliveryQueue.insert!(
           Oban.Job.new(
             %{raw_json: update_json, inbox_url: inbox_url, actor_uri: followee_uri},
             worker: @delivery_worker,

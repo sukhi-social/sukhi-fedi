@@ -137,8 +137,11 @@ there). One node only: the file
 is not shared. The outbox → queue hop becomes at-least-once (the relay skips
 rows already queued; `delivery_receipts` absorbs any remaining duplicate).
 
-In a combined release the gateway's `DeliveryStatus` and discarded-job count also
-read the SQLite file (`:extra_job_repos`). A separate gateway node cannot see it.
+In a combined release the gateway also enqueues its `delivery` sends (follow
+Accepts, quotes, relays) into the SQLite queue (`:delivery_oban`), and its
+`DeliveryStatus` and discarded-job count read the SQLite file
+(`:extra_job_repos`). A separate gateway node cannot see the file, so it keeps
+using Postgres, which the delivery node still drains.
 
 
 | Var | Default | Meaning |
