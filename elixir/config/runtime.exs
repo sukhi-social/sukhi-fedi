@@ -210,7 +210,20 @@ if vapid_public not in [nil, ""] do
       )
 end
 
-if config_env() == :prod do
+# Which database holds the business data (docs/DATALEVIN.md). Everything
+# else about it is read by SukhiFedi.Datalevin.Config when the store starts.
+if System.get_env("SUKHI_STORE", "postgres") == "datalevin" do
+  config :sukhi_fedi, :store, :datalevin
+
+  # Oban's jobs (SukhiFedi.Queue) live in a SQLite file next to it.
+  config :sukhi_fedi, SukhiFedi.QueueRepo,
+    database: System.get_env("SUKHI_QUEUE_DB", "/var/lib/sukhi/queue.db"),
+    journal_mode: :wal,
+    synchronous: String.to_atom(System.get_env("SUKHI_QUEUE_SYNCHRONOUS", "full")),
+    pool_size: String.to_integer(System.get_env("SUKHI_QUEUE_POOL_SIZE", "5"))
+end
+
+if config_env() == :prod and System.get_env("SUKHI_STORE", "postgres") != "datalevin" do
   config :sukhi_fedi, SukhiFedi.Repo,
     database: System.get_env("DB_NAME", "sukhi_fedi"),
     username: System.fetch_env!("DB_USER"),

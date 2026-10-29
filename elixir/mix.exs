@@ -67,6 +67,10 @@ defmodule SukhiFedi.MixProject do
       # Job queue
       {:oban, "~> 2.18"},
 
+      # Where the job queues live when the business data is in Datalevin
+      # (SUKHI_STORE=datalevin): Oban's Lite engine on a SQLite file.
+      {:ecto_sqlite3, "~> 0.17"},
+
       # NATS client
       {:gnat, "~> 1.8"},
 

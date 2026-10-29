@@ -23,6 +23,8 @@ defmodule SukhiShared.PullStats do
     * `:host` — also count against this peer host
   """
 
+  import Ecto.Query, only: [from: 2]
+
   use GenServer
 
   require Logger
@@ -120,17 +122,7 @@ defmodule SukhiShared.PullStats do
         max = take_max(kind)
         :ets.update_counter(@table, key, [{2, -n}, {3, -sum}])
 
-        repo.query!(
-          """
-          INSERT INTO pull_stats (bucket, kind, n, sum_ms, max_ms) VALUES ($1, $2, $3, $4, $5)
-          ON CONFLICT (bucket, kind) DO UPDATE SET
-            n = pull_stats.n + EXCLUDED.n,
-            sum_ms = pull_stats.sum_ms + EXCLUDED.sum_ms,
-            max_ms = GREATEST(pull_stats.max_ms, EXCLUDED.max_ms)
-          """,
-          [bucket, kind, n, sum, max]
-        )
-
+        add_stat(repo, bucket, kind, n, sum, max)
         true
       end)
 
@@ -138,19 +130,50 @@ defmodule SukhiShared.PullStats do
       Enum.count(peers, fn {host, kind, {key, n}} ->
         :ets.update_counter(@table, key, {2, -n})
 
-        repo.query!(
-          """
-          INSERT INTO pull_peer_stats (host, kind, n, last_at) VALUES ($1, $2, $3, $4)
-          ON CONFLICT (host, kind) DO UPDATE SET
-            n = pull_peer_stats.n + EXCLUDED.n, last_at = EXCLUDED.last_at
-          """,
-          [host, kind, n, at]
-        )
-
+        add_peer_stat(repo, host, kind, n, at)
         true
       end)
 
     k + p
+  end
+
+  # Add to a bucket's row, creating it first. Three small statements rather
+  # than one `ON CONFLICT … GREATEST`, so the same code runs on any store.
+  defp add_stat(repo, bucket, kind, n, sum, max) do
+    repo.insert_all(
+      "pull_stats",
+      [%{bucket: bucket, kind: kind, n: 0, sum_ms: 0, max_ms: 0}],
+      on_conflict: :nothing,
+      conflict_target: [:bucket, :kind]
+    )
+
+    from(s in "pull_stats",
+      where: s.bucket == type(^bucket, :naive_datetime) and s.kind == ^kind,
+      update: [inc: [n: ^n, sum_ms: ^sum]]
+    )
+    |> repo.update_all([])
+
+    from(s in "pull_stats",
+      where:
+        s.bucket == type(^bucket, :naive_datetime) and s.kind == ^kind and s.max_ms < ^max,
+      update: [set: [max_ms: ^max]]
+    )
+    |> repo.update_all([])
+  end
+
+  defp add_peer_stat(repo, host, kind, n, at) do
+    repo.insert_all(
+      "pull_peer_stats",
+      [%{host: host, kind: kind, n: 0, last_at: at}],
+      on_conflict: :nothing,
+      conflict_target: [:host, :kind]
+    )
+
+    from(s in "pull_peer_stats",
+      where: s.host == ^host and s.kind == ^kind,
+      update: [inc: [n: ^n], set: [last_at: type(^at, :naive_datetime)]]
+    )
+    |> repo.update_all([])
   end
 
   defp take_max(kind) do

@@ -50,7 +50,7 @@ defmodule SukhiFedi.Integration.WebPushTest do
         })
 
       pushes = fn ->
-        SukhiFedi.Repo.aggregate(from(j in "oban_jobs", where: j.queue == "push"), :count)
+        SukhiFedi.Queue.repo().aggregate(from(j in "oban_jobs", where: j.queue == "push"), :count)
       end
 
       # `:manual`, because the test env otherwise runs jobs inline at insert

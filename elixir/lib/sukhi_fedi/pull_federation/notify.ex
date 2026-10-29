@@ -81,30 +81,57 @@ defmodule SukhiFedi.PullFederation.Notify do
     end
   end
 
-  # One statement: keep the heads for actors a local user follows (an
-  # accepted follow of the shadow row) and that are ahead of our cursor, and
-  # upsert them. Returns how many rows that was.
+  # Keep the heads for actors a local user follows (an accepted follow of the
+  # shadow row) and that are ahead of our cursor, and upsert them. Returns how
+  # many rows that was. A few small queries — the followed set, the cursors,
+  # the writes — each on its own indexed key.
   defp remember(origin, heads, now) do
     uris = Enum.map(heads, &elem(&1, 0))
-    seqs = Enum.map(heads, &elem(&1, 1))
 
-    %{num_rows: n} =
-      Repo.query!(
-        """
-        INSERT INTO pull_pending (host, actor_uri, head, received_at)
-        SELECT $1, h.uri, h.seq, $4
-        FROM unnest($2::text[], $3::bigint[]) AS h(uri, seq)
-        WHERE EXISTS (
-          SELECT 1 FROM accounts a JOIN follows f ON f.followee_id = a.id AND f.state = 'accepted'
-          WHERE a.actor_uri = h.uri AND a.domain IS NOT NULL)
-          AND h.seq > COALESCE((SELECT c.seq FROM pull_cursors c WHERE c.actor_uri = h.uri), 0)
-        ON CONFLICT (host, actor_uri) DO UPDATE SET
-          head = GREATEST(pull_pending.head, EXCLUDED.head), received_at = EXCLUDED.received_at
-        """,
-        [origin, uris, seqs, DateTime.to_naive(now)]
+    followed =
+      from(a in "accounts",
+        join: f in "follows",
+        on: f.followee_id == a.id and f.state == "accepted",
+        where: a.actor_uri in ^uris and not is_nil(a.domain),
+        distinct: true,
+        select: a.actor_uri
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    cursors =
+      from(c in "pull_cursors", where: c.actor_uri in ^uris, select: {c.actor_uri, c.seq})
+      |> Repo.all()
+      |> Map.new()
+
+    keep =
+      for {uri, seq} <- heads,
+          MapSet.member?(followed, uri),
+          seq > Map.get(cursors, uri, 0),
+          do: {uri, seq}
+
+    at = DateTime.to_naive(now)
+
+    if keep != [] do
+      Repo.insert_all(
+        "pull_pending",
+        Enum.map(keep, fn {uri, seq} ->
+          %{host: origin, actor_uri: uri, head: seq, received_at: at}
+        end),
+        on_conflict: :nothing,
+        conflict_target: [:host, :actor_uri]
       )
 
-    n
+      for {uri, seq} <- keep do
+        from(p in "pull_pending", where: p.host == ^origin and p.actor_uri == ^uri and p.head < ^seq)
+        |> Repo.update_all(set: [head: seq])
+
+        from(p in "pull_pending", where: p.host == ^origin and p.actor_uri == ^uri)
+        |> Repo.update_all(set: [received_at: at])
+      end
+    end
+
+    length(keep)
   end
 
   @doc "Hosts that have something pending, oldest first. For the scheduler."

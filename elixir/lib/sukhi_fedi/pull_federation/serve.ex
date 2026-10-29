@@ -14,6 +14,8 @@ defmodule SukhiFedi.PullFederation.Serve do
   signature itself was checked at the edge (`Web.SignedRequest`).
   """
 
+  import Ecto.Query
+
   alias SukhiFedi.Repo
   alias SukhiShared.PullStats
 
@@ -80,31 +82,43 @@ defmodule SukhiFedi.PullFederation.Serve do
   defp authorised(host, asked) do
     names = Enum.map(asked, &elem(&1, 0))
 
-    %{rows: rows} =
-      Repo.query!(
-        """
-        SELECT a.id, a.username FROM accounts a
-        WHERE a.domain IS NULL AND a.username = ANY($1)
-          AND EXISTS (SELECT 1 FROM follows f WHERE f.followee_id = a.id AND f.state = 'accepted'
-                      AND lower(split_part(f.follower_uri, '/', 3)) = $2)
-        """,
-        [names, host]
+    ids =
+      from(a in "accounts",
+        where: is_nil(a.domain) and a.username in ^names,
+        select: {a.username, a.id}
       )
+      |> Repo.all()
+      |> Map.new()
 
-    ids = Map.new(rows, fn [id, name] -> {name, id} end)
+    # Of those, the ones some follower on `host` has an accepted follow of.
+    followed =
+      from(f in "follows",
+        where:
+          f.followee_id in ^Map.values(ids) and f.state == "accepted" and
+            (like(fragment("lower(?)", f.follower_uri), ^"https://#{host}/%") or
+               like(fragment("lower(?)", f.follower_uri), ^"http://#{host}/%")),
+        distinct: true,
+        select: f.followee_id
+      )
+      |> Repo.all()
+      |> MapSet.new()
 
-    for {name, uri, n} <- asked, id = ids[name], do: {id, uri, n}
+    for {name, uri, n} <- asked,
+        id = ids[name],
+        MapSet.member?(followed, id),
+        do: {id, uri, n}
   end
 
   defp build(allowed) do
     ids = Enum.map(allowed, &elem(&1, 0))
 
     heads =
-      Repo.query!(
-        "SELECT account_id, seq, pruned_through FROM pull_heads WHERE account_id = ANY($1)",
-        [ids]
-      ).rows
-      |> Map.new(fn [id, seq, pruned] -> {id, {seq, pruned}} end)
+      from(h in "pull_heads",
+        where: h.account_id in ^ids,
+        select: {h.account_id, h.seq, h.pruned_through}
+      )
+      |> Repo.all()
+      |> Map.new(fn {id, seq, pruned} -> {id, {seq, pruned}} end)
 
     # Where each actor's answer starts: after the cursor; after the prune
     # line if the cursor is behind it (a resync); and for an actor the
@@ -114,21 +128,25 @@ defmodule SukhiFedi.PullFederation.Serve do
         {head, pruned} = Map.get(heads, id, {0, 0})
         resync? = n > 0 and n < pruned
         first? = n == 0
-        from = if first?, do: max(pruned, head - @first_window), else: max(n, pruned)
-        {id, uri, from, resync?}
+        after_seq = if first?, do: max(pruned, head - @first_window), else: max(n, pruned)
+        {id, uri, after_seq, resync?}
       end
 
-    %{rows: rows} =
-      Repo.query!(
-        """
-        SELECT l.account_id, l.seq, l.body
-        FROM pull_log l JOIN unnest($1::bigint[], $2::bigint[]) AS c(id, after_seq)
-          ON l.account_id = c.id AND l.seq > c.after_seq
-        ORDER BY l.account_id, l.seq
-        LIMIT $3
-        """,
-        [Enum.map(starts, &elem(&1, 0)), Enum.map(starts, &elem(&1, 2)), @page_items + 1]
-      )
+    # One small query per actor, each a range on (account_id, seq); the page
+    # is cut to its size across them, in account order.
+    rows =
+      starts
+      |> Enum.sort_by(&elem(&1, 0))
+      |> Enum.flat_map(fn {id, _uri, after_seq, _} ->
+        from(l in "pull_log",
+          where: l.account_id == ^id and l.seq > ^after_seq,
+          order_by: l.seq,
+          limit: ^(@page_items + 1),
+          select: [l.account_id, l.seq, type(l.body, :map)]
+        )
+        |> Repo.all()
+      end)
+      |> Enum.take(@page_items + 1)
 
     uri_of = Map.new(allowed, fn {id, uri, _} -> {id, uri} end)
     {taken, rest} = Enum.split(rows, @page_items)

@@ -251,7 +251,7 @@ defmodule SukhiFedi.DeliveryStatus do
   # `:extra_job_repos` (the SQLite delivery queue in a combined release).
   # Counts for the same state are added across stores.
   defp counts_by_key(query, key_fun) do
-    [Repo | Application.get_env(:sukhi_fedi, :extra_job_repos, [])]
+    SukhiFedi.Queue.job_repos()
     |> Enum.flat_map(& &1.all(query))
     |> Enum.group_by(fn {key, _state, _n} -> key_fun.(key) end, fn {_key, state, n} ->
       {state, n}

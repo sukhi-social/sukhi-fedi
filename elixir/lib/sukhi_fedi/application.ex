@@ -8,9 +8,11 @@ defmodule SukhiFedi.Application do
   def start(_type, _args) do
     :ok = SukhiFedi.Addon.Registry.verify_abi!()
 
-    core_children = [
+    core_children = List.flatten([
       SukhiFedi.PromEx,
       SukhiFedi.Repo,
+      # Oban's SQLite file when the store is Datalevin; nothing otherwise.
+      SukhiFedi.Queue.children(),
       {Gnat.ConnectionSupervisor, nats_connection_settings()},
       SukhiFedi.Cache.Ets,
       # 画像プロキシの AVIF 裏 encode(一枚ずつ)。結果を Cache.Ets の
@@ -29,7 +31,7 @@ defmodule SukhiFedi.Application do
       # Bun replica still running, so cutover is "stop the bun container".
       # After Cache.Ets (key cache) and Finch (remote fetch).
       {Gnat.ConsumerSupervisor, fedi_consumer_settings()},
-      {Oban, [name: SukhiFedi.Oban] ++ Application.fetch_env!(:sukhi_fedi, Oban)},
+      {Oban, [name: SukhiFedi.Oban] ++ SukhiFedi.Queue.oban_config()},
       # Records one host-resource row per interval into metric_samples so
       # the series accrues for offline analysis. :ignore (no-op) unless
       # :metrics sample_interval_ms is set — the test env leaves it off.
@@ -45,7 +47,7 @@ defmodule SukhiFedi.Application do
       # the Gnat connection above; subscribes lazily and retries if NATS isn't
       # up yet, so it never blocks boot.
       SukhiFedi.WtRelayTelemetry
-    ]
+    ])
 
     children = core_children ++ SukhiFedi.Addon.Registry.children() ++ [endpoint()]
 

@@ -44,7 +44,7 @@ defmodule SukhiFedi.PullFederation.Stats do
     rows =
       from(s in "pull_stats",
         where: s.bucket >= ^since(hours),
-        select: {s.bucket, s.kind, s.n}
+        select: {type(s.bucket, :naive_datetime), s.kind, s.n}
       )
       |> Repo.all()
       |> Enum.group_by(&elem(&1, 0), fn {_, kind, n} -> {kind, n} end)
@@ -111,40 +111,44 @@ defmodule SukhiFedi.PullFederation.Stats do
   @doc "Where things stand now."
   @spec gauges() :: map()
   def gauges do
-    one = fn sql -> Repo.query!(sql, []).rows |> List.first() |> List.first() |> to_int() end
     href = Capability.pull_federation()
+    now = NaiveDateTime.utc_now()
 
     fresh =
       DateTime.utc_now()
       |> DateTime.add(-PeerCapabilities.fresh_days() * 86_400, :second)
       |> DateTime.to_naive()
 
+    peers =
+      from(p in "peer_capabilities",
+        select: {type(p.hrefs, {:array, :string}), type(p.seen_at, :naive_datetime_usec)}
+      )
+      |> Repo.all()
+
+    oldest =
+      from(l in "pull_log", select: type(min(l.inserted_at), :naive_datetime_usec)) |> Repo.one()
+
     %{
       advertised: Capability.advertised?(),
       capable_peers:
-        Repo.query!(
-          "SELECT count(*) FROM peer_capabilities WHERE $1 = ANY(hrefs) AND seen_at > $2",
-          [href, fresh]
-        ).rows
-        |> hd()
-        |> hd(),
-      known_peers: one.("SELECT count(*) FROM peer_capabilities"),
-      pending_hosts: one.("SELECT count(DISTINCT host) FROM pull_pending"),
-      pending_actors: one.("SELECT count(*) FROM pull_pending"),
-      failing_hosts: one.("SELECT count(*) FROM pull_hosts WHERE failures > 0"),
-      cursors: one.("SELECT count(*) FROM pull_cursors"),
-      log_rows: one.("SELECT count(*) FROM pull_log"),
-      log_oldest_s:
-        one.(
-          "SELECT COALESCE(extract(epoch FROM now() - min(inserted_at))::bigint, 0) FROM pull_log"
-        ),
+        Enum.count(peers, fn {hrefs, seen} ->
+          href in hrefs and NaiveDateTime.compare(seen, fresh) == :gt
+        end),
+      known_peers: length(peers),
+      pending_hosts: Repo.one(from(p in "pull_pending", select: count(p.host, :distinct))),
+      pending_actors: Repo.one(from(p in "pull_pending", select: count())),
+      failing_hosts: Repo.one(from(h in "pull_hosts", where: h.failures > 0, select: count())),
+      cursors: Repo.one(from(c in "pull_cursors", select: count())),
+      log_rows: Repo.one(from(l in "pull_log", select: count())),
+      log_oldest_s: if(oldest, do: max(NaiveDateTime.diff(now, oldest), 0), else: 0),
       breaker_open:
-        Repo.query!(
-          "SELECT count(*) FROM pull_peers WHERE failures >= $1 AND notified_at > now() - interval '30 minutes'",
-          [5]
-        ).rows
-        |> hd()
-        |> hd(),
+        Repo.one(
+          from(p in "pull_peers",
+            where:
+              p.failures >= 5 and p.notified_at > type(^NaiveDateTime.add(now, -1800), :naive_datetime_usec),
+            select: count()
+          )
+        ),
       in_flight: SukhiFedi.PullFederation.Gate.in_flight(),
       max_in_flight: SukhiFedi.PullFederation.Gate.max()
     }
@@ -160,7 +164,7 @@ defmodule SukhiFedi.PullFederation.Stats do
   @spec peers(pos_integer()) :: [map()]
   def peers(limit \\ 30) do
     rows =
-      from(p in "pull_peer_stats", select: {p.host, p.kind, p.n, p.last_at})
+      from(p in "pull_peer_stats", select: {p.host, p.kind, p.n, type(p.last_at, :naive_datetime)})
       |> Repo.all()
 
     by_host = Enum.group_by(rows, &elem(&1, 0))

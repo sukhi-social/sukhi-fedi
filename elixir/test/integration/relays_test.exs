@@ -444,6 +444,6 @@ defmodule SukhiFedi.Integration.RelaysTest do
   defp manual(fun), do: Oban.Testing.with_testing_mode(:manual, fun)
 
   defp delivered_jobs do
-    Repo.all(from(j in Oban.Job, where: j.worker == "SukhiDelivery.Delivery.Worker"))
+    SukhiFedi.Queue.repo().all(from(j in Oban.Job, where: j.worker == "SukhiDelivery.Delivery.Worker"))
   end
 end

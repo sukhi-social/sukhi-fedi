@@ -450,3 +450,23 @@ git status
       SQL で足りる、という見立て(未着手)。
 - [ ] **管理画面の EEx 約 1800 行 → SPA の `/admin` へ** (`/api/admin/*` の JSON API は既にある)。
       下の Admin frontend (htmx) 計画の見直しと同じ話。
+- [ ] **Datalog に合わせて DB(スキーマ)を考え直す** (`SUKHI_STORE=datalevin` の次の段、
+      docs/DATALEVIN.md)。いまの Datalevin ストアは、SQL の表をそのまま「1 行 =
+      1 エンティティ」で写している(`priv/datalevin/catalog.exs` は Postgres の
+      スナップショット)。そのため Datalog の良さを使い切れていない。
+      - 外部キーを `:db.type/ref` にする(いまは id の整数を共有変数で結んでいる)。
+        そうすれば JOIN は `pull` の `{:notes/account [*]}` で済み、`ON DELETE` も
+        `:db/isComponent` や逆参照で表せる。
+      - 配列・JSON で持っている欄(`peer_capabilities.hrefs`、`tags`、`roles` など)を
+        `:db.cardinality/many` にする。いまは JSON 文字列で、エンジンの中では比べられない。
+      - ユニーク制約を `:db/unique` と複合タプル(`:db/tupleAttrs`)にする。いまは Writer が
+        取り込み前に探している(`lower()` の鍵は全件走査)。
+      - タイムライン・プロフィールを Datalog の rules にする(フォロー関係の推移、ブースト
+        込みの一覧)。いまは Ecto のクエリを 1 本の Datalog に翻訳している。翻訳層
+        (`Datalog` / `Eval` / `Query`)が小さくなるはず。
+      - 順序づけ・LIMIT をエンジンに任せられる列(NOT NULL)を増やす。nullable な
+        列の並べ替えはいま Elixir 側。
+      - ID は snowflake のまま(時刻順の合併に使っている)。
+      - 決めること: Postgres のスキーマを正本のままにして Datalevin 側だけ作り直すか、
+        どちらからも導ける「論理スキーマ」を一つ持つか(CODE_STYLE §1 の「一か所」)。
+      - 先に: 計測(タイムライン 1 回の往復数、書き込み 1 行の往復数 ≒ いま 2〜3 ms)。

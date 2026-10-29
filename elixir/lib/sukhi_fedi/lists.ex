@@ -237,6 +237,39 @@ defmodule SukhiFedi.Lists do
     }
   end
 
+  @doc """
+  The viewer's keyword gates: for each non-exclusive list that carries a
+  keyword filter, `{member_account_ids, keyword}`. Home narrows those members'
+  posts to ones that match. Most viewers have none, and then the result is `[]`.
+  """
+  @spec keyword_gates(integer()) :: [{[integer()], String.t()}]
+  def keyword_gates(viewer_id) when is_integer(viewer_id) do
+    lists =
+      Repo.all(
+        from l in List,
+          where:
+            l.account_id == ^viewer_id and l.exclusive == false and
+              not is_nil(l.filter_keyword) and l.filter_keyword != "",
+          select: {l.id, l.filter_keyword}
+      )
+
+    members =
+      case lists do
+        [] ->
+          %{}
+
+        _ ->
+          Repo.all(
+            from la in "list_accounts",
+              where: la.list_id in ^Enum.map(lists, &elem(&1, 0)),
+              select: {la.list_id, la.account_id}
+          )
+          |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+      end
+
+    for {id, keyword} <- lists, ids = Map.get(members, id, []), ids != [], do: {ids, keyword}
+  end
+
   # ── helpers ─────────────────────────────────────────────────────────────
 
   defp stringify(attrs) when is_map(attrs) do

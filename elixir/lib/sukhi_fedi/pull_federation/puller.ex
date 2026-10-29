@@ -20,6 +20,8 @@ defmodule SukhiFedi.PullFederation.Puller do
 
   require Logger
 
+  import Ecto.Query
+
   alias SukhiFedi.PullFederation.{Notify, Pull}
   alias SukhiFedi.Repo
   alias SukhiShared.Capability
@@ -105,17 +107,33 @@ defmodule SukhiFedi.PullFederation.Puller do
   end
 
   defp due_hosts(limit) do
-    %{rows: rows} =
-      Repo.query!(
-        """
-        SELECT p.host FROM pull_pending p LEFT JOIN pull_hosts h ON h.host = p.host
-        WHERE h.next_pull_at IS NULL OR h.next_pull_at <= now()
-        GROUP BY p.host ORDER BY min(p.received_at) LIMIT $1
-        """,
-        [limit]
-      )
+    now = NaiveDateTime.utc_now()
 
-    List.flatten(rows)
+    waiting =
+      from(p in "pull_pending",
+        group_by: p.host,
+        select: {p.host, min(p.received_at)}
+      )
+      |> Repo.all()
+
+    next =
+      from(h in "pull_hosts",
+        where: h.host in ^Enum.map(waiting, &elem(&1, 0)),
+        select: {h.host, type(h.next_pull_at, :naive_datetime_usec)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    waiting
+    |> Enum.filter(fn {host, _} ->
+      case Map.get(next, host) do
+        nil -> true
+        at -> NaiveDateTime.compare(at, now) != :gt
+      end
+    end)
+    |> Enum.sort_by(&elem(&1, 1), NaiveDateTime)
+    |> Enum.take(limit)
+    |> Enum.map(&elem(&1, 0))
   end
 
   # ── scheduling the next pull of a host from how this one went ───────────
@@ -131,47 +149,47 @@ defmodule SukhiFedi.PullFederation.Puller do
   # failure.
   def record(host, {:declined, secs}) do
     delay = secs * 1_000 + :rand.uniform(1_000)
-
-    Repo.query!(
-      """
-      INSERT INTO pull_hosts (host, next_pull_at) VALUES ($1, now() + ($2 || ' milliseconds')::interval)
-      ON CONFLICT (host) DO UPDATE SET next_pull_at = EXCLUDED.next_pull_at
-      """,
-      [host, Integer.to_string(delay)]
-    )
-
+    ensure_host(host)
+    set_next(host, delay)
     :ok
   end
 
   def record(host, {:error, reason}) do
-    %{rows: [[failures]]} =
-      Repo.query!(
-        """
-        INSERT INTO pull_hosts (host, next_pull_at, failures, last_error) VALUES ($1, now(), 1, $2)
-        ON CONFLICT (host) DO UPDATE SET failures = pull_hosts.failures + 1, last_error = EXCLUDED.last_error
-        RETURNING failures
-        """,
-        [host, String.slice(inspect(reason), 0, 300)]
-      )
+    ensure_host(host)
 
-    Repo.query!(
-      "UPDATE pull_hosts SET next_pull_at = now() + ($2 || ' milliseconds')::interval WHERE host = $1",
-      [host, Integer.to_string(backoff_ms(failures))]
-    )
+    from(h in "pull_hosts", where: h.host == ^host)
+    |> Repo.update_all(inc: [failures: 1], set: [last_error: String.slice(inspect(reason), 0, 300)])
 
+    failures = Repo.one(from(h in "pull_hosts", where: h.host == ^host, select: h.failures))
+    set_next(host, backoff_ms(failures))
     :ok
   end
 
   defp succeeded(host) do
-    Repo.query!(
-      """
-      INSERT INTO pull_hosts (host, next_pull_at, failures, last_ok_at) VALUES ($1, now(), 0, now())
-      ON CONFLICT (host) DO UPDATE SET next_pull_at = now(), failures = 0, last_ok_at = now(), last_error = NULL
-      """,
-      [host]
-    )
+    ensure_host(host)
+    now = NaiveDateTime.utc_now()
+
+    from(h in "pull_hosts", where: h.host == ^host)
+    |> Repo.update_all(set: [next_pull_at: now, failures: 0, last_ok_at: now, last_error: nil])
 
     :ok
+  end
+
+  # A row for `host` to update; one that is already there is left as it is.
+  defp ensure_host(host) do
+    Repo.insert_all(
+      "pull_hosts",
+      [%{host: host, next_pull_at: NaiveDateTime.utc_now(), failures: 0}],
+      on_conflict: :nothing,
+      conflict_target: [:host]
+    )
+  end
+
+  defp set_next(host, delay_ms) do
+    at = NaiveDateTime.add(NaiveDateTime.utc_now(), delay_ms, :millisecond)
+
+    from(h in "pull_hosts", where: h.host == ^host)
+    |> Repo.update_all(set: [next_pull_at: at])
   end
 
   @doc false

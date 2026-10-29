@@ -36,13 +36,8 @@ defmodule SukhiFedi.IntegrationCase do
     # `mix test --only integration` runs without `--no-start`). Falls
     # back to a no-op if the sandbox is not in use, so tests that don't
     # touch the DB still work.
-    case Process.whereis(SukhiFedi.Repo) do
-      nil ->
-        :ok
-
-      _pid ->
-        :ok = checkout_with_retry()
-        unless tags[:async], do: Ecto.Adapters.SQL.Sandbox.mode(SukhiFedi.Repo, {:shared, self()})
+    if Process.whereis(SukhiFedi.Repo) do
+      if SukhiFedi.Store.datalevin?(), do: wipe_datalevin(), else: sandbox_checkout(tags)
     end
 
     # Sandbox rows roll back; the emoji cache must not remember them.
@@ -53,6 +48,18 @@ defmodule SukhiFedi.IntegrationCase do
     {:ok,
      mock_remote: bypass,
      mock_remote_url: "http://localhost:#{bypass.port}"}
+  end
+
+  # The Datalevin store has no sandbox: every test starts from an empty
+  # database, and from an empty job queue (the jobs live in SQLite).
+  defp wipe_datalevin do
+    SukhiFedi.Datalevin.Admin.wipe!()
+    SukhiFedi.QueueRepo.delete_all("oban_jobs")
+  end
+
+  defp sandbox_checkout(tags) do
+    :ok = checkout_with_retry()
+    unless tags[:async], do: Ecto.Adapters.SQL.Sandbox.mode(SukhiFedi.Repo, {:shared, self()})
   end
 
   # On PGlite every pooled connection shares one backend session, so one

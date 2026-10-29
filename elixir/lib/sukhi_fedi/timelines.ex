@@ -91,7 +91,7 @@ defmodule SukhiFedi.Timelines do
     note_account_ids = mine ++ (following_account_ids -- hidden)
     boost_account_ids = mine ++ (following_account_ids -- excluded -- pl.hide_boosts -- hidden)
 
-    notes =
+    load_notes = fn ->
       Note
       |> where([n], n.account_id in ^note_account_ids)
       |> where([n], n.account_id not in ^excluded or like(n.in_reply_to_ap_id, ^reply_here))
@@ -116,27 +116,24 @@ defmodule SukhiFedi.Timelines do
       # content, or as a hashtag when the keyword leads with `#`. Each such
       # list is its own constraint (a violation is a missed keyword), so a post
       # is dropped if *any* containing keyword list goes unmatched.
-      |> where(
-        [n],
-        fragment(
-          "NOT EXISTS (SELECT 1 FROM list_accounts la JOIN lists l ON l.id = la.list_id WHERE l.account_id = ? AND l.exclusive = false AND la.account_id = ? AND COALESCE(l.filter_keyword, '') <> '' AND NOT (? ILIKE '%' || l.filter_keyword || '%' OR EXISTS (SELECT 1 FROM note_tags nt JOIN tags t ON t.id = nt.tag_id WHERE nt.note_id = ? AND t.name = lower(ltrim(l.filter_keyword, '#')))))",
-          ^id,
-          n.account_id,
-          n.content,
-          n.id
-        )
-      )
+      |> keyword_gate(id)
       |> maybe_only_media(opts[:only_media])
       |> maybe_hide_sensitive(opts[:hide_sensitive])
       |> apply_paging(opts)
       |> Repo.all()
       |> Repo.preload([:account, :media, :tags])
       |> SukhiFedi.Notes.with_refs(id)
+    end
 
     # RT(ブースト)を隠すフィルタ。home だけがブーストを混ぜるので、ここで止める。
     # per-list の hide_boosts メンバーは boost_account_ids から既に引いてある。
-    boosts =
+    load_boosts = fn ->
       if opts[:hide_boosts], do: [], else: home_boosts(boost_account_ids, opts, limit, id, hidden)
+    end
+
+    # Notes and boosts do not depend on each other: on Datalevin they go down
+    # the pipe together (docs/DATALEVIN.md); on Postgres they run in turn.
+    [notes, boosts] = SukhiFedi.Store.concurrently([load_notes, load_boosts])
 
     # Both notes (id) and boost wrappers (synthesized id) share one
     # time-sortable id space, so a plain id-desc merge is chronological.
@@ -451,4 +448,23 @@ defmodule SukhiFedi.Timelines do
 
   defp normalize_opts(opts) when is_list(opts), do: Map.new(opts)
   defp normalize_opts(opts) when is_map(opts), do: opts
+
+  # See the keyword-gate note in home/2. One clause per keyword list the
+  # viewer owns (none for nearly everyone): the post passes if its author is
+  # not on that list, or its content has the keyword, or it carries the tag
+  # the keyword names. Plain Ecto, so it reads the same on either store.
+  defp keyword_gate(query, viewer_id) do
+    Enum.reduce(Lists.keyword_gates(viewer_id), query, fn {members, keyword}, q ->
+      pattern = "%" <> String.downcase(keyword) <> "%"
+      tag = keyword |> String.trim_leading("#") |> String.downcase()
+      tagged = from(nt in "note_tags", join: t in "tags", on: t.id == nt.tag_id, where: t.name == ^tag, select: nt.note_id)
+
+      where(
+        q,
+        [n],
+        n.account_id not in ^members or is_nil(n.content) or
+          like(fragment("lower(?)", n.content), ^pattern) or n.id in subquery(tagged)
+      )
+    end)
+  end
 end
