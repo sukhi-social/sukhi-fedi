@@ -2,9 +2,9 @@
 # 配信キューを Postgres から SQLite に移す
 
 `DELIVERY_QUEUE=sqlite` に切り替えるときの手順です。環境変数は `docs/ENV.md` を見てください。
-**切り替えそのものは再起動だけで済みますが、切り替え時点で Postgres の `oban_jobs` に残っているジョブは自動では移りません。**
-`outbox_dispatch` は切り替え後に Postgres 側では処理されなくなるので、残ったままだと誰も実行しません。
-そこで、先に空にしてから切り替える（手順 A）か、残りを移してから切り替える（手順 B）かのどちらかにします。
+**切り替え時点で Postgres の `oban_jobs` に残っているジョブは、手順 B の自動移管が SQLite に移します。**
+これがないと、`outbox_dispatch` は切り替え後に Postgres 側で処理されなくなり、残ったジョブを誰も実行しません。
+そこで、先に空にしてから切り替える（手順 A）か、残りを移す（手順 B、起動時に自動）かのどちらか、あるいは両方（A のあとに B）にします。
 
 ## 何が残りうるか
 
@@ -37,21 +37,30 @@
 
 止める時間は、`outbox_dispatch` を空にするまでの数十秒〜数分です。
 
-## 手順 B: 残りを自動で SQLite に移す（**未実装**）
+## 手順 B: 残りを自動で SQLite に移す（実装済み）
 
-受け入れを止める時間を最小にしたい場合の設計です。まだ書いていません。
+`DELIVERY_QUEUE=sqlite` で起動すると、`SukhiDelivery.Queue.Handover` が一度だけ走ります（`DELIVERY_QUEUE_HANDOVER=0` で止められます）。
+SQLite のテーブルを作った直後、Postgres 側の Oban が動き出す前に、次のことをします。
 
-1. 切り替えの再起動の前に、受け入れを止める（手順 A の 1 と同じ）。
-2. `executing` が 0 になるまで少し待つ（実行中のジョブは移さない）。
-3. リリース関数 `SukhiDelivery.Queue.Handover.run/0` を実行する。
-   - Postgres から `queue IN ('delivery','outbox_dispatch') AND state IN ('available','scheduled','retryable')` を読む。
-   - 各ジョブを同じ `worker`・`args`・`queue`・`attempt`・`max_attempts`・`scheduled_at`・`errors` のまま SQLite に挿入する。
-   - **挿入が済んでから**、Postgres の該当行を消す。途中で落ちると二重になりうるが、
-     `Delivery.Worker` は `delivery_receipts` で、`DispatchWorker` は `outbox_id` で重複を吸収する。ジョブを失うよりこちらを選ぶ。
-   - 何件移したかを返す。もう一度実行しても、移した分は Postgres にないので何も起きない。
-4. `DELIVERY_QUEUE=sqlite` で再起動し、受け入れを再開する。
+- `delivery` / `outbox_dispatch` の `available`・`scheduled`・`retryable`・`executing` を SQLite へ移す。
+  `worker`・`args`・`attempt`・`max_attempts`・`scheduled_at`・`errors` はそのまま。
+- `executing` は、切り替えのために止めた旧プロセスの置き土産なので、`available` に戻し、`attempt` を 1 戻す（Lifeline と同じ扱い）。
+- 終わったジョブ（`completed`/`discarded`/`cancelled`）は動かさない。
+- **SQLite に入れてから Postgres の行を消す。** 途中で落ちたら二重になりうるが、失うことはない。
+  重複は `delivery_receipts`（配信）と `outbox_id` の確認（リレー）が吸収する。
+- 失敗してもログに出して起動は続ける。行は Postgres に残り、次の起動でもう一度試す。
+  もう一度走らせても、移した分は Postgres にないので何も起きない。
+- 前提は単一ノードであること。別ノードがまだ同じジョブを実行していると、二重実行になりうる。
 
-受け入れを止める時間は、再起動と移管の数秒〜数十秒に縮みます。`delivery` の `retryable` も新しい側に集まります。
+## A のあとに B（推奨の流れ）
+
+1. 受け入れを止める（手順 A の 1）。
+2. リレーが `outbox` の `pending` を流し切るのを待つ（手順 A の 2）。ここで新しい投稿の分が Postgres の `outbox_dispatch` に出そろう。
+3. `DELIVERY_QUEUE=sqlite` で再起動する。Handover が `outbox_dispatch` と残りの `delivery` を SQLite に移す。
+   `outbox_dispatch` が空になるのを待つ必要はない。
+4. ログに `Queue.Handover moved N job(s)` が出て、`SELECT count(*) FROM oban_jobs WHERE queue = 'outbox_dispatch' AND state IN ('available','scheduled','retryable','executing')`（Postgres）が 0 なのを確かめて、受け入れを再開する。
+
+受け入れを止める時間は、リレーが流す数秒〜数十秒と再起動の分だけです。
 
 ## 戻す
 

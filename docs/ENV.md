@@ -150,6 +150,7 @@ using Postgres, which the delivery node still drains.
 | `DELIVERY_QUEUE_DB` | `/var/lib/sukhi/delivery_queue.db` | SQLite file (directory must exist) |
 | `DELIVERY_QUEUE_SYNCHRONOUS` | `full` | `full` or `normal` (WAL; `normal` can lose the last commits on power loss) |
 | `DELIVERY_QUEUE_POOL_SIZE` | `5` | SQLite connection pool |
+| `DELIVERY_QUEUE_HANDOVER` | `1` | `0` で起動時の Postgres → SQLite 自動移管を止める (docs/DELIVERY_QUEUE_MIGRATION.md) |
 | `DELIVERY_QUEUE_RETENTION_SECONDS` | `2592000` | Pruner max age for finished jobs |
 
 ## Tuning — Oban concurrency (gateway, delivery)

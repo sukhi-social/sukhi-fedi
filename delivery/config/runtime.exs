@@ -24,8 +24,7 @@ if config_env() == :prod do
     host: System.get_env("NATS_HOST", "127.0.0.1"),
     port: String.to_integer(System.get_env("NATS_PORT", "4222"))
 
-  config :sukhi_delivery, :metrics_port,
-    String.to_integer(System.get_env("METRICS_PORT", "4001"))
+  config :sukhi_delivery, :metrics_port, String.to_integer(System.get_env("METRICS_PORT", "4001"))
 
   # Per-queue Oban concurrency overrides. On a 1 GB free-tier box the
   # compile-time defaults (delivery: 10, federation: 3) keep too many
@@ -39,8 +38,7 @@ if config_env() == :prod do
       delivery: String.to_integer(System.get_env("OBAN_DELIVERY_CONCURRENCY", "10")),
       federation: String.to_integer(System.get_env("OBAN_FEDERATION_CONCURRENCY", "3")),
       push: String.to_integer(System.get_env("OBAN_PUSH_CONCURRENCY", "3")),
-      outbox_dispatch:
-        String.to_integer(System.get_env("OBAN_OUTBOX_DISPATCH_CONCURRENCY", "2"))
+      outbox_dispatch: String.to_integer(System.get_env("OBAN_OUTBOX_DISPATCH_CONCURRENCY", "2"))
     ]
 
   # Delivery queue backend. `sqlite` moves the `delivery` and
@@ -48,6 +46,11 @@ if config_env() == :prod do
   # rest stays in Postgres. Single node only — the file is not shared.
   if System.get_env("DELIVERY_QUEUE", "postgres") == "sqlite" do
     config :sukhi_delivery, :queue_backend, :sqlite
+
+    # On boot, move jobs still in Postgres into the SQLite queue (once, idempotent).
+    config :sukhi_delivery,
+           :queue_handover,
+           System.get_env("DELIVERY_QUEUE_HANDOVER", "1") != "0"
 
     # Combined release only (one BEAM): lets the gateway enqueue its delivery sends
     # into the SQLite queue and read it for delivery status / discarded count. Harmless on a lone

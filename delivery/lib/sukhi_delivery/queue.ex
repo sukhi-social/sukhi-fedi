@@ -43,6 +43,7 @@ defmodule SukhiDelivery.Queue do
       [
         QueueRepo,
         SukhiDelivery.Queue.Migrate,
+        SukhiDelivery.Queue.Handover,
         {Oban, [name: SukhiDelivery.QueueOban] ++ sqlite_oban_config()}
       ]
     else
