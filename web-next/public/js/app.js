@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // ブラウザ側は、これだけ。Unpoly の設定と、Alpine の小さな部品と、字の着替え。
 // 状態は、サーバにある。ここにあるのは、開いたり閉じたりの、手元の動きだけ。
 

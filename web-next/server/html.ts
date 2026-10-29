@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // HTML をつくる、いちばん小さな道具。
 //
 //   html`<p>${name}</p>`     差し込んだ値は、かならずエスケープされる

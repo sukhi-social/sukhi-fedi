@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Swap Mastodon `:shortcode:` tokens for the custom-emoji images the
 // server advertises in a status/account `emojis` array. Misskey and
 // Mastodon both send these; without the substitution a remote name, bio

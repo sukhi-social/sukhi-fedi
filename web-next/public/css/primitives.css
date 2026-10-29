@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* 部品の素(docs/CSS_SUBSET.md §2)。iced の Row / Column、SwiftUI の HStack /
  * VStack / Spacer にならう。外の余白(margin)は持たず、間は gap、まわりは padding。
  * 値は tokens.css の環境(カスタムプロパティ)から読む。置き場は @layer primitives

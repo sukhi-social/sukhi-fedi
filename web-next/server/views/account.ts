@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 人の一行と、フォローのボタン。AccountRow.svelte / FollowButton.svelte の置き換え。
 // フォロワーの数は、どこにも出さない。
 

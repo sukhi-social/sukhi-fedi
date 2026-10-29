@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Build-time-friendly BudouX line-breaking for Japanese.
 //
 // We feed plain text in and get back HTML with <wbr> sprinkled at the

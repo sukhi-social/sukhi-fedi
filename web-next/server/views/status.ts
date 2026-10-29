@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 一枚の投稿。Status.svelte / StatusActions.svelte / StatusMedia.svelte / QuoteCard.svelte の置き換え。
 //
 // sukhi-web-next との、意図した違いが二つ:

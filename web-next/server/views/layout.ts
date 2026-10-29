@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 頁の枠。<head>・ナビ・<main>・スクリプトの順番を、ここ一か所で決める。
 //
 // Unpoly は、いつも <main up-main> を差し替える。だから、入ったか出たかで変わるもの(ナビ)は

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 入口: はじめる(signup)、入る(login)、OAuth の戻り(callback)、出る(logout)、ことば替え(lang)。
 //
 // SPA の auth.ts と /check がブラウザでやっていたことを、サーバの手順にした。

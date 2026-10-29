@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 頁をまたいで使う、小さな部品。アイコン、アバター、入口の帯、法的ページへの入り口、言語の窓。
 
 import { html, raw, type SafeHtml } from '../html.ts';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 画像が無い人のアバター。
 //
 // サーバは「avatar は常に非 null の URL」という Mastodon の約束を守る

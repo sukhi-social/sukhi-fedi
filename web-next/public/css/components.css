@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* 部品ごとの見た目。sukhi-web-next の各 .svelte の <style> から、:global() を外して集めたもの。
  * クラス名はそのまま ── server/views の HTML が、この名前で書かれている。 */
 

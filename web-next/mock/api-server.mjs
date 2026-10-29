@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 偽の API サーバ ── 本物のブラウザから「入った状態」の sukhi を開くための。
 //
 //   pnpm run mock:api          # localhost:4000 で待つだけ(PORT で変えられる)

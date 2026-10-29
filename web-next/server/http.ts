@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // リクエスト一件ぶんの文脈(Ctx)と、ルーター、静的ファイル、gateway への通し道。
 //
 // 外の依存は持たない。Node の http と fetch と Web の Request(formData)だけ。
@@ -359,7 +360,10 @@ export function serve(port: number): ReturnType<typeof createServer> {
     let status = 500;
 
     try {
-      if ((req.method === 'GET' || req.method === 'HEAD') && (await serveStatic(req, res, pathname))) return;
+      if ((req.method === 'GET' || req.method === 'HEAD') && (await serveStatic(req, res, pathname))) {
+        status = res.statusCode;
+        return;
+      }
 
       if (isProxied(pathname)) {
         await proxy(req, res);

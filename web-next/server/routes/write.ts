@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 書く・押す頁: 書く(compose)、押す(お気に入り・ブースト・しおり…)、フォロー、通知。
 //
 // 投稿は、すぐには上がらない。gateway の scheduled_at を使って、約四半刻(POST_DELAY_MIN)あとに

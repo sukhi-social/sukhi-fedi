@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 郵便局の、預かりもの。
 //
 // SPA では、アクセストークンをブラウザの localStorage に持っていた。MPA では、ブラウザには

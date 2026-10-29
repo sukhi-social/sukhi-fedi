@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // この再実装で足したことば。sukhi-web-next の辞書(ja.ts / ko.ts)に無いものだけ。
 // 「四半刻」「ポツポツ」「ここまで」── 急かさない、のためのことば。
 
