@@ -131,12 +131,15 @@ endpoints, web push, moderation, etc.). See [`docs/ADDONS.md`](ADDONS.md).
 
 Default is Postgres. `DELIVERY_QUEUE=sqlite` moves the `delivery` and
 `outbox_dispatch` queues to a single-node SQLite file (Oban Lite); every
-other queue and all business data stay in Postgres. One node only: the file
+other queue and all business data stay in Postgres (`delivery` is also still
+drained from Postgres, because the gateway enqueues follow/quote/relay sends
+there). One node only: the file
 is not shared. The outbox → queue hop becomes at-least-once (the relay skips
 rows already queued; `delivery_receipts` absorbs any remaining duplicate).
 
-Known gap: the gateway's `DeliveryStatus` and `Metrics` read Postgres
-`oban_jobs`, so with `sqlite` they no longer see delivery jobs.
+In a combined release the gateway's `DeliveryStatus` and discarded-job count also
+read the SQLite file (`:extra_job_repos`). A separate gateway node cannot see it.
+
 
 | Var | Default | Meaning |
 |---|---|---|

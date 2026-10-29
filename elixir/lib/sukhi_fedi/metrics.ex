@@ -53,11 +53,23 @@ defmodule SukhiFedi.Metrics do
   @spec dlq_depth() :: non_neg_integer() | nil
   def dlq_depth do
     case Repo.query("SELECT count(*) FROM oban_jobs WHERE state = 'discarded'", []) do
-      {:ok, %{rows: [[n]]}} when is_integer(n) -> n
+      {:ok, %{rows: [[n]]}} when is_integer(n) -> n + extra_dlq_depth()
       _ -> nil
     end
   rescue
     _ -> nil
+  end
+
+  # The SQLite delivery queue (combined release) keeps its own oban_jobs.
+  defp extra_dlq_depth do
+    Application.get_env(:sukhi_fedi, :extra_job_repos, [])
+    |> Enum.map(fn repo ->
+      case repo.query("SELECT count(*) FROM oban_jobs WHERE state = 'discarded'", []) do
+        {:ok, %{rows: [[n]]}} when is_integer(n) -> n
+        _ -> 0
+      end
+    end)
+    |> Enum.sum()
   end
 
   @doc """

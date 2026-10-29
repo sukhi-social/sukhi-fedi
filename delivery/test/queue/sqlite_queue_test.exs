@@ -56,9 +56,9 @@ defmodule SukhiDelivery.Queue.SqliteQueueTest do
     :ok
   end
 
-  test "backend routing keeps push in Postgres and moves the busy queues" do
+  test "outbox_dispatch moves; delivery stays drained in Postgres for gateway-written jobs" do
     assert Queue.oban() == SukhiDelivery.QueueOban
-    assert Keyword.keys(Queue.postgres_oban_config()[:queues]) == [:push]
+    assert Keyword.keys(Queue.postgres_oban_config()[:queues]) == [:delivery, :push]
   end
 
   test "default backend is Postgres with nothing extra to start" do
@@ -84,5 +84,20 @@ defmodule SukhiDelivery.Queue.SqliteQueueTest do
 
     assert Queue.enqueued_outbox_ids([40, 41, 42]) == [41]
     assert DispatchWorker.__info__(:module) == DispatchWorker
+  end
+
+  test "the gateway's text-cast json queries work on SQLite" do
+    Queue.insert_all([Relay.job_for(%OutboxEvent{id: 7, subject: "s", payload: %{}})])
+    import Ecto.Query
+
+    rows =
+      from(j in "oban_jobs",
+        where: fragment("CAST(?->>'outbox_id' AS TEXT)", j.args) in ^["7"],
+        group_by: [fragment("CAST(?->>'outbox_id' AS TEXT)", j.args), j.state],
+        select: {fragment("CAST(?->>'outbox_id' AS TEXT)", j.args), j.state, count(j.id)}
+      )
+      |> QueueRepo.all()
+
+    assert [{"7", "available", 1}] = rows
   end
 end

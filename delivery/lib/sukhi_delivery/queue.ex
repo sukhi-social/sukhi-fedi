@@ -50,13 +50,18 @@ defmodule SukhiDelivery.Queue do
     end
   end
 
-  @doc "The Postgres Oban config, minus the queues SQLite has taken over."
+  @doc """
+  The Postgres Oban config, minus `outbox_dispatch` (only the relay writes
+  it). `delivery` stays: the gateway inserts `Delivery.Worker` jobs for
+  follows, quotes and relays into Postgres, so that queue is drained on both
+  stores.
+  """
   @spec postgres_oban_config() :: keyword()
   def postgres_oban_config do
     config = Application.fetch_env!(:sukhi_delivery, Oban)
 
     if backend() == :sqlite do
-      Keyword.update!(config, :queues, &Keyword.drop(&1, @sqlite_queues))
+      Keyword.update!(config, :queues, &Keyword.delete(&1, :outbox_dispatch))
     else
       config
     end
