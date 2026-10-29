@@ -63,7 +63,11 @@ defmodule SukhiFedi.Datalevin.Client do
   many-way join.
   """
   @spec query_many(GenServer.server(), [String.t()]) :: [{:ok, term()} | {:error, term()}]
-  def query_many(server \\ __MODULE__, edns) do
+  def query_many(server \\ __MODULE__, edns)
+  # Nothing asked, nothing sent: a batch of none would never be answered.
+  def query_many(_server, []), do: []
+
+  def query_many(server, edns) do
     reqs = Enum.map(edns, &{:query, %{"query" => &1}})
 
     case GenServer.call(server, {:many, reqs}, :infinity) do

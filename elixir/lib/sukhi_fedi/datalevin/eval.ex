@@ -210,18 +210,22 @@ defmodule SukhiFedi.Datalevin.Eval do
 
   defp fragment_fun("?->>'" <> rest, [v], _), do: json_text(v, rest |> String.split("'") |> hd())
 
-  defp fragment_fun("EXISTS (SELECT 1 FROM " <> _ = template, [v], _) do
-    case Regex.run(~r/^EXISTS \(SELECT 1 FROM (\w+) \w+ WHERE \w+\.(\w+) = \?\)$/, template) do
+  defp fragment_fun("EXISTS (SELECT 1 FROM " <> _ = template, [v], _), do: exists(template, v, true)
+  defp fragment_fun("NOT EXISTS (SELECT 1 FROM " <> _ = template, [v], _), do: exists(template, v, false)
+
+  defp fragment_fun(template, _args, _parts),
+    do: raise(Unsupported, "fragment not supported by the Datalevin store: #{inspect(template)}")
+
+  # `[NOT] EXISTS (SELECT 1 FROM t x WHERE x.col = ?)` — one equality, one lookup.
+  defp exists(template, v, want) do
+    case Regex.run(~r/^(?:NOT )?EXISTS \(SELECT 1 FROM (\w+) \w+ WHERE \w+\.(\w+) = \?\)$/, template) do
       [_, table, column] ->
-        SukhiFedi.Datalevin.Query.exists_row?(table, column, v)
+        SukhiFedi.Datalevin.Query.exists_row?(table, column, v) == want
 
       _ ->
         raise Unsupported, "fragment not supported by the Datalevin store: #{inspect(template)}"
     end
   end
-
-  defp fragment_fun(template, _args, _parts),
-    do: raise(Unsupported, "fragment not supported by the Datalevin store: #{inspect(template)}")
 
   defp json_text(nil, _), do: nil
 
