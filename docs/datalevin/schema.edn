@@ -1,0 +1,240 @@
+;; SPDX-License-Identifier: AGPL-3.0-or-later
+;;
+;; sukhi-fedi  Datalevin schema (revision 1 of ひなた's draft)
+;; 経緯と理由は docs/DATALEVIN_SCHEMA.md。dtlv 1.2.10 で読み込みと下記の動作を確認済み。
+;;
+;; 配送キューは SQLite 側。ここには持たない。
+;; 層: A = グラフの芯(この表で作り直す) / B = 運用・ローカルアカウント(カタログから機械的に写す。ここには書かない)
+;;
+;; 読み書きの約束(実測で踏んだもの):
+;;  - tuple の範囲検索 (index-range) の境界は lookup ref ではなく eid。先に actor の eid を引く。
+;;  - tuple の部品が nil でも tuple は作られる(その行は [x nil] として索引に入る)。
+;;  - 全文検索は :db.fulltext/autoDomain が無いと (fulltext $ :attr "q") が例外になる。
+;;  - 既定の分かち書きは日本語を切らない。「猫」で「日本語の猫」は当たらない(docs 参照)。
+
+{;; ───────── Actor ─────────
+ :actor/id           {:db/valueType :db.type/string :db/unique :db.unique/identity} ;; IRI
+ :actor/did          {:db/valueType :db.type/string :db/unique :db.unique/identity} ;; did:key 系。id と did が別 entity に付くと upsert 衝突する(取り込みで統合する)
+ :actor/sid          {:db/valueType :db.type/long   :db/unique :db.unique/identity} ;; API 用の安定 ID(アプリ側で採番。eid は再構築で変わる)
+ :actor/gateway      {:db/valueType :db.type/string :db/cardinality :db.cardinality/many}
+ :actor/local?       {:db/valueType :db.type/boolean}
+ :actor/username     {:db/valueType :db.type/string}
+ :actor/host         {:db/valueType :db.type/string}
+ :actor/name         {:db/valueType :db.type/string}
+ :actor/summary      {:db/valueType :db.type/string}
+ :actor/avatar       {:db/valueType :db.type/string}
+ :actor/banner       {:db/valueType :db.type/string}
+ :actor/bot?         {:db/valueType :db.type/boolean}
+ :actor/suspended-at {:db/valueType :db.type/instant}
+ :actor/inbox        {:db/valueType :db.type/string}
+ :actor/outbox       {:db/valueType :db.type/string}
+ :actor/shared-inbox {:db/valueType :db.type/string}
+ :actor/raw          {:db/valueType :db.type/string}
+ :actor/fetched-at   {:db/valueType :db.type/instant}
+ :actor/handle       {:db/valueType :db.type/tuple
+                      :db/tupleAttrs [:actor/username :actor/host]
+                      :db/unique :db.unique/identity} ;; @user@host の一意。ローカルは host = nil
+
+ ;; ───────── Key ─────────
+ :key/id         {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :key/actor      {:db/valueType :db.type/ref}
+ :key/type       {:db/valueType :db.type/keyword}
+ :key/public     {:db/valueType :db.type/string}
+ :key/private    {:db/valueType :db.type/string}
+ :key/revoked-at {:db/valueType :db.type/instant}
+
+ ;; ───────── アドレス先(to/cc の行き先で actor 以外) ─────────
+ ;; as:Public と各 actor の followers/following は entity にして ref で指す。
+ ;; to/cc は actor でも collection でも指せる(ref は種類を問わない)。
+ :collection/id    {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :collection/kind  {:db/valueType :db.type/keyword} ;; :public :followers :following :other
+ :collection/owner {:db/valueType :db.type/ref}
+
+ ;; ───────── Object ─────────
+ :object/id            {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :object/sid           {:db/valueType :db.type/long   :db/unique :db.unique/identity} ;; ページ送りと API の ID
+ :object/type          {:db/valueType :db.type/keyword}
+ :object/attributed-to {:db/valueType :db.type/ref}
+ :object/local?        {:db/valueType :db.type/boolean}
+ :object/published     {:db/valueType :db.type/instant}
+ :object/updated       {:db/valueType :db.type/instant}
+ :object/received-at   {:db/valueType :db.type/instant}
+ :object/fetched-at    {:db/valueType :db.type/instant}
+ :object/retained?     {:db/valueType :db.type/boolean}
+ :object/in-reply-to   {:db/valueType :db.type/ref}
+ :object/root          {:db/valueType :db.type/ref}   ;; スレッドの根(Postgres の conversation_ap_id の代わり)
+ :object/quote-of      {:db/valueType :db.type/ref}
+ :object/to            {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+ :object/cc            {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+ :object/visibility    {:db/valueType :db.type/keyword} ;; 取り込み時に to/cc から導く。索引用の写し
+ :object/mentions      {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+ :object/emojis        {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+ :object/title         {:db/valueType :db.type/string}
+ :object/content       {:db/valueType :db.type/string :db/fulltext true :db.fulltext/autoDomain true}
+ :object/mfm           {:db/valueType :db.type/string}
+ :object/summary       {:db/valueType :db.type/string} ;; CW
+ :object/sensitive?    {:db/valueType :db.type/boolean}
+ :object/language      {:db/valueType :db.type/string}
+ :object/raw           {:db/valueType :db.type/string} ;; 必須。FEP-8b32 の証明検証と転送の原本
+ :object/proof-verified? {:db/valueType :db.type/boolean}
+ :object/proof-key     {:db/valueType :db.type/ref}
+ :object/deleted-at    {:db/valueType :db.type/instant} ;; Tombstone。中身は消して印だけ残す
+
+ ;; 時系列の索引。範囲検索は eid で: (index-range db :object/author+published [aid t0] [aid t1])
+ :object/author+published {:db/valueType :db.type/tuple :db/tupleAttrs [:object/attributed-to :object/published]}
+ :object/vis+published    {:db/valueType :db.type/tuple :db/tupleAttrs [:object/visibility :object/published]}
+ :object/local+published  {:db/valueType :db.type/tuple :db/tupleAttrs [:object/local? :object/published]} ;; ローカルタイムライン
+ :object/root+published   {:db/valueType :db.type/tuple :db/tupleAttrs [:object/root :object/published]}   ;; スレッド表示
+
+ ;; ───────── 多言語本文(contentMap が来たときだけ展開) ─────────
+ :content/object {:db/valueType :db.type/ref}
+ :content/lang   {:db/valueType :db.type/string}
+ :content/kind   {:db/valueType :db.type/keyword} ;; :content :summary :name
+ :content/text   {:db/valueType :db.type/string :db/fulltext true :db.fulltext/autoDomain true}
+ :content/key    {:db/valueType :db.type/tuple
+                  :db/tupleAttrs [:content/object :content/lang :content/kind]
+                  :db/unique :db.unique/identity}
+
+ ;; ───────── Activity ─────────
+ ;; Postgres の boosts は type = :Announce の activity、reactions の Like 系は :Like / :EmojiReact。
+ :activity/id        {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :activity/type      {:db/valueType :db.type/keyword}
+ :activity/actor     {:db/valueType :db.type/ref}
+ :activity/object    {:db/valueType :db.type/ref} ;; object か actor
+ :activity/published {:db/valueType :db.type/instant}
+ :activity/local?    {:db/valueType :db.type/boolean}
+ :activity/raw       {:db/valueType :db.type/string}
+ :activity/actor+published {:db/valueType :db.type/tuple :db/tupleAttrs [:activity/actor :activity/published]}
+ ;; 「この人はこれをブーストしたか」を引く索引。identity にはしない(Create は object が毎回違い、Undo で消える種類もある)
+ :activity/actor+type+object {:db/valueType :db.type/tuple :db/tupleAttrs [:activity/actor :activity/type :activity/object]}
+ :activity/object+type {:db/valueType :db.type/tuple :db/tupleAttrs [:activity/object :activity/type]} ;; ブースト数・いいね数
+
+ ;; ───────── Follow ─────────
+ ;; follow_requests(受信待ち)と follows を 1 つにし、state で分ける。
+ :follow/follower {:db/valueType :db.type/ref}
+ :follow/followee {:db/valueType :db.type/ref}
+ :follow/state    {:db/valueType :db.type/keyword} ;; :pending :accepted
+ :follow/activity {:db/valueType :db.type/ref}
+ :follow/at       {:db/valueType :db.type/instant}
+ :follow/pair     {:db/valueType :db.type/tuple
+                   :db/tupleAttrs [:follow/follower :follow/followee]
+                   :db/unique :db.unique/identity}
+ :follow/followee+state {:db/valueType :db.type/tuple :db/tupleAttrs [:follow/followee :follow/state]}
+ :follow/follower+state {:db/valueType :db.type/tuple :db/tupleAttrs [:follow/follower :follow/state]}
+
+ ;; ───────── Emoji / Reaction ─────────
+ :emoji/id         {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :emoji/name       {:db/valueType :db.type/string}
+ :emoji/host       {:db/valueType :db.type/string}
+ :emoji/image-url  {:db/valueType :db.type/string}
+ :emoji/static-url {:db/valueType :db.type/string}
+ :emoji/category   {:db/valueType :db.type/string}
+ :emoji/updated-at {:db/valueType :db.type/instant}
+
+ :reaction/id      {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :reaction/actor   {:db/valueType :db.type/ref}
+ :reaction/object  {:db/valueType :db.type/ref}
+ :reaction/emoji   {:db/valueType :db.type/ref}
+ :reaction/key     {:db/valueType :db.type/string} ;; "u:❤" / "e:<emoji IRI>"。異体字セレクタは保存時に揃える
+ :reaction/at      {:db/valueType :db.type/instant}
+ :reaction/uniq    {:db/valueType :db.type/tuple
+                    :db/tupleAttrs [:reaction/actor :reaction/object :reaction/key]
+                    :db/unique :db.unique/identity}
+ :reaction/object+key {:db/valueType :db.type/tuple :db/tupleAttrs [:reaction/object :reaction/key]} ;; 集計
+
+ ;; ───────── Attachment / Poll / Tag ─────────
+ :attachment/object     {:db/valueType :db.type/ref}
+ :attachment/url        {:db/valueType :db.type/string}
+ :attachment/media-type {:db/valueType :db.type/string}
+ :attachment/blurhash   {:db/valueType :db.type/string}
+ :attachment/sensitive? {:db/valueType :db.type/boolean}
+ :attachment/alt        {:db/valueType :db.type/string}
+ :attachment/width      {:db/valueType :db.type/long}
+ :attachment/height     {:db/valueType :db.type/long}
+
+ :poll/object   {:db/valueType :db.type/ref :db/unique :db.unique/identity}
+ :poll/ends-at  {:db/valueType :db.type/instant}
+ :poll/multiple? {:db/valueType :db.type/boolean}
+ :choice/poll   {:db/valueType :db.type/ref}
+ :choice/title  {:db/valueType :db.type/string}
+ :choice/pos    {:db/valueType :db.type/long}
+ :vote/actor    {:db/valueType :db.type/ref}
+ :vote/choice   {:db/valueType :db.type/ref}
+ :vote/uniq     {:db/valueType :db.type/tuple
+                 :db/tupleAttrs [:vote/actor :vote/choice]
+                 :db/unique :db.unique/identity}
+
+ :tagging/tag       {:db/valueType :db.type/string} ;; 小文字に正規化
+ :tagging/object    {:db/valueType :db.type/ref}
+ :tagging/published {:db/valueType :db.type/instant}
+ :tagging/tag+published {:db/valueType :db.type/tuple :db/tupleAttrs [:tagging/tag :tagging/published]}
+ :tagging/uniq      {:db/valueType :db.type/tuple
+                     :db/tupleAttrs [:tagging/tag :tagging/object]
+                     :db/unique :db.unique/identity}
+
+ ;; ───────── Home(畳み込み込みの実体化。使わない間は空) ─────────
+ ;; (owner, object) が identity なので、同じ投稿が別の人のブーストで再び来ても upsert で 1 件に畳まれる。
+ ;; :entry/via は多値で、「BさんとCさんがブースト」はそのまま via の集合。
+ ;; 配り方は書き込み時 fan-out にするか読み取り時の merge にするかを決めるまで、読み取り時 merge を既定とする。
+ :entry/owner  {:db/valueType :db.type/ref}
+ :entry/object {:db/valueType :db.type/ref}
+ :entry/via    {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+ :entry/at     {:db/valueType :db.type/instant} ;; 最後にこの投稿が現れた時刻(ページ送りのキー)
+ :entry/key    {:db/valueType :db.type/tuple
+                :db/tupleAttrs [:entry/owner :entry/object]
+                :db/unique :db.unique/identity}
+ :entry/owner+at {:db/valueType :db.type/tuple :db/tupleAttrs [:entry/owner :entry/at]}
+
+ ;; ───────── Notification ─────────
+ :notification/recipient {:db/valueType :db.type/ref}
+ :notification/type      {:db/valueType :db.type/keyword}
+ :notification/source    {:db/valueType :db.type/ref}
+ :notification/from      {:db/valueType :db.type/ref}
+ :notification/at        {:db/valueType :db.type/instant}
+ :notification/read-at   {:db/valueType :db.type/instant}
+ :notification/dismissed-at {:db/valueType :db.type/instant}
+ :notification/recipient+at {:db/valueType :db.type/tuple :db/tupleAttrs [:notification/recipient :notification/at]}
+
+ ;; ───────── 本人の整理(ブックマーク・ピン・リスト) ─────────
+ :bookmark/actor  {:db/valueType :db.type/ref}
+ :bookmark/object {:db/valueType :db.type/ref}
+ :bookmark/at     {:db/valueType :db.type/instant}
+ :bookmark/uniq   {:db/valueType :db.type/tuple
+                   :db/tupleAttrs [:bookmark/actor :bookmark/object]
+                   :db/unique :db.unique/identity}
+ :pin/actor  {:db/valueType :db.type/ref}
+ :pin/object {:db/valueType :db.type/ref}
+ :pin/pos    {:db/valueType :db.type/long}
+ :pin/uniq   {:db/valueType :db.type/tuple
+              :db/tupleAttrs [:pin/actor :pin/object]
+              :db/unique :db.unique/identity}
+ :list/owner   {:db/valueType :db.type/ref}
+ :list/title   {:db/valueType :db.type/string}
+ :list/members {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+
+ ;; ───────── Block / Mute / Instance ─────────
+ :block/actor  {:db/valueType :db.type/ref}
+ :block/target {:db/valueType :db.type/ref}
+ :block/uniq   {:db/valueType :db.type/tuple
+                :db/tupleAttrs [:block/actor :block/target]
+                :db/unique :db.unique/identity}
+ :mute/actor   {:db/valueType :db.type/ref}
+ :mute/target  {:db/valueType :db.type/ref}
+ :mute/expires-at {:db/valueType :db.type/instant}
+ :mute/uniq    {:db/valueType :db.type/tuple
+                :db/tupleAttrs [:mute/actor :mute/target]
+                :db/unique :db.unique/identity}
+
+ :instance/host  {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :instance/state {:db/valueType :db.type/keyword} ;; :ok :silenced :blocked(Postgres の instance_blocks.severity)
+ :instance/reason {:db/valueType :db.type/string}
+ :instance/last-failure-at {:db/valueType :db.type/instant}
+
+ ;; ───────── Local user ─────────
+ :user/actor     {:db/valueType :db.type/ref :db/unique :db.unique/identity}
+ :user/admin?    {:db/valueType :db.type/boolean}
+ :user/languages {:db/valueType :db.type/string :db/cardinality :db.cardinality/many}}
+
+;; スレッドの再帰ルール(クエリ側に渡す。ancestor は 3 段で確認済み)
+;; [[(ancestor ?c ?p) [?c :object/in-reply-to ?p]]
+;;  [(ancestor ?c ?p) [?c :object/in-reply-to ?m] (ancestor ?m ?p)]]
