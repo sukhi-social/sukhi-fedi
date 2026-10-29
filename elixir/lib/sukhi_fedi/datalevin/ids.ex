@@ -18,7 +18,7 @@ defmodule SukhiFedi.Datalevin.Ids do
   @table :sukhi_datalevin_ids
 
   def start_link(_) do
-    :ets.new(@table, [:named_table, :public, :set])
+    if :ets.whereis(@table) == :undefined, do: :ets.new(@table, [:named_table, :public, :set])
     :ignore
   end
 
@@ -38,7 +38,8 @@ defmodule SukhiFedi.Datalevin.Ids do
   # Continue after the persisted counter, or — for a database that came from
   # an import rather than from this store — after the highest id present.
   defp load(key) do
-    q = ~s([:find ?n . :where [?s :seq/table #{SukhiFedi.Datalevin.Edn.literal(key)}] [?s :seq/next ?n]])
+    q =
+      ~s([:find ?n . :where [?s :seq/table #{SukhiFedi.Datalevin.Edn.literal(key)}] [?s :seq/next ?n]])
 
     case Client.query(q) do
       {:ok, n} when is_integer(n) ->
@@ -48,7 +49,9 @@ defmodule SukhiFedi.Datalevin.Ids do
         [table, column] = String.split(key, ".", parts: 2)
         attr = SukhiFedi.Datalevin.Catalog.attr(table, column)
 
-        case Client.query("[:find (max ?v) . :where [_ #{inspect(attr)} ?v]]") do
+        case Client.query(
+               "[:find (max ?v) . :where [_ #{SukhiFedi.Datalevin.Edn.literal(attr)} ?v]]"
+             ) do
           {:ok, m} when is_integer(m) -> m + 1
           _ -> 1
         end

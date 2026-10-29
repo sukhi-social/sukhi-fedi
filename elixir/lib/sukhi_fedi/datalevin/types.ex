@@ -20,8 +20,9 @@ defmodule SukhiFedi.Datalevin.Types do
   @doc "Ecto `dumpers/2`."
   def dumpers(primitive, type)
 
-  def dumpers(p, type) when p in [:utc_datetime, :utc_datetime_usec, :naive_datetime, :naive_datetime_usec],
-    do: [type, &micros/1]
+  def dumpers(p, type)
+      when p in [:utc_datetime, :utc_datetime_usec, :naive_datetime, :naive_datetime_usec],
+      do: [type, &micros/1]
 
   def dumpers(:date, type), do: [type, &days/1]
   def dumpers(:time, type), do: [type, &time_micros/1]
@@ -83,10 +84,14 @@ defmodule SukhiFedi.Datalevin.Types do
   defp from_days(nil), do: {:ok, nil}
   defp from_days(n) when is_integer(n), do: {:ok, Date.from_gregorian_days(n)}
 
-  defp time_micros(%Time{} = t), do: {:ok, div(Time.diff(t, ~T[00:00:00.000000], :microsecond), 1)}
+  defp time_micros(%Time{} = t),
+    do: {:ok, div(Time.diff(t, ~T[00:00:00.000000], :microsecond), 1)}
+
   defp time_micros(_), do: :error
   defp from_time_micros(nil), do: {:ok, nil}
-  defp from_time_micros(n) when is_integer(n), do: {:ok, Time.add(~T[00:00:00.000000], n, :microsecond)}
+
+  defp from_time_micros(n) when is_integer(n),
+    do: {:ok, Time.add(~T[00:00:00.000000], n, :microsecond)}
 
   # -- the rest ---------------------------------------------------------------
 
@@ -114,16 +119,35 @@ defmodule SukhiFedi.Datalevin.Types do
   @spec default(String.t()) :: {:value, term()} | :now | :sequence | :snowflake | :none
   def default(default) do
     cond do
-      Regex.match?(~r/^nextval\(/, default) -> :sequence
-      default == "snowflake_id()" -> :snowflake
-      default in ["now()", "CURRENT_TIMESTAMP", "timezone('UTC'::text, now())"] -> :now
-      default == "true" -> {:value, true}
-      default == "false" -> {:value, false}
-      Regex.match?(~r/^-?\d+$/, default) -> {:value, String.to_integer(default)}
-      Regex.match?(~r/^-?\d+\.\d+$/, default) -> {:value, String.to_float(default)}
-      String.starts_with?(default, "ARRAY[]::") -> {:value, "[]"}
-      m = Regex.run(~r/^'(.*)'::[a-z_ ]+(\[\])?$/s, default) -> {:value, String.replace(Enum.at(m, 1), "''", "'")}
-      true -> :none
+      Regex.match?(~r/^nextval\(/, default) ->
+        :sequence
+
+      default == "snowflake_id()" ->
+        :snowflake
+
+      default in ["now()", "CURRENT_TIMESTAMP", "timezone('UTC'::text, now())"] ->
+        :now
+
+      default == "true" ->
+        {:value, true}
+
+      default == "false" ->
+        {:value, false}
+
+      Regex.match?(~r/^-?\d+$/, default) ->
+        {:value, String.to_integer(default)}
+
+      Regex.match?(~r/^-?\d+\.\d+$/, default) ->
+        {:value, String.to_float(default)}
+
+      String.starts_with?(default, "ARRAY[]::") ->
+        {:value, "[]"}
+
+      m = Regex.run(~r/^'(.*)'::[a-z_ ]+(\[\])?$/s, default) ->
+        {:value, String.replace(Enum.at(m, 1), "''", "'")}
+
+      true ->
+        :none
     end
   end
 end

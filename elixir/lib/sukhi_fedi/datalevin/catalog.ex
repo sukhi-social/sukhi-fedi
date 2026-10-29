@@ -69,14 +69,20 @@ defmodule SukhiFedi.Datalevin.Catalog do
       end
 
     Map.merge(cols, %{
-      ":seq/table" => %{":db/valueType" => ":db.type/string", ":db/unique" => ":db.unique/identity"},
+      ":seq/table" => %{
+        ":db/valueType" => ":db.type/string",
+        ":db/unique" => ":db.unique/identity"
+      },
       ":seq/next" => %{":db/valueType" => ":db.type/long"}
     })
   end
 
   defp attr_def(_table, t, c) do
     base = %{":db/valueType" => value_type(c.type)}
-    if c.name == "id" and t.pk == ["id"], do: Map.put(base, ":db/unique", ":db.unique/identity"), else: base
+
+    if c.name == "id" and t.pk == ["id"],
+      do: Map.put(base, ":db/unique", ":db.unique/identity"),
+      else: base
   end
 
   @doc "Datalevin value type of a Postgres type; what we store is described in `Types`."

@@ -116,16 +116,7 @@ defmodule SukhiFedi.Timelines do
       # content, or as a hashtag when the keyword leads with `#`. Each such
       # list is its own constraint (a violation is a missed keyword), so a post
       # is dropped if *any* containing keyword list goes unmatched.
-      |> where(
-        [n],
-        fragment(
-          "NOT EXISTS (SELECT 1 FROM list_accounts la JOIN lists l ON l.id = la.list_id WHERE l.account_id = ? AND l.exclusive = false AND la.account_id = ? AND COALESCE(l.filter_keyword, '') <> '' AND NOT (? ILIKE '%' || l.filter_keyword || '%' OR EXISTS (SELECT 1 FROM note_tags nt JOIN tags t ON t.id = nt.tag_id WHERE nt.note_id = ? AND t.name = lower(ltrim(l.filter_keyword, '#')))))",
-          ^id,
-          n.account_id,
-          n.content,
-          n.id
-        )
-      )
+      |> keyword_gate(id)
       |> maybe_only_media(opts[:only_media])
       |> maybe_hide_sensitive(opts[:hide_sensitive])
       |> apply_paging(opts)
@@ -451,4 +442,24 @@ defmodule SukhiFedi.Timelines do
 
   defp normalize_opts(opts) when is_list(opts), do: Map.new(opts)
   defp normalize_opts(opts) when is_map(opts), do: opts
+
+  # See the keyword-gate note in home/2. Skipped (no extra clause at all) for a
+  # viewer with no keyword list, which is nearly everyone.
+  defp keyword_gate(query, viewer_id) do
+    if Lists.keyword_gate?(viewer_id) do
+      where(
+        query,
+        [n],
+        fragment(
+          "NOT EXISTS (SELECT 1 FROM list_accounts la JOIN lists l ON l.id = la.list_id WHERE l.account_id = ? AND l.exclusive = false AND la.account_id = ? AND COALESCE(l.filter_keyword, '') <> '' AND NOT (? ILIKE '%' || l.filter_keyword || '%' OR EXISTS (SELECT 1 FROM note_tags nt JOIN tags t ON t.id = nt.tag_id WHERE nt.note_id = ? AND t.name = lower(ltrim(l.filter_keyword, '#')))))",
+          ^viewer_id,
+          n.account_id,
+          n.content,
+          n.id
+        )
+      )
+    else
+      query
+    end
+  end
 end

@@ -37,6 +37,10 @@ defmodule SukhiFedi.Datalevin.Eval do
   def eval({:^, _, [ix]}, %{params: params}), do: Enum.at(params, ix)
   def eval({:^, _, [ix, len]}, %{params: params}), do: Enum.slice(params, ix, len)
   def eval(%Ecto.Query.Tagged{value: v}, env), do: eval(v, env)
+
+  def eval(%Ecto.SubQuery{} = sq, %{params: params}),
+    do: SukhiFedi.Datalevin.Query.subquery_column(sq, params)
+
   def eval({:type, _, [e, _type]}, env), do: eval(e, env)
   def eval({:literal, _, [v]}, _env), do: v
   def eval({:splice, _, [e]}, env), do: eval(e, env)
@@ -97,7 +101,8 @@ defmodule SukhiFedi.Datalevin.Eval do
   def eval({:fragment, _, parts}, env), do: fragment(parts, env)
 
   # now ± interval, in the stored unit (microseconds since the epoch).
-  def eval({:ago, _, [n, unit]}, env), do: System.os_time(:microsecond) - interval(eval(n, env), unit)
+  def eval({:ago, _, [n, unit]}, env),
+    do: System.os_time(:microsecond) - interval(eval(n, env), unit)
 
   def eval({:from_now, _, [n, unit]}, env),
     do: System.os_time(:microsecond) + interval(eval(n, env), unit)
@@ -127,7 +132,8 @@ defmodule SukhiFedi.Datalevin.Eval do
 
   def eval({:selected_as, _, [e, _]}, env), do: eval(e, env)
 
-  def eval(other, _env), do: raise(Unsupported, "expression not supported by the Datalevin store: #{inspect(other)}")
+  def eval(other, _env),
+    do: raise(Unsupported, "expression not supported by the Datalevin store: #{inspect(other)}")
 
   # ---------------------------------------------------------------------------
 
@@ -158,7 +164,9 @@ defmodule SukhiFedi.Datalevin.Eval do
   defp like(_, nil, _), do: nil
 
   defp like(value, pattern, ci?) when is_binary(value) and is_binary(pattern) do
-    {value, pattern} = if ci?, do: {String.downcase(value), String.downcase(pattern)}, else: {value, pattern}
+    {value, pattern} =
+      if ci?, do: {String.downcase(value), String.downcase(pattern)}, else: {value, pattern}
+
     Regex.match?(like_regex(pattern), value)
   end
 
@@ -182,7 +190,12 @@ defmodule SukhiFedi.Datalevin.Eval do
   # Matched on the template with each expression replaced by `?`. Anything
   # else raises rather than guess, and shows up in the coverage run.
   defp fragment(parts, env) do
-    template = Enum.map_join(parts, fn {:raw, s} -> s; {:expr, _} -> "?" end)
+    template =
+      Enum.map_join(parts, fn
+        {:raw, s} -> s
+        {:expr, _} -> "?"
+      end)
+
     args = for {:expr, e} <- parts, do: eval(e, env)
     fragment_fun(template, args, parts)
   end
@@ -191,13 +204,19 @@ defmodule SukhiFedi.Datalevin.Eval do
   defp fragment_fun("length(?)", [v], _), do: if(is_binary(v), do: String.length(v), else: nil)
   defp fragment_fun("? LIKE ?", [a, b], _), do: like(a, b, false)
   defp fragment_fun("now()", [], _), do: System.os_time(:microsecond)
-  defp fragment_fun("CAST(?->>'" <> rest, [v], _), do: json_text(v, rest |> String.split("'") |> hd())
+
+  defp fragment_fun("CAST(?->>'" <> rest, [v], _),
+    do: json_text(v, rest |> String.split("'") |> hd())
+
   defp fragment_fun("?->>'" <> rest, [v], _), do: json_text(v, rest |> String.split("'") |> hd())
 
   defp fragment_fun("EXISTS (SELECT 1 FROM " <> _ = template, [v], _) do
     case Regex.run(~r/^EXISTS \(SELECT 1 FROM (\w+) \w+ WHERE \w+\.(\w+) = \?\)$/, template) do
-      [_, table, column] -> SukhiFedi.Datalevin.Query.exists_row?(table, column, v)
-      _ -> raise Unsupported, "fragment not supported by the Datalevin store: #{inspect(template)}"
+      [_, table, column] ->
+        SukhiFedi.Datalevin.Query.exists_row?(table, column, v)
+
+      _ ->
+        raise Unsupported, "fragment not supported by the Datalevin store: #{inspect(template)}"
     end
   end
 
@@ -223,17 +242,18 @@ defmodule SukhiFedi.Datalevin.Eval do
   end
 
   defp interval(n, unit) when is_number(n) do
-    n * case unit do
-      "microsecond" -> 1
-      "millisecond" -> 1_000
-      "second" -> 1_000_000
-      "minute" -> 60_000_000
-      "hour" -> 3_600_000_000
-      "day" -> 86_400_000_000
-      "week" -> 7 * 86_400_000_000
-      "month" -> 30 * 86_400_000_000
-      "year" -> 365 * 86_400_000_000
-    end
+    n *
+      case unit do
+        "microsecond" -> 1
+        "millisecond" -> 1_000
+        "second" -> 1_000_000
+        "minute" -> 60_000_000
+        "hour" -> 3_600_000_000
+        "day" -> 86_400_000_000
+        "week" -> 7 * 86_400_000_000
+        "month" -> 30 * 86_400_000_000
+        "year" -> 365 * 86_400_000_000
+      end
   end
 
   defp aggregate(:count, [], group, _env), do: length(group)

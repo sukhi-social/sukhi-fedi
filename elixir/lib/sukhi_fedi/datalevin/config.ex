@@ -157,18 +157,31 @@ defmodule SukhiFedi.Datalevin.Config do
 
   defp durability(env, default) do
     case env["DATALEVIN_DURABILITY"] do
-      v when v in [nil, ""] -> default
-      v when v in @durabilities -> String.to_atom(v)
-      v -> raise ArgumentError, "DATALEVIN_DURABILITY=#{inspect(v)}: want one of #{Enum.join(@durabilities, ", ")}"
+      v when v in [nil, ""] ->
+        default
+
+      v when v in @durabilities ->
+        String.to_atom(v)
+
+      v ->
+        raise ArgumentError,
+              "DATALEVIN_DURABILITY=#{inspect(v)}: want one of #{Enum.join(@durabilities, ", ")}"
     end
   end
 
   # `-Xmx` takes a number with a k/m/g suffix; `0` or `none` leaves the heap uncapped.
   defp xmx(env, default) do
     case env["DATALEVIN_XMX"] do
-      v when v in [nil, ""] -> default
-      v when v in ["0", "none"] -> nil
-      v -> if Regex.match?(~r/^\d+[kKmMgG]$/, v), do: v, else: bad("DATALEVIN_XMX", v, "like 64m or 1g")
+      v when v in [nil, ""] ->
+        default
+
+      v when v in ["0", "none"] ->
+        nil
+
+      v ->
+        if Regex.match?(~r/^\d+[kKmMgG]$/, v),
+          do: v,
+          else: bad("DATALEVIN_XMX", v, "like 64m or 1g")
     end
   end
 

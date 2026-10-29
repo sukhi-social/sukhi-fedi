@@ -2,5 +2,5 @@
 defmodule SukhiFedi.Repo do
   use Ecto.Repo,
     otp_app: :sukhi_fedi,
-    adapter: Ecto.Adapters.Postgres
+    adapter: SukhiFedi.Store.Adapter
 end

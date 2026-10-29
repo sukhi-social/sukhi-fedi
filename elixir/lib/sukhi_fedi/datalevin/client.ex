@@ -17,8 +17,6 @@ defmodule SukhiFedi.Datalevin.Client do
 
   use GenServer
 
-  require Logger
-
   alias SukhiFedi.Datalevin.{Config, Edn}
 
   @max_line 16_000_000
@@ -104,7 +102,10 @@ defmodule SukhiFedi.Datalevin.Client do
     Process.flag(:trap_exit, true)
 
     File.mkdir_p!(config.dir)
-    exe = System.find_executable(config.bin) || raise "dtlv not found: #{inspect(config.bin)} (DATALEVIN_BIN)"
+
+    exe =
+      System.find_executable(config.bin) ||
+        raise "dtlv not found: #{inspect(config.bin)} (DATALEVIN_BIN)"
 
     port =
       Port.open({:spawn_executable, exe}, [
@@ -186,7 +187,8 @@ defmodule SukhiFedi.Datalevin.Client do
   end
 
   @impl true
-  def handle_call(:os_pid, _from, state), do: {:reply, Port.info(state.port, :os_pid) |> elem(1), state}
+  def handle_call(:os_pid, _from, state),
+    do: {:reply, Port.info(state.port, :os_pid) |> elem(1), state}
 
   def handle_call({:tool, name, args}, from, state) do
     {id, state} = next_id(state)
@@ -207,6 +209,7 @@ defmodule SukhiFedi.Datalevin.Client do
 
   def handle_call({:many, reqs}, from, state) do
     ref = make_ref()
+
     {ids, state} =
       Enum.map_reduce(reqs, state, fn {name, args}, st ->
         {id, st} = next_id(st)
@@ -286,6 +289,7 @@ defmodule SukhiFedi.Datalevin.Client do
     end)
 
     Enum.each(state.batches, fn {_, {b, _}} -> GenServer.reply(b.from, {:error, :dtlv_exited}) end)
+
     {:stop, {:dtlv_exited, status}, %{state | pending: %{}}}
   end
 
