@@ -83,7 +83,7 @@ defmodule SukhiFedi.MixProject do
       # it predates Req.
       {:ex_aws, "~> 2.5"},
       {:ex_aws_s3, "~> 2.5"},
-      {:hackney, "~> 1.20"},
+      {:hackney, "~> 4.9"},
       {:sweet_xml, "~> 0.7"},
 
       # libvips (NIF) — remote media proxy の WebP / AVIF 変換レイヤー
