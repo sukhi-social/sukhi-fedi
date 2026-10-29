@@ -142,6 +142,29 @@ Types emitted today: `follow`, `favourite`, `reblog`. `mention`,
 `poll`, `update`, `status`, `follow_request` are valid columns but
 no writer hits them yet.
 
+### Pace (sukhi's own)
+
+*Ambient* notifications (everything but `mention` and `follow_request`, the
+types in `WebPush.direct_types/0`) can be slowed and folded, per account:
+
+- `PATCH update_credentials` takes `notification_hold_minutes` (0–1440;
+  unset = never chosen, treated as 0) and `notification_grouping`
+  (boolean). `verify_credentials` returns both under `source`. Changing only
+  these sends no actor `Update` to peers.
+- With a hold, an ambient row is invisible to the list, `:id`, `clear` and
+  `dismiss` until it is that old, and is not streamed on arrival. Direct
+  rows are never held. The row is stored in full at once.
+- With grouping, ambient rows of one kind in a page (same post, or same type
+  with no post) come back as one row, the newest, with
+  `group: {accounts: [...]}` (newest first). Page with `Link` as usual: its
+  `next` is the oldest id the page consumed. A group does not span pages.
+- Any of the four routes also accepts `hold_minutes=N` and `grouping=true`,
+  which ask for a slower pace than the account's, never a faster one. A
+  client with a house pace (web-unpoly) sends them on every call so it
+  applies whatever the account chose.
+
+The rule lives in `SukhiFedi.Notifications` (`pace/2`, `scope/3`).
+
 ## Lists
 
 | Method | Path | Scope |

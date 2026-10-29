@@ -11,6 +11,10 @@ defmodule SukhiFedi.Schema.Notification do
     field :type, :string
     field :read_at, :utc_datetime
     field :dismissed_at, :utc_datetime
+    # Set only by `Notifications.list/2` when the viewer has grouping on:
+    # every member's from_account (newest first), and the oldest member's id.
+    field :group, {:array, :any}, virtual: true
+    field :cursor_id, :integer, virtual: true
     belongs_to :account, Account
     belongs_to :from_account, Account
     belongs_to :note, Note

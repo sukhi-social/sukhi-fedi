@@ -19,12 +19,33 @@ defmodule SukhiFedi.Notifications do
   All three write helpers are short-circuited by `on_conflict: :nothing`
   so callers don't have to know whether a duplicate would slip through
   Multi steps.
+
+  ## Pace
+
+  A person may slow the *ambient* notifications (everything but
+  `WebPush.direct_types/0`: favourites, boosts, follows…): hold each for
+  `accounts.notification_hold_minutes` before it shows, and, with
+  `accounts.notification_grouping`, fold same-kind rows into one. Direct ones
+  (mentions, follow requests) are never held or folded.
+
+  A client may ask for more than the account chose — `hold_minutes:` and
+  `grouping:` in the opts of every read and dismiss — and only ever for more:
+  the effective hold is the larger of the two, grouping is on if either is.
+  That is how a client with a house pace (web-unpoly) slows everyone it
+  serves without touching anyone's setting.
+
+  The whole rule is `pace/2` (what applies) and `scope/3` (what a
+  read or a dismiss may touch). Every read path goes through `scope/2`, so a
+  held row is invisible to the list, the single fetch, `clear` and `dismiss`
+  alike. A held row is not streamed when it is written; it shows at the next
+  read after its hour. The row itself is always stored in full.
   """
 
   import Ecto.Query
 
   alias SukhiFedi.Repo
   alias SukhiFedi.Addons.Moderation
+  alias SukhiFedi.Addons.WebPush
   alias SukhiFedi.Schema.{Account, Notification}
 
   @default_limit 15
@@ -69,30 +90,87 @@ defmodule SukhiFedi.Notifications do
   # needs — the same event must not buzz a pocket twice. Whether it may
   # buzz at all is `WebPush.deliverable?/3`'s call, not this line's.
   defp tap_stream({:ok, %Notification{id: id} = notif} = res) when not is_nil(id) do
-    SukhiFedi.Streaming.publish_notification(notif.account_id, notif)
-    SukhiFedi.Addons.WebPush.notify(notif)
+    unless held_on_arrival?(notif), do: SukhiFedi.Streaming.publish_notification(notif.account_id, notif)
+    WebPush.notify(notif)
     res
   end
 
   defp tap_stream(res), do: res
 
+  # ── pace ─────────────────────────────────────────────────────────────────
+
+  @doc """
+  What the account chose for ambient notifications:
+  `%{hold_minutes: non_neg_integer(), grouping: boolean()}`. Never chosen
+  (NULL) and unknown accounts are `0` / `false`: nothing is held.
+  """
+  @spec pace(integer(), keyword() | map()) :: %{hold_minutes: non_neg_integer(), grouping: boolean()}
+  def pace(account_id, ask \\ []) when is_integer(account_id) do
+    ask = normalize(ask)
+
+    from(a in Account,
+      where: a.id == ^account_id,
+      select: {a.notification_hold_minutes, a.notification_grouping}
+    )
+    |> Repo.one()
+    |> case do
+      {hold, grouping} -> %{hold_minutes: hold || 0, grouping: grouping == true}
+      nil -> %{hold_minutes: 0, grouping: false}
+    end
+    |> then(fn mine ->
+      %{
+        hold_minutes: max(mine.hold_minutes, clamp_hold(ask[:hold_minutes])),
+        grouping: mine.grouping or ask[:grouping] == true
+      }
+    end)
+  end
+
+  defp clamp_hold(n) when is_integer(n) and n > 0, do: min(n, 1440)
+  defp clamp_hold(_), do: 0
+
+  # The one place that decides what the account may see (and so touch).
+  # `now` is passed in so a caller reading twice agrees with itself.
+  defp scope(account_id, %{hold_minutes: hold}, now) do
+    base = where(Notification, [n], n.account_id == ^account_id and is_nil(n.dismissed_at))
+
+    if hold > 0 do
+      cutoff = DateTime.add(now, -hold * 60, :second)
+      direct = WebPush.direct_types()
+      where(base, [n], n.type in ^direct or n.created_at <= ^cutoff)
+    else
+      base
+    end
+  end
+
+  defp held_on_arrival?(%Notification{type: type, account_id: id}) do
+    type not in WebPush.direct_types() and pace(id).hold_minutes > 0
+  end
+
+  defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
+
   @doc """
   Paged list. Returns notifications newest-first scoped to `viewer`,
-  excluding dismissed rows.
+  excluding dismissed rows and, per the viewer's pace, held ones.
 
   Opts:
     * `:max_id`, `:since_id`, `:min_id`, `:limit`
     * `:types`         — list of strings to keep
     * `:exclude_types` — list of strings to drop
+
+  With grouping on, ambient rows of one kind in the page come back as one
+  row: the newest, with `group` = every member's `from_account` (newest
+  first) and `cursor_id` = the oldest member's id, which is the id a client
+  pages from (the API puts it in `Link`). A group does not span pages.
   """
   @spec list(Account.t() | integer(), keyword() | map()) :: [Notification.t()]
   def list(%Account{id: id}, opts), do: list(id, opts)
 
   def list(account_id, opts) when is_integer(account_id) do
     opts = normalize(opts)
+    pace = pace(account_id, opts)
 
-    Notification
-    |> where([n], n.account_id == ^account_id and is_nil(n.dismissed_at))
+    account_id
+    |> scope(pace, now())
     |> maybe_in(:type, opts[:types])
     |> maybe_not_in(:type, opts[:exclude_types])
     |> maybe_max_id(opts[:max_id])
@@ -102,20 +180,50 @@ defmodule SukhiFedi.Notifications do
     |> limit(^clamp(opts[:limit] || @default_limit))
     |> Repo.all()
     |> Repo.preload([:from_account, note: [:account, :media, :tags]])
+    |> group(pace.grouping)
+  end
+
+  # Newest-first rows in, newest-first out: a group sits where its newest
+  # member was. Direct rows are never folded.
+  defp group(rows, false), do: rows
+
+  defp group(rows, true) do
+    direct = WebPush.direct_types()
+
+    keyed =
+      Enum.map(rows, fn n ->
+        if n.type in direct, do: {{:single, n.id}, n}, else: {{n.type, n.note_id}, n}
+      end)
+
+    members = keyed |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    keyed
+    |> Enum.uniq_by(&elem(&1, 0))
+    |> Enum.map(fn {key, n} ->
+      all = Map.fetch!(members, key)
+
+      case all do
+        [_one] -> n
+        _ -> %{n | group: Enum.map(all, & &1.from_account), cursor_id: all |> List.last() |> Map.fetch!(:id)}
+      end
+    end)
   end
 
   @doc "Scoped single fetch — won't return rows owned by other accounts."
-  @spec get(Account.t() | integer(), integer() | String.t()) :: Notification.t() | nil
-  def get(%Account{id: id}, notif_id), do: get(id, notif_id)
+  @spec get(Account.t() | integer(), integer() | String.t(), keyword() | map()) ::
+          Notification.t() | nil
+  def get(account, notif_id, ask \\ [])
+  def get(%Account{id: id}, notif_id, ask), do: get(id, notif_id, ask)
 
-  def get(account_id, notif_id) when is_integer(account_id) do
+  def get(account_id, notif_id, ask) when is_integer(account_id) do
     nid = SukhiFedi.Coercion.parse_id(notif_id)
 
     if is_nil(nid) do
       nil
     else
-      Notification
-      |> where([n], n.id == ^nid and n.account_id == ^account_id and is_nil(n.dismissed_at))
+      account_id
+      |> scope(pace(account_id, ask), now())
+      |> where([n], n.id == ^nid)
       |> Repo.one()
       |> case do
         nil -> nil
@@ -124,15 +232,16 @@ defmodule SukhiFedi.Notifications do
     end
   end
 
-  @doc "Bulk dismiss — Mastodon's `POST /clear` semantics."
+  @doc "Bulk dismiss — Mastodon's `POST /clear` semantics. Held rows are not yet seen, so not cleared."
   @spec clear(Account.t() | integer()) :: :ok
-  def clear(%Account{id: id}), do: clear(id)
+  def clear(account, ask \\ [])
+  def clear(%Account{id: id}, ask), do: clear(id, ask)
 
-  def clear(account_id) when is_integer(account_id) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+  def clear(account_id, ask) when is_integer(account_id) do
+    now = now()
 
-    Notification
-    |> where([n], n.account_id == ^account_id and is_nil(n.dismissed_at))
+    account_id
+    |> scope(pace(account_id, ask), now)
     |> Repo.update_all(set: [dismissed_at: now])
 
     :ok
@@ -140,15 +249,17 @@ defmodule SukhiFedi.Notifications do
 
   @doc "Single-row dismiss — Mastodon's `POST /:id/dismiss`."
   @spec dismiss(Account.t() | integer(), integer() | String.t()) :: :ok
-  def dismiss(%Account{id: id}, notif_id), do: dismiss(id, notif_id)
+  def dismiss(account, notif_id, ask \\ [])
+  def dismiss(%Account{id: id}, notif_id, ask), do: dismiss(id, notif_id, ask)
 
-  def dismiss(account_id, notif_id) when is_integer(account_id) do
+  def dismiss(account_id, notif_id, ask) when is_integer(account_id) do
     nid = SukhiFedi.Coercion.parse_id(notif_id)
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = now()
 
     if nid do
-      Notification
-      |> where([n], n.id == ^nid and n.account_id == ^account_id and is_nil(n.dismissed_at))
+      account_id
+      |> scope(pace(account_id, ask), now)
+      |> where([n], n.id == ^nid)
       |> Repo.update_all(set: [dismissed_at: now])
     end
 

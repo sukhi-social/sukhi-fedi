@@ -10,6 +10,11 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
 
   Index supports the usual `max_id` / `since_id` / `min_id` / `limit`
   paging plus Mastodon's `types[]` and `exclude_types[]` filters.
+
+  sukhi's own, on all four routes: `hold_minutes=N` and `grouping=true` ask
+  for a slower pace than the account chose (never a faster one), so a client
+  with a house pace can apply it without changing anyone's setting. See
+  `SukhiFedi.Notifications`.
   """
 
   use SukhiApi.Capability, addon: :mastodon_api
@@ -43,7 +48,7 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
             headers = [{"content-type", "application/json"}]
 
             headers =
-              case Pagination.link_header("/api/v1/notifications", notifs, & &1.id, opts) do
+              case Pagination.link_header("/api/v1/notifications", page_edges(notifs), & &1.id, opts) do
                 nil -> headers
                 link -> [link | headers]
               end
@@ -59,6 +64,15 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
     end
   end
 
+  # `prev` pages from the newest row's own id; `next` from the oldest id the
+  # page consumed, which for a group is its oldest member (`cursor_id`).
+  defp page_edges([]), do: []
+
+  defp page_edges(notifs) do
+    last = List.last(notifs)
+    [%{id: List.first(notifs).id}, %{id: Map.get(last, :cursor_id) || last.id}]
+  end
+
   def show(req) do
     %{current_account: viewer} = req[:assigns]
     id = req[:path_params]["id"]
@@ -68,7 +82,7 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.run(SukhiFedi.Notifications, :get, [v.id, id]) do
+        case GatewayRpc.run(SukhiFedi.Notifications, :get, [v.id, id, pace_ask(req[:query])]) do
           {:ok, nil} -> ok(404, %{error: "not_found"})
           {:ok, notif} -> ok(200, MastodonNotification.render(notif))
           {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
@@ -80,6 +94,21 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
   def clear(req), do: scoped_action(req, :clear, [])
   def dismiss(req), do: scoped_action(req, :dismiss, [req[:path_params]["id"]])
 
+  # Client-asked pace (see moduledoc). Anything unparseable asks for nothing.
+  defp pace_ask(query) do
+    q = decode_query(query)
+    hold = q["hold_minutes"]
+
+    [
+      hold_minutes:
+        case is_binary(hold) && Integer.parse(hold) do
+          {n, ""} -> n
+          _ -> 0
+        end,
+      grouping: q["grouping"] in ["true", "1"]
+    ]
+  end
+
   defp scoped_action(req, fun, extra_args) do
     %{current_account: viewer} = req[:assigns]
 
@@ -88,7 +117,7 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
         ok(403, %{error: "this endpoint requires a user-bound token"})
 
       %{} = v ->
-        case GatewayRpc.run(SukhiFedi.Notifications, fun, [v.id | extra_args]) do
+        case GatewayRpc.run(SukhiFedi.Notifications, fun, [v.id | extra_args] ++ [pace_ask(req[:query])]) do
           {:ok, :ok} -> ok(200, %{})
           {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
           _ -> ok(500, %{error: "internal_error"})
@@ -101,6 +130,7 @@ defmodule SukhiApi.Capabilities.MastodonNotifications do
     q = decode_query(query)
 
     base
+    |> Map.merge(Map.new(pace_ask(query)))
     |> maybe_put_list(:types, q["types[]"] || q["types"])
     |> maybe_put_list(:exclude_types, q["exclude_types[]"] || q["exclude_types"])
   end

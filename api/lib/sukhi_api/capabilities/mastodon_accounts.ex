@@ -224,7 +224,9 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
               "discoverable",
               "indexable",
               "location",
-              "birthday"
+              "birthday",
+              "notification_hold_minutes",
+              "notification_grouping"
             ])
             |> maybe_put("avatar_url", avatar_url)
             |> maybe_put("banner_url", banner_url)
