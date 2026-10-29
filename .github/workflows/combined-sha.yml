@@ -21,6 +21,8 @@
 #   - sukhi-fedi-natadeco-ssr web-natadeco (the SSR Node for natadeco.com;
 #                              its build/client must match the files served from
 #                              the override dir, which come from the same commit)
+#   - sukhi-fedi-web-next     web-next (the Unpoly + Alpine.js post office that
+#                              sits in front of the gateway; no build step)
 
 name: combined-sha
 
@@ -126,3 +128,28 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-natadeco-ssr:${{ steps.tag.outputs.sha }}
           cache-from: type=gha,scope=ssr-arm64
           cache-to: type=gha,scope=ssr-arm64,mode=max,compression=zstd
+
+  web-next:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3.10.0
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: tag
+        run: echo "sha=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: web-next
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-web-next:${{ steps.tag.outputs.sha }}
+          cache-from: type=gha,scope=web-next-arm64
+          cache-to: type=gha,scope=web-next-arm64,mode=max,compression=zstd
