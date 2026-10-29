@@ -291,16 +291,21 @@ defmodule SukhiFedi.Web.Auth.SecurityController do
     end
   end
 
-  # The single owner-re-proof rule: password when the account has one,
-  # otherwise a fresh reauth code mailed to the verified address.
-  defp reauth_ok(conn, %Account{password_hash: hash} = account) when is_binary(hash) do
+  @doc """
+  The single owner-re-proof rule: password when the account has one,
+  otherwise a fresh reauth code mailed to the verified address. Every
+  destructive owner action (here, self-cleanup, closing the account)
+  goes through this one function.
+  """
+  @spec reauth_ok(Plug.Conn.t(), Account.t()) :: :ok | {:error, :reauth}
+  def reauth_ok(conn, %Account{password_hash: hash} = account) when is_binary(hash) do
     case LocalAccounts.check_password(account, to_string(conn.body_params["password"] || "")) do
       :ok -> :ok
       {:error, :invalid} -> {:error, :reauth}
     end
   end
 
-  defp reauth_ok(conn, %Account{} = account) do
+  def reauth_ok(conn, %Account{} = account) do
     case EmailAuth.confirm_reauth(account, to_string(conn.body_params["reauth_code"] || "")) do
       :ok -> :ok
       {:error, _} -> {:error, :reauth}

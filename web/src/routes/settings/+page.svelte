@@ -406,6 +406,7 @@
       <li><a class="chip" href="/requests">{$t('requests.title')}</a></li>
       <li><a class="chip" href="/settings/cleanup">{$t('settings.cleanup')}</a></li>
       <li><a class="chip" href="/settings/bot">{$t('settings.botManagement')}</a></li>
+      <li><a class="chip" href="/settings/close">{$t('settings.close')}</a></li>
     </ul>
   </nav>
 

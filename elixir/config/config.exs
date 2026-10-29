@@ -37,7 +37,9 @@ config :sukhi_fedi, Oban,
        {"*/10 * * * *", SukhiFedi.Addons.NodeinfoMonitor.PollCoordinator},
        # Daily read-only archive health check (counts + S3 HEAD of the
        # latest inbound original). Logs a WARNING if the archive drifted.
-       {"30 3 * * *", SukhiFedi.Maintenance.ArchiveIntegrity}
+       {"30 3 * * *", SukhiFedi.Maintenance.ArchiveIntegrity},
+       # Closing accounts whose one day of grace is up (AccountDeletion).
+       {"*/10 * * * *", SukhiFedi.AccountDeletion.Worker}
      ]},
     # The same two guards the delivery node keeps (delivery/config/config.exs).
     #

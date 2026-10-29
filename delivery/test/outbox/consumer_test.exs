@@ -10,6 +10,10 @@ defmodule SukhiDelivery.Outbox.ConsumerTest do
       assert :missing_fields = Consumer.dispatch("sns.outbox.actor.updated", %{})
     end
 
+    test "actor.deleted without account_id field → :missing_fields" do
+      assert :missing_fields = Consumer.dispatch("sns.outbox.actor.deleted", %{})
+    end
+
     test "oauth.app_registered is explicitly ignored (local-only)" do
       assert :ignored =
                Consumer.handle_event(

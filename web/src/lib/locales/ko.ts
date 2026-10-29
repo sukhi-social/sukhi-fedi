@@ -749,5 +749,21 @@ export const ko: Dict = {
   'feedback.empty': '내용을 적은 뒤에 보내 주세요.',
   'feedback.tooLong': '2000자까지예요. 조금만 줄여 주시겠어요?',
   'feedback.rateLimited': '연달아 보내신 것 같아요. 조금 기다렸다가 다시 보내 주세요. 적어 두신 내용은 그대로 남아 있어요.',
-  'feedback.failed': '잘 전해지지 않았어요. 적어 두신 내용은 그대로 남아 있어요. 잠시 뒤에 다시 보내 주세요.'
+  'feedback.failed': '잘 전해지지 않았어요. 적어 두신 내용은 그대로 남아 있어요. 잠시 뒤에 다시 보내 주세요.',
+  // ── アカウントを閉じる ──
+  'settings.close': '계정 닫기',
+  'close.title': '계정 닫기',
+  'close.intro': '언제든 닫을 수 있어요. 이유는 묻지 않아요. 누르고 나서 하루 동안은 취소할 수 있어요. 그동안 연합에는 아무것도 보내지 않아요.',
+  'close.what': '닫으면 글이 모두 사라지고, 상대 서버에도 "잊어 달라"는 부탁을 보내요. 로그인도 할 수 없게 돼요.',
+  'close.handle': '핸들은 계속 비워 둘게요. 아무도 더는 쓸 수 없어요(본인도요).',
+  'close.exportPre': '남겨 두고 싶은 게 있다면, 먼저 ',
+  'close.exportLink': '이사와 내보내기',
+  'close.exportPost': '를 쓸 수 있어요.',
+  'close.mail': '메일이 확인되어 있다면, 접수했을 때와 닫았을 때 알려 드려요.',
+  'close.request': '계정 닫기',
+  'close.pending': '부탁을 접수했어요. {at}쯤 닫아요.',
+  'close.pendingHelp': '그때까지는 여기서 취소할 수 있어요.',
+  'close.cancel': '취소하기',
+  'close.cancelled': '취소했어요. 이대로 함께 있어 주세요.',
+  'close.started': '이미 닫는 작업이 시작되어서 취소할 수 없어요.'
 };
