@@ -127,6 +127,25 @@ endpoints, web push, moderation, etc.). See [`docs/ADDONS.md`](ADDONS.md).
 | `OJAK_NIF_BUILD` | no | unset | Build time only: `1` builds ojak-ex's native library with Rust instead of downloading the prebuilt one. |
 | `ENABLED_CAPABILITIES` | no | all | API node only. Restrict which capability modules under `api/lib/sukhi_api/capabilities/` are mounted. Use to run specialised API nodes (e.g. admin-only). |
 
+## Delivery queue backend (delivery)
+
+Default is Postgres. `DELIVERY_QUEUE=sqlite` moves the `delivery` and
+`outbox_dispatch` queues to a single-node SQLite file (Oban Lite); every
+other queue and all business data stay in Postgres. One node only: the file
+is not shared. The outbox → queue hop becomes at-least-once (the relay skips
+rows already queued; `delivery_receipts` absorbs any remaining duplicate).
+
+Known gap: the gateway's `DeliveryStatus` and `Metrics` read Postgres
+`oban_jobs`, so with `sqlite` they no longer see delivery jobs.
+
+| Var | Default | Meaning |
+|---|---|---|
+| `DELIVERY_QUEUE` | `postgres` | `postgres` or `sqlite` |
+| `DELIVERY_QUEUE_DB` | `/var/lib/sukhi/delivery_queue.db` | SQLite file (directory must exist) |
+| `DELIVERY_QUEUE_SYNCHRONOUS` | `full` | `full` or `normal` (WAL; `normal` can lose the last commits on power loss) |
+| `DELIVERY_QUEUE_POOL_SIZE` | `5` | SQLite connection pool |
+| `DELIVERY_QUEUE_RETENTION_SECONDS` | `2592000` | Pruner max age for finished jobs |
+
 ## Tuning — Oban concurrency (gateway, delivery)
 
 Per-queue worker counts. Lower = lower steady-state RAM, slower

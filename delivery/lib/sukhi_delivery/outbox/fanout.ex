@@ -87,7 +87,7 @@ defmodule SukhiDelivery.Outbox.Fanout do
     changesets =
       Enum.map(inboxes, fn inbox -> base |> Map.put(:inbox_url, inbox) |> Worker.new() end)
 
-    Oban.insert_all(SukhiDelivery.Oban, changesets)
+    SukhiDelivery.Queue.insert_all(changesets)
     :ok
   end
 

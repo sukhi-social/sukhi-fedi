@@ -43,6 +43,23 @@ if config_env() == :prod do
         String.to_integer(System.get_env("OBAN_OUTBOX_DISPATCH_CONCURRENCY", "2"))
     ]
 
+  # Delivery queue backend. `sqlite` moves the `delivery` and
+  # `outbox_dispatch` queues to a single-node SQLite file (Oban Lite); the
+  # rest stays in Postgres. Single node only — the file is not shared.
+  if System.get_env("DELIVERY_QUEUE", "postgres") == "sqlite" do
+    config :sukhi_delivery, :queue_backend, :sqlite
+
+    config :sukhi_delivery, SukhiDelivery.QueueRepo,
+      database: System.get_env("DELIVERY_QUEUE_DB", "/var/lib/sukhi/delivery_queue.db"),
+      journal_mode: :wal,
+      synchronous: String.to_atom(System.get_env("DELIVERY_QUEUE_SYNCHRONOUS", "full")),
+      pool_size: String.to_integer(System.get_env("DELIVERY_QUEUE_POOL_SIZE", "5"))
+
+    config :sukhi_delivery,
+           :queue_retention_seconds,
+           String.to_integer(System.get_env("DELIVERY_QUEUE_RETENTION_SECONDS", "2592000"))
+  end
+
   # Outbound HTTP pool sizing. Consumed by SukhiDelivery.Application.
   config :sukhi_delivery, :finch_pool,
     size: String.to_integer(System.get_env("FINCH_POOL_SIZE", "50")),

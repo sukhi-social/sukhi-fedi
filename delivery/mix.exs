@@ -36,6 +36,11 @@ defmodule SukhiDelivery.MixProject do
       # Job queue
       {:oban, "~> 2.18"},
 
+      # Optional second queue store: the `delivery` and `outbox_dispatch`
+      # queues can live in a local SQLite file (`DELIVERY_QUEUE=sqlite`,
+      # Oban.Engines.Lite) instead of Postgres. See SukhiDelivery.Queue.
+      {:ecto_sqlite3, "~> 0.17"},
+
       # NATS client (Micro request/reply + core pub/sub)
       {:gnat, "~> 1.8"},
 

@@ -6,29 +6,35 @@ defmodule SukhiDelivery.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      SukhiDelivery.PromEx,
-      SukhiDelivery.Repo,
-      SukhiDelivery.Cache.Ets,
-      # Pull Federation counters, folded into pull_stats in batches.
-      {SukhiShared.PullStats, repo: SukhiDelivery.Repo},
-      {Gnat.ConnectionSupervisor, nats_connection_settings()},
-      # Outbound HTTP pool for remote inbox POSTs. Tune via
-      # `sukhi_delivery_pool_utilization` (stays near 1.0 → scale up).
-      # Sizing comes from `:finch_pool` (see runtime.exs).
-      {Finch,
-       name: SukhiDelivery.Finch,
-       pools: %{
-         default: Application.get_env(:sukhi_delivery, :finch_pool, size: 50, count: 4)
-       }},
-      {Oban, [name: SukhiDelivery.Oban] ++ Application.fetch_env!(:sukhi_delivery, Oban)},
-      # Transactional Outbox relay: turns `outbox` rows (written by the
-      # gateway) into Oban dispatch jobs — the job insert and the row's
-      # flip to `published` share one transaction. The job then runs
-      # FedifyClient.translate → Worker fan-out; routing lives in
-      # SukhiDelivery.Outbox.Consumer.
-      SukhiDelivery.Outbox.Relay
-    ]
+    children =
+      [
+        SukhiDelivery.PromEx,
+        SukhiDelivery.Repo,
+        SukhiDelivery.Cache.Ets,
+        # Pull Federation counters, folded into pull_stats in batches.
+        {SukhiShared.PullStats, repo: SukhiDelivery.Repo},
+        {Gnat.ConnectionSupervisor, nats_connection_settings()},
+        # Outbound HTTP pool for remote inbox POSTs. Tune via
+        # `sukhi_delivery_pool_utilization` (stays near 1.0 → scale up).
+        # Sizing comes from `:finch_pool` (see runtime.exs).
+        {Finch,
+         name: SukhiDelivery.Finch,
+         pools: %{
+           default: Application.get_env(:sukhi_delivery, :finch_pool, size: 50, count: 4)
+         }}
+        # SQLite delivery queue (DELIVERY_QUEUE=sqlite); empty otherwise. Starts
+        # before the Postgres Oban so enqueues never find the queue missing.
+      ] ++
+        SukhiDelivery.Queue.children() ++
+        [
+          {Oban, [name: SukhiDelivery.Oban] ++ SukhiDelivery.Queue.postgres_oban_config()},
+          # Transactional Outbox relay: turns `outbox` rows (written by the
+          # gateway) into Oban dispatch jobs — the job insert and the row's
+          # flip to `published` share one transaction. The job then runs
+          # FedifyClient.translate → Worker fan-out; routing lives in
+          # SukhiDelivery.Outbox.Consumer.
+          SukhiDelivery.Outbox.Relay
+        ]
 
     opts = [strategy: :one_for_one, name: SukhiDelivery.Supervisor]
     Supervisor.start_link(children, opts)
