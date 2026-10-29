@@ -49,6 +49,30 @@ top — those win.
 | `ADMISSION_MAX_WAIT_BG_MS` | no | `120000` | The same limit for requests that send `x-sukhi-purpose: background` (polls, read-marker syncs — nobody watching): they queue behind every interactive request and are refused only past this. |
 | `ADMISSION_QUEUE_MAX` | no | `500` | Longest line. Past it, a plain 503 with no ticket. |
 
+## Store (gateway) — Datalevin instead of Postgres
+
+Off by default. `docs/DATALEVIN.md` says what works, what does not, and
+what to set on a small box.
+
+| Var | Required | Default | Notes |
+|---|---|---|---|
+| `SUKHI_STORE` | no | `postgres` | `datalevin` keeps the business data in Datalevin (`dtlv` on the PATH) and runs Oban on SQLite. The `DB_*` vars are then unused by the gateway. |
+| `SUKHI_QUEUE_DB` | no | `/var/lib/sukhi/queue.db` | datalevin mode: the SQLite file Oban lives in. |
+| `SUKHI_QUEUE_SYNCHRONOUS` | no | `full` | datalevin mode: SQLite `synchronous` (`full`, `normal`, `off`). |
+| `SUKHI_QUEUE_POOL_SIZE` | no | `5` | datalevin mode: SQLite pool. |
+| `DATALEVIN_DIR` | no | `/var/lib/sukhi/datalevin` | Database directory. |
+| `DATALEVIN_BIN` | no | `dtlv` | The native `dtlv` binary. |
+| `DATALEVIN_DURABILITY` | no | `strict` | `strict` / `relaxed` / `extra` (write-ahead log), `lmdb` (no log, sync per commit), `nosync` (no log, no sync; tests only). |
+| `DATALEVIN_MAP_SIZE_MB` | no | `1024` | LMDB map size. A ceiling on the data file, not memory; raise it before the data nears it. |
+| `DATALEVIN_XMX` | no | `96m` | GraalVM heap cap of the `dtlv` process. `0` / `none` leaves it uncapped. |
+| `DATALEVIN_RUNTIME_ARGS` | no | empty | Extra native-image runtime flags, space separated. |
+| `DATALEVIN_WAL_GROUP_COMMIT` / `_MS` | no | dtlv's | Commits grouped per fsync, and the longest wait for a group. |
+| `DATALEVIN_WAL_RETENTION_MB` / `_HOURS` | no | `256` / `24` | How much log is kept. dtlv's own default (8 GiB / 7 days) is too much for a small disk. |
+| `DATALEVIN_WRITE_BATCH_DELAY_US` / `_SIZE` | no | dtlv's | Async write batching. |
+| `DATALEVIN_CACHE_LIMIT` | no | dtlv's | Datalevin's own cache bound. |
+| `DATALEVIN_BATCH` | no | `500` | Rows per request when writing in bulk (max 5000). |
+| `DATALEVIN_TIMEOUT_MS` | no | `30000` | One request to `dtlv`. |
+
 ## NATS (gateway, delivery, bun)
 
 | Var | Required | Default | Notes |

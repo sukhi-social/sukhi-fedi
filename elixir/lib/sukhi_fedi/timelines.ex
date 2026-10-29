@@ -91,7 +91,7 @@ defmodule SukhiFedi.Timelines do
     note_account_ids = mine ++ (following_account_ids -- hidden)
     boost_account_ids = mine ++ (following_account_ids -- excluded -- pl.hide_boosts -- hidden)
 
-    notes =
+    load_notes = fn ->
       Note
       |> where([n], n.account_id in ^note_account_ids)
       |> where([n], n.account_id not in ^excluded or like(n.in_reply_to_ap_id, ^reply_here))
@@ -123,11 +123,17 @@ defmodule SukhiFedi.Timelines do
       |> Repo.all()
       |> Repo.preload([:account, :media, :tags])
       |> SukhiFedi.Notes.with_refs(id)
+    end
 
     # RT(ブースト)を隠すフィルタ。home だけがブーストを混ぜるので、ここで止める。
     # per-list の hide_boosts メンバーは boost_account_ids から既に引いてある。
-    boosts =
+    load_boosts = fn ->
       if opts[:hide_boosts], do: [], else: home_boosts(boost_account_ids, opts, limit, id, hidden)
+    end
+
+    # Notes and boosts do not depend on each other: on Datalevin they go down
+    # the pipe together (docs/DATALEVIN.md); on Postgres they run in turn.
+    [notes, boosts] = SukhiFedi.Store.concurrently([load_notes, load_boosts])
 
     # Both notes (id) and boost wrappers (synthesized id) share one
     # time-sortable id space, so a plain id-desc merge is chronological.

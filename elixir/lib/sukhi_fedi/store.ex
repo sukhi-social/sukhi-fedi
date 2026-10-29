@@ -15,4 +15,22 @@ defmodule SukhiFedi.Store do
 
   @spec datalevin?() :: boolean()
   def datalevin?, do: kind() == :datalevin
+
+  @doc """
+  Run independent lookups and return their results in order.
+
+  Datalevin answers several requests in flight over its one pipe, so there
+  they run side by side. Postgres keeps them in the caller's process (the
+  SQL sandbox and the caller's connection stay as they are).
+  """
+  @spec concurrently([(-> term())]) :: [term()]
+  def concurrently(funs) when is_list(funs) do
+    if datalevin?() do
+      funs
+      |> Task.async_stream(& &1.(), ordered: true, timeout: :infinity)
+      |> Enum.map(fn {:ok, v} -> v end)
+    else
+      Enum.map(funs, & &1.())
+    end
+  end
 end
