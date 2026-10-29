@@ -224,9 +224,9 @@ defmodule SukhiFedi.DeliveryStatus do
     from(j in "oban_jobs",
       where:
         j.worker == ^@dispatch_worker and
-          fragment("?->>'outbox_id'", j.args) in ^Enum.map(outbox_ids, &to_string/1),
-      group_by: [fragment("?->>'outbox_id'", j.args), j.state],
-      select: {fragment("?->>'outbox_id'", j.args), j.state, count(j.id)}
+          fragment("CAST(?->>'outbox_id' AS TEXT)", j.args) in ^Enum.map(outbox_ids, &to_string/1),
+      group_by: [fragment("CAST(?->>'outbox_id' AS TEXT)", j.args), j.state],
+      select: {fragment("CAST(?->>'outbox_id' AS TEXT)", j.args), j.state, count(j.id)}
     )
     |> counts_by_key(&String.to_integer/1)
   end
@@ -240,17 +240,24 @@ defmodule SukhiFedi.DeliveryStatus do
     from(j in "oban_jobs",
       where:
         j.worker == ^@send_worker and
-          fragment("?->>'activity_id'", j.args) in ^activity_ids,
-      group_by: [fragment("?->>'activity_id'", j.args), j.state],
-      select: {fragment("?->>'activity_id'", j.args), j.state, count(j.id)}
+          fragment("CAST(?->>'activity_id' AS TEXT)", j.args) in ^activity_ids,
+      group_by: [fragment("CAST(?->>'activity_id' AS TEXT)", j.args), j.state],
+      select: {fragment("CAST(?->>'activity_id' AS TEXT)", j.args), j.state, count(j.id)}
     )
     |> counts_by_key(& &1)
   end
 
+  # Jobs live in Postgres, plus any extra queue store configured under
+  # `:extra_job_repos` (the SQLite delivery queue in a combined release).
+  # Counts for the same state are added across stores.
   defp counts_by_key(query, key_fun) do
-    query
-    |> Repo.all()
-    |> Enum.group_by(fn {key, _state, _n} -> key_fun.(key) end, fn {_key, state, n} -> {state, n} end)
-    |> Map.new(fn {key, pairs} -> {key, Map.new(pairs)} end)
+    [Repo | Application.get_env(:sukhi_fedi, :extra_job_repos, [])]
+    |> Enum.flat_map(& &1.all(query))
+    |> Enum.group_by(fn {key, _state, _n} -> key_fun.(key) end, fn {_key, state, n} ->
+      {state, n}
+    end)
+    |> Map.new(fn {key, pairs} ->
+      {key, Enum.reduce(pairs, %{}, fn {state, n}, acc -> Map.update(acc, state, n, &(&1 + n)) end)}
+    end)
   end
 end

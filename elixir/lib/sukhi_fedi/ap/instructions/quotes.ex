@@ -177,8 +177,7 @@ defmodule SukhiFedi.AP.Instructions.Quotes do
   end
 
   defp deliver(activity, inbox_url) do
-    Oban.insert!(
-      SukhiFedi.Oban,
+    SukhiFedi.DeliveryQueue.insert!(
       Oban.Job.new(
         %{raw_json: activity, inbox_url: inbox_url, actor_uri: activity["actor"]},
         worker: @delivery_worker,

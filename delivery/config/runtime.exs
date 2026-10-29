@@ -24,8 +24,7 @@ if config_env() == :prod do
     host: System.get_env("NATS_HOST", "127.0.0.1"),
     port: String.to_integer(System.get_env("NATS_PORT", "4222"))
 
-  config :sukhi_delivery, :metrics_port,
-    String.to_integer(System.get_env("METRICS_PORT", "4001"))
+  config :sukhi_delivery, :metrics_port, String.to_integer(System.get_env("METRICS_PORT", "4001"))
 
   # Per-queue Oban concurrency overrides. On a 1 GB free-tier box the
   # compile-time defaults (delivery: 10, federation: 3) keep too many
@@ -39,9 +38,36 @@ if config_env() == :prod do
       delivery: String.to_integer(System.get_env("OBAN_DELIVERY_CONCURRENCY", "10")),
       federation: String.to_integer(System.get_env("OBAN_FEDERATION_CONCURRENCY", "3")),
       push: String.to_integer(System.get_env("OBAN_PUSH_CONCURRENCY", "3")),
-      outbox_dispatch:
-        String.to_integer(System.get_env("OBAN_OUTBOX_DISPATCH_CONCURRENCY", "2"))
+      outbox_dispatch: String.to_integer(System.get_env("OBAN_OUTBOX_DISPATCH_CONCURRENCY", "2"))
     ]
+
+  # Delivery queue backend. `sqlite` moves the `delivery` and
+  # `outbox_dispatch` queues to a single-node SQLite file (Oban Lite); the
+  # rest stays in Postgres. Single node only — the file is not shared.
+  if System.get_env("DELIVERY_QUEUE", "postgres") == "sqlite" do
+    config :sukhi_delivery, :queue_backend, :sqlite
+
+    # On boot, move jobs still in Postgres into the SQLite queue (once, idempotent).
+    config :sukhi_delivery,
+           :queue_handover,
+           System.get_env("DELIVERY_QUEUE_HANDOVER", "1") != "0"
+
+    # Combined release only (one BEAM): lets the gateway enqueue its delivery sends
+    # into the SQLite queue and read it for delivery status / discarded count. Harmless on a lone
+    # delivery node, where :sukhi_fedi isn't running.
+    config :sukhi_fedi, :extra_job_repos, [SukhiDelivery.QueueRepo]
+    config :sukhi_fedi, :delivery_oban, SukhiDelivery.QueueOban
+
+    config :sukhi_delivery, SukhiDelivery.QueueRepo,
+      database: System.get_env("DELIVERY_QUEUE_DB", "/var/lib/sukhi/delivery_queue.db"),
+      journal_mode: :wal,
+      synchronous: String.to_atom(System.get_env("DELIVERY_QUEUE_SYNCHRONOUS", "full")),
+      pool_size: String.to_integer(System.get_env("DELIVERY_QUEUE_POOL_SIZE", "5"))
+
+    config :sukhi_delivery,
+           :queue_retention_seconds,
+           String.to_integer(System.get_env("DELIVERY_QUEUE_RETENTION_SECONDS", "2592000"))
+  end
 
   # Outbound HTTP pool sizing. Consumed by SukhiDelivery.Application.
   config :sukhi_delivery, :finch_pool,

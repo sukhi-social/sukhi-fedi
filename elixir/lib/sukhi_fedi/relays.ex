@@ -213,8 +213,7 @@ defmodule SukhiFedi.Relays do
   defp undo_activity(%Relay{}), do: nil
 
   defp deliver(activity, %Relay{inbox_uri: inbox_uri, follow_actor_uri: actor_uri}) do
-    Oban.insert!(
-      SukhiFedi.Oban,
+    SukhiFedi.DeliveryQueue.insert!(
       Oban.Job.new(
         %{raw_json: activity, inbox_url: inbox_uri, actor_uri: actor_uri},
         worker: @delivery_worker,

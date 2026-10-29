@@ -5,7 +5,7 @@ defmodule SukhiDelivery.Outbox.Relay do
   gateway via `SukhiFedi.Outbox.enqueue_multi/6`) and hands each one to
   `SukhiDelivery.Outbox.DispatchWorker`.
 
-  Both halves happen in one transaction: the Oban job is inserted and the
+  On the Postgres queue both halves happen in one transaction: the Oban job is inserted and the
   row flips to `published` together, or neither does. Same database, so
   there is no dual write and no window where a row says "done" while
   nothing is queued to act on it.
@@ -88,9 +88,18 @@ defmodule SukhiDelivery.Outbox.Relay do
   defp dispatch([]), do: :ok
 
   defp dispatch(events) do
+    # With the SQLite queue the job insert and the flip below are two stores,
+    # so a crash between them leaves rows `pending` that are already queued.
+    # Skip those; they only need the flip.
+    queued = MapSet.new(SukhiDelivery.Queue.enqueued_outbox_ids(Enum.map(events, & &1.id)))
+
     events
+    |> Enum.reject(&MapSet.member?(queued, &1.id))
     |> Enum.map(&job_for/1)
-    |> then(&Oban.insert_all(SukhiDelivery.Oban, &1))
+    |> case do
+      [] -> :ok
+      jobs -> SukhiDelivery.Queue.insert_all(jobs)
+    end
 
     from(e in OutboxEvent, where: e.id in ^Enum.map(events, & &1.id))
     |> Repo.update_all(set: [status: "published", published_at: DateTime.utc_now()])
