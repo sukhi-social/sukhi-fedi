@@ -151,11 +151,20 @@ defmodule SukhiFedi.Datalevin.Writer do
     end
   end
 
+  # `conflict_target: {:unsafe_fragment, "(a, b) WHERE ..."}` names its columns
+  # in the leading parentheses.
+  defp target_columns({:unsafe_fragment, sql}) do
+    [_, cols] = Regex.run(~r/^\s*\(([^)]*)\)/, sql)
+    cols |> String.split(",") |> Enum.map(&String.trim/1)
+  end
+
+  defp target_columns(cols) when is_list(cols), do: cols
+
   # Conflicts on the named target columns (all conflicts when no target).
   defp relevant(cs, _t, []), do: cs
 
   defp relevant(cs, t, target) do
-    want = target |> Enum.map(&to_string/1) |> Enum.sort()
+    want = target |> target_columns() |> Enum.map(&to_string/1) |> Enum.sort()
 
     Enum.filter(cs, fn {name, _, _} ->
       cols =

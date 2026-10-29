@@ -43,27 +43,48 @@ defmodule SukhiFedi.Datalevin.Query do
   """
   @spec all_loaded(Ecto.Query.t(), list()) :: [[term()]]
   def all_loaded(%Ecto.Query{} = q, params) do
-    rows = all(q, params)
+    load_rows(q, all(q, params))
+  end
 
-    case q.select.fields |> Enum.map(&computed_ts?(&1, q)) do
-      flags ->
-        if Enum.any?(flags) do
-          Enum.map(rows, fn row ->
-            row
-            |> Enum.zip(flags)
-            |> Enum.map(fn
-              {us, true} when is_integer(us) ->
-                us |> DateTime.from_unix!(:microsecond) |> DateTime.to_naive()
+  defp load_rows(q, rows) do
+    kinds = Enum.map(q.select.fields, &load_kind(&1, q))
 
-              {v, _} ->
-                v
-            end)
-          end)
-        else
-          rows
-        end
+    if Enum.any?(kinds) do
+      Enum.map(rows, fn row -> row |> Enum.zip(kinds) |> Enum.map(&load_value/1) end)
+    else
+      rows
     end
   end
+
+  defp load_value({us, :ts}) when is_integer(us),
+    do: us |> DateTime.from_unix!(:microsecond) |> DateTime.to_naive()
+
+  # Ecto skips a type's loaders for a value that is already a binary, so a
+  # stored (Base64) binary column is marked for `Types.loaders(:binary, _)`.
+  defp load_value({s, :bin}) when is_binary(s), do: {:b64, s}
+  defp load_value({v, _}), do: v
+
+  defp load_kind(expr, q) do
+    cond do
+      computed_ts?(expr, q) -> :ts
+      bytea?(expr, q) -> :bin
+      true -> nil
+    end
+  end
+
+  defp bytea?({{:., _, [{:&, _, [ix]}, col]}, _, []}, q) do
+    source = if ix == 0, do: q.from.source, else: Enum.at(q.joins, ix - 1).source
+
+    case source do
+      {table, _} when is_binary(table) ->
+        SukhiFedi.Datalevin.Catalog.type(table, col) == "bytea"
+
+      _ ->
+        false
+    end
+  end
+
+  defp bytea?(_, _), do: false
 
   @calls [:coalesce, :max, :min]
   defp computed_ts?({call, _, args}, q) when call in @calls and is_list(args),
@@ -206,10 +227,13 @@ defmodule SukhiFedi.Datalevin.Query do
 
       %{fields: fields} ->
         {length(rows),
-         Enum.map(rows, fn r ->
-           env = %{rows: {r}, params: params, group: nil}
-           Enum.map(fields, &Eval.eval(&1, env))
-         end)}
+         load_rows(
+           q,
+           Enum.map(rows, fn r ->
+             env = %{rows: {r}, params: params, group: nil}
+             Enum.map(fields, &Eval.eval(&1, env))
+           end)
+         )}
     end
   end
 

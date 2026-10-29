@@ -138,6 +138,7 @@ defmodule SukhiFedi.Datalevin.Types do
   defp base64(b) when is_binary(b), do: {:ok, Base.encode64(b)}
   defp base64(_), do: :error
   defp unbase64(nil), do: {:ok, nil}
+  defp unbase64({:b64, s}), do: Base.decode64(s)
   defp unbase64(s) when is_binary(s), do: Base.decode64(s)
 
   defp json(v), do: {:ok, v |> JSON.encode!()}
