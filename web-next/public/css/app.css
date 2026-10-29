@@ -1,0 +1,773 @@
+/* sukhi-fedi web クライアントのスタイル。
+ *
+ * tokens + base(リセット)の上に、見た目をぜんぶここに置く。まず画面を
+ * またいで使い回す共有の部品(ホームの hero/lane-door、どこにでも出る
+ * chip ピル、本文に差し込む絵文字)、そのあとに各画面ごとのレイアウト
+ * (タイムライン、Status カード、フォーム、プロフィール…)。コンポーネント
+ * 固有の細部は各 .svelte の scoped \3c style> に置く。 */
+
+@layer tokens, base, components, primitives;
+
+@import './tokens.css';
+@import './base.css';
+@import './primitives.css';
+
+@layer components {
+/* どのページも上にひと呼吸ぶん余白を持たせる。homepage の hero
+ * などはこの上に自前の padding を重ねるので、視覚的にはほんの
+ * 少し下がるくらい。timeline のように hero を持たないページが
+ * いきなり屋根にぶつからないように。AppNav の屋根ができてからは
+ * 屋根自身も高さを持つので、呼吸は浅めでいい。下は「もっと読む」
+ * などがページの底にぴったり付かないよう、深めにとる。 */
+main.wrap {
+  padding-block: var(--space-6) var(--space-12);
+}
+
+/* ── 共有の見た目 ──────────────────────────────────────────────────
+   ホーム(landing)と各画面で使い回す部品。chip はどの画面にも出るピル、
+   hero / section / doors / lane-door はホームの入口、custom-emoji /
+   twemoji は本文・名前に差し込む絵文字。 */
+
+.hero {
+  padding-block: var(--space-12) var(--space-8);
+}
+
+.hero h1 {
+  font-size: clamp(
+    calc(1.3rem * var(--type-scale)),
+    5.4vw,
+    calc(2.2rem * var(--type-scale))
+  );
+  line-height: 1.4;
+  max-width: 34rem;
+  text-wrap: balance;
+}
+
+.hero .tagline {
+  font-size: var(--text-lg);
+  line-height: var(--leading-prose);
+  color: var(--color-text-muted);
+  max-width: var(--measure);
+}
+
+.section {
+  margin-block-start: var(--space-12);
+}
+
+.doors {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (width <= 40rem) {
+  .doors {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lane-door {
+  display: flex;
+  flex-direction: column;
+  /* グリッド項目の既定 min-width:auto(=min-content)だと、扉の中の長い
+     日本語の説明(keep-all で読点まで折れない)がセル幅を超えて扉ごと
+     はみ出す。0 にしてセル幅まで縮め、中の文は折り返させる。 */
+  min-width: 0;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  text-decoration: none;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  transition:
+    border-color var(--motion) ease,
+    transform var(--motion) ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lane-door:hover {
+    transform: var(--lift);
+  }
+}
+
+/* 入口の二つの扉は、about の「どこから見ましょうか」の札と同じ ── どちらも
+   深い橙の題。緑と赤茶は、地図や数のように、色に意味があるところへ残す。 */
+.lane-door {
+  --door: var(--color-accent-strong);
+}
+
+.lane-door:hover {
+  border-color: var(--door);
+}
+
+.lane-door h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
+  color: var(--door);
+}
+
+.lane-door h3::after {
+  content: '\2192'; /* → */
+  color: var(--door);
+}
+
+.lane-door p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* ── ナビのリンク(アイコン＋ことば) ───────────────────────────
+   縁(chrome)は墨のまま。アイコンは NavIcon の currentColor 線画で、
+   色は持たない ── 彩りは中身(Twemoji のリアクション)にだけ置く。
+   上の帯と下の帯で同じ .nav-link を使い、見え方だけ媒体で変える。 */
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-text-muted);
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    background-color 0.12s ease;
+}
+
+.nav-link:hover {
+  color: var(--color-text);
+}
+
+.nav-link[aria-current='page'] {
+  color: var(--color-text);
+  font-weight: 600;
+  background: var(--color-accent-soft);
+}
+
+/* chip — どの画面にも出る小さなピル。ナビにもボタンにも使う。 */
+.chip {
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 3px var(--space-3);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-control);
+  border-radius: var(--radius-pill);
+  transition:
+    color var(--motion) ease,
+    border-color var(--motion) ease;
+}
+
+.chip:hover {
+  color: var(--color-text);
+  border-color: var(--color-accent-strong);
+}
+
+.chip[aria-pressed='true'],
+.chip[aria-current='page'] {
+  color: var(--color-on-accent);
+  background: var(--color-lane);
+  border-color: var(--color-lane);
+}
+
+/* button — どの画面でも「押せる一点」はこの素を着る。面・罫線・角丸・
+   hover の佇まいだけを持ち、余白は焼き込まない ── .px-6 .py-2 のような
+   spacing utility を組み合わせて与える(送信ボタンは大きめ、バナーの
+   ボタンは小さめ、と余白だけがマークアップで見える)。
+   bare な `button` 規則にしないのは、.tabs button や .nav-link を巻き
+   込まないため。クラスで opt-in する ── .chip と同じ作法。
+   <a class="btn"> も同じ佇まいになるよう、下線を消して inline-block に。 */
+.btn {
+  font: inherit;
+  display: inline-block;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-control);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    transform var(--motion) ease,
+    border-color var(--motion) ease,
+    filter var(--motion) ease;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--color-accent-strong);
+}
+
+/* 主ボタン ── その画面で「いちばん押してほしい一点」。深い橙の面に、白
+   (暗い側では暗い)の字。1 画面に 1 つ。ほかは、ふつうの .btn のまま。 */
+.btn.primary {
+  background: var(--color-accent-strong);
+  color: var(--color-on-accent);
+  border-color: var(--color-accent-strong);
+  font-weight: 600;
+}
+
+.btn.primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn.primary:hover:not(:disabled) {
+    transform: scale(1.04);
+  }
+}
+
+/* 副ボタン ── muted な字と淡い罫線で、「控えめな方」だとそっと分かる。 */
+.btn.secondary {
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}
+
+/* 本文・名前に差し込む絵文字。サーバの emojis[] 由来のカスタム絵文字
+   (lib/emoji.ts)と、self-host Twemoji。どちらも文字に乗る大きさにする。 */
+img.custom-emoji {
+  height: 1.3em;
+  width: auto;
+  vertical-align: text-bottom;
+  object-fit: contain;
+  display: inline-block;
+}
+
+/* Twemoji は本文中の unicode 絵文字({@html} 経由なので global 必須)と、
+   Twemoji コンポーネント経由の UI アイコン(ブースト・お気に入り…)の両方。 */
+img.twemoji {
+  height: 1.2em;
+  width: 1.2em;
+  margin: 0 0.05em;
+  vertical-align: middle;
+  object-fit: contain;
+  display: inline-block;
+}
+
+/* タイムラインの一本道。中央寄せ、measure に揃える。 */
+.timeline {
+  max-width: var(--measure);
+  margin-inline: auto;
+}
+
+/* 各ページの上の見出し帯。タイトルを左に、ナビ(chip 群)を右に。
+   .timeline と併用して measure 幅・中央寄せにそろえる。 */
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.page-head h1 {
+  font-size: var(--text-lg);
+}
+
+.page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* タブの行(nav.tabs)。下との間隔は .stack のリズム(space-4)に任せる。
+   タブの一つひとつは .tab を持つ ── about.sukhi.social と同じ丸薬で、
+   選ばれているものだけ深い橙の面になる。行の中に置かれた chip(フィルター)
+   が .tab の見た目を継がないよう、opt-in にしておく。
+   字は --color-text(--color-text-muted だと淡い橙の面の上で 4.46:1 しか
+   出ず、4.5:1 に届かない)。 */
+nav.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+nav.tabs .tab {
+  background: var(--color-accent-soft);
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-text);
+  text-decoration: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--motion) ease,
+    color var(--motion) ease;
+}
+
+nav.tabs .tab[aria-current='true'],
+nav.tabs .tab[aria-pressed='true'] {
+  background: var(--color-accent-strong);
+  color: var(--color-on-accent);
+  font-weight: 600;
+}
+
+/* ブーストは .boost 枠が top-level の項目。中の .status は枠の唯一の子＝
+   :last-child なので、Status 側の border 除去が誤爆して線が消える。だから分離線は
+   枠側に持たせる（中の status の線は消えたままでいい＝二重線にならない）。 */
+.boost {
+  border-block-end: 1px solid var(--color-border);
+}
+
+.boost:last-child {
+  border-block-end: 0;
+}
+
+/* フォーム要素 — atfedi-de には無いので最小限を足す。 */
+.form {
+  max-width: var(--measure);
+  margin-inline: auto;
+}
+
+.form label {
+  display: block;
+}
+
+.form label > span {
+  display: block;
+  margin-block-end: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* form 内の入力欄は横いっぱいに。見た目(地・罫線・余白・focus)は
+   下のグローバルな input / :focus 規則が一手に持つので、ここは form
+   ならではの幅だけを足す。 */
+.form input[type='text'],
+.form input[type='password'],
+.form input[type='email'] {
+  width: 100%;
+}
+
+/* signup のハンドル欄。@ を前に置いて、これは公開の宛先(@名前)だと
+   ひと目で分かるように。枠は wrapper が持ち、input は中で素になる。
+   送信値に @ は混ざらない(前置はあくまで見た目)。 */
+.handle-field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-control);
+  border-radius: var(--radius-sm);
+  padding-inline-start: var(--space-3);
+}
+.handle-field:focus-within {
+  border-color: var(--color-text);
+}
+.handle-at {
+  color: var(--color-text-muted);
+  user-select: none;
+}
+.form .handle-field input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-1);
+}
+
+.stack-tight > * + * {
+  margin-block-start: var(--space-1);
+}
+
+.form .help {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.form .help code {
+  font-size: 0.95em;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+}
+
+.prose-small {
+  max-width: var(--measure);
+  margin-inline: auto;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* エラーの一文。地は danger をうんと薄めた暖かい面、罫線は少し濃く。
+   どちらも --color-danger から色を引くので、危険の赤は一箇所で決まる。
+   幅は本文と同じ measure・中央寄せ ── フォームの上に単独で出たとき、箱が
+   フォームより外にはみ出して左へずれないように(.form 等と同じ扱い)。
+   コンテナの中(.form / .composer 内)では measure 以下なので無影響。 */
+.error {
+  max-width: var(--measure);
+  margin-inline: auto;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 28%, var(--color-surface));
+  font-size: var(--text-sm);
+}
+
+.loading {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  padding: var(--space-4) 0;
+}
+
+.load-more {
+  display: block;
+  margin: var(--space-6) auto 0;
+  background: transparent;
+  border: 1px solid var(--color-control);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-6);
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.load-more:hover {
+  color: var(--color-text);
+  border-color: var(--color-text);
+}
+
+/* ── 小さい共通 ──────────────────────────────────────────────────── */
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--color-border);
+  flex-shrink: 0;
+  object-fit: cover;
+  display: inline-block;
+}
+
+.avatar-lg {
+  width: 72px;
+  height: 72px;
+}
+
+/* 小さいアバター (会話一覧・通知の見出しなど)。.avatar と併用する。 */
+.avatar-sm {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* 引用カードの小さなアバター。Avatar コンポーネント内の要素に当てる
+   ため、scoped でなくここに置く(.avatar 系と同じ理由)。 */
+.quote-avatar {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* form 要素を最低限揃える。.composer や .settings-form など、.form
+   クラスを付けていないところでも読みやすいように、textarea / select /
+   input[type=file] の素の見た目を整える。 */
+textarea,
+select,
+input[type='text'],
+input[type='password'],
+input[type='email'] {
+  font: inherit;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-control);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+/* iOS Safari は 16px 未満の入力欄に焦点が当たると、勝手に画面を拡大する。
+   日本語では --type-scale が 0.92 なので --text-base は 15.6px ── ちょうど
+   下回っていて、返信箱を叩くたびに画面が寄っていた。指で触る画面のときだけ、
+   16px を下限にする(拡大したいときは自分でつまめる)。 */
+@media (pointer: coarse) {
+  textarea,
+  select,
+  input[type='text'],
+  input[type='password'],
+  input[type='email'],
+  input[type='search'] {
+    font-size: max(16px, var(--text-base));
+  }
+}
+
+/* 指で押す共有の部品は、--tap-min(tokens.css)を下回らない。床は WCAG 2.2
+   SC 2.5.8 の 24px、目安は Apple 44pt / Microsoft 40px / Google 48dp。
+   文中のリンクは WCAG の例外なので、ここには入れない。マウスの画面は
+   今の詰まった高さのまま。(docs/UX_CONTRACT.md の A) */
+@media (pointer: coarse) {
+  .nav-link,
+  .chip,
+  .btn,
+  .follow-btn,
+  .reaction-chip,
+  .account-row-link,
+  nav.tabs .tab,
+  select,
+  input[type='text'],
+  input[type='password'],
+  input[type='email'],
+  input[type='search'] {
+    min-height: var(--tap-min);
+  }
+
+  /* 絵だけのボタンは、幅も。 */
+  .chip,
+  .nav-menu-trigger,
+  nav.tabs .tab {
+    min-width: var(--tap-min);
+  }
+
+  /* chip は <a> や <label> にも付く。背が伸びたぶん、中身が上に寄らない
+     ように縦中央にそろえる(<button> は元から中央に寄る)。 */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 表札(サイト名のリンク)は、行の高さのままだと指より低い。 */
+  .app-nav-name {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-min);
+  }
+}
+
+/* 焦点の輪は :focus-visible (base.css) が一手に持つ。ここでは枠の色だけ。 */
+textarea:focus,
+select:focus,
+input:focus {
+  border-color: var(--color-text);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── 投稿フォーム ────────────────────────────────────────────────── */
+
+/* 遡って読んでいるあいだに来た、という印。
+   返信箱のすぐ上に貼りつく ── 押す指の行き先が近いし、返事を書く場所と
+   「新しいのが来た」が並んでいるのは、会話として素直。
+   色ではなく囲いと言葉で言う。点滅も、数字も、しない。 */
+.new-messages {
+  position: sticky;
+  inset-block-end: 5.5rem;
+  z-index: var(--layer-menu-above);
+  display: block;
+  margin: 0 auto;
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-4);
+  min-height: 40px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-text);
+  border-radius: 999px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+/* ── プロフィール ────────────────────────────────────────────────── */
+
+.profile-head {
+  max-width: var(--measure);
+  margin: 0 auto var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.profile-header {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.profile-id {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* ── アカウント一覧 (followers / following / 検索) ─────────────────
+   一覧の箱と一行の殻は、AccountRow と AccountActionRow と検索の
+   ハッシュタグ行で同じ作法なので、ここに一つだけ置く。中身(名前・
+   ボタン)はそれぞれの部品が持つ。 */
+
+.account-list {
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+.account-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-block-end: 1px solid var(--color-border);
+}
+
+.account-row:last-child {
+  border-block-end: 0;
+}
+
+.account-row-link {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+}
+
+.account-row-link:hover .display-name {
+  text-decoration: underline;
+}
+
+.account-row .display-name {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+/* ── フォローボタン ──────────────────────────────────────────────── */
+
+.follow-btn {
+  font: inherit;
+  padding: var(--space-1) var(--space-4);
+  border-radius: 999px;
+  border: 1px solid var(--color-text);
+  background: var(--color-text);
+  color: var(--color-surface);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.follow-btn[data-state='following'],
+.follow-btn[data-state='requested'] {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.follow-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+/* ── 設定 ────────────────────────────────────────────────────────── */
+
+/* 節と節のあいだは、節の中(.stack-tight の --space-1)より **はっきり**
+   広く。同じ間隔で縦に並んでいると、どこからどこまでが一つのまとまりか
+   間隔から読めない ── ラベルと入力が離れ、隣の節とはくっついて見える。 */
+.settings-form {
+  max-width: var(--measure);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* 節の見出しは、包みが label でも div でも同じ姿にする。片方だけに
+   掛けていたので、「プロフィールのひとこと欄」だけ本文の大きさで濃く出て、
+   同じ高さの「ことば」「表示名」より上の階層に見えていた。読み手は
+   大きさで階層を測るので、同じ役目のものは同じ大きさで。 */
+.settings-form label.stack-tight > span,
+.settings-form div.stack-tight > span {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* チェックボックスの束。ラベルは .settings-form の span 規則(block)に
+   負けないよう、束の中でだけ inline に戻して、箱と文を横に並べる。 */
+.settings-form .settings-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.settings-form .settings-checks label.stack-tight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-form .settings-checks label.stack-tight > * {
+  margin: 0;
+}
+
+.settings-form .settings-checks label.stack-tight > span {
+  display: inline;
+}
+
+.settings-form .settings-checks > p {
+  margin: 0;
+}
+
+.settings-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-5) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.settings-form input[type='text'],
+.settings-form textarea {
+  width: 100%;
+}
+
+/* ── 下の帯と、会話の面(帯・戻る印が DOM に居るかを :has() で見る) ─────────
+   以前は AppNav が JS で <body> に has-bottom-nav / in-thread の旗を立てていた。
+   DOM に居るものを CSS が直接見れば、旗も、後始末も要らない。 */
+
+/* スマホでは、帯が画面の底に居る。本文が帯の下に隠れないよう、ぶんだけ余白を空け、
+   貼りつく返信箱は帯の上に載る(--dock-h / --dock-pad)。 */
+@media (width <= 40rem) {
+  body:has(.nav-bottom) {
+    --dock-h: var(--bottom-nav-h);
+    --dock-pad: var(--space-3);
+  }
+  body:has(.nav-bottom) main {
+    padding-block-end: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* 会話の面では、返信箱が画面の底に貼りつく。その下に「底に付かないための余白」が
+   残ると、返事の下に理由のない空きになる(戻る印が出ているのが、会話の面)。 */
+body:has(.app-nav-back) main.wrap {
+  padding-block-end: 0;
+}
+
+/* アバターの引き金だけは、丸い画像にそって詰める。 */
+.nav-avatar-trigger {
+  padding: var(--space-1);
+  border-radius: 999px;
+}
+}

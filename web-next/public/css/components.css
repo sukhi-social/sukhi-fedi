@@ -1,0 +1,1810 @@
+/* 部品ごとの見た目。sukhi-web-next の各 .svelte の <style> から、:global() を外して集めたもの。
+ * クラス名はそのまま ── server/views の HTML が、この名前で書かれている。 */
+
+/* ── lib/components/AppNav.svelte ── */
+  /* ── 共通ヘッダー ─────────────────────────────────────────────────
+     ログイン後の全ページにかかる屋根(AppNav.svelte)。wordmark を左に、
+     行き先の nav-link を右に。罫線は画面の端まで通し、中身は .wrap 幅に
+     そろえる。広い画面ではここに「流れ」も「棚」も全部出る。狭い画面
+     では「流れ」を下の帯(.nav-bottom)に移し、ここには「棚」だけが
+     アイコンで残る。 */
+  .app-nav {
+    /* 屋根を画面上端に貼り付ける。スクロールしても流れの行き先が消えない
+       ので、デスクトップで「上まで戻らないと移動できない」がなくなる。
+       本文がこの下を流れるので不透明な地色を敷き、境界の罫線で「貼り付い
+       ている」ことが分かるようにする。 */
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--layer-top-nav);
+    background: var(--color-bg);
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .app-nav-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+    padding-block: var(--space-3);
+  }
+
+  /* 指の画面では、中の操作がもう --tap-min の高さを持つ。そこへ上下 12px を
+     足すと 72px になり、貼り付いた屋根が画面の 1/11 を占める。上下 4px なら
+     Android 56dp / 同じ印の 44 + 8 = 52px に収まる(docs/UX_CONTRACT.md)。 */
+  @media (pointer: coarse) {
+    .app-nav-row {
+      padding-block: var(--space-1);
+    }
+  }
+
+  .app-nav-name {
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  /* 名前の左の印(手書きの「好」)。行は baseline 揃えなので flex にせず、
+     インライン画像を少し沈めて文字と目線を合わせる。角丸は画像に焼き込み済み。
+     base.css のリセットが img を block にするので、ここだけ inline に戻す。 */
+  .app-nav-mark {
+    display: inline-block;
+    width: 1.25em;
+    height: 1.25em;
+    vertical-align: -0.3em;
+    margin-inline-end: var(--space-2);
+  }
+
+  .app-nav-name:hover {
+    text-decoration: underline;
+  }
+
+  /* 会話の面のときだけ、表札の場所に立つ「戻る」。矢だけにしない ──
+     かたちだけで意味を負わせず、言葉も添える(色や図形に頼らない、の続き)。
+     指で押すので --tap-min。 */
+  .app-nav-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: var(--tap-min);
+    margin-inline-start: calc(var(--space-2) * -1);
+    padding-inline: var(--space-2);
+    font-weight: 700;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .app-nav-back:hover {
+    text-decoration: underline;
+  }
+
+  .nav-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  /* ラベルと未見の指標(数字・glyph)は一塊。上の帯では icon の隣に
+     一行で、下の帯では icon の下に一行で ── どちらも同じ並び。 */
+  .nav-text {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .nav-label {
+    white-space: nowrap;
+  }
+
+  /* direct の未見数。バッジにしない ── 赤も丸もなく、ただの数字。 */
+  .notif-count {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 下の帯は、広い画面では存在しない。 */
+  .nav-bottom {
+    display: none;
+  }
+
+  @media (width <= 40rem) {
+    /* 「流れ」は下の帯へ。上の帯には「棚」だけが、ことばを伏せて
+       アイコンで残る(読み上げには .nav-label が生きている)。 */
+    .nav-top .nav-flow {
+      display: none;
+    }
+    .nav-top .nav-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .nav-top .nav-link {
+      padding-inline: var(--space-1);
+    }
+
+    /* 親指の帯。fixed で下に貼りつき、スクロールしても消えない。 */
+    .nav-bottom {
+      display: flex;
+      --nav-ico-size: 1.5rem;
+      position: fixed;
+      inset: auto 0 0 0;
+      z-index: var(--layer-bottom-nav);
+      background: var(--color-surface);
+      border-block-start: 1px solid var(--color-border);
+      padding-block-end: env(safe-area-inset-bottom, 0px);
+      /* 遷移のたびにページ高さや URL バーが動くと、fixed のこの帯は
+         再ラスタライズされて中の線画 SVG が一瞬飛ぶことがある。独立した
+         合成レイヤーに固定して、描き直しの巻き添えにしない。 */
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+    .nav-bottom .nav-link {
+      flex: 1;
+      flex-direction: column;
+      gap: 2px;
+      padding: var(--space-2) 0;
+      border-radius: 0;
+      font-size: 0.7rem;
+      text-align: center;
+      /* flex:1 でも、ラベルが nowrap だと中身の最小幅が効いて 5 つ並びが
+         画面を超えることがある。0 まで縮めて宛がうことを許して、横の
+         はみ出しを止める。 */
+      min-width: 0;
+    }
+
+  }
+
+  /* ── ナビのドロップダウン(ライブラリ / アバター) ───────────────
+     棚を畳んだ二つの小さなメニュー。開くまで何も主張しない。面は
+     StatusActions の .menu と同じ作法(枠だけ・影なし)で平らに。 */
+
+  .nav-top .nav-avatar {
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 999px;
+    object-fit: cover;
+    display: block;
+  }
+
+
+  .nav-menu-item {
+    --nav-ico-size: 1.15em;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: var(--text-sm);
+    text-decoration: none;
+    text-align: start;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .nav-menu-item:hover {
+    background: var(--fill-soft);
+    color: var(--color-text);
+  }
+  .nav-menu-item[aria-current='page'] {
+    color: var(--color-text);
+  }
+
+  .nav-menu-sep {
+    height: 1px;
+    margin: var(--space-1) 0;
+    background: var(--color-border);
+  }
+
+
+/* ── lib/components/NavMenu.svelte ── */
+  .nav-menu {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .nav-menu-panel {
+    position: absolute;
+    inset-block-start: calc(100% + var(--space-1));
+    inset-inline-end: 0;
+    z-index: var(--layer-top-nav);
+    min-width: 11rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-1);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+
+
+/* ── lib/components/EntranceBar.svelte ── */
+  .entrance-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    max-inline-size: var(--measure);
+    margin-inline: auto;
+    padding-block: var(--space-2);
+  }
+
+  .entrance-bar .mark {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .entrance-bar .mark img {
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+  }
+
+
+/* ── lib/components/LegalFooter.svelte ── */
+  /* 罫線でそっと本文と切って、字は muted・中央に。本文と同じ measure 幅に
+     そろえ、中央に寄せる(タイムラインのフッターと同じ見え方)。 */
+  .legal-foot {
+    max-width: var(--measure);
+    margin-inline: auto;
+    margin-block-start: var(--space-8);
+    padding-block-start: var(--space-4);
+    border-block-start: 1px solid var(--color-border);
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .legal-foot a {
+    color: var(--color-text-muted);
+  }
+  .legal-foot a:hover {
+    color: var(--color-text);
+  }
+  .legal-foot .sep {
+    margin-inline: var(--space-2);
+    color: var(--color-border-strong);
+  }
+
+
+/* ── lib/components/LangSwitch.svelte ── */
+  .lang-picker {
+    position: relative;
+    display: inline-block;
+  }
+
+  .lang-picker summary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    letter-spacing: normal;
+    cursor: pointer;
+    list-style: none;
+    transition: border-color var(--motion) ease;
+  }
+
+  .lang-picker summary:hover {
+    border-color: var(--color-accent);
+  }
+
+  .lang-picker .chev {
+    color: var(--color-text-muted);
+    transition: transform var(--motion) ease;
+  }
+
+  .lang-picker details[open] .chev {
+    transform: rotate(180deg);
+  }
+
+  .lang-picker ul {
+    position: absolute;
+    inset-inline-start: 0;
+    inset-block-start: calc(100% + var(--space-1));
+    z-index: var(--layer-menu);
+    min-inline-size: 11rem;
+    padding: var(--space-1);
+    list-style: none;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-popover);
+  }
+
+  .lang-picker.end ul {
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+  }
+
+  .lang-picker .opt {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    inline-size: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text);
+    font: inherit;
+    letter-spacing: normal;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .lang-picker .opt:hover {
+    background: var(--color-accent-soft);
+  }
+
+  .lang-picker .opt[aria-current='true'] {
+    color: var(--color-accent-strong);
+    font-weight: 700;
+  }
+
+  .lang-picker .check {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    inline-size: 1.4rem;
+    block-size: 1.4rem;
+    border-radius: 50%;
+    color: var(--color-accent-strong);
+  }
+
+  .lang-picker .opt[aria-current='true'] .check {
+    background: var(--color-accent-soft);
+  }
+
+  /* 指で押す画面では、--tap-min を下回らない(docs/UX_CONTRACT.md の A)。 */
+  @media (pointer: coarse) {
+    .lang-picker summary,
+    .lang-picker .opt {
+      min-block-size: var(--tap-min);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lang-picker .chev,
+    .lang-picker summary {
+      transition: none;
+    }
+  }
+
+
+/* ── lib/components/Avatar.svelte ── */
+  .deco-wrap {
+    position: relative;
+    display: inline-block;
+    flex-shrink: 0;
+    /* 投稿のように flex の行に置かれると、既定の stretch で行の高さまで
+       伸び、飾りの top: -50% が行の高さ基準になって星が上へずれていた。
+       アイコンと同じ高さに留める。 */
+    align-self: flex-start;
+    line-height: 0;
+  }
+  .deco {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    /* base.css の img { max-width: 100% } が 200% を 100% に縮めて、星が
+       左上にずれていた。この枠は親の 2 倍が正しいので外す。 */
+    max-width: none;
+    max-height: none;
+    z-index: 1;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* 頭文字を中央に。font-size は自分の幅基準(cqw)なので、どのサイズ
+     クラスでも比率が揃う ─ サイズごとに値を書かなくていい。 */
+  [data-avatar-fallback] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    container-type: inline-size;
+    font-size: 45cqw;
+    font-weight: 600;
+    line-height: 1;
+    text-transform: uppercase;
+    user-select: none;
+    overflow: hidden;
+  }
+
+
+/* ── lib/components/Status.svelte ── */
+  /* 投稿カード。影なし、細い罫線だけ。ブーストの中の入れ子も同じ作法で、
+     :last-child の罫線消しは、枠の唯一の子にも効く（boost 側で分離線を持つ）。 */
+  .status {
+    display: flex;
+    padding: var(--space-4) 0;
+    border-block-end: 1px solid var(--color-border);
+  }
+  .status:last-child {
+    border-block-end: 0;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: baseline;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .display-name {
+    color: var(--color-text);
+    font-weight: 700;
+    font-size: var(--text-base);
+  }
+  /* アバターとの間は gap ではなく、本文の左の余白で取る。gap は子の数で
+     増えるので、アバターの <picture>(display: contents)の中身まで数えて
+     しまい、本文の位置がずれていた。 */
+  .body {
+    flex: 1;
+    min-width: 0;
+    margin-inline-start: var(--space-4);
+  }
+  /* 名前の行と本文は、ひとまとまりに読ませる。名前の行はもう 1.6 の行送りぶんの
+     高さを持っているので、さらに 8px を空けると、別の塊に見えて間延びする。 */
+  .content {
+    margin-block-start: var(--space-1);
+    overflow-wrap: anywhere;
+  }
+  /* 本文は {@html} なので、子の p は :global で拾う。 */
+  .content p + p {
+    margin-block-start: var(--space-3);
+  }
+
+  /* 投稿カード、手のなかで。狭い画面だと、長い `@user@host` が時刻を次の
+     行に押し出して、外部リンクの印だけが取り残されていた。名前と時刻は残して、
+     ハンドルのほうを縮める ── 誰か・いつ、が一行で読めるほうが役に立つ。 */
+  @media (width <= 40rem) {
+    .status {
+      padding: var(--space-3) 0;
+    }
+
+    .body {
+      margin-inline-start: var(--space-3);
+    }
+
+    .meta {
+      flex-wrap: nowrap;
+      gap: var(--space-2);
+    }
+
+    /* 名前は縮めない(誰かが分からなくなる)。ただし名前だけで一行を
+       埋めないよう、半分で頭打ちにする。 */
+    .display-name {
+      flex: 0 1 auto;
+      max-width: 50%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 縮むのはここ。@host が長いほど、先に削られる。 */
+    .handle {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 時刻を右端へ寄せるので、中黒は要らなくなる。 */
+    .sep {
+      display: none;
+    }
+
+    .timestamp,
+    .orig {
+      flex: none;
+      margin-inline-start: auto;
+    }
+
+    .orig {
+      margin-inline-start: 0;
+    }
+  }
+
+  /* 長文（Article）を畳むとき。下端をふわっと薄くして「まだ続く」を示す。 */
+  .content-wrap.collapsed {
+    max-height: 22rem;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent);
+    mask-image: linear-gradient(to bottom, black 70%, transparent);
+  }
+
+  /* リーダー（記事ページ）の本文。畳まず、ゆったり読める行間と段落の間。 */
+  .content-wrap.reader .content {
+    line-height: 1.85;
+  }
+  .content-wrap.reader .content p {
+    margin: 0.85rem 0;
+  }
+  .content-wrap.reader .content h2:first-child {
+    font-size: 1.4rem;
+    margin-block-start: 0;
+  }
+
+  .read-more {
+    display: inline-block;
+    margin-block-start: 0.25rem;
+    padding: 0.2rem 0.7rem;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    background: var(--fill-soft);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .read-more:hover {
+    color: var(--color-text);
+  }
+
+  /* Article の本文には見出し（差し込んだ <h2> や本文中の h2/h3）が来る。
+     ブラウザ既定の特大サイズだとタイムラインで浮くので、静かに整える。 */
+  .content h2,
+  .content h3,
+  .content h4 {
+    font-size: var(--text-base, 1rem);
+    font-weight: 600;
+    margin: 0.6rem 0 0.3rem;
+    line-height: 1.4;
+  }
+  .content h2 {
+    font-size: 1.1rem;
+  }
+
+  /* 静的 MFM の見た目。動きの装飾は描かないので、ここにあるのは静かな
+     書式だけ。値はすべてトークンから(§10)。サーバ描画のリモート HTML も
+     同じ要素を使うので、両方ここで整う。 */
+  .content .mfm-center {
+    text-align: center;
+  }
+  .content blockquote {
+    margin: var(--space-2) 0;
+    padding-inline-start: var(--space-3);
+    border-inline-start: 2px solid var(--color-border);
+    color: var(--color-text-muted);
+  }
+  .content code {
+    font-size: 0.95em;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-1);
+  }
+  .content pre {
+    overflow-x: auto;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+  }
+  .content pre code {
+    display: block;
+    border: none;
+    background: none;
+    padding: 0;
+  }
+
+  /* 元の投稿への入口。タイムスタンプの隣に、小さく薄く。主張しない。 */
+  .orig {
+    display: inline-flex;
+    align-items: center;
+    opacity: 0.55;
+    text-decoration: none;
+  }
+  .orig:hover {
+    opacity: 1;
+  }
+
+  .boost-by {
+    display: block;
+    padding: 0.25rem 0 0;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+  }
+
+  /* 「○○がブースト」の見出しの下に、元の投稿が続く。投稿は子のコンポーネント
+     (Self)の article なので、:global で指す(scoped のままだと、この親からは
+     見えず、規則ごと消える)。見出しと投稿の間が二重に空かないよう、上の余白を詰める。 */
+  .boost > .status {
+    padding-block-start: var(--space-2);
+  }
+
+  .boost-by:hover {
+    text-decoration: underline;
+  }
+
+  /* 畳んだブースト。アバター＋「○○がブースト」＋元の一行を、一行に
+     収める。主張せず、でも一行ぶんの気配は残す（quote-acct と同じ作法で
+     はみ出しは ellipsis）。 */
+  .boost-compact {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    /* 畳んだ行も、タイムラインの一件と同じく罫線で区切る。罫線が無いと、
+       行が次の投稿の上に浮いて、空きだけが残って見える。左右は投稿と同じ
+       0 にして、アバターの縦の列をそろえる。 */
+    border-block-end: 1px solid var(--color-border);
+    padding: 0.4rem 0;
+    background: none;
+    border: none;
+    text-align: start;
+    font: inherit;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    /* 子（名前・プレビュー）が中身の幅で踏ん張らず行に収まるよう縮める。 */
+    min-width: 0;
+  }
+  .boost-compact:hover {
+    background: var(--fill-soft);
+  }
+  .boost-compact-by {
+    flex: none;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+  .boost-compact-preview {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--text-sm);
+  }
+
+  /* 「@x への返信」。本文の上に、名前より小さく薄く。主張しすぎず、でも
+     これが返信だと分かる程度に。リンクのときだけ hover で下線。 */
+  .reply-to {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-block-end: 0.15rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+  }
+  a.reply-to:hover {
+    text-decoration: underline;
+  }
+
+
+/* ── lib/components/StatusActions.svelte ── */
+  /* Status カードの下に、返信・ブースト等の操作の列。 */
+  .status-actions {
+    margin-block-start: var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    /* 行の中のアイコンは本文より一回り小さく。字と同じ重さで並ぶように。 */
+    --nav-ico-size: 1.2em;
+  }
+
+  /* chip の中身(Twemoji アイコン + 数字)を縦の真ん中にそろえる。
+     inline の vertical-align: middle だと、アイコンが文字よりすこし
+     沈んで見える。min-height は「文字一行ぶん(1.6em) + 上下 padding
+     3px×2 + 枠線 1px×2」── アイコンだけの chip (栞・数字なしの⭐🔁)
+     が、文字入りの chip より低くならないように。 */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: calc(1.6em + 8px);
+    /* 罫線は淡いほうへ。本文は枠のない地の文なのに、その真下で枠つきの輪が
+       六つ閉じていて、視線が先にそちらへ行っていた。「余計な線を消し、行間を
+       ゆったりとるだけで見栄えよくなる」── 押せる大きさ(min-height)は
+       変えないので、当たり判定は同じまま。 */
+    border-color: var(--color-border);
+  }
+
+  /* 押している / 済んでいるものは、いまも色で分かる。淡くしたぶん、
+     触れたときにだけ輪郭を戻して「押せる」を返す。 */
+  .chip:hover,
+  .chip:focus-visible {
+    border-color: var(--color-border-strong);
+  }
+
+
+  /* 狭い画面では、枠つきの丸が六つ並ぶと一件ぶんの縦をひとつ余分に食う
+     ので詰める。押せる大きさ(min-height)は変えない。 */
+  @media (width <= 40rem) {
+    .status-actions {
+      margin-block-start: var(--space-2);
+      gap: var(--space-1);
+    }
+
+    .chip {
+      padding-inline: var(--space-2);
+    }
+  }
+
+  /* 指で押す行 ── 見える大きさと、指が拾う大きさを分ける。
+     人は見える形の真ん中を狙い、指は少しずれて落ちる(Holz & Baudisch 2011、
+     Henze ら 2011)。見た目は 2rem のまま、::after で押せる領域を --tap-min
+     まで広げる(WCAG 2.2 SC 2.5.8 の「対象」は操作を受ける領域)。
+     領域どうしは重ならないように、並びの間をそろえる:
+       横 … 見た目の幅 + gap ≥ --tap-min、縦 … 見た目の高さ + 行の間 ≥ --tap-min。
+     重なりと列の溢れは shots/ux-check.mjs が測る。 */
+  @media (pointer: coarse) {
+    .chip,
+    .reaction-chip {
+      position: relative;
+      min-height: 2rem;
+      min-width: 0;
+    }
+
+    .chip::after,
+    .reaction-chip::after {
+      content: '';
+      position: absolute;
+      inset-inline-start: 50%;
+      inset-block-start: 50%;
+      width: max(100%, var(--tap-min));
+      height: var(--tap-min);
+      transform: translate(-50%, -50%);
+    }
+
+    /* 六つの枠つきの輪が一行に並ぶと、本文より先に目に入る。指の画面では、枠線を
+       消して淡い地で見せる(押している状態は .active の地が引き続き示す)。 */
+    .chip {
+      border-color: transparent;
+      background: var(--fill-soft);
+    }
+
+    /* 絵だけの chip は、見た目の幅に床を置く(幅 + gap が --tap-min に届くように)。 */
+    .chip {
+      min-width: calc(var(--tap-min) - var(--space-2));
+      justify-content: center;
+    }
+
+    /* 見た目の左右の余白は詰める ── 押せる領域は ::after が持つので、
+       詰めても指に不利にならない。一列に収めるための余地になる。 */
+    .chip {
+      padding-inline: var(--space-1);
+    }
+
+    /* 狭い画面で六つが入りきらないときは、溢れさせず、栞が次の行へ回る。 */
+    .status-actions {
+      margin-block-start: calc(var(--tap-min) - 2rem);
+      gap: calc(var(--tap-min) - 2rem) var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .reactions {
+      gap: calc(var(--tap-min) - 2rem) var(--space-1);
+    }
+  }
+
+  .reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-block-start: 0.5rem;
+  }
+  .reaction-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    background: var(--fill-soft);
+    border: 1px solid transparent;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    cursor: pointer;
+  }
+  .reaction-chip:hover {
+    background: var(--fill-hover);
+  }
+  /* 読み取り専用のときはボタンだが押せない ── 淡くならず、そのまま見せる。 */
+  .reaction-chip:disabled {
+    opacity: 1;
+    cursor: default;
+  }
+  .reaction-chip:disabled:hover {
+    background: var(--fill-soft);
+  }
+  .reaction-chip.me {
+    background: var(--fill-active);
+    border-color: var(--fill-active-edge);
+  }
+  .reaction-chip .emoji {
+    font-size: 1rem;
+  }
+  .reaction-chip img.emoji {
+    width: 1.125rem;
+    height: 1.125rem;
+    vertical-align: -0.2em;
+  }
+  .reaction-chip .count {
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+  }
+  /* 押している状態は、地の色と字の濃さと、塗りつぶした星・栞で示す。
+     グローバルの chip[aria-pressed] は地を暗く塗るので、ここで淡い行に
+     合わせて上書きする ── 字が淡い地に溶けない(旧: 白字 on 薄灰 ≒1.3:1)。 */
+  .chip.active {
+    color: var(--color-text);
+    background: var(--fill-active);
+    border-color: var(--fill-active-edge);
+    font-weight: 600;
+  }
+  .bookmark {
+    margin-inline-start: auto;
+  }
+  .picker-anchor {
+    position: relative;
+    margin-block-start: 0.25rem;
+  }
+
+  /* 🔁 ボタンとその小メニューの入れもの。メニューをこのボタンの
+     真下に絶対配置で吊るすための基準。 */
+  .boost-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+  .boost-menu {
+    position: absolute;
+    inset-block-start: 100%;
+    inset-inline-start: 0;
+    z-index: var(--layer-menu);
+  }
+
+  .menu {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.125rem;
+    margin-block-start: 0.25rem;
+    padding: 0.25rem;
+    width: max-content;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+  }
+  .menu-item {
+    --nav-ico-size: 1.15em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .menu-item:hover:not(:disabled) {
+    background: var(--fill-hover);
+  }
+  .menu-item.active {
+    background: var(--fill-active);
+  }
+  .menu-item.danger:hover:not(:disabled) {
+    background: var(--fill-danger);
+  }
+  .menu-item:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+
+/* ── lib/components/StatusMedia.svelte ── */
+  /* 添付の並び。Status の中では横に並べ、画像は枠をはめて切る。 */
+  .media {
+    margin-block-start: var(--space-3);
+    display: grid;
+    gap: var(--space-2);
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  }
+  .media img {
+    display: block;
+    width: 100%;
+    /* 上下左右に枠をはめる。縦長でも伸び放題にせず、はみ出しは切る。
+       原寸はクリックでライトボックス（下の .lightbox）。 */
+    max-height: 22rem;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+  }
+
+  .media video,
+  .media audio {
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+  }
+  .media-fallback {
+    display: inline-block;
+    margin-block-start: 0.25rem;
+    font-size: var(--text-sm);
+  }
+
+  /* センシティブ添付: 中身をぼかして、上に「見る」ボタンを重ねる。 */
+  .media.sensitive {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+  }
+  .media.sensitive :is(img, video, audio) {
+    filter: blur(28px);
+    /* ぼかしの縁が透けないよう、わずかに拡大してはみ出させる。 */
+    transform: scale(1.06);
+    pointer-events: none;
+  }
+  .media-reveal {
+    position: absolute;
+    inset: 0;
+    z-index: var(--layer-raised);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--color-scrim-soft);
+    color: var(--color-on-scrim);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .media-reveal:hover {
+    background: var(--color-scrim-strong);
+  }
+
+  /* サムネイルを包むボタン。クリックでライトボックス。 */
+  .media-zoom {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    line-height: 0;
+    cursor: zoom-in;
+  }
+
+  /* 画像の原寸表示。全面の背景ボタン、押すと閉じる。 */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: var(--layer-lightbox);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    border: 0;
+    background: var(--color-scrim-lightbox);
+    cursor: zoom-out;
+  }
+  .lightbox img {
+    max-width: 95vw;
+    max-height: 95vh;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+  }
+
+
+/* ── lib/components/QuoteCard.svelte ── */
+  .quote-card {
+    display: block;
+    margin-block-start: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    color: inherit;
+  }
+  a.quote-card:hover {
+    background: var(--fill-soft);
+  }
+  .quote-head {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-block-end: 0.25rem;
+    font-size: var(--text-sm);
+    /* 子(名前・ハンドル)が中身の幅で踏ん張らず、行に収まるよう縮める
+       のを許す。長い連合ハンドルがカードを突き破るのを止める。 */
+    min-width: 0;
+  }
+  .quote-name {
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .quote-acct {
+    color: var(--color-text-muted);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  /* 引用は小さな添え物のつもりだったのに、中身が長文記事(Article)だと
+     丸ごと出てしまっていた ── ここには Status 本体側の「描画後に測って
+     畳む」仕組み(collapsible/COLLAPSE_PX)が無かった。カードはもともと
+     href でクリックすれば全文へ飛べるので、JS の実測は要らない ──
+     line-clamp で行数を決め打ちして切るだけで足りる。 */
+  .quote-content {
+    font-size: var(--text-sm);
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+
+/* ── lib/components/AccountRow.svelte ── */
+  /* 私的メモ。本名の下に、ひかえめに。 */
+  .account-row-note {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    opacity: 0.8;
+  }
+
+
+/* ── lib/components/Composer.svelte ── */
+  .picker-container {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .composer-picker-anchor {
+    position: absolute;
+    inset-block-end: 100%;
+    inset-inline-start: 0;
+    margin-block-end: 0.25rem;
+    z-index: var(--layer-overlay);
+  }
+
+  .composer {
+    max-width: var(--measure);
+    margin: 0 auto var(--space-6);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  /* DM の入力。長い文を書く場所なので、書いたぶんだけ伸びる。上限は置かない
+     ── 途中でスクロールに切り替わると、書いている場所を見失う。
+     field-sizing が無いブラウザでは rows のまま(4 行)で、壊れはしない。 */
+  .composer textarea.grows {
+    field-sizing: content;
+    /* 短い一言を続けて投げる場所なので、二行から。長く書けば伸びる。 */
+    min-height: calc(2lh + var(--space-4));
+  }
+
+  /* ── メッセージの返信箱 ─────────────────────────────────────────────
+     会話の面では、返信箱は下に貼りつく。流れの末尾に置くと、長いやりとりでは
+     毎回いちばん下まで漕がないと返せない ── 話しかける口が、遠い。
+     (スマホの SNS がどれも下に固定しているのは、そういう理由。) */
+  .composer-dm {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: var(--layer-menu);
+    margin-block-end: 0;
+    background: var(--color-bg);
+    border: 0;
+    border-block-start: 1px solid var(--color-border);
+    border-radius: 0;
+    padding: var(--space-3) var(--space-4);
+    padding-block-end: max(var(--space-3), env(safe-area-inset-bottom, 0px));
+  }
+
+  /* スマホでは下に親指の帯があるので、その上に貼る。帯が縁の余白(safe-area)を
+     もう持っているから、ここでは重ねて取らない。 */
+  @media (width <= 40rem) {
+    /* 下の帯が出ているときは、その上に貼る(--dock-h / --dock-pad は、帯があるとき
+       だけ全体の CSS が置く環境の値)。 */
+    .composer-dm {
+      inset-block-end: var(--dock-h, 0px);
+      padding-block-end: var(--dock-pad, max(var(--space-3), env(safe-area-inset-bottom, 0px)));
+    }
+
+    /* 返信箱は、画面の端から端まで。.wrap の左右 gutter を負の margin で
+       いったん外に出て、カプセルに幅を返す ── 打つところは広いほうがいい。
+       罫線も端まで通るので、下の帯として素直に見える。 */
+    .composer-dm {
+      max-width: none;
+      margin-inline: calc(var(--space-4) * -1);
+      padding-inline: var(--space-2);
+    }
+  }
+
+  /* 伸びるのは、画面の半分まで。それを超えたら中で漕ぐ ── 長い一通を書いて
+     いるあいだに、宛てている会話がぜんぶ画面の外へ出てしまわないように。
+     (「書く」の面には上限を置かない。あちらは会話を見ながらではないので。) */
+  .composer-dm textarea.grows {
+    max-height: 40vh;
+    overflow-y: auto;
+    /* 自分で伸びるので、つまんで伸ばす取っ手は要らない。 */
+    resize: none;
+    /* 基本はひと行。書いたぶんだけ、そこから伸びる。 */
+    min-height: calc(1lh + var(--space-4));
+  }
+
+  /* 画像・本文・送る を、ひと並びに。左に画像、右に送る ── 本文の両脇に、
+     すること二つ。行が一つ減るぶんは、そのまま会話の見えるところに返る。
+     囲うのはこのカプセル一つだけ。中の本文欄は枠を持たない ── 枠の中に枠を
+     描くと輪郭が二重になる(「塗りと枠は片方だけ」の、入れ子版)。
+     伸びても端は丸いままなので、半径は高さの半分で置く。 */
+  .composer-line {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-1);
+    padding: 2px;
+    border: 1px solid var(--color-control);
+    border-radius: 23px;
+    background: var(--color-surface);
+  }
+
+  /* 中では、枠も背景も持たない。カプセルが面で、これはその中の文。 */
+  .composer-line-field textarea {
+    border: 0;
+    background: transparent;
+    border-radius: 0;
+    padding-inline: var(--space-2);
+  }
+
+  .composer-line-field textarea:focus {
+    outline: none;
+  }
+
+  /* カプセルが focus を受け止める ── 中の一つひとつではなく、この一つが
+     光る。どこを触っているかは、囲いの側で言う。 */
+  .composer-line:focus-within {
+    border-color: var(--color-text);
+  }
+
+  /* 中の印は、丸い縁を持たない。カプセルの中で丸が三つ並ぶと、囲いが
+     どれなのか分からなくなる。 */
+  .composer-line .icon-btn {
+    border-color: transparent;
+  }
+
+  .composer-line-field {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+  }
+
+  /* textarea はインライン要素なので、下に行の余り(descender のぶん)が残る。
+     そのぶんだけ入力欄が両脇のボタンより浮いて見えていた。block にして、
+     下端をそろえる。 */
+  .composer-line-field textarea {
+    display: block;
+  }
+
+  /* カプセルの内側では、いちばん低いところ(1行)がボタンと同じ高さになる
+     ように。上下の余白はカプセルの padding が持つ。 */
+  .composer-dm .composer-line textarea.grows {
+    min-height: 40px;
+    padding-block: var(--space-2);
+  }
+
+  /* 絵の印だけのボタン。丸くて、指で押せて、押せないときは薄い。
+     語は aria-label と title に残してある(読み上げと hover には届く)。 */
+  .icon-btn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tap-min);
+    height: var(--tap-min);
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--color-control);
+    border-radius: 999px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition:
+      color 0.1s ease,
+      border-color 0.1s ease;
+  }
+
+  .icon-btn:hover:not(:disabled) {
+    color: var(--color-text);
+    border-color: var(--color-text);
+  }
+
+  /* 「書く」の面。ほかに何も無い一枚なので、枠で囲わない ── 面そのものが
+     composer なのに、その中でもう一度箱を描くと、輪郭が二重になる。
+     (図解の頁が言う「塗りと枠は片方だけ」の、入れ子版。) */
+  .composer-page {
+    border: 0;
+    padding: 0;
+    margin-block-end: var(--space-6);
+  }
+
+  /* 「書く」は短い一言のための場所。白紙を大きく開けると「たくさん書け」に
+     見えるので、三行から始めて、書いたぶんだけ伸ばす。 */
+  .composer-page textarea.grows {
+    min-height: calc(3lh + var(--space-4));
+  }
+
+  /* 畳んである「ほかの設定」。開くまで、何も主張しない。 */
+  .composer-more > summary {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+
+  .composer-more-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin-block-start: var(--space-2);
+  }
+
+  .composer-more-row label.stack-tight {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+
+  .composer-reply {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .composer-hint {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .composer-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .composer-row label.stack-tight {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+
+  .composer-row > button[type='submit'] {
+    margin-inline-start: auto;
+  }
+
+  .composer-media {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  }
+
+  .composer-media li {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .composer-media img {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    display: block;
+  }
+
+  /* 「書く」を画面の底に固定する。Clips は流れの外に置きたいので、親から
+     fixed で頼む(親が :global で触るのをやめる)。 */
+  .composer-dm.fixed-dock {
+    position: fixed;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
+  }
+
+  /* 固定したときは、親の .wrap の gutter を外へ抜ける必要がない(基準が
+     画面になる)。ここで負の margin を重ねると、画面の両側へはみ出す。 */
+  @media (width <= 40rem) {
+    .composer-dm.fixed-dock {
+      margin-inline: 0;
+    }
+  }
+
+
+/* ── routes/@[acct]/+page.svelte ── */
+  /* フォロー/リスト追加/… を一塊にして、狭い幅では折り返す（モバイルで
+     横に溢れないように）。avatar + 名前の右に寄せる。 */
+  .profile-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-inline-start: auto;
+  }
+  .mod-menu {
+    position: relative;
+    display: inline-block;
+  }
+  .mod-menu-pop {
+    position: absolute;
+    inset-inline-end: 0;
+    inset-block-start: calc(100% + 0.25rem);
+    z-index: var(--layer-menu);
+    display: flex;
+    flex-direction: column;
+    min-width: 10rem;
+    padding: 0.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+  }
+  .mod-menu-pop button {
+    text-align: start;
+    padding: 0.5rem 0.625rem;
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+  .mod-menu-pop button:hover:not(:disabled) {
+    background: var(--fill-hover);
+  }
+  .mod-menu-pop button.danger {
+    color: var(--color-danger);
+  }
+  .pinned-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  /* プロフィールのひとこと欄。落ち着いた区切りの行。各行は名前（淡く）と
+     値を横に並べ、狭い幅では縦に折り返す。動かない、飾らない。 */
+  .profile-fields {
+    margin: 0;
+    border-block-start: 1px solid var(--color-border);
+  }
+  .profile-field {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) 0;
+    border-block-end: 1px solid var(--color-border);
+    font-size: var(--text-sm);
+  }
+  .profile-field dt {
+    color: var(--color-text-muted);
+    flex: 0 0 auto;
+    min-width: 6rem;
+  }
+  .profile-field dd {
+    margin: 0;
+    flex: 1 1 12rem;
+    min-width: 0;
+    word-break: break-word;
+  }
+
+  /* 私的メモ。本名の下に、ひかえめに。連合しない、あなただけの呼び名。
+     クリックで開くだけで、視線をうばわない。 */
+  .account-note-line,
+  .account-note-add {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    text-align: start;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .account-note-tag {
+    color: var(--color-text-muted);
+    opacity: 0.7;
+  }
+  .account-note-edit {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .account-note-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .account-note-input {
+    width: 100%;
+    font-size: var(--text-sm);
+  }
+  .account-note-actions {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  /* 投稿 / 記事 の切り替え。控えめに、下線で今いる場所だけ示す。 */
+  .profile-tabs {
+    display: flex;
+    gap: var(--space-1);
+    border-block-end: 1px solid var(--color-border);
+  }
+  .profile-tabs .tab {
+    padding: 0.5rem 0.9rem;
+    background: none;
+    border: none;
+    border-block-end: 2px solid transparent;
+    margin-block-end: -1px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+  .profile-tabs .tab.active {
+    color: var(--color-text);
+    border-block-end-color: var(--color-text);
+  }
+  .profile-roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+  }
+  .role-badge {
+    --role-color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--role-color);
+    border-radius: 999px;
+    color: var(--role-color);
+    font-size: var(--text-sm);
+    line-height: 1.7;
+  }
+  .profile-note {
+    font-size: var(--text-base);
+    overflow-wrap: anywhere;
+  }
+
+  .profile-note p + p {
+    margin-block-start: var(--space-2);
+  }
+
+  /* 自己紹介は投稿と同じ Markdown(ローカル)か、リモートの HTML。
+     Status の本文と同じ要素を、同じ静かさで整える。 */
+  .profile-note blockquote {
+    margin: var(--space-2) 0;
+    padding-inline-start: var(--space-3);
+    border-inline-start: 2px solid var(--color-border);
+    color: var(--color-text-muted);
+  }
+  .profile-note code {
+    font-size: 0.95em;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-1);
+  }
+  .profile-note pre {
+    overflow-x: auto;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+  }
+  .profile-note pre code {
+    display: block;
+    border: none;
+    background: none;
+    padding: 0;
+  }
+  .profile-note h1,
+  .profile-note h2,
+  .profile-note h3 {
+    font-size: var(--text-base);
+    font-weight: 600;
+    margin: var(--space-2) 0 var(--space-1);
+  }
+
+  .profile-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+
+  .profile-counts a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .profile-counts a:hover {
+    color: var(--color-text);
+  }
+
+  .profile-counts strong {
+    color: var(--color-text);
+    font-weight: 700;
+  }
+
+
+/* ── routes/notifications/+page.svelte ── */
+  .notif {
+    border-block-start: 1px solid var(--color-border);
+    padding-block-start: var(--space-3);
+  }
+  .notif-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-block-end: var(--space-2);
+  }
+  /* 名前が長いと、この行は「◯◯」+「から返信がきました」で一文になる。
+     名前を折り返させると文が二行に割れて、何が起きたのかが読みにくい。
+     縮むのは名前のほう ── 意味を持っているのは後半なので。 */
+  .notif-who {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    text-decoration: none;
+    color: inherit;
+    min-width: 0;
+  }
+  .notif-who .display-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .notif-summary {
+    flex: none;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+  }
+  .notif-dismiss {
+    margin-inline-start: auto;
+  }
+
+  /* 新着の境い目の棒。「──── 新しい通知は、ここまで ────」。 */
+  .notif-divider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-4) 0 var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+  }
+  .notif-divider::before,
+  .notif-divider::after {
+    content: '';
+    flex: 1 1 0;
+    height: 1px;
+    background: var(--color-border);
+  }
+
+
+/* ── routes/login/+page.svelte ── */
+  .method-switch {
+    display: flex;
+    gap: var(--space-2);
+    margin-block-end: var(--space-4);
+  }
+  .method-switch .chip[aria-selected="true"] {
+    border-color: var(--color-text);
+    font-weight: 600;
+  }
+
+
+/* ── routes/signup/+page.svelte ── */
+  /* いきなり規約に飛ばさない、はじめの誘い。目立たせすぎず、でも見落とさ
+     ない ── やわらかい囲み。 */
+  .read-first {
+    border: 1px solid var(--color-border);
+    background: var(--fill-soft);
+    border-radius: var(--radius);
+    padding: var(--space-3) var(--space-4);
+    margin-block-end: var(--space-8);
+    font-size: 0.95rem;
+    line-height: 1.8;
+  }
+
+  /* 同意チェック ── 箱と文を横に、文頭にそろえる。 */
+  .agree {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--color-text);
+  }
+  .agree input[type='checkbox'] {
+    margin-block-start: 0.2rem;
+    flex: 0 0 auto;
+  }
+
+  /* 「作る」と、その下の副リンク(ログイン・表のページへ)の間にひと呼吸。 */
+  .after-form {
+    margin-block-start: var(--space-6);
+  }
+
+
+/* ── lib/components/StatusPoll.svelte ── */
+  .poll {
+    margin-block-start: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+  .poll-choice {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+  .poll-result {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--fill-soft);
+  }
+  .poll-bar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--fill-active);
+    z-index: var(--layer-base);
+  }
+  .poll-result.mine .poll-bar {
+    background: var(--fill-active-edge);
+  }
+  .poll-label,
+  .poll-pct {
+    position: relative;
+    z-index: var(--layer-raised);
+  }
+  .poll-label {
+    flex: 1;
+  }
+  .poll-pct {
+    font-variant-numeric: tabular-nums;
+  }
+  .poll-meta {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+
+/* ── lib/components/PreviewCard.svelte ── */
+  .preview-card {
+    display: flex;
+    flex-direction: column;
+    margin-block-start: var(--space-2);
+    border: 1px solid var(--color-border, var(--color-border-fallback));
+    border-radius: var(--radius, 8px);
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+  }
+  .preview-image {
+    width: 100%;
+    max-height: 240px;
+    object-fit: cover;
+    display: block;
+  }
+  .preview-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3);
+  }
+  .preview-host {
+    font-size: 0.8em;
+  }
+  .preview-title {
+    font-weight: 600;
+  }
+  .preview-desc {
+    font-size: 0.9em;
+    /* 二行で、そっと切る。 */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+
+/* ── lib/components/MediaGrid.svelte ── */
+  /* トークンのグリッド型(repeat(auto-fill, minmax(...)) + gap)を踏襲。
+     値は tokens.css 由来で、ここでは直書きしない。 */
+  .media-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  }
+  .media-grid-tile {
+    position: relative;
+    display: block;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+  }
+  .media-grid-tile img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  /* CW/センシティブのタイルはぼかしたまま。詳細で開く。 */
+  .media-grid-tile.covered img {
+    filter: blur(28px);
+    transform: scale(1.06);
+  }
+  .media-grid-cover {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-scrim-soft);
+    color: var(--color-on-scrim);
+    font-size: var(--text-sm);
+  }
+
+
+/* ── lib/components/CircleBadge.svelte ── */
+  .circle-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-inline-start: 0.35em;
+    padding: 0 0.45em;
+    border-radius: 999px;
+    background: var(--fill-soft);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    line-height: 1.6;
+    font-weight: 400;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+

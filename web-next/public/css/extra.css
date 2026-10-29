@@ -1,0 +1,100 @@
+/* この再実装で足した、ほんの少しの見た目。 */
+
+[x-cloak] { display: none !important; }
+
+/* 押したあとのひとこと・お知らせ。エラーと同じ作法で、危険の赤は使わない。 */
+.notice {
+  max-width: var(--measure);
+  margin-inline: auto;
+  background: var(--color-accent-soft);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+/* 列の終わり。無限スクロールをやめた代わりに、ここで終わると言う。 */
+.the-end {
+  margin: var(--space-8) auto 0;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.status-note { margin-block-start: var(--space-1); }
+
+/* ブーストの畳んだ行は <summary>。印を消して、ボタンの佇まいに。 */
+details.boost > summary { list-style: none; }
+details.boost > summary::-webkit-details-marker { display: none; }
+details.boost[open] > summary .boost-compact-preview { display: none; }
+details.boost:not([open]) > .boost-by,
+details.boost:not([open]) > .status { display: none; }
+
+/* フォームの小さな部品 */
+.timeline-filter summary { cursor: pointer; display: inline-block; }
+.filter-form { display: flex; flex-direction: column; gap: var(--space-2); padding-block: var(--space-2); }
+.filter-check { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+.composer-files { list-style: none; padding: 0; }
+.held { margin-block-start: var(--space-8); }
+.held-item { padding-block: var(--space-3); border-block-end: 1px solid var(--color-border); }
+.held-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.status > a[aria-hidden='true'] { display: block; flex: none; }
+
+/* Unpoly の進み具合の棒は、橙の細い線に。点滅も、数字も無い。 */
+up-progress-bar { background: var(--color-accent); height: 2px; }
+
+/* ふわりと入る。Unpoly が挿した断片(「もっと読む」のあと)に。動きを減らす設定なら、何もしない。 */
+@media (prefers-reduced-motion: no-preference) {
+  .up-soft-in { animation: soft-in 0.28s ease both; }
+  @keyframes soft-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}
+
+/* 線画のアイコン(NavIcon.svelte の scoped な大きさ)。 */
+.nav-ico {
+  width: var(--nav-ico-size, 1.6em);
+  height: var(--nav-ico-size, 1.6em);
+  flex: none;
+  display: block;
+}
+
+/* 投稿は、投稿の言語(lang)の読みかたで。UI の言語とはちがってもよい。
+ * 字間・行間は about.sukhi.social に合わせる(ja 0.075em / ko -0.02em・行間 1.6)。 */
+.content[lang],
+.quote-content[lang] {
+  letter-spacing: 0;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.content:lang(ja) {
+  letter-spacing: 0.075em;
+  word-break: auto-phrase; /* 対応しないブラウザは、上の normal のまま */
+}
+.content:lang(ko) {
+  letter-spacing: -0.02em;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+/* about.sukhi.social に合わせた、言語ごとの字間。
+ * 日本語: ゆったり読む文は 0.075em(tokens.css の --tracking)、さっと目を通すところは 0.05em。
+ * 韓国語: 玄関の大見出し(.hero h1)だけは字間をいじらない。 */
+html:lang(ja) .app-nav,
+html:lang(ja) .tabs,
+html:lang(ja) .legal-foot,
+html:lang(ja) .muted,
+html:lang(ja) .chip {
+  letter-spacing: 0.05em;
+}
+html:lang(ko) .hero h1 {
+  letter-spacing: normal;
+}
+
+/* gateway がまとめた通知の、二人目から先の名前(一人目は .notif-who)。 */
+.notif-also {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.notif-also a {
+  color: inherit;
+  text-decoration: none;
+}

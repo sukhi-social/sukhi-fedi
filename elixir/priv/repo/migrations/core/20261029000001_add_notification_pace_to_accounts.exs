@@ -7,7 +7,7 @@ defmodule SukhiFedi.Repo.Migrations.AddNotificationPaceToAccounts do
 
   `notification_hold_minutes` — how long a favourite / boost / follow waits
   before it shows in the list. NULL means "never chosen": the gateway treats
-  it as 0 (nothing held), and a client that has a house default (web-unpoly
+  it as 0 (nothing held), and a client that has a house default (web-next
   asks for an hour) may set it once, because NULL says nobody decided yet.
   `notification_grouping` — collapse ambient notifications of one kind
   (same post, or the same type) into one row.

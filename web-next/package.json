@@ -1,0 +1,26 @@
+{
+  "name": "sukhi-web-next",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node --watch server/main.ts",
+    "start": "node server/main.ts",
+    "mock:api": "node mock/api-server.mjs",
+    "dev:mock": "node mock/dev.mjs",
+    "test": "node --test \"test/*.test.ts\""
+  },
+  "dependencies": {
+    "@fontsource/gothic-a1": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
+    "@fontsource/zen-maru-gothic": "^5.3.1",
+    "@twemoji/api": "^17.0.3",
+    "@twemoji/svg": "^15.0.0",
+    "alpinejs": "^3.17.5",
+    "budoux": "^0.10.1",
+    "unpoly": "^3.15.0"
+  }
+}

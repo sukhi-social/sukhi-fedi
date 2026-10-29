@@ -1,0 +1,224 @@
+/* Design tokens — plain CSS custom properties, nothing framework-specific.
+ *
+ * The whole web client (the SvelteKit app under src/) reads from here, so a
+ * colour, size or font lives in exactly one place. Keep it to :root variables
+ * and the per-locale html[lang] overrides at the bottom. */
+
+@layer tokens {
+
+:root {
+  color-scheme: light;
+  /* color — about.sukhi.social's palette: warm cream paper, brown ink, one orange.
+   * The orange is the only decorative hue. The lane colours (use / build) and
+   * danger stay functional: they mean something, so they do not borrow the
+   * orange's job. */
+  /* --color-bg is the one value with more than one spelling: a manifest can't
+   * read CSS variables. Change it here and in static/manifest.webmanifest
+   * (background_color / theme_color) and app.html (<meta name="theme-color">). */
+  --color-bg: #fffaf3;
+  --color-surface: #fff;
+  --color-text: #3d3029;
+  --color-text-muted: #7a685b;
+  --color-border: #f0dfcc;
+  --color-border-strong: #dcc7ae;
+
+  /* the orange. --color-accent is for what is only looked at: a hover edge,
+   * a soft wash, a mark. White on it, or it as small text, is 3.2–3.3:1 —
+   * under the 4.5:1 that text needs. So anything read (link text, a button
+   * with a label) uses --color-accent-strong, and --color-on-accent is the
+   * label colour on it. It is deep on purpose: as link text it must clear
+   * 4.5:1 on every surface a link can sit on — the paper 5.57, white 5.78,
+   * --color-accent-soft 4.87, the 6% / 11% ink washes 5.01 / 4.58 — and white
+   * on it is 5.78. (#b5571d, a livelier orange, was 3.8–4.2 on the washes.) */
+  --color-accent: #d9702e;
+  --color-accent-soft: #fde8d4;
+  --color-accent-strong: #a34d16;
+  --color-on-accent: #fff;
+
+  /* control edge — the outline of something you press or type into (chip,
+   * button, input, composer capsule). WCAG 1.4.11 wants 3:1 against the
+   * paper it sits on; --color-border-strong was 1.8:1, so the controls
+   * read as text that happened to be boxed. Decorative hairlines keep
+   * --color-border / --color-border-strong. */
+  --color-control: #9c8878;
+
+  /* keyboard focus ring — the deep orange (5.57:1 on the paper), 3px. */
+  --color-focus: var(--color-accent-strong);
+
+  /* lane colours — "use" and "build" stay distinct everywhere.
+   * A catalog page sets --color-lane to whichever one it is showing, so
+   * shared components (chips, marks) pick up the right hue automatically. */
+  --color-use: #2f6d5a;
+  /* build is a little deeper than the first draft (was #a85a29, 4.3:1 on
+   * paper): it is used for small text in the lane doors and must clear 4.5:1. */
+  --color-build: #9a5024;
+  --color-lane: var(--color-accent-strong);
+
+  /* danger — the single functional red. Destructive actions (delete, remove)
+   * and error notes speak in it, and nothing else does. Kept low-chroma and
+   * warm so it belongs to the paper palette instead of shouting like a system
+   * red: it sits beside the build lane's terracotta, a shade redder and
+   * darker. Like the lanes, this is functional colour — it means "this undoes
+   * or this failed", never decoration. Lives here so the one red is in one
+   * place; the error box and the destructive-menu wash both derive from it. */
+  --color-danger: #9e3b2e;
+  --fill-danger: color-mix(in srgb, var(--color-danger) 14%, transparent);
+
+  /* soft fills — ink at low opacity. Hover washes, the result bars on a poll,
+   * and the "you reacted / your vote" highlight all stay in the warm paper
+   * family this way, instead of pulling in a separate grey or accent hue.
+   * (There is no decorative accent colour — see the note above.) */
+  --fill-soft: color-mix(in srgb, var(--color-text) 6%, transparent);
+  --fill-hover: color-mix(in srgb, var(--color-text) 11%, transparent);
+  --fill-active: color-mix(in srgb, var(--color-text) 14%, transparent);
+  --fill-active-edge: color-mix(in srgb, var(--color-text) 34%, transparent);
+
+  /* type — Nunito (Latin), Zen Maru Gothic (ja), Gothic A1 (ko), as on
+   * about.sukhi.social. Nunito is listed first, so Latin text (English, tool
+   * names, URLs) renders in it even on Japanese / Korean pages; the CJK
+   * faces only catch kana·kanji or hangul.
+   * They are not read until <html data-fonts="on"> (see the rule at the
+   * bottom, and lib/fonts.ts): until then the text is in --font-fallback, and
+   * it never changes under a reader's eyes. */
+  --font-fallback: system-ui, -apple-system, var(--font-system-any);
+  --font-body: var(--font-fallback);
+  /* どの言語の UI でも、どの言語の字が来ても、字が出る(豆腐にならない)ための
+   * 末尾。UI の言語の字は先頭に置き(下の html[lang])、ここは「ほかの言語」の分。 */
+  --font-system-any: 'Hiragino Sans', 'Yu Gothic', 'Noto Sans CJK JP', 'Apple SD Gothic Neo',
+    'Malgun Gothic', 'Noto Sans CJK KR', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    'PingFang TC', 'Noto Sans CJK TC', sans-serif;
+
+  /* --type-scale balances perceived size across scripts: CJK glyphs fill the
+   * em-square, so Japanese and Korean read larger than Latin at the same px.
+   * It multiplies the text sizes ONLY — spacing and layout widths below stay
+   * in plain rem, so the page is the same width in every language.
+   * Per-language values are set in the html[lang] rules. */
+  --type-scale: 1; /* about.sukhi.social は言語ごとの倍率を持たない(どの言語も 1rem)。合わせている。 */
+  --text-sm: calc(0.875rem * var(--type-scale));
+  --text-base: calc(1.0625rem * var(--type-scale));
+  --text-lg: calc(1.1875rem * var(--type-scale));
+  --text-xl: calc(1.5rem * var(--type-scale));
+  --text-2xl: calc(2.125rem * var(--type-scale));
+  --leading: 1.6;
+  /* reading text (an article, a long post): about's airy line. */
+  --leading-prose: 1.9;
+  /* letter-spacing per language, set in the html[lang] rules below. */
+  --tracking: 0;
+
+  /* motion — one short beat. A card lifts a little when you reach for it.
+   * (prefers-reduced-motion turns the lift off in base.css.) */
+  --motion: 0.15s;
+  --lift: translateY(-2px) rotate(-0.4deg);
+
+  /* space */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* shape — round cards (1rem) with a hairline border, pills for what you
+   * press, a whisper of shadow only on what floats */
+  --radius: 1rem;
+  --radius-sm: 0.7rem;
+  --radius-pill: 999px;
+  --measure: 40rem;
+  /* 指で押す対象の高さ(と、丸いボタンの直径)の既定。
+   * 床は WCAG 2.2 SC 2.5.8 (AA) の 24 CSS px。そのうえの目安は出どころ
+   * ごとに違う ── Apple の既定 44pt(最小 28pt)、Microsoft 約 40px
+   * (7.5mm)、Google 48dp。44 はその真ん中で、Android だけ 48 に上げる
+   * (下の html[data-platform])。docs/UX_CONTRACT.md の A。
+   * 44px をコンポーネントに書かず、ここを読む。 */
+  --tap-min: 2.75rem;
+  /* 下の親指の帯の高さ。帯と、その上に貼る返信箱が同じ数を使う。 */
+  --bottom-nav-h: 3.75rem;
+  --page: 64rem;
+
+  /* 重なりの順(z-index)。数字は、ここだけに書く。部品は名前で読む。 */
+  --layer-base: 0;
+  --layer-raised: 1; /* 同じ箱のなかで、ひとつ上(バッジ・ラベル) */
+  --layer-menu: 10; /* 小さなメニュー・ポップオーバー */
+  --layer-menu-above: 11;
+  --layer-bottom-nav: 30;
+  --layer-top-nav: 40;
+  --layer-overlay: 50; /* 選ぶ窓・切り抜き */
+  --layer-lightbox: 100;
+
+  /* 画像の上に載せる面と字(暗い幕)。生の色は、ここだけ。 */
+  --color-scrim: rgb(0 0 0 / 0.45);
+  --color-scrim-soft: rgb(0 0 0 / 0.38);
+  --color-scrim-strong: rgb(0 0 0 / 0.48);
+  --color-scrim-lightbox: rgb(0 0 0 / 0.85);
+  --color-on-scrim: #fff;
+  --shadow-popover: 0 4px 12px rgb(0 0 0 / 0.15);
+  --color-border-fallback: rgb(0 0 0 / 0.12);
+}
+
+html[lang='ja'] {
+  --font-fallback: 'BIZ UDPGothic', system-ui, var(--font-system-any);
+  --tracking: 0.075em;
+}
+
+html[lang='ko'] {
+  --font-fallback: 'Nanum Gothic', system-ui, var(--font-system-any);
+  --tracking: -0.02em;
+  --leading: 1.6;
+}
+
+/* 字が届いて、着替えたあと(lib/fonts.ts が <html data-fonts> に置く)。 */
+html[data-fonts='on'] {
+  --font-body: Nunito, 'Zen Maru Gothic', 'Gothic A1', var(--font-fallback);
+}
+html[data-fonts='on'][lang='ko'] {
+  --font-body: Nunito, 'Gothic A1', 'Zen Maru Gothic', var(--font-fallback);
+}
+
+/* UI の言語と違う言語の文(本文に lang が付いている)は、その言語の字を先頭にする。
+ * 漢字は日本語・韓国語・中国語で字形がちがうので、lang に合わせて選ばせる。 */
+html[data-fonts='on'] [lang]:not(html):lang(ja) {
+  font-family: Nunito, 'Zen Maru Gothic', 'Gothic A1', 'BIZ UDPGothic', system-ui, var(--font-system-any);
+}
+html[data-fonts='on'] [lang]:not(html):lang(ko) {
+  font-family: Nunito, 'Gothic A1', 'Zen Maru Gothic', 'Nanum Gothic', system-ui, var(--font-system-any);
+}
+[lang]:not(html):lang(zh) {
+  font-family: Nunito, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', system-ui, var(--font-system-any);
+}
+[lang]:not(html):lang(zh-TW), [lang]:not(html):lang(zh-Hant) {
+  font-family: Nunito, 'PingFang TC', 'Noto Sans CJK TC', system-ui, var(--font-system-any);
+}
+
+/* Android は 48dp(Google のアクセシビリティヘルプ)。lib/ux/platform.ts が
+ * <html data-platform> に置く。 */
+html[data-platform='android'] {
+  --tap-min: 3rem;
+}
+
+/* the same room with the lamp lit — about.sukhi.social's dark palette. It
+ * follows the device (there is no switch yet). The orange gets lighter, so
+ * the label on it turns dark (8.5:1). The functional hues are lifted to
+ * stay above 4.5:1 on the dark paper. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-bg: #1f1915;
+    --color-surface: #2a221c;
+    --color-text: #f3e9df;
+    --color-text-muted: #b9a797;
+    --color-border: #3d3027;
+    --color-border-strong: #54453a;
+    --color-control: #8a7767;
+    --color-accent: #f0a56b;
+    --color-accent-soft: #3a2b20;
+    --color-accent-strong: #f0a56b;
+    --color-on-accent: #1f1915;
+    --color-use: #6cc0a4;
+    --color-build: #e8935f;
+    --color-danger: #e58a78;
+  }
+}
+}
