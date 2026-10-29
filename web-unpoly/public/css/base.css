@@ -1,0 +1,170 @@
+/* Base — reset, element defaults, layout helpers. */
+
+@view-transition {
+  navigation: auto;
+}
+
+@layer base {
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Cross-fade same-origin navigations instead of a hard reload — most visible
+ * on the language switch, where the root font-size differs per locale, so a
+ * hard jump in size felt abrupt. Pure CSS, no client JS; browsers without
+ * cross-document view transitions just navigate as before. */
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01s !important;
+  }
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading);
+  letter-spacing: var(--tracking);
+  color: var(--color-text);
+  background: var(--color-bg);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+}
+
+/* CJK line breaking.
+ * Korean: break at word boundaries (어절), never mid-word.
+ * Japanese: break only at the <wbr> points BudouX inserts
+ *   (see lib/phrase.ts) — keep-all stops the browser breaking between kana.
+ * overflow-wrap is the safety net for long unbreakable runs. */
+html[lang='ko'],
+html[lang='ja'] {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* Keyboard focus is always visible, and drawn one way everywhere. Mouse
+ * focus on buttons/links stays quiet (:focus-visible), but a Tab press
+ * always leaves a ring. Inputs add their own border change on top. */
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Links are the deep orange with an underline: colour says "you can go
+ * there", the underline says it for those who don't see colour. */
+a {
+  color: var(--color-accent-strong);
+  text-underline-offset: 0.16em;
+  text-decoration-color: var(--color-accent);
+}
+
+a:hover {
+  text-decoration-color: var(--color-accent-strong);
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* <picture> はフォーマット選び(avif/webp/原本)のためだけの包みで、
+   レイアウトには居ないことにする ─ 中の img が今までどおり flex や
+   grid の子として振る舞う。 */
+picture {
+  display: contents;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+/* layout helpers */
+.wrap {
+  width: 100%;
+  max-width: var(--page);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+
+/* 狭い画面では左右の gutter を細くして、幅を本文に返す。 */
+@media (width <= 40rem) {
+  .wrap {
+    padding-inline: var(--space-4);
+  }
+}
+
+.stack > * + * {
+  margin-block-start: var(--space-4);
+}
+
+/* Spacing utilities.
+ * Padding lives in its own class, composed onto an element, rather than baked
+ * into a component class. So a button is two visible choices — its shape
+ * (.btn) and its padding (.px-6 .py-2) — and the same step reads the same
+ * wherever it appears, which is easy to keep consistent and easy to read off
+ * the markup. The number maps straight to the space token: .px-3 is
+ * var(--space-3). Inline = left/right, block = top/bottom (logical, so the
+ * page mirrors cleanly in RTL). Add steps here as they are first needed —
+ * margin utilities (.mt-N …) would follow the same shape. */
+.px-3 {
+  padding-inline: var(--space-3);
+}
+.px-6 {
+  padding-inline: var(--space-6);
+}
+.py-1 {
+  padding-block: var(--space-1);
+}
+.py-2 {
+  padding-block: var(--space-2);
+}
+
+.prose {
+  max-width: var(--measure);
+}
+
+/* A single reading-width column, centred in the page. Top-level blocks that
+ * should line up with the forms and timelines — a tab row, a method switch,
+ * a stray note — compose this instead of each re-deriving the same pair.
+ * (The form, composer, timeline and profile head still inline
+ * max-width + margin-inline: auto themselves; this is the shared home they
+ * can move to, and the one a new top-level element should reach for so it
+ * doesn't drift to the page edge.) */
+.measure {
+  max-width: var(--measure);
+  margin-inline: auto;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+}
