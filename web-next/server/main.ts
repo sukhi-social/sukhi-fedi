@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 郵便局の入り口。道(routes)を読み込んで、待ち受ける。
 //
 //   node server/main.ts          # Node 24 は型をそのまま読む。ビルドは要らない

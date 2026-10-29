@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // gateway なしで、入った状態を見る。
 //
 //   pnpm run dev:mock     # http://localhost:5174 — 偽の gateway(:4010)と、郵便局がいっしょに立つ

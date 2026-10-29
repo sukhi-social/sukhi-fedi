@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Render the STATIC subset of MFM (Misskey Flavored Markdown) to safe HTML.
 //
 // Misskey-family notes federate their MFM source out of band (notes.mfm,

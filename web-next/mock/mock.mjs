@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // スクショのための、にせのサーバ。
 //
 // gateway は立てない ── Playwright の route が `/api/...` を途中で

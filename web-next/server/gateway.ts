@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // gateway(Elixir)の /api/v1 を、サーバから呼ぶ。
 //
 // SPA の api.ts の `req` と同じ約束を、サーバ側の言葉で:

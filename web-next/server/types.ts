@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // gateway(Mastodon 互換 + sukhi 拡張)が返す形。sukhi-web-next の api.ts から、型だけ写した。
 export type Field = {
   name: string;

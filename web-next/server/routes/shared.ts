@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 道をまたいで使う、小さな助け。
 
 import { html, type SafeHtml } from '../html.ts';

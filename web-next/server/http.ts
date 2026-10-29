@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // リクエスト一件ぶんの文脈(Ctx)と、ルーター、静的ファイル、gateway への通し道。
 //
 // 外の依存は持たない。Node の http と fetch と Web の Request(formData)だけ。

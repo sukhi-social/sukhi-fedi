@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Design tokens — plain CSS custom properties, nothing framework-specific.
  *
  * The whole web client (the SvelteKit app under src/) reads from here, so a

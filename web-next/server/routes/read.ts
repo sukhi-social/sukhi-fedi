@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 読む頁: タイムライン、タグ、投稿の詳細、プロフィール、さがす。
 //
 // どれも、サーバで一枚の手紙(HTML)に組み立てて返す。「もっと読む」だけ、Unpoly が

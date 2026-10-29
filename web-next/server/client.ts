@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // OAuth の「アプリ登録」。ブラウザごとにではなく、この郵便局が一度だけ登録して、覚えておく。
 // scope か戻り先が変わったときだけ、登録しなおす。
 

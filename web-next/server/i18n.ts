@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // ちいさな i18n。辞書は sukhi-web-next の ja/ko をそのまま借り(locales/ja.ts, ko.ts)、
 // この再実装で足したことばだけを locales/extra.ts に置く。
 //

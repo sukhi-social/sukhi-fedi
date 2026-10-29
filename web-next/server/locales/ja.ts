@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 画面に出ることば、日本語。ここが「正本」で、ko.ts は同じ鍵を
 // 全部もっていないと型で叱られる(Dict 型)。`{n}` `{acct}` のような
 // 中括弧は t() が差し込む場所。

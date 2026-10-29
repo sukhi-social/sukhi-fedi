@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // 環境からの設定。ここに集めて、ほかの場所は process.env を読まない。
 //
 //   PORT              待ち受けるポート(既定 5174)
