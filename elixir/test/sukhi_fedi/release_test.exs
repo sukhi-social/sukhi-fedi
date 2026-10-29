@@ -85,4 +85,22 @@ defmodule SukhiFedi.ReleaseTest do
       end
     end
   end
+
+  describe "on the Datalevin store" do
+    setup do
+      prev = Application.get_env(:sukhi_fedi, :store)
+      Application.put_env(:sukhi_fedi, :store, :datalevin)
+
+      on_exit(fn ->
+        if prev,
+          do: Application.put_env(:sukhi_fedi, :store, prev),
+          else: Application.delete_env(:sukhi_fedi, :store)
+      end)
+    end
+
+    test "there is nothing to migrate, and the gate has nothing to check" do
+      assert :ok = Release.migrate_all()
+      assert :ok = Release.check_migration_sanity()
+    end
+  end
 end
