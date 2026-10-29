@@ -32,12 +32,28 @@ defmodule SukhiFedi.Graph.Project do
   @doc """
   The Create/Update of a local note. `kind` is `"Create"` or `"Update"`;
   `media` are the note's `Media` rows, `poll` its `Poll` with options (or nil),
-  `at` when the event happened (an Update's own time).
+  `at` when the event happened (an Update's own time), `mentions` the IRIs of
+  the local accounts it names (so the graph can notify them).
   """
-  @spec note_activity(String.t(), Note.t(), Account.t(), [struct()], struct() | nil, DateTime.t()) ::
-          map()
-  def note_activity(kind, %Note{} = note, %Account{} = author, media, poll, %DateTime{} = at) do
-    object = note_object(note, author, media, poll)
+  @spec note_activity(
+          String.t(),
+          Note.t(),
+          Account.t(),
+          [struct()],
+          struct() | nil,
+          DateTime.t(),
+          [String.t()]
+        ) :: map()
+  def note_activity(
+        kind,
+        %Note{} = note,
+        %Account{} = author,
+        media,
+        poll,
+        %DateTime{} = at,
+        mentions \\ []
+      ) do
+    object = note_object(note, author, media, poll, mentions)
 
     {id, object, published} =
       if kind == "Update",
@@ -56,8 +72,8 @@ defmodule SukhiFedi.Graph.Project do
   end
 
   @doc "The AP object of a local note."
-  @spec note_object(Note.t(), Account.t(), [struct()], struct() | nil) :: map()
-  def note_object(%Note{} = note, %Account{} = author, media, poll) do
+  @spec note_object(Note.t(), Account.t(), [struct()], struct() | nil, [String.t()]) :: map()
+  def note_object(%Note{} = note, %Account{} = author, media, poll, mentions \\ []) do
     {to, cc} = audience(note.visibility, followers(author))
 
     %{
@@ -74,7 +90,9 @@ defmodule SukhiFedi.Graph.Project do
       "sensitive" => note.sensitive == true,
       "inReplyTo" => note.in_reply_to_ap_id,
       "attachment" => Enum.map(media, &attachment/1),
-      "tag" => Enum.map(note.emojis || [], &emoji_tag/1)
+      "tag" =>
+        Enum.map(note.emojis || [], &emoji_tag/1) ++
+          Enum.map(mentions, &%{"type" => "Mention", "href" => &1})
     }
     |> Map.merge(poll_fields(poll))
     |> Map.reject(fn {_, v} -> is_nil(v) or v == [] end)

@@ -246,6 +246,61 @@ defmodule SukhiFedi.Integration.GraphLocalTest do
     assert [] = q("[:find ?f :where [?f :follow/state _]]")
   end
 
+  test "local people are notified of mentions, replies, likes, boosts and follows" do
+    alice = account!("alice_nt")
+    bob = account!("bob_nt")
+    bobs = note!(bob, %{content: "<p>こんにちは</p>"})
+    assert :ok = Local.handle("sns.outbox.note.created", %{"note_id" => bobs.id}, now())
+
+    mention = note!(alice, %{content: "@bob_nt みてね"})
+    reply = note!(alice, %{content: "へんじ", in_reply_to_ap_id: bobs.ap_id})
+
+    for n <- [mention, reply],
+        do: assert(:ok = Local.handle("sns.outbox.note.created", %{"note_id" => n.id}, now()))
+
+    like = %{
+      "reaction_id" => 1,
+      "account_id" => alice.id,
+      "note_id" => bobs.id,
+      "note_ap_id" => bobs.ap_id,
+      "emoji" => "⭐"
+    }
+
+    assert :ok = Local.handle("sns.outbox.like.created", like, now())
+
+    boost = %{
+      "boost_id" => 2,
+      "account_id" => alice.id,
+      "note_id" => bobs.id,
+      "note_ap_id" => bobs.ap_id
+    }
+
+    assert :ok = Local.handle("sns.outbox.announce.created", boost, now())
+
+    f =
+      Repo.insert!(%Follow{
+        follower_uri: Project.actor_iri(alice),
+        followee_id: bob.id,
+        state: "accepted"
+      })
+
+    assert :ok = Local.sync({:follow, f.id, f.follower_uri})
+
+    got =
+      q(
+        "[:find ?t :where [?n :notification/recipient ?r] [?r :actor/username \"bob_nt\"] [?n :notification/type ?t]]"
+      )
+      |> Enum.map(&hd/1)
+      |> Enum.sort()
+
+    assert got == [":favourite", ":follow", ":mention", ":reblog", ":reply"]
+    # nobody is told about their own doing
+    assert [] =
+             q(
+               "[:find ?n :where [?n :notification/recipient ?r] [?r :actor/username \"alice_nt\"]]"
+             )
+  end
+
   test "the poller starts at the tail, handles new rows once, and remembers where it was" do
     alice = account!("alice_tail")
     old = note!(alice)

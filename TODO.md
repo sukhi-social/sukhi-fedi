@@ -482,7 +482,7 @@ git status
         スイッチを入れた後のローカル操作(`Graph.Local`)は入った。それ以前の行が空。
         `Graph.Project` は行 → ActivityPub を作る純粋関数なので、そのまま使える(全件を
         束ねて書き、`sync/*` に進み具合を持つ)。
-      - ローカルのノートのメンション通知(ローカル → ローカルのメンション)。編集で外した添付の削除。
+      - 編集で外した添付の削除(グラフ側)。
       - 韓国語の分かち書き。Sudachi サーバーの選定(`Tokenizer.Sudachi` の契約は決めてある)。
       - 掃除は `SUKHI_GRAPH_SWEEP=execute` にするまで dry-run。ログの報告を見てから切り替える。
       - LMDB は retract してもファイルが縮まない。`dtlv copy -c` の詰め直しを運用に入れる。

@@ -196,7 +196,7 @@ defmodule SukhiFedi.Graph.Local do
       ensure_local(author)
 
       note
-      |> then(&Project.note_activity(kind, &1, author, &1.media, &1.poll, utc(at)))
+      |> then(&Project.note_activity(kind, &1, author, &1.media, &1.poll, utc(at), mentions(&1)))
       |> record(author)
     else
       _ -> {:ignored, :gone}
@@ -288,6 +288,14 @@ defmodule SukhiFedi.Graph.Local do
     else
       _ -> {:ignored, :gone}
     end
+  end
+
+  # Local accounts the text names, by their IRIs; the graph turns them into notifications.
+  defp mentions(%Note{content: content}) do
+    ids = SukhiFedi.Notes.Create.local_mentioned_ids(content)
+
+    for %Account{} = a <- Repo.all(from(a in Account, where: a.id in ^ids)),
+        do: Project.actor_iri(a)
   end
 
   defp note_with_refs(id) do
