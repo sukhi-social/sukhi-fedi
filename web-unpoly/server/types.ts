@@ -209,6 +209,8 @@ export type Notification = {
   created_at: string;
   account: Account;
   status?: Status | null;
+  // gateway が、同じ種類の反応をまとめたとき。新しい順の全員(最初が `account`)。
+  group?: { accounts: Account[] };
 };
 
 export type Context = { ancestors: Status[]; descendants: Status[] };
