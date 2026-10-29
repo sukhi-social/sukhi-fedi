@@ -130,10 +130,10 @@ The 65 that do not:
 | Count | Why |
 |---|---|
 | 50 | raw SQL in the pull federation, rebuild tasks, PeerCapabilities |
-| 5 | the test reads Oban jobs through `Repo` (jobs are in SQLite here) |
+| 6 | the test reads Oban jobs through `Repo` (jobs are in SQLite here) |
 | 2 | Postgres triggers (admin audits are append-only by trigger) |
 | 2 | home timeline for a viewer with a keyword list (fragment) |
-| 3 + 1 + 2 | pages that also fail on Postgres main (`/licenses`, `/credits`, a map), and one `Relays` case |
+| 5 | 3 `/licenses` and `/credits` pages (they fail on Postgres main too), a map page, and one `Relays` case, not yet looked at |
 
 ## Switching an existing instance
 
