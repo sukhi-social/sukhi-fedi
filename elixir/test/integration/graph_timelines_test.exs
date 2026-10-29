@@ -92,4 +92,24 @@ defmodule SukhiFedi.Integration.GraphTimelinesTest do
     assert ids(Timelines.tag("neko", limit: 2)) == [c.id, a.id]
     _ = b
   end
+
+  test "list timeline: members' posts, same page either way", %{alice: alice} do
+    bob = Repo.insert!(%Account{username: "bob_tl", display_name: "b", summary: ""})
+    mine = post!(alice, "not a member's")
+    b1 = post!(bob, "b1")
+    b2 = post!(bob, "b2", "followers")
+    _direct = post!(bob, "psst", "direct")
+    {:ok, list} = SukhiFedi.Lists.create(alice.id, %{"title" => "ともだち"})
+    :ok = SukhiFedi.Lists.add_accounts(alice.id, list.id, [bob.id])
+    :ok = Local.sync({:list, list.id})
+
+    Application.put_env(:sukhi_fedi, :graph_read, true)
+    assert {:ok, notes} = SukhiFedi.Lists.timeline(alice.id, list.id, limit: 2)
+    assert ids(notes) == [b2.id, b1.id]
+    refute mine.id in ids(notes)
+
+    Application.put_env(:sukhi_fedi, :graph_read, false)
+    assert {:ok, again} = SukhiFedi.Lists.timeline(alice.id, list.id, limit: 2)
+    assert ids(again) == ids(notes)
+  end
 end

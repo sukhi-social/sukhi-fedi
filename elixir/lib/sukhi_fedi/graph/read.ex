@@ -75,6 +75,20 @@ defmodule SukhiFedi.Graph.Read do
     )
   end
 
+  @doc "The posts of a list's members (`list_sid` is the list's API id), newest first."
+  @spec list(integer(), keyword()) :: [row()]
+  def list(list_sid, opts \\ []) do
+    select(
+      [
+        "[?l :list/sid #{list_sid}]",
+        "[?l :list/members ?a]",
+        "[?o :object/attributed-to ?a]",
+        visibilities(Keyword.put(opts, :visibilities, [:public, :unlisted, :followers]))
+      ],
+      opts
+    )
+  end
+
   @doc "Everything in a thread, oldest first."
   @spec thread(String.t(), keyword()) :: [row()]
   def thread(object_iri, opts \\ []) do

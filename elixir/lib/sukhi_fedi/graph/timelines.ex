@@ -63,6 +63,10 @@ defmodule SukhiFedi.Graph.Timelines do
     |> Enum.sort_by(&Map.fetch!(order, &1.ap_id))
   end
 
+  @doc "`page/2` for a list timeline (`list_sid` = the list's id); there is no local/remote split."
+  @spec list_page(integer(), map()) :: {:ok, [String.t()]} | :fallback
+  def list_page(list_sid, opts), do: page(opts, &SukhiFedi.Graph.Read.list(list_sid, &1))
+
   defp exact?(opts) do
     Enum.all?([:since_id, :min_id, :only_media, :hide_sensitive], &(opts[&1] in [nil, false]))
   end

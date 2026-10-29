@@ -170,26 +170,39 @@ defmodule SukhiFedi.Lists do
       opts = if is_map(opts), do: opts, else: Map.new(opts)
       limit = clamp(opts[:limit])
 
-      base =
-        from n in Note,
-          join: la in "list_accounts",
-          on: la.account_id == n.account_id,
-          where: la.list_id == ^lid and n.visibility in ^SukhiFedi.Visibility.not_direct()
-
-      results =
-        base
-        |> maybe_only_media(opts[:only_media])
-        |> maybe_hide_sensitive(opts[:hide_sensitive])
-        |> maybe_max_id(opts[:max_id])
-        |> maybe_since_id(opts[:since_id])
-        |> maybe_min_id(opts[:min_id])
-        |> order_by([n], desc: n.id)
-        |> limit(^limit)
-        |> Repo.all()
-        |> Repo.preload([:account, :media, :tags])
-
-      {:ok, results}
+      with true <- SukhiFedi.Graph.read?(),
+           {:ok, iris} <- SukhiFedi.Graph.Timelines.list_page(lid, Map.put(opts, :limit, limit)) do
+        # the graph picked the page; the notes (counts, media, who is reading) are read as usual
+        {:ok,
+         iris
+         |> SukhiFedi.Graph.Timelines.notes()
+         |> Repo.preload([:account, :media, :tags])}
+      else
+        _ -> relational_timeline(lid, opts, limit)
+      end
     end
+  end
+
+  defp relational_timeline(lid, opts, limit) do
+    base =
+      from n in Note,
+        join: la in "list_accounts",
+        on: la.account_id == n.account_id,
+        where: la.list_id == ^lid and n.visibility in ^SukhiFedi.Visibility.not_direct()
+
+    results =
+      base
+      |> maybe_only_media(opts[:only_media])
+      |> maybe_hide_sensitive(opts[:hide_sensitive])
+      |> maybe_max_id(opts[:max_id])
+      |> maybe_since_id(opts[:since_id])
+      |> maybe_min_id(opts[:min_id])
+      |> order_by([n], desc: n.id)
+      |> limit(^limit)
+      |> Repo.all()
+      |> Repo.preload([:account, :media, :tags])
+
+    {:ok, results}
   end
 
   @doc """

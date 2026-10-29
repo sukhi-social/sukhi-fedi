@@ -61,7 +61,7 @@ what to set on a small box.
 | `SUKHI_QUEUE_SYNCHRONOUS` | no | `full` | datalevin mode: SQLite `synchronous` (`full`, `normal`, `off`). |
 | `SUKHI_QUEUE_POOL_SIZE` | no | `5` | datalevin mode: SQLite pool. |
 | `SUKHI_GRAPH` | no | off | `1`/`true`: run the graph store (`<DATALEVIN_DIR>/graph`, its own `dtlv`) beside the main database and copy each admitted inbound activity into it. Best-effort; never changes what the inbox answers. docs/DATALEVIN_SCHEMA.md. |
-| `SUKHI_GRAPH_READ` | no | off | `1`/`true` (with `SUKHI_GRAPH`): the public (local) and hashtag timelines pick their page from the graph; the notes themselves still come from the relational store. A short page, a forward cursor (`since_id`/`min_id`), `only_media`/`hide_sensitive`, or any graph failure falls back to the relational query. |
+| `SUKHI_GRAPH_READ` | no | off | `1`/`true` (with `SUKHI_GRAPH`): the public (local), hashtag and list timelines pick their page from the graph; the notes themselves still come from the relational store. A short page, a forward cursor (`since_id`/`min_id`), `only_media`/`hide_sensitive`, or any graph failure falls back to the relational query. |
 | `SUKHI_GRAPH_SWEEP` | no | dry-run | `execute` lets the daily sweep delete remote objects; anything else only logs what it would delete. |
 | `SUKHI_GRAPH_TTL_FOLLOWED_DAYS` / `SUKHI_GRAPH_TTL_OTHER_DAYS` | no | `90` / `14` | How long a remote object stays after it was last received or touched (followed authors / everyone else). |
 | `SUKHI_GRAPH_SWEEP_LIMIT` | no | `2000` | Candidates examined per sweep run. |
