@@ -104,6 +104,23 @@ defmodule SukhiDelivery.Outbox.Recipients do
   end
 
   @doc false
+  # The remote accounts this actor follows (or asked to). They never
+  # received the owner's posts by follow, but they hold the Follow itself
+  # — an account Delete has to reach them too, so they let it go.
+  def followed_inboxes(actor_uri) when is_binary(actor_uri) do
+    from(f in Follow,
+      join: a in Account,
+      on: a.id == f.followee_id,
+      where: f.follower_uri == ^actor_uri and f.state in ["accepted", "pending"],
+      where: not is_nil(a.domain),
+      select: a
+    )
+    |> Repo.all()
+    |> Enum.map(fn a -> a |> followee_endpoints() |> elem(1) end)
+    |> Enum.uniq()
+  end
+
+  @doc false
   def note_author_inbox(note_ap_id) when is_binary(note_ap_id) do
     # Convention: a note URI is `<actor_uri>/notes/<id>` or similar; the
     # author's actor URI is the parent path. This works for our own

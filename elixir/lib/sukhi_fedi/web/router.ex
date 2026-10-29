@@ -26,6 +26,7 @@ defmodule SukhiFedi.Web.Router do
   alias SukhiFedi.Web.Auth.PasswordController
   alias SukhiFedi.Web.Auth.SecurityController
   alias SukhiFedi.Web.SelfCleanupController
+  alias SukhiFedi.Web.AccountDeletionController
   alias SukhiFedi.Web.Auth.SignupEmailController
   alias SukhiFedi.Web.MediaProxyController
   alias SukhiFedi.Web.PublicPreviewController
@@ -263,6 +264,20 @@ defmodule SukhiFedi.Web.Router do
 
   post "/settings/cleanup/execute" do
     SelfCleanupController.execute(conn)
+  end
+
+  # ── Closing one's own account (one day's grace; see AccountDeletion) ────
+
+  get "/settings/close/status" do
+    AccountDeletionController.show(conn)
+  end
+
+  post "/settings/close/request" do
+    AccountDeletionController.request(conn)
+  end
+
+  post "/settings/close/cancel" do
+    AccountDeletionController.cancel(conn)
   end
 
   # ── Static assets for the SPA + login page ─────────────────────────────

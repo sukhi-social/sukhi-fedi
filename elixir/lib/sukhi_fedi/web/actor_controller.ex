@@ -38,7 +38,11 @@ defmodule SukhiFedi.Web.ActorController do
   defp show_person(conn, username) do
     case SukhiFedi.Accounts.by_local_username(username) do
       nil ->
-        send_resp(conn, 404, JSON.encode!(%{error: "not found"}))
+        if SukhiFedi.Accounts.closed_local_username?(username) do
+          send_resp(conn, 410, JSON.encode!(%{error: "gone"}))
+        else
+          send_resp(conn, 404, JSON.encode!(%{error: "not found"}))
+        end
 
       account ->
         # Use the single source of truth so icon / image / endpoints /

@@ -66,6 +66,11 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     "post /settings/cleanup/preview",
     "post /settings/cleanup/execute",
 
+    # ── Closing one's own account (cookie-gated, reauth on request)
+    "get /settings/close/status",
+    "post /settings/close/request",
+    "post /settings/close/cancel",
+
     # ── Static assets for the SPA + login page
     "get /static/*path",
 

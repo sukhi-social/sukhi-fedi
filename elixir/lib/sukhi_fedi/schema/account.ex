@@ -113,6 +113,10 @@ defmodule SukhiFedi.Schema.Account do
     # doorbell only; the notification list is unaffected.
     field :quiet_until, :utc_datetime
 
+    # Closed by its owner (`SukhiFedi.AccountDeletion`). The row stays so
+    # the username can never be taken again; the personal columns are blank.
+    field :deleted_at, :utc_datetime
+
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end
 

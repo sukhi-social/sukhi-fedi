@@ -17,6 +17,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
       actor_for: 1,
       followee_endpoints: 1,
       follower_uri_to_account: 1,
+      followed_inboxes: 1,
       followers_inboxes: 1,
       local_actor_uri: 1,
       note_author_inbox: 1,
@@ -25,7 +26,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
     ]
 
   import SukhiDelivery.Outbox.Fanout,
-    only: [enqueue_jobs: 4, translate_and_fanout: 5]
+    only: [enqueue_jobs: 4, translate_and_fanout: 5, translate_and_fanout: 6]
 
   def follow(%{"follower_uri" => follower_uri, "followee_id" => followee_id} = p, mode) do
     case follower_uri_to_account(follower_uri) do
@@ -298,4 +299,37 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
   end
 
   def actor_updated(_), do: :missing_fields
+
+  # The owner closed the account (SukhiFedi.AccountDeletion). One `Delete`
+  # whose object is the actor itself — the shape Mastodon and Misskey take
+  # as "forget this person". It is enqueued after the notes are gone and
+  # the follow rows are kept, so both the followers and the accounts this
+  # one followed (which hold its Follow) are still here to read.
+  def actor_deleted(%{"account_id" => account_id}) do
+    case actor_for(account_id) do
+      nil ->
+        :no_actor
+
+      %{actor_uri: actor_uri} ->
+        recipients =
+          Enum.uniq(
+            followers_inboxes(actor_uri) ++ followed_inboxes(actor_uri) ++ relay_inboxes()
+          )
+
+        activity_id = "#{actor_uri}#delete"
+
+        payload = %{
+          actor: actor_uri,
+          activityId: activity_id,
+          objectId: actor_uri,
+          recipientInboxes: recipients
+        }
+
+        translate_and_fanout("delete", payload, actor_uri, activity_id, recipients,
+          extract: "delete"
+        )
+    end
+  end
+
+  def actor_deleted(_), do: :missing_fields
 end

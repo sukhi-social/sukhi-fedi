@@ -284,6 +284,7 @@ sns.<コンテキスト>.<集約>.<操作>[.<バリアント>]
 | `sns.outbox.follow.requested`      | pub  | `Social.request_follow/2`                    | `Outbox.Consumer` → fan-out         |
 | `sns.outbox.follow.undone`         | pub  | `Social.unfollow/2`                          | `Outbox.Consumer` → fan-out         |
 | `sns.outbox.actor.updated`         | pub  | `Accounts.update_credentials/2`              | _(skip — Bunの`Update(Actor)`まだ)_ |
+| `sns.outbox.actor.deleted`         | pub  | `AccountDeletion` (actor Delete, 自分で閉じたとき) | `delete` translator (object = actor) |
 | `sns.outbox.like.created`          | pub  | `Notes.favourite/2`                          | `Outbox.Consumer` → fan-out         |
 | `sns.outbox.like.undone`           | pub  | `Notes.unfavourite/2`                        | `Outbox.Consumer` → fan-out         |
 | `sns.outbox.announce.created`     | pub  | `Notes.reblog/2`                             | `Outbox.Consumer` → fan-out         |

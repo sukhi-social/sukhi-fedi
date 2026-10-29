@@ -758,7 +758,23 @@ export const ja = {
   'feedback.empty': '何か書いてから送ってくださいね。',
   'feedback.tooLong': '2000 文字までです。少し短くしてもらえますか。',
   'feedback.rateLimited': '続けて送られたようです。少し待ってから、もう一度どうぞ。書いたものは残してあります。',
-  'feedback.failed': 'うまく届きませんでした。書いたものは残してあります。少し待って、もう一度送ってみてください。'
+  'feedback.failed': 'うまく届きませんでした。書いたものは残してあります。少し待って、もう一度送ってみてください。',
+  // ── アカウントを閉じる ──
+  'settings.close': 'アカウントを閉じる',
+  'close.title': 'アカウントを閉じる',
+  'close.intro': 'いつでも、閉じられます。理由は聞きません。押してから1日は、取り消せます。そのあいだ、連合には何も送りません。',
+  'close.what': '閉じると、投稿はすべて消えて、相手のサーバにも「忘れて」とお願いを送ります。ログインも、できなくなります。',
+  'close.handle': 'ハンドルは、ずっと空けておきます。だれも、もう使えません(あなたも)。',
+  'close.exportPre': '残しておきたいものがあれば、先に ',
+  'close.exportLink': '引っ越しと書き出し',
+  'close.exportPost': ' が使えます。',
+  'close.mail': 'メールを確認済みなら、受けつけたときと、閉じたときに、お知らせします。',
+  'close.request': 'アカウントを閉じる',
+  'close.pending': 'お願いを、受けつけました。{at} ごろ、閉じます。',
+  'close.pendingHelp': 'それまでは、ここから取り消せます。',
+  'close.cancel': '取り消す',
+  'close.cancelled': '取り消しました。このまま、いてくださいね。',
+  'close.started': 'もう閉じる作業が始まっていて、取り消せません。'
 } as const;
 
 export type TranslationKey = keyof typeof ja;

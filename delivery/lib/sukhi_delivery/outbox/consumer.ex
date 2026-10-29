@@ -24,6 +24,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
       sns.outbox.move.created       → `move` translator       → followers (account migration)
 
       sns.outbox.actor.updated      → AP.ActorJson Update(Person)  → followers + relays
+      sns.outbox.actor.deleted      → Bun `delete` translator (object = the actor) → followers + relays
 
   Ignored:
     * `sns.outbox.oauth.app_registered` — local-only, no federation
@@ -96,6 +97,7 @@ defmodule SukhiDelivery.Outbox.Consumer do
   def dispatch("sns.outbox.move.created", p), do: Social.move(p)
 
   def dispatch("sns.outbox.actor.updated", p), do: Social.actor_updated(p)
+  def dispatch("sns.outbox.actor.deleted", p), do: Social.actor_deleted(p)
 
   def dispatch("sns.outbox.oauth.app_registered", _p) do
     # local audit only — no federation
