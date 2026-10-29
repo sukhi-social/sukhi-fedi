@@ -60,6 +60,17 @@ what to set on a small box.
 | `SUKHI_QUEUE_DB` | no | `/var/lib/sukhi/queue.db` | datalevin mode: the SQLite file Oban lives in. |
 | `SUKHI_QUEUE_SYNCHRONOUS` | no | `full` | datalevin mode: SQLite `synchronous` (`full`, `normal`, `off`). |
 | `SUKHI_QUEUE_POOL_SIZE` | no | `5` | datalevin mode: SQLite pool. |
+| `SUKHI_GRAPH` | no | off | `1`/`true`: run the graph store (`<DATALEVIN_DIR>/graph`, its own `dtlv`) beside the main database and copy each admitted inbound activity into it. Best-effort; never changes what the inbox answers. docs/DATALEVIN_SCHEMA.md. |
+| `SUKHI_GRAPH_READ` | no | off | `1`/`true` (with `SUKHI_GRAPH`): the public (local), hashtag and list timelines pick their page from the graph; the notes themselves still come from the relational store. A short page, a forward cursor (`since_id`/`min_id`), `only_media`/`hide_sensitive`, or any graph failure falls back to the relational query. |
+| `SUKHI_GRAPH_SWEEP` | no | dry-run | `execute` lets the daily sweep delete remote objects; anything else only logs what it would delete. |
+| `SUKHI_GRAPH_TTL_FOLLOWED_DAYS` / `SUKHI_GRAPH_TTL_OTHER_DAYS` | no | `90` / `14` | How long a remote object stays after it was last received or touched (followed authors / everyone else). |
+| `SUKHI_GRAPH_SWEEP_LIMIT` | no | `2000` | Candidates examined per sweep run. |
+| `SUKHI_GRAPH_SIZE_BUDGET_MB` | no | unset | Over this size on disk, the sweep halves both TTLs for that run. |
+| `SUKHI_RAW_BACKEND` | no | `sqlite` | datalevin mode: where large originals (`raw`) go: `sqlite` (a table in the queue file) or `s3` (S3-compatible, same credentials as media). |
+| `SUKHI_RAW_INLINE_MAX` | no | `4096` | datalevin mode: bytes of `raw` kept on the entity itself; larger is stored as a pointer. |
+| `SUKHI_RAW_GRACE_S` | no | `86400` | datalevin mode: how old an unreferenced blob must be before GC may delete it. |
+| `SUKHI_RAW_BUCKET` | no | `S3_BUCKET` | `SUKHI_RAW_BACKEND=s3`: bucket for blobs (keys `raw/sha256/<xx>/<hex>`). |
+| `SUKHI_SUDACHI_URL` | no | — | Sudachi segmentation service (`POST /segment`). Unset: Japanese text is indexed unsegmented. |
 | `DATALEVIN_DIR` | no | `/var/lib/sukhi/datalevin` | Database directory. |
 | `DATALEVIN_BIN` | no | `dtlv` | The native `dtlv` binary. |
 | `DATALEVIN_DURABILITY` | no | `strict` | `strict` / `relaxed` / `extra` (write-ahead log), `lmdb` (no log, sync per commit), `nosync` (no log, no sync; tests only). |
@@ -170,7 +181,7 @@ using Postgres, which the delivery node still drains.
 
 | Var | Default | Meaning |
 |---|---|---|
-| `DELIVERY_QUEUE` | `postgres` | `postgres` or `sqlite` |
+| `DELIVERY_QUEUE` | `postgres` | `postgres` or `sqlite`. Implied (all queues) by `SUKHI_STORE=datalevin` in the combined release |
 | `DELIVERY_QUEUE_DB` | `/var/lib/sukhi/delivery_queue.db` | SQLite file (directory must exist) |
 | `DELIVERY_QUEUE_SYNCHRONOUS` | `full` | `full` or `normal` (WAL; `normal` can lose the last commits on power loss) |
 | `DELIVERY_QUEUE_POOL_SIZE` | `5` | SQLite connection pool |

@@ -15,6 +15,7 @@ defmodule SukhiDelivery.PullFederation.Fallback do
 
   alias SukhiDelivery.Delivery.Worker
   alias SukhiDelivery.Outbox.Recipients
+  alias SukhiDelivery.PullFederation.Peers
   alias SukhiDelivery.Repo
   alias SukhiShared.{PeerCapabilities, PullStats}
 
@@ -57,18 +58,12 @@ defmodule SukhiDelivery.PullFederation.Fallback do
         end
       end)
 
-    Oban.insert_all(SukhiDelivery.Oban, jobs)
+    SukhiDelivery.Queue.insert_all(jobs)
 
     if rows != [] do
       through = rows |> Enum.map(& &1.id) |> Enum.max()
 
-      Repo.query!(
-        """
-        INSERT INTO pull_peers (host, notified_through) VALUES ($1, $2)
-        ON CONFLICT (host) DO UPDATE SET notified_through = GREATEST(pull_peers.notified_through, EXCLUDED.notified_through)
-        """,
-        [host, through]
-      )
+      Peers.advance(host, through)
     end
 
     PullStats.bump("push_fallback", n: length(jobs), host: host)

@@ -216,7 +216,7 @@ defmodule SukhiDelivery.Delivery.Worker do
 
   defp archive_outbound(body, activity_id, inbox_url, actor_uri, status, response_status) do
     Oban.insert(
-      SukhiDelivery.Oban,
+      SukhiDelivery.Queue.gateway_oban(),
       Oban.Job.new(
         %{
           body: body,

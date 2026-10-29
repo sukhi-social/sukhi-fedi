@@ -36,26 +36,34 @@ defmodule SukhiDelivery.PullFederation.Log do
           row
 
         nil ->
-          %{rows: [[seq]]} =
-            Repo.query!(
-              """
-              INSERT INTO pull_heads (account_id, seq) VALUES ($1, 1)
-              ON CONFLICT (account_id) DO UPDATE SET seq = pull_heads.seq + 1
-              RETURNING seq
-              """,
-              [account_id]
-            )
+          seq = next_seq(account_id)
 
-          %{rows: [[id]]} =
-            Repo.query!(
-              "INSERT INTO pull_log (account_id, seq, activity_id, body) VALUES ($1, $2, $3, $4) RETURNING id",
-              [account_id, seq, activity_id, body]
+          {1, [%{id: id}]} =
+            Repo.insert_all(
+              "pull_log",
+              [%{account_id: account_id, seq: seq, activity_id: activity_id, body: body}],
+              returning: [:id]
             )
 
           PullStats.bump("log_appended")
           %{id: id, seq: seq}
       end
     end)
+  end
+
+  # Create the head row if the actor has none, then count up. Plain statements
+  # inside the caller's transaction (the update holds the row), so the same
+  # code runs on every store.
+  defp next_seq(account_id) do
+    Repo.insert_all("pull_heads", [%{account_id: account_id, seq: 0}],
+      on_conflict: :nothing,
+      conflict_target: [:account_id]
+    )
+
+    from(h in "pull_heads", where: h.account_id == ^account_id, update: [inc: [seq: 1]])
+    |> Repo.update_all([])
+
+    Repo.one!(from(h in "pull_heads", where: h.account_id == ^account_id, select: h.seq))
   end
 
   defp existing(activity_id) do
@@ -84,29 +92,69 @@ defmodule SukhiDelivery.PullFederation.Log do
   def prune(now \\ DateTime.utc_now()) do
     cutoff = DateTime.add(now, -@keep_days * 86_400, :second) |> DateTime.to_naive()
 
-    %{rows: rows} =
-      Repo.query!(
-        """
-        WITH doomed AS (
-          SELECT id FROM pull_log WHERE inserted_at < $1
-          UNION
-          SELECT id FROM (
-            SELECT id, row_number() OVER (PARTITION BY account_id ORDER BY seq DESC) AS rn FROM pull_log
-          ) t WHERE rn > $2
-        ), gone AS (
-          DELETE FROM pull_log WHERE id IN (SELECT id FROM doomed) RETURNING account_id, seq
-        ), marked AS (
-          UPDATE pull_heads h SET pruned_through = GREATEST(h.pruned_through, m.s)
-          FROM (SELECT account_id, max(seq) AS s FROM gone GROUP BY account_id) m
-          WHERE h.account_id = m.account_id
-          RETURNING h.account_id
-        )
-        SELECT count(*) FROM gone
-        """,
-        [cutoff, @keep_per_actor]
-      )
+    Repo.transaction(fn ->
+      aged = from(l in "pull_log", where: l.inserted_at < ^cutoff)
+      over_cap = over_cap_seqs()
 
-    [[n]] = rows
-    n
+      reached =
+        Map.merge(newest_per_actor(aged), over_cap, fn _, a, b -> max(a, b) end)
+
+      {aged_n, _} = Repo.delete_all(aged)
+
+      capped_n =
+        Enum.reduce(over_cap, 0, fn {account_id, through}, n ->
+          {k, _} =
+            Repo.delete_all(
+              from(l in "pull_log", where: l.account_id == ^account_id and l.seq <= ^through)
+            )
+
+          n + k
+        end)
+
+      for {account_id, through} <- reached do
+        from(h in "pull_heads",
+          where: h.account_id == ^account_id and h.pruned_through < ^through,
+          update: [set: [pruned_through: ^through]]
+        )
+        |> Repo.update_all([])
+      end
+
+      aged_n + capped_n
+    end)
+    |> then(fn {:ok, n} -> n end)
+  end
+
+  defp newest_per_actor(query) do
+    from(l in query, group_by: l.account_id, select: {l.account_id, max(l.seq)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  # For each actor over the cap, the seq at or below which rows go: the
+  # newest `@keep_per_actor` stay.
+  defp over_cap_seqs do
+    for {account_id, n} <-
+          Repo.all(
+            from(l in "pull_log",
+              group_by: l.account_id,
+              having: count(l.id) > ^@keep_per_actor,
+              select: {l.account_id, count(l.id)}
+            )
+          ),
+        into: %{} do
+      {account_id, nth_oldest(account_id, n - @keep_per_actor)}
+    end
+  end
+
+  defp nth_oldest(account_id, n) do
+    Repo.one!(
+      from(l in "pull_log",
+        where: l.account_id == ^account_id,
+        order_by: [asc: l.seq],
+        offset: ^(n - 1),
+        limit: 1,
+        select: l.seq
+      )
+    )
   end
 end

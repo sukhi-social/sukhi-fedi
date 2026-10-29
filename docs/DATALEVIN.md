@@ -135,6 +135,35 @@ About 2.8 minutes. The 5 that fail only here:
 | 3 | `RebuildRemoteNotes`: the one-off repair task is raw SQL, and its test leans on a Postgres trigger |
 | 2 | `AdminAudits`: the audit table is append-only by a Postgres trigger |
 
+## A new instance on Datalevin alone
+
+Nothing else is needed: no Postgres, no `DB_*`. Run the **combined** release
+(gateway, delivery and api in one BEAM) with `SUKHI_STORE=datalevin`. Datalevin
+has one writer, so the delivery node cannot be a separate process; it joins the
+store the gateway started (`SukhiDelivery.Store.Adapter`, `owner?: false`).
+
+    docker compose -f docker-compose.yml -f docker-compose.combined.yml \
+                   -f docker-compose.datalevin.yml up -d
+
+What changes for the delivery half:
+
+- **Queues.** Every Oban queue (`delivery`, `federation`, `push`,
+  `outbox_dispatch`) runs on the SQLite Lite engine (`SukhiDelivery.QueueOban`,
+  file `DELIVERY_QUEUE_DB`); `DELIVERY_QUEUE=sqlite` is implied, and the queue
+  handover from Postgres is skipped. Web Push jobs are inserted there too
+  (`:push_oban`). Jobs for the gateway's own queues (`outbound_archive`) go to
+  `SukhiFedi.Oban`.
+- **Outbox relay.** No `LISTEN/NOTIFY` and no row lock: it polls every 2 s.
+- **Pull Federation** (`pull_log`, `pull_heads`, `pull_peers`) uses plain
+  statements (`SukhiDelivery.PullFederation.Peers`, `Log`), the same on both
+  stores.
+- **Migrations.** `migrate_all` does nothing; the schema is the catalog
+  (`priv/datalevin/catalog.exs`).
+- **Image.** `combined/Dockerfile` carries the pinned `dtlv` (glibc build) and
+  runs it through `gcompat`. That combination is the one thing not exercised in
+  CI; if `dtlv` will not start in the Alpine image, set `DATALEVIN_BIN` to a
+  glibc build and run the release from a glibc base.
+
 ## Switching an existing instance
 
 There is no data migration tool yet. Starting with `SUKHI_STORE=datalevin`

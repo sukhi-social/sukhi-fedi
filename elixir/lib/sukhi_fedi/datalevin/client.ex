@@ -39,8 +39,55 @@ defmodule SukhiFedi.Datalevin.Client do
   @doc "Run a Datalog query (EDN text). Returns the decoded result."
   @spec query(GenServer.server(), String.t()) :: {:ok, term()} | {:error, term()}
   def query(server \\ __MODULE__, edn) do
-    with {:ok, %{"result" => r}} <- call(server, :query, %{"query" => edn}) do
-      {:ok, Edn.decode(r)}
+    with {:ok, answer} <- call(server, :query, %{"query" => edn}) do
+      complete(server, edn, answer)
+    end
+  end
+
+  # `dtlv mcp` answers at most @page_items rows of an ordered query (a vector)
+  # and says so only in `meta`; an unordered answer (a set) is not cut. A cut
+  # answer is read on, a window at a time with `:offset`/`:limit`, until the
+  # query's own limit — so no caller ever gets a silently short result.
+  @page_items 200
+
+  defp complete(server, edn, %{"result" => r} = answer) do
+    rows = Edn.decode(r)
+
+    case truncated_items(answer) do
+      nil -> {:ok, rows}
+      total -> page_on(server, edn, rows, total)
+    end
+  end
+
+  defp truncated_items(%{"meta" => %{"truncations" => ts}}) when is_list(ts) do
+    Enum.find_value(ts, fn
+      %{"kind" => "items", "original" => n} when is_integer(n) -> n
+      _ -> nil
+    end)
+  end
+
+  defp truncated_items(_), do: nil
+
+  defp page_on(_server, _edn, rows, total) when length(rows) >= total, do: {:ok, rows}
+
+  defp page_on(server, edn, rows, total) do
+    base =
+      edn
+      |> then(&Regex.run(~r/:offset\s+(\d+)/, &1))
+      |> then(&if(&1, do: String.to_integer(Enum.at(&1, 1)), else: 0))
+
+    bare = Regex.replace(~r/\s*:(limit|offset)\s+\d+/, edn, "")
+    {head, _} = String.split_at(bare, String.length(String.trim_trailing(bare)) - 1)
+    take = min(@page_items, total - length(rows))
+    window = head <> " :offset #{base + length(rows)} :limit #{take}]"
+
+    case call(server, :query, %{"query" => window}) do
+      {:ok, %{"result" => r}} ->
+        more = Edn.decode(r)
+        if more == [], do: {:ok, rows}, else: page_on(server, edn, rows ++ more, total)
+
+      {:error, _} = e ->
+        e
     end
   end
 
@@ -72,9 +119,9 @@ defmodule SukhiFedi.Datalevin.Client do
 
     case GenServer.call(server, {:many, reqs}, :infinity) do
       results when is_list(results) ->
-        Enum.map(results, fn
-          {:ok, %{"result" => r}} -> {:ok, Edn.decode(r)}
-          {:error, _} = e -> e
+        Enum.zip_with(results, edns, fn
+          {:ok, %{"result" => _} = answer}, edn -> complete(server, edn, answer)
+          {:error, _} = e, _edn -> e
         end)
 
       {:error, _} = e ->

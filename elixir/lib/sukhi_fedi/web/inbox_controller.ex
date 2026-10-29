@@ -50,7 +50,8 @@ defmodule SukhiFedi.Web.InboxController do
         case Ingest.run(raw_json, signer_host,
                sign_as: sign_as,
                self_domain: self_domain,
-               before_parse: archive
+               before_parse: archive,
+               raw_body: raw_body
              ) do
           :accepted ->
             maybe_enqueue_follower_sync(raw_json, sync_header)

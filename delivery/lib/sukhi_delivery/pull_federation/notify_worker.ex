@@ -35,7 +35,7 @@ defmodule SukhiDelivery.PullFederation.NotifyWorker do
   import Ecto.Query
 
   alias SukhiDelivery.Delivery.Worker
-  alias SukhiDelivery.PullFederation.Fallback
+  alias SukhiDelivery.PullFederation.{Fallback, Peers}
   alias SukhiDelivery.Repo
   alias SukhiShared.{PeerCapabilities, PullStats}
 
@@ -151,30 +151,11 @@ defmodule SukhiDelivery.PullFederation.NotifyWorker do
     Repo.one(from(p in "pull_peers", where: p.host == ^host, select: p.notified_through)) || 0
   end
 
-  defp mark_ok(host, through) do
-    Repo.query!(
-      """
-      INSERT INTO pull_peers (host, notified_through, notified_at, failures, last_error)
-      VALUES ($1, $2, now(), 0, NULL)
-      ON CONFLICT (host) DO UPDATE SET
-        notified_through = GREATEST(pull_peers.notified_through, EXCLUDED.notified_through),
-        notified_at = now(), failures = 0, last_error = NULL
-      """,
-      [host, through]
-    )
-  end
+  defp mark_ok(host, through), do: Peers.ok(host, through)
 
   defp failed(host, reason) do
     PullStats.bump("notify_failed", host: host)
-
-    Repo.query!(
-      """
-      INSERT INTO pull_peers (host, notified_at, failures, last_error) VALUES ($1, now(), 1, $2)
-      ON CONFLICT (host) DO UPDATE SET
-        notified_at = now(), failures = pull_peers.failures + 1, last_error = EXCLUDED.last_error
-      """,
-      [host, String.slice(reason, 0, 300)]
-    )
+    Peers.failed(host, reason)
   end
 
   defp retry_after(%{headers: headers}) do

@@ -522,7 +522,8 @@ defmodule SukhiFedi.Notes.Create do
   # notification is only ever for someone who lives here, and a synchronous
   # fetch to an attacker-named host on every post is a door we don't need
   # to open twice.
-  defp local_mentioned_ids(content) when is_binary(content) do
+  @doc false
+  def local_mentioned_ids(content) when is_binary(content) do
     our = SukhiFedi.Config.domain!() |> String.split(":") |> hd()
 
     @mention_re
@@ -543,7 +544,7 @@ defmodule SukhiFedi.Notes.Create do
     end)
   end
 
-  defp local_mentioned_ids(_), do: []
+  def local_mentioned_ids(_), do: []
 
   defp resolve_mention_recipients(content) when is_binary(content) do
     domain = SukhiFedi.Config.domain!()

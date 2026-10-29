@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Queue.Migrate do
   @moduledoc """
-  Creates the `oban_jobs` tables in the queue SQLite file at boot. Returns
+  Creates the `oban_jobs` tables (and the `raw_blobs` table of `SukhiFedi.RawStore.SQLite`) in the queue SQLite file at boot. Returns
   `:ignore`, so it has finished before the next child (Oban) starts.
   """
 
@@ -17,6 +17,7 @@ defmodule SukhiFedi.Queue.Migrate do
 
   def start_link do
     Ecto.Migrator.run(SukhiFedi.QueueRepo, [{0, Schema}], :up, all: true, log: false)
+    SukhiFedi.RawStore.SQLite.ensure_table(SukhiFedi.QueueRepo)
     :ignore
   end
 end

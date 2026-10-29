@@ -15,6 +15,9 @@ defmodule SukhiDelivery.Outbox.Relay do
       installed by the gateway's outbox migration)
     * Periodic fallback tick
 
+  On the Datalevin store there is no LISTEN/NOTIFY and no row lock to take
+  (one node, one writer): the relay only polls, every `@datalevin_poll_ms`.
+
   Uses `FOR UPDATE SKIP LOCKED` so multiple relay instances cooperate
   safely — each claims a disjoint batch.
   """
@@ -28,6 +31,7 @@ defmodule SukhiDelivery.Outbox.Relay do
   alias SukhiDelivery.Schema.OutboxEvent
 
   @poll_interval_ms 30_000
+  @datalevin_poll_ms 2_000
   @batch_size 100
 
   def start_link(opts \\ []) do
@@ -36,8 +40,14 @@ defmodule SukhiDelivery.Outbox.Relay do
 
   @impl true
   def init(_opts) do
-    {:ok, notifier} = Postgrex.Notifications.start_link(postgrex_config())
-    {:ok, _ref} = Postgrex.Notifications.listen(notifier, "outbox_new")
+    notifier =
+      if Repo.datalevin?() do
+        nil
+      else
+        {:ok, notifier} = Postgrex.Notifications.start_link(postgrex_config())
+        {:ok, _ref} = Postgrex.Notifications.listen(notifier, "outbox_new")
+        notifier
+      end
 
     # Catch rows that were inserted before this process came up.
     send(self(), :tick)
@@ -54,7 +64,13 @@ defmodule SukhiDelivery.Outbox.Relay do
   @impl true
   def handle_info(:tick, state) do
     publish_pending()
-    Process.send_after(self(), :tick, @poll_interval_ms)
+
+    Process.send_after(
+      self(),
+      :tick,
+      if(Repo.datalevin?(), do: @datalevin_poll_ms, else: @poll_interval_ms)
+    )
+
     {:noreply, state}
   end
 
@@ -69,9 +85,9 @@ defmodule SukhiDelivery.Outbox.Relay do
       from(e in OutboxEvent,
         where: e.status == "pending",
         order_by: [asc: e.id],
-        limit: @batch_size,
-        lock: "FOR UPDATE SKIP LOCKED"
+        limit: @batch_size
       )
+      |> claim()
       |> Repo.all()
       |> dispatch()
     end)
@@ -79,6 +95,11 @@ defmodule SukhiDelivery.Outbox.Relay do
     e ->
       Logger.error("Outbox.Relay batch failed: #{Exception.message(e)}")
       :error
+  end
+
+  # Several relays cooperate through the row lock; Datalevin has one writer.
+  defp claim(query) do
+    if Repo.datalevin?(), do: query, else: lock(query, "FOR UPDATE SKIP LOCKED")
   end
 
   # Insert one dispatch job per claimed row and mark the rows published.

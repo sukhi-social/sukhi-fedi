@@ -13,6 +13,8 @@ defmodule SukhiFedi.Application do
       SukhiFedi.Repo,
       # Oban's SQLite file when the store is Datalevin; nothing otherwise.
       SukhiFedi.Queue.children(),
+      # The graph store beside it (SUKHI_GRAPH=1): its own dtlv and the mirror queue.
+      SukhiFedi.Graph.children(),
       {Gnat.ConnectionSupervisor, nats_connection_settings()},
       SukhiFedi.Cache.Ets,
       # 画像プロキシの AVIF 裏 encode(一枚ずつ)。結果を Cache.Ets の

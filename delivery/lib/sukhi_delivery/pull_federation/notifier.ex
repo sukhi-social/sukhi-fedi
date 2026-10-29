@@ -24,7 +24,7 @@ defmodule SukhiDelivery.PullFederation.Notifier do
     Enum.each(hosts, fn host ->
       %{"host" => host}
       |> NotifyWorker.new(schedule_in: quiet_s())
-      |> then(&Oban.insert(SukhiDelivery.Oban, &1))
+      |> then(&Oban.insert(SukhiDelivery.Queue.oban(), &1))
     end)
   end
 end

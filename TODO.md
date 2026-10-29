@@ -470,3 +470,27 @@ git status
       - 決めること: Postgres のスキーマを正本のままにして Datalevin 側だけ作り直すか、
         どちらからも導ける「論理スキーマ」を一つ持つか(CODE_STYLE §1 の「一か所」)。
       - 先に: 計測(タイムライン 1 回の往復数、書き込み 1 行の往復数 ≒ いま 2〜3 ms)。
+- [ ] **グラフストア(`SukhiFedi.Graph`、docs/DATALEVIN_SCHEMA.md)の続き。** 本体・読み取り・
+      ミラー・掃除・ベンチは入った。残り:
+      - 読み取りの速さ。1.5k 件で、書き込みの直後(キャッシュが冷えた状態)に 公開 約 18ms、
+        ホーム 約 45ms、検索 約 50ms、投稿の少ない著者 約 70ms(窓を 6 回広げるため)。件数に
+        比例して伸びる。`dtlv mcp` には範囲検索の道具が無く(`datoms` は完全一致)、
+        いまは `sid` の範囲述語で窓を絞っている。進めるなら: 窓の広げ方(著者ごとに最終投稿の
+        時刻を持つ)、`not deleted-at` を述語から外す(Tombstone を別 attr の範囲に)、
+        ホームの書き込み時 fan-out(`entry/*` は用意済み)。まず 10 万件で測る(`graph-bench`)。
+      - API の読み取りの続き: ホーム(ミュート・ブロック・リストのゲート・キーワード・ブーストを
+        Datalog に移す。または `Moderation` の除外集合を述語に渡す)、リスト、通知、スレッド(`context`)。
+        規則の移植が先(ミュート・ブロック・排他リスト・ゲート・キーワード・ブースト)。通知は ID と既読の切り替えも要る。決めるのは ひなた。
+        公開とタグは `SUKHI_GRAPH_READ` で入った。既存データの取り込みが済むまでは、足りないページは関係 DB に戻る。
+      - 既存データの取り込み(Postgres → グラフ)。入ってくる分(受信のミラー)と、
+        スイッチを入れた後のローカル操作(`Graph.Local`)は入った。それ以前の行が空。
+        `Graph.Project` は行 → ActivityPub を作る純粋関数なので、そのまま使える(全件を
+        束ねて書き、`sync/*` に進み具合を持つ)。
+      - Postgres → Datalevin(正本のほう)のデータ移行。新しいインスタンスは Datalevin
+        だけで立つ(`docker-compose.datalevin.yml`、docs/DATALEVIN.md)。既存の Postgres
+        インスタンスから持ってくる道具は無い。あわせて、Alpine イメージで `dtlv`(glibc 版)
+        を `gcompat` 越しに動かす点は CI で確かめていない。
+      - 韓国語の分かち書き。Sudachi サーバーの選定(`Tokenizer.Sudachi` の契約は決めてある)。
+      - 掃除は `SUKHI_GRAPH_SWEEP=execute` にするまで dry-run。ログの報告を見てから切り替える。
+      - LMDB は retract してもファイルが縮まない。`dtlv copy -c` の詰め直しを運用に入れる。
+

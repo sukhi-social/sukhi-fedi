@@ -31,7 +31,7 @@ defmodule SukhiFedi.Queue do
   @doc "The keyword list `{Oban, …}` is started with."
   @spec oban_config() :: keyword()
   def oban_config do
-    config = Application.fetch_env!(:sukhi_fedi, Oban)
+    config = Application.fetch_env!(:sukhi_fedi, Oban) |> with_graph_jobs()
 
     if Store.datalevin?(),
       do:
@@ -41,5 +41,24 @@ defmodule SukhiFedi.Queue do
           notifier: Oban.Notifiers.PG
         ),
       else: config
+  end
+
+  # The graph's recurring jobs ride the existing Cron plugin, only when the graph is on.
+  defp with_graph_jobs(config) do
+    if SukhiFedi.Graph.enabled?() do
+      Keyword.update(config, :plugins, [], fn plugins ->
+        Enum.map(plugins, fn
+          {Oban.Plugins.Cron, opts} ->
+            {Oban.Plugins.Cron,
+             Keyword.update(opts, :crontab, [], &(&1 ++ SukhiFedi.Graph.Workers.crontab()))}
+
+          other ->
+            other
+        end)
+      end)
+      |> Keyword.update(:queues, [maintenance: 1], &Keyword.put_new(&1, :maintenance, 1))
+    else
+      config
+    end
   end
 end

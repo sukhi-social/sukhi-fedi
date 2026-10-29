@@ -72,11 +72,25 @@ defmodule SukhiFedi.AP.Ingest do
     case FedifyClient.inbox(payload) do
       {:ok, instruction} ->
         Instructions.execute(instruction, signer_host, author_signed?)
+        mirror(raw_json, author_signed?, opts)
         :accepted
 
       {:error, reason} ->
         {:error, {:parse, reason}}
     end
+  end
+
+  # A side copy into the graph store (SUKHI_GRAPH=1). Queued, ordered, and
+  # never able to change the answer given to the sender.
+  defp mirror(raw_json, author_signed?, opts) do
+    if SukhiFedi.Graph.enabled?() do
+      SukhiFedi.Graph.Mirror.admit(raw_json,
+        author_signed?: author_signed?,
+        raw_body: opts[:raw_body]
+      )
+    end
+
+    :ok
   end
 
   # FEP-8b32 verdict, and the one place it is read:

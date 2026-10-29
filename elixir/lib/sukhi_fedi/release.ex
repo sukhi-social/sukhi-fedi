@@ -16,11 +16,25 @@ defmodule SukhiFedi.Release do
   same gate.
   """
 
+  require Logger
+
   @app :sukhi_fedi
 
   def migrate_all do
     load_app()
 
+    if SukhiFedi.Store.datalevin?() do
+      # Nothing to migrate: the Datalevin schema is derived from
+      # priv/datalevin/catalog.exs and installed when the store opens, and the
+      # job queue creates its own SQLite tables at boot (docs/DATALEVIN.md).
+      Logger.info("migrate_all: SUKHI_STORE=datalevin, no migrations to run")
+      :ok
+    else
+      migrate_postgres()
+    end
+  end
+
+  defp migrate_postgres do
     check_migration_sanity()
 
     paths = migration_paths()
@@ -48,6 +62,10 @@ defmodule SukhiFedi.Release do
   def check_migration_sanity do
     load_app()
 
+    if SukhiFedi.Store.datalevin?(), do: :ok, else: check_postgres_sanity()
+  end
+
+  defp check_postgres_sanity do
     paths = migration_paths()
 
     for repo <- repos() do
