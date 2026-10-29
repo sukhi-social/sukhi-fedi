@@ -70,8 +70,8 @@
  :object/mentions      {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
  :object/emojis        {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
  :object/title         {:db/valueType :db.type/string}
- :object/content       {:db/valueType :db.type/string} ;; HTML(表示用)
- :object/mfm           {:db/valueType :db.type/string} ;; Misskey のソース(MFM)があるときだけ。HTML だけの投稿には付けない
+ :object/content-html  {:db/valueType :db.type/string} ;; HTML(表示用)
+ :object/content-mfm   {:db/valueType :db.type/string} ;; Misskey のソース(MFM)があるときだけ。HTML だけの投稿には付けない
  :object/tokens        {:db/valueType :db.type/string :db/fulltext true :db.fulltext/autoDomain true} ;; 検索用。本文を分かち書きして空白区切りにしたもの。クエリも同じ分かち書きをかける
  :object/summary       {:db/valueType :db.type/string} ;; CW
  :object/sensitive?    {:db/valueType :db.type/boolean}

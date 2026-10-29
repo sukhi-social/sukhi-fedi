@@ -86,7 +86,7 @@ B 層まで手で設計し直す価値は小さく、変えるほどバグの面
 
 - 日本語は分かち書きを入れる。元の本文は変えず、分かち書き済みの検索用文字列を `:object/tokens` / `:content/tokens`(全文検索の属性)に別に持つ。クエリにも同じ分かち書きをかける。
 - ホームは読み込み時に merge する。`entry` は予備で、今は空のまま。
-- `content` は HTML(表示用)。ソースが Misskey の MFM のときは `:object/mfm` にも保存し、HTML だけの投稿は HTML だけ。
+- 本文は `:object/content-html`(表示用)と `:object/content-mfm`(Misskey のソースがあるときだけ)の2属性。Datalog は入れ子の map を持たないので、`content: {html, mfm}` はこの名前の組で表す。
 
 ## 未決事項
 
