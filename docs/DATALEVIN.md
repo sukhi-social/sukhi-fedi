@@ -135,6 +135,23 @@ About 2.8 minutes. The 5 that fail only here:
 | 3 | `RebuildRemoteNotes`: the one-off repair task is raw SQL, and its test leans on a Postgres trigger |
 | 2 | `AdminAudits`: the audit table is append-only by a Postgres trigger |
 
+## The web app (`web/`)
+
+The SPA only speaks the Mastodon-style REST API, so it does not know which
+store is behind it. Checked 2026-10-29 with the combined **prod** release
+(SPA embedded, no NATS) and a real browser, once on Datalevin and once on
+Postgres 16, same script, same answers: sign-up with the mailed code, post,
+home / tag / profile / notifications / bookmarks / lists / settings pages,
+follow, favourite, boost, bookmark, reply, DM, delete. The three requests
+that fail on both stores are not store related: `/api/wt` (WebTransport is
+not configured), `/api/i/notes/drafts` (404) and `PUT .../react/:emoji`.
+
+It does need the release's prod runtime config to be read on Datalevin too:
+`elixir/config/runtime.exs` once skipped every prod-only setting
+(`plugin_nodes`, `secret_key_base`, NATS, the admission gate, the Oban
+queues) when `SUKHI_STORE=datalevin`, so `/api/v1/*` answered 503 for the SPA
+and for everyone else.
+
 ## A new instance on Datalevin alone
 
 Nothing else is needed: no Postgres, no `DB_*`. Run the **combined** release

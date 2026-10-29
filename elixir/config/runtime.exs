@@ -235,17 +235,23 @@ if System.get_env("SUKHI_STORE", "postgres") == "datalevin" do
     pool_size: String.to_integer(System.get_env("SUKHI_QUEUE_POOL_SIZE", "5"))
 end
 
-if config_env() == :prod and System.get_env("SUKHI_STORE", "postgres") != "datalevin" do
-  config :sukhi_fedi, SukhiFedi.Repo,
-    database: System.get_env("DB_NAME", "sukhi_fedi"),
-    username: System.fetch_env!("DB_USER"),
-    password: System.fetch_env!("DB_PASS"),
-    hostname: System.get_env("DB_HOST", "localhost"),
-    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
-    # DBConnection drops a checkout that has waited longer than
-    # queue_target for a whole queue_interval. Defaults 50 / 1000 ms.
-    queue_target: String.to_integer(System.get_env("DB_QUEUE_TARGET_MS", "50")),
-    queue_interval: String.to_integer(System.get_env("DB_QUEUE_INTERVAL_MS", "1000"))
+if config_env() == :prod do
+  # Datalevin has no connection to configure (SukhiFedi.Datalevin.Config reads
+  # its own variables). Only this one block is Postgres's: everything after it
+  # (secret_key_base, plugin_nodes, NATS, the admission gate, the Oban queues)
+  # applies to either store.
+  unless System.get_env("SUKHI_STORE", "postgres") == "datalevin" do
+    config :sukhi_fedi, SukhiFedi.Repo,
+      database: System.get_env("DB_NAME", "sukhi_fedi"),
+      username: System.fetch_env!("DB_USER"),
+      password: System.fetch_env!("DB_PASS"),
+      hostname: System.get_env("DB_HOST", "localhost"),
+      pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
+      # DBConnection drops a checkout that has waited longer than
+      # queue_target for a whole queue_interval. Defaults 50 / 1000 ms.
+      queue_target: String.to_integer(System.get_env("DB_QUEUE_TARGET_MS", "50")),
+      queue_interval: String.to_integer(System.get_env("DB_QUEUE_INTERVAL_MS", "1000"))
+  end
 
   # Calls the api node may have running on this node at once
   # (SukhiFedi.RpcGate); the next is refused, not queued.
