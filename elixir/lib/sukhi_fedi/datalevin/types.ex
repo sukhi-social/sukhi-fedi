@@ -54,8 +54,26 @@ defmodule SukhiFedi.Datalevin.Types do
   def loaders({:array, _}, type), do: [&unjson/1, type]
   def loaders(_, type), do: [type]
 
+  @doc """
+  A value as the writer keeps it, given the column's SQL type. For callers
+  that bypass Ecto's dumpers (`insert_all` on a table name). Values already
+  in stored form are returned as they are.
+  """
+  @spec store(term(), String.t() | nil) :: term()
+  def store(nil, _), do: nil
+  def store(%DateTime{} = v, _), do: elem(micros(v), 1)
+  def store(%NaiveDateTime{} = v, _), do: elem(micros(v), 1)
+  def store(%Date{} = v, _), do: elem(days(v), 1)
+  def store(%Time{} = v, _), do: elem(time_micros(v), 1)
+  def store(%Decimal{} = v, _), do: elem(decimal_text(v), 1)
+  def store(v, "jsonb") when not is_binary(v), do: elem(json(v), 1)
+  def store(v, "ARRAY") when is_list(v), do: elem(json(v), 1)
+  def store(v, "bytea") when is_binary(v), do: Base.encode64(v)
+  def store(v, _), do: v
+
   # -- timestamps -----------------------------------------------------------
 
+  def micros(nil), do: {:ok, nil}
   def micros(%DateTime{} = dt), do: {:ok, DateTime.to_unix(dt, :microsecond)}
 
   def micros(%NaiveDateTime{} = nd),
@@ -63,7 +81,17 @@ defmodule SukhiFedi.Datalevin.Types do
 
   def micros(_), do: :error
 
+  defp micros_dt(%NaiveDateTime{} = nd),
+    do: nd |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(:microsecond)
+
+  defp micros_dt(%DateTime{} = dt), do: DateTime.to_unix(dt, :microsecond)
+
   defp from_micros(nil, _), do: {:ok, nil}
+
+  # Already a timestamp: `Query.all_loaded/2` converts computed ones, and Ecto
+  # may still run the column's loader over them.
+  defp from_micros(%struct{} = t, p) when struct in [NaiveDateTime, DateTime],
+    do: t |> micros_dt() |> from_micros(p)
 
   defp from_micros(us, p) when is_integer(us) do
     dt = DateTime.from_unix!(us, :microsecond)
@@ -72,6 +100,9 @@ defmodule SukhiFedi.Datalevin.Types do
 
   defp from_micros_naive(nil, _), do: {:ok, nil}
 
+  defp from_micros_naive(%struct{} = t, p) when struct in [NaiveDateTime, DateTime],
+    do: t |> micros_dt() |> from_micros_naive(p)
+
   defp from_micros_naive(us, p) when is_integer(us) do
     nd = us |> DateTime.from_unix!(:microsecond) |> DateTime.to_naive()
     {:ok, if(p == :naive_datetime, do: %{nd | microsecond: {0, 0}}, else: nd)}
@@ -79,11 +110,13 @@ defmodule SukhiFedi.Datalevin.Types do
 
   # -- dates ----------------------------------------------------------------
 
+  defp days(nil), do: {:ok, nil}
   defp days(%Date{} = d), do: {:ok, Date.to_gregorian_days(d)}
   defp days(_), do: :error
   defp from_days(nil), do: {:ok, nil}
   defp from_days(n) when is_integer(n), do: {:ok, Date.from_gregorian_days(n)}
 
+  defp time_micros(nil), do: {:ok, nil}
   defp time_micros(%Time{} = t),
     do: {:ok, div(Time.diff(t, ~T[00:00:00.000000], :microsecond), 1)}
 
@@ -95,11 +128,13 @@ defmodule SukhiFedi.Datalevin.Types do
 
   # -- the rest ---------------------------------------------------------------
 
+  defp decimal_text(nil), do: {:ok, nil}
   defp decimal_text(%Decimal{} = d), do: {:ok, Decimal.to_string(d)}
   defp decimal_text(_), do: :error
   defp decimal_load(nil), do: {:ok, nil}
   defp decimal_load(s) when is_binary(s), do: {:ok, Decimal.new(s)}
 
+  defp base64(nil), do: {:ok, nil}
   defp base64(b) when is_binary(b), do: {:ok, Base.encode64(b)}
   defp base64(_), do: :error
   defp unbase64(nil), do: {:ok, nil}

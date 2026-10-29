@@ -34,6 +34,67 @@ defmodule SukhiFedi.Datalevin.Query do
     end)
   end
 
+  @doc """
+  `all/2` for a statement's caller (the adapter). A select field that is a
+  computed timestamp — `coalesce(la.at, n.created_at)`, `max(created_at)` —
+  carries no Ecto type, so no loader turns the stored microseconds back; as
+  Postgres would, it comes back a `NaiveDateTime`. Plain fields are left to
+  their loaders. (Subqueries use `all/2`: inside they stay comparable.)
+  """
+  @spec all_loaded(Ecto.Query.t(), list()) :: [[term()]]
+  def all_loaded(%Ecto.Query{} = q, params) do
+    rows = all(q, params)
+
+    case q.select.fields |> Enum.map(&computed_ts?(&1, q)) do
+      flags ->
+        if Enum.any?(flags) do
+          Enum.map(rows, fn row ->
+            row
+            |> Enum.zip(flags)
+            |> Enum.map(fn
+              {us, true} when is_integer(us) ->
+                us |> DateTime.from_unix!(:microsecond) |> DateTime.to_naive()
+
+              {v, _} ->
+                v
+            end)
+          end)
+        else
+          rows
+        end
+    end
+  end
+
+  @calls [:coalesce, :max, :min]
+  defp computed_ts?({call, _, args}, q) when call in @calls and is_list(args),
+    do: Enum.any?(args, &ts?(&1, q))
+
+  defp computed_ts?({:selected_as, _, [e, _]}, q), do: computed_ts?(e, q)
+  defp computed_ts?(_, _), do: false
+
+  defp ts?({call, _, args}, q) when call in @calls and is_list(args),
+    do: Enum.any?(args, &ts?(&1, q))
+
+  defp ts?({{:., _, [{:&, _, [ix]}, col]}, _, []}, q) do
+    source = if ix == 0, do: q.from.source, else: Enum.at(q.joins, ix - 1).source
+
+    case source do
+      {table, _} when is_binary(table) ->
+        SukhiFedi.Datalevin.Catalog.type(table, col) == "timestamp without time zone"
+
+      %Ecto.SubQuery{query: sq} ->
+        Enum.any?(sq.select.fields, fn
+          {^col, e} -> ts?(e, sq)
+          _ -> false
+        end)
+
+      _ ->
+        false
+    end
+  end
+
+  defp ts?(_, _), do: false
+
   defp combine(:union, a, b), do: Enum.uniq(a ++ b)
   defp combine(:union_all, a, b), do: a ++ b
   defp combine(:except, a, b), do: a |> Enum.uniq() |> Enum.reject(&(&1 in b))

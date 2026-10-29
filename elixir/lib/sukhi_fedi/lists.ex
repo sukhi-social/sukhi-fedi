@@ -252,21 +252,6 @@ defmodule SukhiFedi.Lists do
     )
   end
 
-  @doc """
-  Does the viewer own a non-exclusive list that carries a keyword filter?
-  Home adds its per-list keyword gate only then — most viewers have none,
-  so the common path stays a plain query.
-  """
-  @spec keyword_gate?(integer()) :: boolean()
-  def keyword_gate?(viewer_id) when is_integer(viewer_id) do
-    Repo.exists?(
-      from l in List,
-        where:
-          l.account_id == ^viewer_id and l.exclusive == false and
-            not is_nil(l.filter_keyword) and l.filter_keyword != ""
-    )
-  end
-
   # ── helpers ─────────────────────────────────────────────────────────────
 
   defp stringify(attrs) when is_map(attrs) do

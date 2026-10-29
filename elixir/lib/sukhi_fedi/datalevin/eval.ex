@@ -132,6 +132,9 @@ defmodule SukhiFedi.Datalevin.Eval do
 
   def eval({:selected_as, _, [e, _]}, env), do: eval(e, env)
 
+  # A subquery's select fields arrive as `{name, expr}` pairs.
+  def eval({name, e}, env) when is_atom(name) and is_tuple(e), do: eval(e, env)
+
   def eval(other, _env),
     do: raise(Unsupported, "expression not supported by the Datalevin store: #{inspect(other)}")
 
@@ -203,6 +206,17 @@ defmodule SukhiFedi.Datalevin.Eval do
   defp fragment_fun("lower(?)", [v], _), do: if(is_binary(v), do: String.downcase(v), else: v)
   defp fragment_fun("length(?)", [v], _), do: if(is_binary(v), do: String.length(v), else: nil)
   defp fragment_fun("? LIKE ?", [a, b], _), do: like(a, b, false)
+  # Row-value comparison, the keyset-paging idiom.
+  defp fragment_fun("(?, ?) < (?, ?)", [a, b, c, d], _) do
+    {a, c} = {ts(a), ts(c)}
+
+    cond do
+      Enum.any?([a, b, c, d], &is_nil/1) -> nil
+      a != c -> a < c
+      true -> b < d
+    end
+  end
+
   defp fragment_fun("now()", [], _), do: System.os_time(:microsecond)
 
   defp fragment_fun("CAST(?->>'" <> rest, [v], _),
@@ -226,6 +240,13 @@ defmodule SukhiFedi.Datalevin.Eval do
         raise Unsupported, "fragment not supported by the Datalevin store: #{inspect(template)}"
     end
   end
+
+  defp ts(%DateTime{} = t), do: DateTime.to_unix(t, :microsecond)
+
+  defp ts(%NaiveDateTime{} = t),
+    do: t |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(:microsecond)
+
+  defp ts(v), do: v
 
   defp json_text(nil, _), do: nil
 

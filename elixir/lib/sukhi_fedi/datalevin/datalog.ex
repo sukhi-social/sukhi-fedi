@@ -287,14 +287,9 @@ defmodule SukhiFedi.Datalevin.Datalog do
     end
   end
 
-  defp translate({:like, _, [a, b]}, st) do
-    with {i, c} <- field(a),
-         {:ok, pat} when is_binary(pat) <- const(b, st) do
-      pred(st, i, c, fn x -> "[(like #{x} #{Edn.literal(like_pattern(pat))})]" end)
-    else
-      _ -> :residual
-    end
-  end
+  # dtlv 1.2.10's native image cannot run `like` (its LikeFSM is missing from
+  # the reflection config), so LIKE is always checked in Elixir, by `Eval`.
+  defp translate({:like, _, _}, _st), do: :residual
 
   defp translate(true, st), do: {:ok, [], st}
   defp translate(_, _), do: :residual
@@ -331,13 +326,6 @@ defmodule SukhiFedi.Datalevin.Datalog do
     do: pred(st, i, c, fn x -> "[(#{op} #{x} #{Edn.literal(v)})]" end)
 
   defp range(_, _, _, _), do: :residual
-
-  # SQL LIKE (backslash escapes) → Datalevin like (`!` escapes).
-  defp like_pattern(sql) do
-    sql
-    |> String.replace("!", "!!")
-    |> then(&Regex.replace(~r/\\(.)/s, &1, "!\\1"))
-  end
 
   defp flip(:<), do: :>
   defp flip(:<=), do: :>=

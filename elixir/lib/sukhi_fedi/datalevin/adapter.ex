@@ -40,7 +40,7 @@ defmodule SukhiFedi.Datalevin.Adapter do
   def prepare(kind, query), do: {:nocache, {kind, query}}
 
   def execute(_meta, _query_meta, {:nocache, {:all, query}}, params, _opts) do
-    rows = Query.all(query, params)
+    rows = Query.all_loaded(query, params)
     {length(rows), rows}
   end
 
@@ -51,7 +51,7 @@ defmodule SukhiFedi.Datalevin.Adapter do
     do: Query.delete_all(query, params)
 
   def stream(_meta, _query_meta, {:nocache, {:all, query}}, params, _opts) do
-    Stream.map([Query.all(query, params)], fn rows -> {length(rows), rows} end)
+    Stream.map([Query.all_loaded(query, params)], fn rows -> {length(rows), rows} end)
   end
 
   # ----------------------------------------------------------------- schema
@@ -68,9 +68,19 @@ defmodule SukhiFedi.Datalevin.Adapter do
     Writer.delete(source, filters, returning)
   end
 
+  # `insert_all("table", ...)` has no schema, so Ecto dumped nothing: turn what
+  # a caller gave (DateTime, Date, map, list, binary) into the stored form
+  # by the column's SQL type. Already-stored values pass through.
+  defp stored(%{schema: nil, source: source}, column, v) do
+    type = SukhiFedi.Datalevin.Catalog.type(source, column)
+    SukhiFedi.Datalevin.Types.store(v, type)
+  end
+
+  defp stored(_schema_meta, _column, v), do: v
+
   def insert_all(
         _meta,
-        %{source: source},
+        %{source: source} = schema_meta,
         _header,
         rows,
         on_conflict,
@@ -81,7 +91,10 @@ defmodule SukhiFedi.Datalevin.Adapter do
     results =
       Writer.transaction_if_needed(fn ->
         Enum.map(rows, fn row ->
-          params = Enum.map(row, fn {k, v} -> {k, placeholder(v, placeholders)} end)
+          params =
+            Enum.map(row, fn {k, v} ->
+              {k, stored(schema_meta, k, placeholder(v, placeholders))}
+            end)
 
           case Writer.insert(source, params, on_conflict, returning) do
             {:ok, ret} ->
