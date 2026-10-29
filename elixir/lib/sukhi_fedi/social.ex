@@ -221,6 +221,9 @@ defmodule SukhiFedi.Social do
     |> case do
       {:ok, %{follow: f}} ->
         if local_target? do
+          # no outbox row for a local pair; tell the graph directly
+          SukhiFedi.Graph.Local.changed({:follow, f.id, f.follower_uri})
+
           SukhiFedi.Notifications.create(%{
             account_id: target.id,
             from_account_id: follower_id,
@@ -281,8 +284,12 @@ defmodule SukhiFedi.Social do
         multi
         |> Repo.transaction()
         |> case do
-          {:ok, %{follow: f}} -> {:ok, f}
-          {:error, _step, reason, _} -> {:error, reason}
+          {:ok, %{follow: f}} ->
+            if local_target?, do: SukhiFedi.Graph.Local.changed({:follow, f.id, f.follower_uri})
+            {:ok, f}
+
+          {:error, _step, reason, _} ->
+            {:error, reason}
         end
     end
   end

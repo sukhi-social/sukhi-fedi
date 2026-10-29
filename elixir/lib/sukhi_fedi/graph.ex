@@ -25,7 +25,8 @@ defmodule SukhiFedi.Graph do
 
   @doc "Children for the application's supervisor: the graph's `dtlv` and the mirror queue; none when off."
   @spec children() :: [module()]
-  def children, do: if(enabled?(), do: [__MODULE__.Supervisor, __MODULE__.Mirror], else: [])
+  def children,
+    do: if(enabled?(), do: [__MODULE__.Supervisor, __MODULE__.Mirror, __MODULE__.Local], else: [])
 
   @doc "The name the graph's `dtlv` child is registered under."
   @spec client() :: atom()

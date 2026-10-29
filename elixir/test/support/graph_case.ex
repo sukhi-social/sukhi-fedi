@@ -15,6 +15,11 @@ defmodule SukhiFedi.GraphCase do
   end
 
   setup do
+    boot()
+  end
+
+  @doc "Start a throwaway graph for the calling test; returns the context `setup` hands out."
+  def boot do
     dir = Path.join(System.tmp_dir!(), "graph_test_#{System.unique_integer([:positive])}")
 
     config =
@@ -24,9 +29,9 @@ defmodule SukhiFedi.GraphCase do
         "DATALEVIN_DURABILITY" => "nosync"
       })
 
-    start_supervised!({SukhiFedi.Graph.Supervisor, config: config, dir: dir})
+    ExUnit.Callbacks.start_supervised!({SukhiFedi.Graph.Supervisor, config: config, dir: dir})
     {:ok, agent} = Agent.start_link(fn -> %{} end)
-    on_exit(fn -> File.rm_rf(dir) end)
+    ExUnit.Callbacks.on_exit(fn -> File.rm_rf(dir) end)
 
     raw_config = %SukhiFedi.RawStore.Config{
       backend: SukhiFedi.TestMemBlobs,

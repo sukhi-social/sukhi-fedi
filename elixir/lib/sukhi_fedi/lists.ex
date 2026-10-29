@@ -56,6 +56,7 @@ defmodule SukhiFedi.Lists do
     %List{}
     |> List.changeset(attrs)
     |> Repo.insert()
+    |> synced()
   end
 
   @spec update(integer(), integer() | String.t(), map()) ::
@@ -65,6 +66,7 @@ defmodule SukhiFedi.Lists do
       list
       |> List.changeset(stringify(attrs))
       |> Repo.update()
+      |> synced()
     end
   end
 
@@ -72,9 +74,17 @@ defmodule SukhiFedi.Lists do
           {:ok, List.t()} | {:error, :not_found}
   def delete(viewer_id, id) do
     with {:ok, list} <- get(viewer_id, id) do
-      Repo.delete(list)
+      Repo.delete(list) |> synced()
     end
   end
+
+  # A list is set into the graph whole after any change to it (or its removal).
+  defp synced({:ok, %List{id: id}} = ok) do
+    SukhiFedi.Graph.Local.changed({:list, id})
+    ok
+  end
+
+  defp synced(other), do: other
 
   # ── membership ──────────────────────────────────────────────────────────
 
@@ -126,6 +136,7 @@ defmodule SukhiFedi.Lists do
         conflict_target: [:list_id, :account_id]
       )
 
+      SukhiFedi.Graph.Local.changed({:list, lid})
       :ok
     end
   end
@@ -141,6 +152,7 @@ defmodule SukhiFedi.Lists do
           where: la.list_id == ^lid and la.account_id in ^ids
       )
 
+      SukhiFedi.Graph.Local.changed({:list, lid})
       :ok
     end
   end

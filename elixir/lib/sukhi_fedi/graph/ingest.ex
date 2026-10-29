@@ -117,6 +117,7 @@ defmodule SukhiFedi.Graph.Ingest do
         ":object/to" => refs(addressees, to),
         ":object/cc" => refs(addressees, cc),
         ":object/mentions" => Enum.map(mentions, & &1.tmp),
+        ":object/emojis" => Enum.map(emoji_entities(json), & &1[":db/id"]),
         ":object/content-html" => string(json["content"]),
         ":object/content-mfm" => mfm(json),
         ":object/summary" => string(json["summary"]),
@@ -134,7 +135,11 @@ defmodule SukhiFedi.Graph.Ingest do
         Enum.map(mentions, & &1.entity) ++
         parent_entities(id, parent, root_iri, root_stub) ++
         rehome(id, root_ref(id, parent, root_iri)) ++
-        [object] ++ bodies(json, @object) ++ hashtags(json, @object, published)
+        emoji_entities(json) ++
+        [object] ++
+        bodies(json, @object) ++
+        hashtags(json, @object, published) ++
+        attachments(json, @object) ++ poll(json, @object)
 
     with {:ok, _} <- Graph.transact(tx), do: {:ok, %{id: id, sid: sid, visibility: visibility}}
   end
@@ -280,6 +285,73 @@ defmodule SukhiFedi.Graph.Ingest do
   end
 
   defp bodies(_json, _object), do: []
+
+  # Custom emoji used in the text: `tag` entries of type Emoji.
+  defp emoji_entities(json) do
+    json
+    |> Map.get("tag", [])
+    |> List.wrap()
+    |> Enum.filter(&(is_map(&1) and &1["type"] == "Emoji" and is_binary(&1["id"])))
+    |> Enum.uniq_by(& &1["id"])
+    |> Enum.with_index()
+    |> Enum.map(fn {e, i} ->
+      %{
+        ":db/id" => -(2000 + i),
+        ":emoji/id" => e["id"],
+        ":emoji/name" => e["name"] && String.trim(e["name"], ":"),
+        ":emoji/host" => URI.parse(e["id"]).host,
+        ":emoji/image-url" => get_in(e, ["icon", "url"]),
+        ":emoji/updated-at" => Graph.micros(e["updated"])
+      }
+      |> compact()
+    end)
+  end
+
+  # `attachment`: one entity per file, identified by (object, url).
+  defp attachments(json, object) do
+    json
+    |> Map.get("attachment", [])
+    |> List.wrap()
+    |> Enum.filter(&(is_map(&1) and is_binary(&1["url"])))
+    |> Enum.map(fn a ->
+      compact(%{
+        ":attachment/object" => object,
+        ":attachment/url" => a["url"],
+        ":attachment/media-type" => a["mediaType"],
+        ":attachment/alt" => string(a["name"]),
+        ":attachment/blurhash" => a["blurhash"],
+        ":attachment/sensitive?" => if(is_boolean(a["sensitive"]), do: a["sensitive"]),
+        ":attachment/width" => if(is_integer(a["width"]), do: a["width"]),
+        ":attachment/height" => if(is_integer(a["height"]), do: a["height"])
+      })
+    end)
+  end
+
+  # A Question: its choices (`oneOf` = single, `anyOf` = multiple) and end time.
+  defp poll(%{"type" => "Question"} = json, object) do
+    {choices, multiple?} =
+      case {json["oneOf"], json["anyOf"]} do
+        {[_ | _] = c, _} -> {c, false}
+        {_, [_ | _] = c} -> {c, true}
+        _ -> {[], false}
+      end
+
+    poll_tmp = -3000
+
+    [
+      compact(%{
+        ":db/id" => poll_tmp,
+        ":poll/object" => object,
+        ":poll/ends-at" => Graph.micros(json["endTime"] || json["closed"]),
+        ":poll/multiple?" => multiple?
+      })
+      | for {c, i} <- Enum.with_index(choices), is_map(c), is_binary(c["name"]) do
+          %{":choice/poll" => poll_tmp, ":choice/title" => c["name"], ":choice/pos" => i}
+        end
+    ]
+  end
+
+  defp poll(_, _), do: []
 
   defp hashtags(json, object, published) do
     json

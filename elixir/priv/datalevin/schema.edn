@@ -161,6 +161,9 @@
  :attachment/blurhash   {:db/valueType :db.type/string}
  :attachment/sensitive? {:db/valueType :db.type/boolean}
  :attachment/alt        {:db/valueType :db.type/string}
+ :attachment/uniq     {:db/valueType :db.type/tuple
+                        :db/tupleAttrs [:attachment/object :attachment/url]
+                        :db/unique :db.unique/identity}
  :attachment/width      {:db/valueType :db.type/long}
  :attachment/height     {:db/valueType :db.type/long}
 
@@ -170,6 +173,9 @@
  :choice/poll   {:db/valueType :db.type/ref}
  :choice/title  {:db/valueType :db.type/string}
  :choice/pos    {:db/valueType :db.type/long}
+ :choice/uniq   {:db/valueType :db.type/tuple
+                 :db/tupleAttrs [:choice/poll :choice/pos]
+                 :db/unique :db.unique/identity}
  :vote/actor    {:db/valueType :db.type/ref}
  :vote/choice   {:db/valueType :db.type/ref}
  :vote/uniq     {:db/valueType :db.type/tuple
@@ -222,6 +228,7 @@
  :pin/uniq   {:db/valueType :db.type/tuple
               :db/tupleAttrs [:pin/actor :pin/object]
               :db/unique :db.unique/identity}
+ :list/sid     {:db/valueType :db.type/long :db/unique :db.unique/identity} ;; Postgres の lists.id(API の ID)
  :list/owner   {:db/valueType :db.type/ref}
  :list/title   {:db/valueType :db.type/string}
  :list/members {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
@@ -247,6 +254,10 @@
  :instance/state {:db/valueType :db.type/keyword} ;; :ok :silenced :blocked(Postgres の instance_blocks.severity)
  :instance/reason {:db/valueType :db.type/string}
  :instance/last-failure-at {:db/valueType :db.type/long}
+
+ ;; ───────── 同期位置(ローカル操作の取り込み。Graph.Local) ─────────
+ :sync/name   {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :sync/cursor {:db/valueType :db.type/long}
 
  ;; ───────── Local user ─────────
  :user/actor     {:db/valueType :db.type/ref :db/unique :db.unique/identity}

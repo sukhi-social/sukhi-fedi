@@ -48,6 +48,27 @@ defmodule SukhiFedi.Graph.Activity do
 
   # ------------------------------------------------------------------ Create
 
+  # A vote arrives as a Create of a Note with a `name` (the chosen option),
+  # no content, replying to the Question.
+  defp create(%{"object" => %{"type" => "Note", "name" => name, "inReplyTo" => question} = object} = a, _opts)
+       when is_binary(name) and not is_map_key(object, "content") do
+    with actor when is_binary(actor) <- iri(a["actor"]),
+         question when is_binary(question) <- iri(question),
+         [[choice]] <-
+           Graph.query!(
+             "[:find ?c :where [?q :object/id #{lit(question)}] [?p :poll/object ?q] [?c :choice/poll ?p] [?c :choice/title #{lit(name)}]]"
+           ) do
+      tx = [
+        %{":db/id" => -1, ":actor/id" => actor},
+        %{":vote/actor" => -1, ":vote/choice" => choice}
+      ]
+
+      Graph.exclusive(fn -> with {:ok, _} <- Graph.transact(tx), do: :ok end)
+    else
+      _ -> {:ignored, :unknown_poll}
+    end
+  end
+
   defp create(%{"object" => %{"type" => type} = object} = a, opts) when type in @object_types do
     object = Map.put_new(object, "attributedTo", iri(a["actor"]))
     raw = :json.encode(object) |> IO.iodata_to_binary()
@@ -84,15 +105,19 @@ defmodule SukhiFedi.Graph.Activity do
       type = String.to_atom(a["type"])
       key = reaction_key(a)
 
-      extra = [
-        %{
-          ":reaction/id" => a["id"],
-          ":reaction/actor" => -2,
-          ":reaction/object" => -3,
-          ":reaction/key" => key,
-          ":reaction/at" => at(a, opts)
-        }
-      ]
+      emoji = custom_emoji(a)
+
+      extra =
+        [
+          compact(%{
+            ":reaction/id" => a["id"],
+            ":reaction/actor" => -2,
+            ":reaction/object" => -3,
+            ":reaction/key" => key,
+            ":reaction/emoji" => if(emoji, do: -4),
+            ":reaction/at" => at(a, opts)
+          })
+        ] ++ if(emoji, do: [emoji], else: [])
 
       with :ok <- write_activity(a, type, object_ref: object, opts: opts, extra: extra) do
         notify_local_author(
@@ -107,6 +132,29 @@ defmodule SukhiFedi.Graph.Activity do
       _ -> {:ignored, :shape}
     end
   end
+
+  # The custom emoji an EmojiReact names (its `tag`), as an entity with tempid -4.
+  defp custom_emoji(a) do
+    a
+    |> Map.get("tag", [])
+    |> List.wrap()
+    |> Enum.find(&(is_map(&1) and &1["type"] == "Emoji" and is_binary(&1["id"])))
+    |> case do
+      nil ->
+        nil
+
+      e ->
+        compact(%{
+          ":db/id" => -4,
+          ":emoji/id" => e["id"],
+          ":emoji/name" => e["name"] && String.trim(e["name"], ":"),
+          ":emoji/host" => URI.parse(e["id"]).host,
+          ":emoji/image-url" => get_in(e, ["icon", "url"])
+        })
+    end
+  end
+
+  defp compact(map), do: map |> Enum.reject(fn {_, v} -> is_nil(v) or v == "" end) |> Map.new()
 
   defp reaction_key(%{"type" => "Like", "content" => nil}), do: "like"
   defp reaction_key(%{"type" => "Like"} = a) when not is_map_key(a, "content"), do: "like"

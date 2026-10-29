@@ -343,6 +343,7 @@ defmodule SukhiFedi.Notes.Interactions do
         %Bookmark{account_id: account_id, note_id: note.id}
         |> Repo.insert(on_conflict: :nothing)
 
+      SukhiFedi.Graph.Local.changed({:bookmark, account_id, note.id})
       {:ok, note}
     end)
   end
@@ -358,6 +359,7 @@ defmodule SukhiFedi.Notes.Interactions do
           from(b in Bookmark, where: b.account_id == ^account_id and b.note_id == ^note.id)
         )
 
+      SukhiFedi.Graph.Local.changed({:bookmark, account_id, note.id})
       {:ok, note}
     end)
   end
