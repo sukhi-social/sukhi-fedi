@@ -28,4 +28,4 @@ setErrorPage((ctx, status) => {
 });
 
 serve(config.port);
-console.log(`sukhi-web-unpoly: http://localhost:${config.port}  (gateway: ${config.gateway})`);
+console.log(`sukhi-web-next: http://localhost:${config.port}  (gateway: ${config.gateway})`);

@@ -1,4 +1,4 @@
-# sukhi-web-unpoly
+# sukhi-web-next
 
 sukhi-fedi の web を、**Unpoly + Alpine.js の MPA** で作りなおしたもの。
 `sukhi-web-next`(SvelteKit の SPA)と `sukhi-fedi/web` を読んで、同じことばと見た目を借りている。

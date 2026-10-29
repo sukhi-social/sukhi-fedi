@@ -31,7 +31,7 @@ defmodule SukhiFedi.Notifications do
   A client may ask for more than the account chose — `hold_minutes:` and
   `grouping:` in the opts of every read and dismiss — and only ever for more:
   the effective hold is the larger of the two, grouping is on if either is.
-  That is how a client with a house pace (web-unpoly) slows everyone it
+  That is how a client with a house pace (web-next) slows everyone it
   serves without touching anyone's setting.
 
   The whole rule is `pace/2` (what applies) and `scope/3` (what a

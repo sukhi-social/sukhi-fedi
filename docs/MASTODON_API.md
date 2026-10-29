@@ -160,7 +160,7 @@ types in `WebPush.direct_types/0`) can be slowed and folded, per account:
   `next` is the oldest id the page consumed. A group does not span pages.
 - Any of the four routes also accepts `hold_minutes=N` and `grouping=true`,
   which ask for a slower pace than the account's, never a faster one. A
-  client with a house pace (web-unpoly) sends them on every call so it
+  client with a house pace (web-next) sends them on every call so it
   applies whatever the account chose.
 
 The rule lives in `SukhiFedi.Notifications` (`pace/2`, `scope/3`).
