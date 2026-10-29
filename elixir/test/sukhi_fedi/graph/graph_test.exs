@@ -203,7 +203,10 @@ defmodule SukhiFedi.Graph.GraphTest do
             "inReplyTo" => "https://r/o/thread-root",
             "attributedTo" => "https://l/u/me"
           }),
-          c, now: old, local?: true)
+          c,
+          now: old,
+          local?: true
+        )
 
       {:ok, _} = at.("https://r/o/young", %{})
       {:ok, _} = ingest(note("https://r/o/fresh", %{}), c, now: now)

@@ -19,6 +19,14 @@ defmodule SukhiFedi.Graph do
 
   @client __MODULE__.Client
 
+  @doc "Is the graph store running beside the main one? (`SUKHI_GRAPH=1`, read once into config by `runtime.exs`.)"
+  @spec enabled?() :: boolean()
+  def enabled?, do: Application.get_env(:sukhi_fedi, :graph, false) == true
+
+  @doc "Children for the application's supervisor: the graph's `dtlv` and the mirror queue; none when off."
+  @spec children() :: [module()]
+  def children, do: if(enabled?(), do: [__MODULE__.Supervisor, __MODULE__.Mirror], else: [])
+
   @doc "The name the graph's `dtlv` child is registered under."
   @spec client() :: atom()
   def client, do: @client

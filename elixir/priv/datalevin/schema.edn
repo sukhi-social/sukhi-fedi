@@ -199,6 +199,7 @@
  :entry/owner+at {:db/valueType :db.type/tuple :db/tupleAttrs [:entry/owner :entry/at]}
 
  ;; ───────── Notification ─────────
+ :notification/sid       {:db/valueType :db.type/long :db/unique :db.unique/identity} ;; API の ID(Snowflake)
  :notification/recipient {:db/valueType :db.type/ref}
  :notification/type      {:db/valueType :db.type/keyword}
  :notification/source    {:db/valueType :db.type/ref}

@@ -1,0 +1,126 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Graph store benchmark: `mix sukhi.graph.bench` (a synthetic instance built
+# through the real ingest path, then each read timed cold) on a real `dtlv`.
+# It reports, it does not gate: a shared runner is noisy, so the table is the
+# PR's numbers next to main's, measured on the same runner one after the
+# other. A row is flagged only when p95 is both >25% and >2 ms worse.
+#
+# main has no graph store until this lands; then the baseline step is skipped
+# and the table has only the PR's column. The bench task is copied from the
+# PR into the main checkout so both sides run the same workload.
+name: graph-bench
+
+on:
+  pull_request:
+    paths:
+      - "elixir/lib/sukhi_fedi/graph/**"
+      - "elixir/lib/sukhi_fedi/graph.ex"
+      - "elixir/lib/sukhi_fedi/raw_store/**"
+      - "elixir/lib/sukhi_fedi/datalevin/**"
+      - "elixir/lib/mix/tasks/sukhi.graph.bench.ex"
+      - "elixir/priv/datalevin/schema.edn"
+      - ".github/workflows/graph-bench.yml"
+  workflow_dispatch:
+    inputs:
+      objects:
+        description: "objects per run"
+        default: "20000"
+
+permissions:
+  contents: read
+
+env:
+  # Pinned: the release asset and its checksum (dtlv 1.2.10, ubuntu-22.04 amd64).
+  DTLV_URL: https://github.com/datalevin/datalevin/releases/download/1.2.10/dtlv-1.2.10-ubuntu-22.04-amd64.zip
+  DTLV_SHA256: b42c1ef4b6a9ccf2a42b21f9c576fe774ff877c15826031755f0b94a3c0df3e5
+
+jobs:
+  bench:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { durability: relaxed, objects: 20000 }
+          - { durability: strict, objects: 3000 }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: head
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: base
+
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: head
+          install: true
+          cache: true
+
+      - name: dtlv
+        run: |
+          curl -fsSL -o dtlv.zip "$DTLV_URL"
+          echo "$DTLV_SHA256  dtlv.zip" | sha256sum -c -
+          unzip -q dtlv.zip -d "$HOME/dtlv-bin"
+          chmod +x "$HOME/dtlv-bin/dtlv"
+          echo "DATALEVIN_BIN=$HOME/dtlv-bin/dtlv" >> "$GITHUB_ENV"
+
+      - name: Cache deps and builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            head/elixir/deps
+            head/elixir/_build
+            base/elixir/deps
+            base/elixir/_build
+          key: graph-bench-${{ runner.os }}-${{ hashFiles('head/elixir/mix.lock') }}-${{ github.sha }}
+          restore-keys: |
+            graph-bench-${{ runner.os }}-${{ hashFiles('head/elixir/mix.lock') }}-
+            graph-bench-${{ runner.os }}-
+
+      - name: Hex and rebar
+        working-directory: head
+        run: mix local.hex --force && mix local.rebar --force
+
+      # The baseline: main, if it already has the graph store, run with the
+      # PR's bench task so the workload is the same. Any failure here only
+      # means "no baseline"; it never fails the job.
+      - name: Benchmark main
+        id: base
+        continue-on-error: true
+        working-directory: base/elixir
+        env:
+          MIX_ENV: test
+        run: |
+          if [ ! -f lib/sukhi_fedi/graph.ex ]; then echo "main has no graph store; no baseline"; exit 1; fi
+          cp ../../head/elixir/lib/mix/tasks/sukhi.graph.bench.ex lib/mix/tasks/
+          cp ../../head/elixir/lib/sukhi_fedi/graph/bench.ex lib/sukhi_fedi/graph/
+          mix deps.get
+          mix sukhi.graph.bench --label main --durability "${{ matrix.durability }}" \
+            --objects "${{ github.event.inputs.objects || matrix.objects }}" \
+            --out "$GITHUB_WORKSPACE/out/base-${{ matrix.durability }}.json"
+
+      - name: Benchmark head
+        working-directory: head/elixir
+        env:
+          MIX_ENV: test
+        run: |
+          mix deps.get
+          args=(--label pr --durability "${{ matrix.durability }}" \
+            --objects "${{ github.event.inputs.objects || matrix.objects }}" \
+            --out "$GITHUB_WORKSPACE/out/head-${{ matrix.durability }}.json")
+          if [ -f "$GITHUB_WORKSPACE/out/base-${{ matrix.durability }}.json" ]; then
+            args+=(--baseline "$GITHUB_WORKSPACE/out/base-${{ matrix.durability }}.json")
+          fi
+          mix sukhi.graph.bench "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: graph-bench-${{ matrix.durability }}
+          path: out/
+          retention-days: 14

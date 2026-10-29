@@ -210,6 +210,12 @@ if vapid_public not in [nil, ""] do
       )
 end
 
+# The graph store beside the main database (docs/DATALEVIN_SCHEMA.md): a second
+# Datalevin, fed from the inbox. Off unless asked.
+if System.get_env("SUKHI_GRAPH") in ["1", "true"] do
+  config :sukhi_fedi, :graph, true
+end
+
 # Which database holds the business data (docs/DATALEVIN.md). Everything
 # else about it is read by SukhiFedi.Datalevin.Config when the store starts.
 if System.get_env("SUKHI_STORE", "postgres") == "datalevin" do
