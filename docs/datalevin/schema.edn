@@ -30,6 +30,7 @@
  :actor/outbox       {:db/valueType :db.type/string}
  :actor/shared-inbox {:db/valueType :db.type/string}
  :actor/raw          {:db/valueType :db.type/string}
+ :actor/raw-ref      {:db/valueType :db.type/string}
  :actor/fetched-at   {:db/valueType :db.type/instant}
  :actor/handle       {:db/valueType :db.type/tuple
                       :db/tupleAttrs [:actor/username :actor/host]
@@ -60,7 +61,7 @@
  :object/updated       {:db/valueType :db.type/instant}
  :object/received-at   {:db/valueType :db.type/instant}
  :object/fetched-at    {:db/valueType :db.type/instant}
- :object/retained?     {:db/valueType :db.type/boolean}
+ :object/touched-at    {:db/valueType :db.type/instant} ;; 最後に読まれた/配られた時刻。掃除の猶予の基準(保持の理由は保存せず、掃除のときに Datalog で導く)
  :object/in-reply-to   {:db/valueType :db.type/ref}
  :object/root          {:db/valueType :db.type/ref}   ;; スレッドの根(Postgres の conversation_ap_id の代わり)
  :object/quote-of      {:db/valueType :db.type/ref}
@@ -76,7 +77,11 @@
  :object/summary       {:db/valueType :db.type/string} ;; CW
  :object/sensitive?    {:db/valueType :db.type/boolean}
  :object/language      {:db/valueType :db.type/string}
- :object/raw           {:db/valueType :db.type/string} ;; 必須。FEP-8b32 の証明検証と転送の原本
+ ;; 原本は必須。小さければ raw に直接、大きければ内容アドレスのポインタ(raw-ref)。どちらか一方だけが付く。
+ ;; 書き分けは RawStore.put の 1 か所だけが決める(docs/DATALEVIN_SCHEMA.md「大きい raw」)。
+ :object/raw           {:db/valueType :db.type/string} ;; FEP-8b32 の証明検証と転送の原本(閾値以下)
+ :object/raw-ref       {:db/valueType :db.type/string} ;; "sha256:<hex>"。blob 側のキー
+ :object/raw-size      {:db/valueType :db.type/long}
  :object/proof-verified? {:db/valueType :db.type/boolean}
  :object/proof-key     {:db/valueType :db.type/ref}
  :object/deleted-at    {:db/valueType :db.type/instant} ;; Tombstone。中身は消して印だけ残す
@@ -86,6 +91,7 @@
  :object/vis+published    {:db/valueType :db.type/tuple :db/tupleAttrs [:object/visibility :object/published]}
  :object/local+published  {:db/valueType :db.type/tuple :db/tupleAttrs [:object/local? :object/published]} ;; ローカルタイムライン
  :object/root+published   {:db/valueType :db.type/tuple :db/tupleAttrs [:object/root :object/published]}   ;; スレッド表示
+ :object/root+local       {:db/valueType :db.type/tuple :db/tupleAttrs [:object/root :object/local?]}      ;; 掃除: スレッドにローカルの参加者がいるか
 
  ;; ───────── 多言語本文(contentMap が来たときだけ展開) ─────────
  :content/object {:db/valueType :db.type/ref}
@@ -106,6 +112,7 @@
  :activity/published {:db/valueType :db.type/instant}
  :activity/local?    {:db/valueType :db.type/boolean}
  :activity/raw       {:db/valueType :db.type/string}
+ :activity/raw-ref   {:db/valueType :db.type/string}
  :activity/actor+published {:db/valueType :db.type/tuple :db/tupleAttrs [:activity/actor :activity/published]}
  ;; 「この人はこれをブーストしたか」を引く索引。identity にはしない(Create は object が毎回違い、Undo で消える種類もある)
  :activity/actor+type+object {:db/valueType :db.type/tuple :db/tupleAttrs [:activity/actor :activity/type :activity/object]}
