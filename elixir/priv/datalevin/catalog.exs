@@ -938,7 +938,9 @@
       %{default: "ARRAY[]::jsonb[]", name: "roles", type: "ARRAY", null: false},
       %{default: nil, name: "location", type: "character varying", null: true},
       %{default: nil, name: "birthday", type: "date", null: true},
-      %{default: nil, name: "deleted_at", type: "timestamp without time zone", null: true}
+      %{default: nil, name: "deleted_at", type: "timestamp without time zone", null: true},
+      %{default: nil, name: "notification_hold_minutes", type: "integer", null: true},
+      %{default: "false", name: "notification_grouping", type: "boolean", null: false}
     ],
     unique: [
       %{name: "accounts_actor_uri_index", keys: [col: "actor_uri"], where: [not_null: "actor_uri"]},

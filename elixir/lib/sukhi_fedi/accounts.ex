@@ -293,9 +293,24 @@ defmodule SukhiFedi.Accounts do
     end
   end
 
+  # How the person likes their notifications paced is theirs alone: it never
+  # shows on the actor, so changing only it must not send peers an Update.
+  @pace_keys [:notification_hold_minutes, :notification_grouping]
+
   defp do_update(%Account{} = account, attrs) do
     cs = account |> Account.changeset_credentials(attrs) |> put_emojis()
 
+    if cs.valid? and Map.keys(cs.changes) -- @pace_keys == [] do
+      case Repo.update(cs) do
+        {:ok, a} -> {:ok, a}
+        {:error, %Ecto.Changeset{} = cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
+      end
+    else
+      do_update_profile(cs)
+    end
+  end
+
+  defp do_update_profile(cs) do
     Multi.new()
     |> Multi.update(:account, cs)
     |> Outbox.enqueue_multi(

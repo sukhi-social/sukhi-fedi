@@ -250,7 +250,10 @@ defmodule SukhiApi.Views.MastodonAccount do
         # the stored HTML (the client strips it for the edit box).
         note: Map.get(account, :summary_source) || Map.get(account, :summary) || "",
         fields: source_fields(account),
-        follow_requests_count: 0
+        follow_requests_count: 0,
+        # sukhi's own: how ambient notifications are paced. nil = never chosen.
+        notification_hold_minutes: Map.get(account, :notification_hold_minutes),
+        notification_grouping: Map.get(account, :notification_grouping, false) || false
       },
       role:
         if Map.get(account, :is_admin, false) do

@@ -14,6 +14,9 @@ defmodule SukhiApi.Views.MastodonNotification do
         status: <Status> | nil
       }
 
+  With the viewer's grouping on, a row that stands for several carries
+  `group: %{accounts: [Account]}` (all of them, newest first).
+
   `:account` is the actor that caused the notification (= the
   `from_account` association). `:status` is the related Note for
   type ∈ {favourite, reblog, mention, status, poll, update}; `nil`
@@ -26,13 +29,21 @@ defmodule SukhiApi.Views.MastodonNotification do
   def render(nil), do: nil
 
   def render(notif) do
-    %{
+    base = %{
       id: Id.encode(notif.id),
       type: notif.type,
       created_at: Timestamp.iso8601(Map.get(notif, :created_at)),
       account: account_view(Map.get(notif, :from_account)),
       status: status_view(Map.get(notif, :note))
     }
+
+    # sukhi's own: only when the viewer has grouping on and this row stands
+    # for several. `accounts` is every member, newest first (the first is
+    # `account`).
+    case Map.get(notif, :group) do
+      [_, _ | _] = members -> Map.put(base, :group, %{accounts: Enum.map(members, &account_view/1)})
+      _ -> base
+    end
   end
 
   @spec render_list([map()]) :: [map()]

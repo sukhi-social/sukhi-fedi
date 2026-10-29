@@ -61,6 +61,10 @@ defmodule SukhiFedi.Schema.Account do
     # search/indexing of this actor's posts.
     field :discoverable, :boolean, default: false
     field :indexable, :boolean, default: false
+    # Pace of ambient notifications (SukhiFedi.Notifications). `hold_minutes`
+    # is NULL until someone chooses (see the migration); grouping is opt-in.
+    field :notification_hold_minutes, :integer
+    field :notification_grouping, :boolean, default: false
     field :suspended_at, :utc_datetime
     field :suspended_by_id, :id
     field :suspension_reason, :string
@@ -230,9 +234,15 @@ defmodule SukhiFedi.Schema.Account do
       :discoverable,
       :indexable,
       :location,
-      :birthday
+      :birthday,
+      :notification_hold_minutes,
+      :notification_grouping
     ])
     |> update_change(:fields, &cast_local_fields/1)
+    |> validate_number(:notification_hold_minutes,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 1440
+    )
     |> validate_length(:display_name, max: 100)
     |> validate_length(:location, max: @max_location)
     |> validate_length(:summary, max: 1024)
