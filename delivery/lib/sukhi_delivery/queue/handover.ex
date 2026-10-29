@@ -40,7 +40,9 @@ defmodule SukhiDelivery.Queue.Handover do
   end
 
   def start_link do
-    if Application.get_env(:sukhi_delivery, :queue_handover, true) do
+    # Nothing to move when there never was a Postgres.
+    if Application.get_env(:sukhi_delivery, :queue_handover, true) and
+         not SukhiDelivery.Queue.datalevin?() do
       try do
         case run() do
           0 -> :ok
@@ -91,9 +93,17 @@ defmodule SukhiDelivery.Queue.Handover do
       )
 
     # SKIP LOCKED keeps us off a row some other node is working.
-    if source.__adapter__() == Ecto.Adapters.Postgres,
+    if postgres?(source),
       do: lock(query, "FOR UPDATE SKIP LOCKED"),
       else: query
+  end
+
+  # The repo's adapter is the store dispatcher, which says which store it is on.
+  defp postgres?(repo) do
+    case repo.__adapter__() do
+      Ecto.Adapters.Postgres -> true
+      adapter -> function_exported?(adapter, :kind, 0) and adapter.kind() == :postgres
+    end
   end
 
   defp row(job) do

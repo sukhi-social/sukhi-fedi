@@ -12,13 +12,21 @@ else
   config :sukhi_delivery, :domain, System.get_env("DOMAIN", "localhost:4000")
 end
 
+# Same switch as the gateway's (SUKHI_STORE=datalevin, docs/DATALEVIN.md). The
+# Datalevin store is the gateway's, so this only works in the combined release.
+datalevin? = System.get_env("SUKHI_STORE", "postgres") == "datalevin"
+if datalevin?, do: config(:sukhi_delivery, :store, :datalevin)
+
 if config_env() == :prod do
-  config :sukhi_delivery, SukhiDelivery.Repo,
-    database: System.get_env("DB_NAME", "sukhi_fedi"),
-    username: System.fetch_env!("DB_USER"),
-    password: System.fetch_env!("DB_PASS"),
-    hostname: System.get_env("DB_HOST", "localhost"),
-    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "5"))
+  # Datalevin has no connection to configure: the repo joins the gateway's store.
+  unless datalevin? do
+    config :sukhi_delivery, SukhiDelivery.Repo,
+      database: System.get_env("DB_NAME", "sukhi_fedi"),
+      username: System.fetch_env!("DB_USER"),
+      password: System.fetch_env!("DB_PASS"),
+      hostname: System.get_env("DB_HOST", "localhost"),
+      pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "5"))
+  end
 
   config :sukhi_delivery, :nats,
     host: System.get_env("NATS_HOST", "127.0.0.1"),
@@ -44,7 +52,9 @@ if config_env() == :prod do
   # Delivery queue backend. `sqlite` moves the `delivery` and
   # `outbox_dispatch` queues to a single-node SQLite file (Oban Lite); the
   # rest stays in Postgres. Single node only — the file is not shared.
-  if System.get_env("DELIVERY_QUEUE", "postgres") == "sqlite" do
+  # Without Postgres there is nowhere else for a queue to be, so Datalevin
+  # implies it (and every queue moves there, see SukhiDelivery.Queue).
+  if datalevin? or System.get_env("DELIVERY_QUEUE", "postgres") == "sqlite" do
     config :sukhi_delivery, :queue_backend, :sqlite
 
     # On boot, move jobs still in Postgres into the SQLite queue (once, idempotent).
@@ -57,6 +67,9 @@ if config_env() == :prod do
     # delivery node, where :sukhi_fedi isn't running.
     config :sukhi_fedi, :extra_job_repos, [SukhiDelivery.QueueRepo]
     config :sukhi_fedi, :delivery_oban, SukhiDelivery.QueueOban
+
+    # Web Push jobs: on Datalevin the `push` queue is drained here too.
+    if datalevin?, do: config(:sukhi_fedi, :push_oban, SukhiDelivery.QueueOban)
 
     config :sukhi_delivery, SukhiDelivery.QueueRepo,
       database: System.get_env("DELIVERY_QUEUE_DB", "/var/lib/sukhi/delivery_queue.db"),

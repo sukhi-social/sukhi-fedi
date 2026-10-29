@@ -181,7 +181,7 @@ using Postgres, which the delivery node still drains.
 
 | Var | Default | Meaning |
 |---|---|---|
-| `DELIVERY_QUEUE` | `postgres` | `postgres` or `sqlite` |
+| `DELIVERY_QUEUE` | `postgres` | `postgres` or `sqlite`. Implied (all queues) by `SUKHI_STORE=datalevin` in the combined release |
 | `DELIVERY_QUEUE_DB` | `/var/lib/sukhi/delivery_queue.db` | SQLite file (directory must exist) |
 | `DELIVERY_QUEUE_SYNCHRONOUS` | `full` | `full` or `normal` (WAL; `normal` can lose the last commits on power loss) |
 | `DELIVERY_QUEUE_POOL_SIZE` | `5` | SQLite connection pool |

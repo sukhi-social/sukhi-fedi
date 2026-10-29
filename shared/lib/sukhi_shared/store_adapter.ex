@@ -46,6 +46,9 @@ defmodule SukhiShared.StoreAdapter do
       @owner owner?
       @pg Ecto.Adapters.Postgres
 
+      # An app that never selects Datalevin need not contain its adapter.
+      @compile {:no_warn_undefined, datalevin}
+
       # What `use Ecto.Adapters.SQL` would have defined on the repo (`query/3` …).
       @impl Ecto.Adapter
       defmacro __before_compile__(env), do: Ecto.Adapters.SQL.__before_compile__(:postgres, env)

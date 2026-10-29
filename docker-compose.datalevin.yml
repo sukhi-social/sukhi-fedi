@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# A new instance with no Postgres: the business data lives in Datalevin
+# (docs/DATALEVIN.md) and the job queues in SQLite. Layer it over the
+# combined stack — Datalevin has one writer, so gateway and delivery must
+# be the one BEAM:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.combined.yml \
+#                  -f docker-compose.datalevin.yml up -d
+#
+# Needs Docker Compose 2.24+ (`!override`). There is no migration from an
+# existing Postgres instance yet: this starts empty (TODO.md).
+
+services:
+  postgres:
+    profiles: ["disabled"]
+
+  gateway:
+    environment:
+      SUKHI_STORE: datalevin
+      DATALEVIN_DIR: /var/lib/sukhi/datalevin
+      SUKHI_QUEUE_DB: /var/lib/sukhi/queue.db
+      DELIVERY_QUEUE_DB: /var/lib/sukhi/delivery_queue.db
+      # The graph store (docs/DATALEVIN_SCHEMA.md) is a second database in the same directory.
+      SUKHI_GRAPH: ${SUKHI_GRAPH:-1}
+    volumes:
+      - sukhi_data:/var/lib/sukhi
+    depends_on: !override
+      nats:
+        condition: service_healthy
+
+volumes:
+  sukhi_data:

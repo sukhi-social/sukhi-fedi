@@ -117,6 +117,19 @@ FROM scratch AS cache-warm
 COPY --from=spa-deps /spa/package.json /spa-deps
 COPY --from=deps /repo/combined/mix.exs /deps
 
+# ── dtlv (SUKHI_STORE=datalevin) ──────────────────────────────────────────
+# The Datalevin store runs `dtlv` as a child of the BEAM. Only the release
+# built for glibc is published, so the runtime stage below adds `gcompat`.
+# Pinned and checked; ignored unless SUKHI_STORE=datalevin.
+FROM alpine:3.22 AS dtlv
+ARG DTLV_VERSION=1.2.10
+ARG DTLV_SHA256=b42c1ef4b6a9ccf2a42b21f9c576fe774ff877c15826031755f0b94a3c0df3e5
+RUN apk add --no-cache curl unzip && \
+    curl -fsSL -o /tmp/dtlv.zip \
+      "https://github.com/datalevin/datalevin/releases/download/${DTLV_VERSION}/dtlv-${DTLV_VERSION}-ubuntu-22.04-amd64.zip" && \
+    echo "${DTLV_SHA256}  /tmp/dtlv.zip" | sha256sum -c - && \
+    unzip -j /tmp/dtlv.zip dtlv -d /opt && chmod +x /opt/dtlv
+
 # ── Runtime ───────────────────────────────────────────────────────────────
 FROM elixir:1.20-alpine
 
@@ -124,7 +137,8 @@ LABEL service="sukhi-fedi"
 
 WORKDIR /app
 
-RUN apk add --no-cache libstdc++ openssl ncurses-libs vips
+RUN apk add --no-cache libstdc++ openssl ncurses-libs vips gcompat zlib
+COPY --from=dtlv /opt/dtlv /usr/local/bin/dtlv
 
 COPY --from=build /repo/combined/_build/prod/rel/combined ./
 COPY combined/rel/entrypoint.sh /app/entrypoint.sh

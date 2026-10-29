@@ -13,4 +13,14 @@ defmodule SukhiFedi.DeliveryQueue do
   def insert!(changeset) do
     Oban.insert!(Application.get_env(:sukhi_fedi, :delivery_oban, SukhiFedi.Oban), changeset)
   end
+
+  @doc """
+  Enqueue a Web Push send. The `push` queue is drained by the delivery node:
+  with Postgres that is the gateway's own Oban (same database); with Datalevin
+  the combined release points `:push_oban` at the delivery node's queue.
+  """
+  @spec insert_push(Ecto.Changeset.t()) :: {:ok, Oban.Job.t()} | {:error, term()}
+  def insert_push(changeset) do
+    Oban.insert(Application.get_env(:sukhi_fedi, :push_oban, SukhiFedi.Oban), changeset)
+  end
 end

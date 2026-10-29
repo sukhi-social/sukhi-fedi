@@ -269,7 +269,7 @@ defmodule SukhiFedi.Addons.WebPush do
       "topic" => topic
     }
     |> Oban.Job.new(worker: "SukhiDelivery.Push.Worker", queue: :push, max_attempts: 5)
-    |> then(&Oban.insert(SukhiFedi.Oban, &1))
+    |> SukhiFedi.DeliveryQueue.insert_push()
   end
 
   defp config, do: Application.get_env(:sukhi_fedi, :web_push, [])

@@ -485,6 +485,10 @@ git status
         スイッチを入れた後のローカル操作(`Graph.Local`)は入った。それ以前の行が空。
         `Graph.Project` は行 → ActivityPub を作る純粋関数なので、そのまま使える(全件を
         束ねて書き、`sync/*` に進み具合を持つ)。
+      - Postgres → Datalevin(正本のほう)のデータ移行。新しいインスタンスは Datalevin
+        だけで立つ(`docker-compose.datalevin.yml`、docs/DATALEVIN.md)。既存の Postgres
+        インスタンスから持ってくる道具は無い。あわせて、Alpine イメージで `dtlv`(glibc 版)
+        を `gcompat` 越しに動かす点は CI で確かめていない。
       - 韓国語の分かち書き。Sudachi サーバーの選定(`Tokenizer.Sudachi` の契約は決めてある)。
       - 掃除は `SUKHI_GRAPH_SWEEP=execute` にするまで dry-run。ログの報告を見てから切り替える。
       - LMDB は retract してもファイルが縮まない。`dtlv copy -c` の詰め直しを運用に入れる。

@@ -9,7 +9,10 @@ defmodule SukhiDelivery.Queue do
   `outbox_dispatch`) move to a single-node SQLite file driven by Oban's Lite
   engine (`SukhiDelivery.QueueOban` over `SukhiDelivery.QueueRepo`). The other
   queues and all business data stay in Postgres. This is the only place that
-  knows which backend is active; callers use `insert_all/1`.
+  knows which backend is active; callers use `insert_all/1` and `oban/0`.
+
+  `SUKHI_STORE=datalevin` has no Postgres at all, so it implies the SQLite
+  backend for *every* queue: there is no second Oban to leave any of them in.
 
   Because the outbox row (Postgres) and its dispatch job (SQLite) are in
   different stores, the hop is at-least-once: `enqueued_outbox_ids/1` lets the
@@ -23,8 +26,16 @@ defmodule SukhiDelivery.Queue do
 
   @sqlite_queues [:delivery, :outbox_dispatch]
 
+  @doc "Is the business data in Datalevin? Then there is no Postgres for Oban."
+  @spec datalevin?() :: boolean()
+  def datalevin?, do: Application.get_env(:sukhi_delivery, :store, :postgres) == :datalevin
+
   @spec backend() :: :postgres | :sqlite
-  def backend, do: Application.get_env(:sukhi_delivery, :queue_backend, :postgres)
+  def backend do
+    if datalevin?(),
+      do: :sqlite,
+      else: Application.get_env(:sukhi_delivery, :queue_backend, :postgres)
+  end
 
   @doc "Oban instance that owns the high-volume queues."
   @spec oban() :: atom()
@@ -32,9 +43,26 @@ defmodule SukhiDelivery.Queue do
     if backend() == :sqlite, do: SukhiDelivery.QueueOban, else: SukhiDelivery.Oban
   end
 
+  @doc """
+  Oban instance that drains the gateway's queues (`outbound_archive` …), for
+  jobs this node writes and the gateway runs. Postgres: the same database, so
+  our own instance reaches them. Datalevin: the gateway's Oban keeps its own
+  queue file, so we insert there (the combined release has both).
+  """
+  @spec gateway_oban() :: atom()
+  def gateway_oban, do: if(datalevin?(), do: SukhiFedi.Oban, else: SukhiDelivery.Oban)
+
   @doc "Insert a batch of job changesets into the active delivery queue."
   @spec insert_all([Ecto.Changeset.t()]) :: [Oban.Job.t()]
   def insert_all(changesets), do: Oban.insert_all(oban(), changesets)
+
+  @doc "The Postgres Oban, when there is a Postgres: all of it, or what the SQLite queue leaves."
+  @spec postgres_children() :: [Supervisor.child_spec() | {module(), term()}]
+  def postgres_children do
+    if datalevin?(),
+      do: [],
+      else: [{Oban, [name: SukhiDelivery.Oban] ++ postgres_oban_config()}]
+  end
 
   @doc "Supervisor children for the SQLite queue; empty on the Postgres backend."
   @spec children() :: [Supervisor.child_spec() | module() | {module(), term()}]
@@ -69,8 +97,8 @@ defmodule SukhiDelivery.Queue do
   end
 
   defp sqlite_oban_config do
-    queues =
-      Application.fetch_env!(:sukhi_delivery, Oban)[:queues] |> Keyword.take(@sqlite_queues)
+    all = Application.fetch_env!(:sukhi_delivery, Oban)[:queues]
+    queues = if datalevin?(), do: all, else: Keyword.take(all, @sqlite_queues)
 
     max_age = Application.get_env(:sukhi_delivery, :queue_retention_seconds, 30 * 24 * 60 * 60)
 

@@ -26,8 +26,8 @@ defmodule SukhiDelivery.Application do
         # before the Postgres Oban so enqueues never find the queue missing.
       ] ++
         SukhiDelivery.Queue.children() ++
+        SukhiDelivery.Queue.postgres_children() ++
         [
-          {Oban, [name: SukhiDelivery.Oban] ++ SukhiDelivery.Queue.postgres_oban_config()},
           # Transactional Outbox relay: turns `outbox` rows (written by the
           # gateway) into Oban dispatch jobs — the job insert and the row's
           # flip to `published` share one transaction. The job then runs
