@@ -144,4 +144,10 @@ jobs:
           MIX_ENV: test
         run: mix deps.get
 
-      - run: make test-pglite
+      # The suite logs every SQL query, so the failure list drowns in the job
+      # log; keep a copy and print just the failures when the run goes red.
+      - run: make test-pglite 2>&1 | tee "$RUNNER_TEMP/pglite.log"; exit "${PIPESTATUS[0]}"
+
+      - name: Failed tests
+        if: failure()
+        run: grep -aE -A8 '^ +[0-9]+\) test ' "$RUNNER_TEMP/pglite.log" | head -400 || true
