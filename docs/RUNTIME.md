@@ -137,10 +137,68 @@ Watchtower の archive(SERVER_SHELL.md §5.9)の代わりに、Podman を選ん�
   ことが前提になる。
 - 同じ理由で、`.env.example` の既定(`v1`)が実在するタグを指しているかも確かめる。
 
-## 7. 決めたいこと
+## 7. Podman を既定にする案
+
+> 提案(ひなた): Podman を既定にしたい。デーモンレスを安定させられれば、サーバー管理に利点がある。
+
+**利点(サーバー管理として)**
+- **常駐するデーモンがない。** Docker は root のデーモンが落ちるとすべて巻き込まれ、`docker` グループが実質 root になる。
+  Podman は rootless で、コンテナは一般ユーザーの一つのプロセスとして systemd の下に並ぶ。**攻撃面と「落ちたときの影響範囲」が小さい。**
+- **systemd が見張り役になる**(Quadlet)。自動起動、再起動、ログ(journald)が OS の流儀に揃う。`sukhi` はこの状態を読むだけで済む。
+- **Fedora なら Cockpit の画面**がある。SSH 前提の運用(OPERATING_OVER_SSH.md)と合う: 画面は見る・止める用、更新は SSH。
+- `podman auto-update` が、起動に失敗したら前の image に自動で戻る(署名の検証はしない。§5.1)。
+
+**気をつけること(実際にここで引っかかりそうな点)**
+| 点 | 内容 | 対応 |
+| --- | --- | --- |
+| Compose の重ね合わせ | Datalevin 構成が `!override` を使う(§2) | 三つの環境で通すテストを CI に入れる。通らなければ、重ね合わせ済みの一枚を出す |
+| メモリ上限 | `docker-compose.combined.yml` は小さな箱向けにメモリ上限を付けている。rootless では、ユーザーへの cgroup v2 の委譲(memory)がないと効かない | 導入手順に委譲の設定を書く。効いているかを `sukhi status` で見せる |
+| SELinux(Fedora) | bind mount には `:Z` / `:z` が要る。付け忘れると書き込みで失敗する | Compose の volumes に付ける。Docker では無害 |
+| 低いポート | rootless は 1024 未満を使えない | 4000 番で動かし、前段から転送(§3.2) |
+| ディストリの版 | Quadlet は Podman 4.4 以降。Debian / Ubuntu の LTS は古いことがある | 対応する最低版を決めて書く |
+| 運用の先例 | 本番(OCI の箱)は haloy + Docker 系で動いている | 移行は急がない。新規の自前ホストから Podman を既定に |
+
+**推奨:** 手順書の**既定を Podman(rootless)**にする。ただし「既定」にするのは、次が揃ってから:
+(1) Compose の重ね合わせが Podman で通る CI、(2) メモリ上限と SELinux の手順の実機確認、(3) `combined` の multi-arch 公開(§6)。
+それまでは「Podman 推奨、Docker も対応」と書く。本番の箱は移行を強制しない。
+
+**Quadlet の位置づけを見直す。** Podman が既定なら、デーモンの代わりに systemd が見張る Quadlet が自然な形になる(§3.2)。
+Compose を正本に置いたまま、Quadlet は **Compose から生成**する(`podlet` のような変換ツールがある。出力の品質は未確認)。
+先に Compose で通し、次の段階で Quadlet を足す。
+
+## 8. eStargz(StarGZ)と部分取得
+
+> 提案(ひなた): eStargz への対応は面白そう。
+
+**何か(要約)。** eStargz は、ファイルごとに圧縮して目次を付ける形式で、必要なファイルだけを後から取れる(lazy pulling)。
+Podman 側には、似た目的の **zstd:chunked** がある(目次を zstd の流れの中に入れる。unpack した中身のダイジェストは変わらない)。
+どちらも、`containers/storage` の**部分取得**(partial pull)で、手元にあるファイルは再利用し、足りないものだけを HTTP の範囲指定で取る。
+
+> 出典は Red Hat の解説(**2021 年 11 月**の記事)。当時は「実験的で既定では無効」。**いまの状況(既定になったか、eStargz をそのまま受け取れるか)は未確認。**
+> 設定は `storage.conf` の `pull_options = {enable_partial_images = "true", …}` と、Linux 5.6 以降(`openat2`)が要る、と書かれている。
+> 手元のファイルの再利用(reflink)は XFS / BTRFS のときだけ効く。
+
+**sukhi での効きどころ**
+- 更新のたびに取る image は、ほとんどが前回と同じファイル(Erlang のランタイム、依存、静的ファイル)で、変わるのは自分の `.beam` と設定。
+  部分取得なら、**取得量と時間が大きく減る**見込み(減る量は未計測)。
+- ただし**止まる時間は変わらない。** 更新は「先に pull → 差し替え」の順なので、取得は止まっている間ではなく前に済む(§5)。
+  効くのは、回線が細い箱での更新の待ち時間と、転送量。
+- **署名との関係:** 圧縮形式を変えるとマニフェストのダイジェストが変わる。署名は**配る形式のダイジェスト**に付ける。
+  gzip 版と chunked 版を両方出すなら、それぞれ別に署名する(または一つに絞る)。
+
+**進め方(提案)**
+1. 先に**効果を測る**: いまの image を zstd:chunked(または eStargz)で出し直して、前回との差分取得量を測る。測らずに導入しない。
+2. 出す側の確認: GHCR が範囲指定の取得を返すか、Actions の build がその形式を出せるか(BuildKit は eStargz を出せるが、zstd:chunked は buildah 側、のはずだが**未確認**)。
+3. 取る側: Podman に `enable_partial_images` を設定(手順書に一行)。Docker などが取るときは従来の形式にフォールバックするので、
+   **両対応の image を一つ出す**(マルチフォーマットではなく、既定の gzip を残す)かどうかを決める。
+4. 本物の lazy pulling(起動しながら取る)は containerd + stargz-snapshotter(nerdctl 側)の仕事で、Podman の部分取得とは別物。
+   nerdctl を選ぶ人向けの**任意の最適化**に留める。
+
+## 9. 決めたいこと
 
 1. **正本を「Compose + SSH」にして、haloy は任意の話に下げるか。** 推奨: そうする(本番の運用者は haloy を使い続けてよい)。
-2. **サポートする実行環境の範囲。** 推奨: Docker を基準(CI で通す)、Podman は Compose で通ることを確かめて「対応」、
-   nerdctl は「動く見込みで未検証」と明記。画面が欲しい人には Fedora + Cockpit を案内。
-3. **Quadlet を出すか。** 推奨: 最初は出さない。Compose を正本にして、要望が出たら生成する。
+2. **既定の実行環境。** 推奨: **Podman(rootless)を既定にする**。ただし §7 の三条件が揃うまでは「Podman 推奨、Docker も対応」。
+   nerdctl は「動く見込みで未検証」と明記。
+3. **Quadlet。** 推奨: Compose から生成する形で、Compose が通ったあとの段階に足す。
 4. **`combined` の multi-arch / semver 公開**(§6)。推奨: 出す。署名も同じ workflow で付ける。
+5. **eStargz / zstd:chunked。** 推奨: まず測る(§8)。効果が出て、GHCR と CI が対応していれば、任意の最適化として足す。既定にはしない。

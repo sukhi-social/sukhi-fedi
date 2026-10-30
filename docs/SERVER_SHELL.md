@@ -571,3 +571,8 @@ MCP のツールは level で**別のサーバー設定**に分ける。クラ�
 **Q14. 正本を「素のコンテナ実行環境 + Compose + SSH」にして、haloy を任意に下げるか(§5.11、RUNTIME.md)。**
 - 推奨: そうする。Docker を基準に CI で通し、Podman は Compose が通ると確かめてから「対応」とする。nerdctl は未検証と明記。
   前提として `combined` の multi-arch / semver 公開と署名を、同じ workflow で出す。
+
+**Q15. 既定の実行環境を Podman(rootless、デーモンレス)にするか。eStargz / zstd:chunked に対応するか。**
+- 推奨: Podman を既定にする(RUNTIME.md §7 の三条件が揃ってから。それまでは推奨)。
+  eStargz / zstd:chunked は、まず取得量を測ってから任意の最適化として足す(RUNTIME.md §8)。
+  本番の箱は移行を強制しない。
