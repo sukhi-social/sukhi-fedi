@@ -44,12 +44,17 @@ podman inspect --format '{{.ImageName}}' systemd-sukhi-gateway   # コンテナ�
 
 ```sh
 export SUKHI_IMAGE_REF=ghcr.io/<owner>/sukhi-fedi-combined:v0   # 追いかけるタグ
+# ユニット名は .container ファイルの名前(sukhi-gateway.container → sukhi-gateway.service)。rootful なら SUKHI_SCOPE=system
+# 先に確かめる: systemctl --user list-units --all 'sukhi*'
 export SUKHI_HEALTH_URL=http://127.0.0.1:4000/                  # 確認用の口(あれば。ヘルスの URL は要確認)
 
 scripts/sukhi-swap-image.sh plan     # 何に解決され、何を入れるか。変更はしない
 scripts/sukhi-swap-image.sh apply    # 取得 → ドロップイン書き換え → 再起動 → 確認。失敗なら自動で戻す
 scripts/sukhi-swap-image.sh rollback # 動いたあとで気づいたとき、一つ前へ
 ```
+
+表示は、`SUKHI_LANG=ja`(または `LANG=ja_JP.UTF-8`)で日本語になる。文言は MS-DOS(J)の流儀に寄せた(一行で何が起きたかを言い、次にすることを添える。確認は `(Y/N)?`)。
+端末から `apply` / `rollback` を呼ぶと、先に確認が出る。自動化では `--yes`。
 
 手でやるなら(`apply` の中身):
 
@@ -64,6 +69,9 @@ systemctl --user is-active sukhi-gateway; journalctl --user -u sukhi-gateway -n 
 ```
 
 Anubis と web-next(`sukhi-fedi-web-next`、`sha-` タグを `--tag` に)も同じ形で、`SUKHI_UNIT` / `SUKHI_LOCAL_NAME` / `--tag` を替えて呼ぶ。
+
+**まとめて入れ替える:** `scripts/sukhi-update-all.sh plan|apply --sha sha-<commit>`。combined → web-next → anubis の順で、同じ commit の `sha-` タグに揃える
+(combined-sha.yml が四つの image に同じタグを付ける)。先に全部を `plan` して、一つでも通らなければ何も変えない。ユニット名の既定は `sukhi-social` / `sukhi-social-web` / `sukhi-social-anubis`(`SUKHI_TARGETS` で替える)。nats と rustfs は対象外。
 **gateway と Anubis など複数の image は、一つずつ。**「同じ sha でそろえる」(combined-sha.yml)ときは、sha タグを `--tag` に渡す。
 
 ## 4. 戻し方とその限界
