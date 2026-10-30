@@ -159,6 +159,10 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNotes do
       new =
         %Note{}
         |> Ecto.Changeset.change(%{
+          # Explicit: the column default (and the remote-id trigger, which only
+          # fires for a non-NULL ap_id) would mint it from the insert clock, so
+          # every rebuilt note would sort as "just fetched" whatever created_at says.
+          id: mint_id(created_at),
           account_id: old.account_id,
           content: old.content,
           visibility: old.visibility,
@@ -195,6 +199,20 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNotes do
 
       {old.id, new.id}
     end)
+  end
+
+  # A snowflake id for `created_at`: the same layout and `snowflake_seq` as
+  # the notes_remote_id_from_published trigger, so id order == authored order.
+  defp mint_id(%DateTime{} = created_at) do
+    if SukhiFedi.Store.datalevin?() do
+      SukhiFedi.Snowflake.encode(
+        DateTime.to_unix(created_at, :millisecond),
+        :erlang.unique_integer([:positive]) |> rem(0x10000)
+      )
+    else
+      %{rows: [[id]]} = Repo.query!("SELECT snowflake_id_at($1)", [created_at])
+      id
+    end
   end
 
   # Table/column names come from the catalog, not user input, but quote
