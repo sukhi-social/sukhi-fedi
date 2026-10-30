@@ -44,11 +44,14 @@ defmodule SukhiFedi.Web.Router do
   # Files served as-is (the SPA build, custom emoji, twemoji) are left out:
   # the emoji picker alone asks for hundreds of images at once, and counting
   # them used up the window, so the next 60s of API calls and images got 429.
+  # /proxy/ (remote avatars, banners, attachments) is the same shape: a
+  # timeline asks for dozens at once, and a 429 there looks like a stalled image.
+  # Its cost is bounded elsewhere (edge cache, the Finch pool, the fetch deadline).
   plug(SukhiFedi.Web.RateLimitPlug,
     bucket: "global",
     limit: 500,
     scale_ms: 60_000,
-    skip_prefixes: ["/static/", "/_app/", "/twemoji/"],
+    skip_prefixes: ["/static/", "/_app/", "/twemoji/", "/proxy/"],
     # A SPA page, or a client polling its place in the admission line at the
     # pace it was told (the ticket was issued to a request already counted).
     skip_if: &SukhiFedi.Web.Router.uncounted?/1,
