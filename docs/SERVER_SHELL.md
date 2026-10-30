@@ -26,7 +26,7 @@
 | mix タスク | `elixir/lib/mix/tasks/sukhi.*.ex`(migrate, emoji.add/list, datalevin.catalog, graph.bench) | 開発時の入口 | リリースには Mix がない。本番では使えない |
 | メンテナンス・スクリプト | `SukhiFedi.Maintenance.*`(RebuildRemoteNoteIds, RebuildFromArchive, RefetchActors, WipeRemote, RebuildDirectVisibility, ArchiveIntegrity …) | `run(:dry_run \| :execute)` という共通の形。`Progress` が `maintenance_runs` に進み具合を書く | 一覧がない。呼ぶには `eval '…run(:execute)'` を手で打つ。同時実行の制限・タイムアウトがない |
 | 管理ダッシュボード | `Web.Admin.*`(`/admin`)、`Schema.AdminAudit`(追記専用・DB のトリガで更新削除を禁止) | 進捗の表示、モデレーションの監査 | 人がブラウザで見る用。操作の入口としては作られていない |
-| デプロイ | Makefile(`DEPLOY_HOST` つきのターゲット)、docker compose、Watchtower が GHCR を見て自動更新(SETUP.md「Upgrades」) | 自動で更新される | 「今の版は何か」「更新前に確かめる」「戻す」の入口がない |
+| デプロイ | combined-sha.yml が main ごとに sha タグを GHCR へ、haloy が本番へ。Watchtower は自前ホスト向け(SETUP.md「Upgrades」) | 自動で更新される | 「今の版は何か」「更新前に確かめる」「戻す」の入口がない |
 
 **所見。** 部品はそろっていて、足りないのは「ひとつの登録簿」と「境界での認証・権限・監査」。
 `rpc` をそのまま AI に渡すのは危ない(任意コード実行になる)。だから AI にも人にも、
@@ -116,55 +116,56 @@ sukhi completion bash|zsh|fish
 
 ## 5. バージョンアップ
 
-### 5.0 いまの経路(リポジトリから読み取れたもの)
+### 5.0 いまの経路(ひなたの説明 + `.github/workflows/combined-sha.yml`)
 
-本番(OCI の箱)の更新は **haloy** で行っている。Watchtower は公開 compose で自前ホストする人向けの仕組みで、本番では使っていない。
+焼くのは GitHub Actions。main への push ごとに、`combined` / anubis / natadeco-ssr / web-next の
+四つが、同じ commit の `sha-<commit>` というタグで GHCR に出る(arm64)。デプロイだけが手動:
 
 ```
-[手元] bin/build-on-box.sh combined
-         └ git archive で committed なツリーを箱へ送る → 箱で docker build(arm64)
-           → 箱の loopback registry(127.0.0.1:5000)へ push
-[手元] トンネルを張る
-[手元] cd ~/repos/sukhi-deploy && haloy deploy -t sukhi-fedi-app   ← 別リポジトリの haloy.yaml
-         └ 起動時に entrypoint が migrate_all() を実行
-[公開] タグ v*.*.* → .github/workflows/release.yml → GHCR(multi-arch)  ← 本番は使わない
+[自動] main に push → combined-sha.yml → ghcr.io/…:sha-<commit>
+[手動] sukhi-deploy の haloy.yaml のタグを新しい sha に書き換える
+[手動] haloy deploy -t sukhi-fedi-app      ← 起動時に entrypoint が migrate_all() を実行
+[公開] タグ v*.*.* → release.yml → GHCR の semver / latest(公開 multi-arch。本番は使わない)
 ```
 
-面倒の正体は、手順の数ではなく **「人が順番を覚えて、結果を目で確かめる」こと**だと見ている。
+`bin/build-on-box.sh`(箱で焼く経路)は、いまの本番では使っていない前提で扱う。
+Watchtower は公開 compose で自前ホストする人向けで、本番とは別。
+
+手順は短いので、面倒の正体は手順の数ではなく **「人が覚えて、人が目で確かめる」** ことだと見ている。
 
 | 面倒 | 中身 |
 | --- | --- |
-| 手順が三つに割れている | 焼く / トンネル / デプロイ。別々のリポジトリ(sukhi-fedi と sukhi-deploy)をまたぐ |
-| 事前の確認がない | バックアップが新しいか、マイグレーションがあるか、キューが詰まっていないかは、人が思い出して見る |
-| 事後の確認がない | 新しい版が本当に動いているかは、人が見に行く |
-| 記録がない | 「いつ・誰が・どの commit を・どの image で上げたか」が残らない。戻す先の image も人の記憶 |
-| 版が複数の場所にある | `VERSION`、image タグ、haloy.yaml |
-| 二重の仕組み | 本番は haloy、自前ホストは Watchtower。同じ「更新」が二通り |
+| 「どの sha を上げるか」を人が選ぶ | main の最新か、動作確認した sha か、GHCR を見に行って写す |
+| 書き換えが別リポジトリ | タグ(sha)を sukhi-deploy の haloy.yaml に手で書く。三つの image を同じ sha に揃える必要がある |
+| 事前の確認がない | その sha の build が成功したか、バックアップが新しいか、マイグレーションがあるか |
+| 事後の確認がない | 新しい版が動いているかは、見に行く |
+| 記録がない | いつ・誰が・どの sha を上げたか、戻す先の sha が残らない |
+| 二重の仕組み | 本番は haloy、自前ホストは Watchtower |
 
-> haloy 側の機能(ロールバックの有無、ヘルスチェックの扱い、image の指定方法)は、公開ドキュメントの要約でしか確かめていない。
-> `sukhi-deploy` のリポジトリはこのセッションから見えないので、**haloy.yaml の中身は未確認**。実装の前に確かめる(§12 Q9)。
+> haloy 側の機能(ロールバック、ヘルスチェック、image の指定方法)は、公開ドキュメントの要約でしか確かめていない。
+> `sukhi-deploy` はこのセッションから見えないので、**haloy.yaml の中身は未確認**(§12 Q9)。
 
-### 5.1 目指す形: 「一つの命令」と「責任の見える画面」
+### 5.1 目指す形: 「sha を選んで、確認して、押す」だけにする
 
-haloy は捨てない。**haloy の前後を `sukhi release` が包む。** haloy は「入れ替える」役、
-sukhi は「入れ替えてよいかの判断・記録・確認」の役。
+haloy も GitHub Actions もそのまま。**haloy の前後を `sukhi release` が包む。** haloy は「入れ替える」役、
+sukhi は「入れてよいかの判断・記録・確認」の役。タグの書き換えも `sukhi release` がやる。
 
 ```
-sukhi release            # 計画を出して止まる(既定)
-sukhi release --execute  # 版の番号を打ち直して実施
-sukhi release status     # 進行中 / 直近の結果
-sukhi release rollback   # 一つ前へ(計画 → 確認 → 実施)
-sukhi release history    # 誰がいつ何を上げたか
+sukhi release                 # 候補の sha(既定は main の最新で build が成功したもの)の計画を出して止まる
+sukhi release --sha abc1234   # sha を指定
+sukhi release --execute       # 版を打ち直して実施
+sukhi release status|history|rollback
 ```
 
-`--execute` の中身(人が順番を覚えない):
+`--execute` の中身:
 
-1. **前提を揃える**: committed でないツリーなら止まる。トンネルが張られていなければ張る(または案内する)。
-2. **焼く**: `build-on-box.sh` を呼ぶ。出てきた image のダイジェストを取り、以降はタグでなくダイジェストで扱う。
-3. **事前チェック**(§5.2)。ひとつでも失敗なら、理由と次の一手を出して止まる。
-4. **デプロイ**: `haloy deploy -t <target>` をダイジェスト指定で呼ぶ。
-5. **事後の確認**: 新しい版の名乗り、`status`、キュー、エラー率を一定時間(既定 5 分)見る。結果を一画面にまとめる。
-6. **記録**: 監査表(§8.4)に一行。戻し先のダイジェストも同じ行に残る。
+1. **候補を決める**: GitHub の check から「build が成功し、四つの image がそろっている sha」を選ぶ。
+   一つでも欠けていれば出さない(「同じ sha どこでも」の約束を守る)。
+2. **事前チェック**(§5.2)。失敗なら理由と次の一手を出して止まる。
+3. **タグの書き換え**: haloy.yaml の三つ(四つ)の image を同じ sha に揃える。ダイジェストも取って記録する。
+4. **デプロイ**: `haloy deploy -t <target>`。
+5. **事後の確認**: 新しい版の名乗り、`status`、キュー、エラー率を一定時間(既定 5 分)見て、結果を一画面にまとめる。
+6. **記録**: 監査表(§8.4)に一行。戻し先の sha も同じ行に残る。
 
 ### 5.2 責任を取れる UX(管理者が「何を承知したか」を残す)
 
@@ -184,15 +185,16 @@ sukhi release history    # 誰がいつ何を上げたか
 - **記録は追記専用**。誰が(トークン名または端末の主体)、いつ、どの commit とダイジェストを、どの計画のもとで、
   どんな結果で上げたか。「責任を取る」ための材料を、取る側が後から読める形で残すのが目的で、責める道具にはしない。
 
-### 5.3 経路を一本にする案(選択肢)
+### 5.3 経路の選択肢
+
+build はすでに自動なので、残る選択は「デプロイの手動をどこまで減らすか」。
 
 | 案 | 内容 | 手間 | 注意 |
 | --- | --- | --- | --- |
-| **P(推奨・第一段)** | いまの経路(箱で焼く → haloy)をそのまま `sukhi release` が包む | 命令が一つになる。事前・事後・記録が付く | 箱で焼くので、手元から箱へのトンネルは必要なまま |
-| Q | タグを打つと CI が焼いて(release.yml は arm64 も焼いている)、`sukhi release` は GHCR のダイジェストを haloy に渡すだけにする | 手元で焼かない。箱の負荷も減る | 箱の loopback registry を使っている理由(速度・非公開ブランチ・GHCR の権限)を確かめる必要がある |
-| R | main への merge で自動デプロイ(承認の関門つき) | 最小 | 責任の置き場が「merge」に移る。本番の更新を人が見ない日が出る。関門の設計が要る |
+| **P(推奨・第一段)** | `sukhi release` が sha の選択・事前事後の確認・タグの書き換え・記録までを包む | 「sha を見て、確認して、押す」の一回 | sukhi-deploy の書き換え方(同じリポジトリに commit するか)を決める |
+| R | main の build 成功後に、承認の関門つきで自動デプロイ | 押す手間もなくなる | 責任の置き場が「承認」に移る。承認が形だけになる日が出る。事後確認と記録が安定してから |
 
-推奨は **P から始めて、Q の可否を確かめる**。R は、記録と事後の確認が安定してから。
+推奨は **P**。R は、P の事後確認と記録が安定してから。
 
 ### 5.4 自前ホスト(Watchtower)の人たち
 
@@ -205,7 +207,7 @@ Watchtower は公開 compose の利用者向けで、本番とは別。同じ「
 
 ### 5.5 検証
 
-- 既定はダイジェスト固定(`@sha256:`)。箱で焼いた image は、焼いた直後に取ったダイジェストで固定する。
+- 既定はダイジェスト固定(`@sha256:`)。`sha-<commit>` のタグが指すダイジェストを計画の時点で取り、記録する。
 - 公開 image(GHCR)は、署名(cosign)が CI で付くまでは「ダイジェストが公開メタデータと一致」までを検証とし、**未署名と明示**。
 
 ### 5.6 マイグレーションとロールバック
@@ -395,8 +397,8 @@ MCP のツールは level で**別のサーバー設定**に分ける。クラ�
 - 推奨: **stdio だけ**で始める(ネットワークに何も開けない、攻撃面が最小)。遠隔が要る場面が出たら、段階 5 で追加。
 
 **Q3. 更新の経路をどうするか(§5.3)。**
-- 推奨: **P**。いまの「箱で焼く → haloy」を `sukhi release` が包み、事前チェック・事後確認・記録を付ける。
-  Watchtower は自前ホスト向けに残し、`sukhi upgrade` は既定を通知のみにする(§5.4)。Q と R は、P が安定してから。
+- 推奨: **P**。いまの「sha を選ぶ → タグを書き換える → haloy」を `sukhi release` が包み、事前チェック・事後確認・記録を付ける。
+  Watchtower は自前ホスト向けに残し、`sukhi upgrade` は既定を通知のみにする(§5.4)。R(自動デプロイ)は、P が安定してから。
 
 **Q4. 実行履歴の列(依頼元・引数・終了コード)と監査の表を、Datalevin のカタログにだけ足すか、Postgres の移行も足すか。**
 - 推奨: **Datalevin のカタログに足し、Postgres は `maintenance_runs` を既存のまま**(新機能の対象にしない方針)。
