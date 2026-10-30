@@ -120,6 +120,24 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigrationTest do
       assert resp.status == 200
       assert JSON.decode!(resp.body)["aliases"] == [uri]
     end
+
+    test "an entry that cannot be resolved → 422 invalid_alias" do
+      Application.put_env(:sukhi_api, :fake_migration, %{
+        set_aliases: {:error, {:invalid_alias, "@ghost@nowhere.example"}}
+      })
+
+      {:ok, resp} =
+        Router.handle(
+          authed(
+            "POST",
+            "/api/v1/accounts/migration/aliases",
+            JSON.encode!(%{aliases: ["@ghost@nowhere.example"]})
+          )
+        )
+
+      assert resp.status == 422
+      assert JSON.decode!(resp.body)["error"] == "invalid_alias"
+    end
   end
 
   describe "POST /api/v1/accounts/migration/move" do

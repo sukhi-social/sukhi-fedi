@@ -496,22 +496,25 @@ export const ko: Dict = {
     '다른 계정으로 조용히 옮길 수 있습니다. 팔로우해 주는 사람들은 새 계정으로 함께 따라옵니다.',
   'migration.aliasesTitle': '별명(이것도 나입니다)',
   'migration.aliasesHelp':
-    '예전에 쓰던 계정을 여기에 넣어 둘 수 있습니다. 연합되므로, 그쪽에서 이쪽으로 이사 올 때의 "동의"가 됩니다. 5개까지.',
-  'migration.aliasPlaceholder': 'https://예.com/users/이름',
+    '예전에 쓰던 계정을 여기에 넣어 둘 수 있습니다. 연합되므로, 그쪽에서 이쪽으로 이사 올 때의 "동의"가 됩니다. @이름@예.com이나 URL로 넣을 수 있습니다. 5개까지.',
+  'migration.aliasPlaceholder': '@이름@예.com',
   'migration.aliasAdd': '추가',
   'migration.aliasRemove': '지우기',
   'migration.aliasesSaved': '별명을 업데이트했습니다.',
   'migration.aliasesNone': '아직 없습니다.',
   'migration.moveTitle': '지금 이사하기',
   'migration.moveHelp':
-    '이사 갈 곳의 URL을 넣어 주세요. 먼저 그쪽의 별명에 이 계정을 넣어 두어야 합니다(양방향 동의).',
-  'migration.movePlaceholder': 'https://예.com/users/이름',
+    '이사 갈 곳을 @이름@예.com이나 URL로 넣어 주세요. 먼저 그쪽의 별명에 이 계정을 넣어 두어야 합니다(양방향 동의).',
+  'migration.movePlaceholder': '@이름@예.com',
   'migration.moveButton': '이 계정을 옮기기',
   'migration.moveConfirm': '정말 옮기시겠어요? 팔로워는 새 계정으로 안내됩니다.',
   'migration.moved': '이 계정은 이사했습니다:',
   'migration.err.target_must_alias_back':
     '이사 갈 곳이 아직 이 계정을 별명에 넣지 않았습니다. 그쪽에서 먼저 추가해 달라고 해 주세요.',
-  'migration.err.invalid_target': '그 이사 갈 곳 URL을 잘 읽지 못했습니다.',
+  'migration.err.invalid_target':
+    '그 이사 갈 곳을 찾지 못했습니다. @이름@예.com이나 URL을 확인해 주세요.',
+  'migration.err.invalid_alias':
+    '별명 중 어딘가를 찾지 못했습니다. @이름@예.com이나 URL을 확인해 주세요.',
   'migration.err.already_moved': '이 계정은 이미 이사했습니다.',
   'migration.err.generic': '잘되지 않았습니다.',
 

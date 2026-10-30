@@ -62,4 +62,22 @@ defmodule SukhiApi.Views.MastodonAccountTest do
       assert MastodonAccount.render(account(%{})).avatar_decorations == []
     end
   end
+
+  describe "url is the profile page a person opens; uri stays the actor id" do
+    test "a local account's url is /@name" do
+      out = MastodonAccount.render(account(%{}))
+      assert out.url == "https://localhost:4000/@kuro"
+      assert out.uri == "https://localhost:4000/users/kuro"
+    end
+
+    test "a remote account keeps its stored actor_uri for both" do
+      out =
+        MastodonAccount.render(
+          account(%{domain: "remote.example", actor_uri: "https://remote.example/users/kuro"})
+        )
+
+      assert out.url == "https://remote.example/users/kuro"
+      assert out.uri == "https://remote.example/users/kuro"
+    end
+  end
 end

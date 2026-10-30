@@ -28,6 +28,7 @@ defmodule SukhiFedi.AccountMigration do
   alias Ecto.Multi
   alias SukhiFedi.AP.Instructions.{Migrations, Resolve}
   alias SukhiFedi.Addons.Moderation
+  alias SukhiFedi.Federation.WebFinger
   alias SukhiFedi.{Outbox, Repo}
   alias SukhiFedi.Schema.Account
 
@@ -37,11 +38,16 @@ defmodule SukhiFedi.AccountMigration do
   Replace this account's alias set with `uris` (the full desired list).
 
   Each entry must be a well-formed http(s) actor URI other than the
-  account's own. Emits `sns.outbox.actor.updated` so the new
+  account's own. A new entry is accepted when its server vouches for it by
+  WebFinger (a handle, a profile page or the actor URI), and the actor URI
+  it answers with is what is stored, which is what a Move compares; one
+  that cannot be resolved is `{:error, {:invalid_alias, entry}}`. Entries
+  already saved are kept without asking again (an old server may be gone). Emits `sns.outbox.actor.updated` so the new
   `alsoKnownAs` federates. Returns `{:ok, account}` or `{:error, reason}`.
   """
   @spec set_aliases(integer(), [String.t()]) ::
-          {:ok, Account.t()} | {:error, :not_found | :too_many | {:validation, map()}}
+          {:ok, Account.t()}
+          | {:error, :not_found | :too_many | {:invalid_alias, String.t()} | {:validation, map()}}
   def set_aliases(account_id, uris) when is_integer(account_id) and is_list(uris) do
     case Repo.get(Account, account_id) do
       nil ->
@@ -49,12 +55,42 @@ defmodule SukhiFedi.AccountMigration do
 
       %Account{} = account ->
         self_uri = actor_uri(account)
-        cleaned = uris |> Enum.flat_map(&valid_alias(&1, self_uri)) |> Enum.uniq()
 
-        cond do
-          length(cleaned) > @max_aliases -> {:error, :too_many}
-          true -> update_aliases(account, cleaned)
+        with {:ok, resolved} <- resolve_aliases(uris, account.aliases || []) do
+          cleaned = resolved |> Enum.flat_map(&valid_alias(&1, self_uri)) |> Enum.uniq()
+
+          cond do
+            length(cleaned) > @max_aliases -> {:error, :too_many}
+            true -> update_aliases(account, cleaned)
+          end
         end
+    end
+  end
+
+  # Only entries we have not saved before are asked about, side by side
+  # (each can take up to WebFinger's 10 s).
+  defp resolve_aliases(entries, saved) do
+    entries =
+      entries |> Enum.map(&(&1 |> to_string() |> String.trim())) |> Enum.reject(&(&1 == ""))
+
+    entries
+    |> Task.async_stream(
+      fn entry ->
+        if entry in saved, do: {:ok, entry}, else: target_actor_uri(entry)
+      end,
+      max_concurrency: @max_aliases,
+      timeout: 15_000,
+      on_timeout: :kill_task,
+      ordered: true
+    )
+    |> Enum.zip(entries)
+    |> Enum.reduce_while({:ok, []}, fn
+      {{:ok, {:ok, uri}}, _entry}, {:ok, acc} -> {:cont, {:ok, [uri | acc]}}
+      {_failed, entry}, _acc -> {:halt, {:error, {:invalid_alias, entry}}}
+    end)
+    |> case do
+      {:ok, acc} -> {:ok, Enum.reverse(acc)}
+      error -> error
     end
   end
 
@@ -78,6 +114,10 @@ defmodule SukhiFedi.AccountMigration do
   @doc """
   Move this account to `target_uri`.
 
+  `target` is anything the target's server vouches for by WebFinger: a
+  handle (`@name@host`), a profile page, or the actor URI. We move to the
+  actor URI it answers with.
+
   Fetches the target actor fresh, requires its `alsoKnownAs` to list this
   account (bidirectional consent), then in one transaction stamps
   `moved_to_uri` and enqueues `sns.outbox.move.created`. Returns
@@ -86,9 +126,10 @@ defmodule SukhiFedi.AccountMigration do
   @spec move(integer(), String.t()) ::
           {:ok, Account.t()}
           | {:error, :not_found | :invalid_target | :already_moved | :consent_missing | term()}
-  def move(account_id, target_uri) when is_integer(account_id) and is_binary(target_uri) do
+  def move(account_id, target) when is_integer(account_id) and is_binary(target) do
     with %Account{moved_to_uri: nil} = account <- get_unmoved(account_id),
          self_uri = actor_uri(account),
+         {:ok, target_uri} <- target_actor_uri(target),
          [^target_uri] <- valid_alias(target_uri, self_uri),
          {:ok, target} <- Resolve.resolve_or_ingest_actor(target_uri),
          true <- Migrations.bidirectional_consent?(self_uri, target) do
@@ -101,6 +142,11 @@ defmodule SukhiFedi.AccountMigration do
       {:error, _} -> {:error, :invalid_target}
     end
   end
+
+  # What was typed (a handle, a profile page, an actor URI) is accepted when
+  # the other server, asked by WebFinger, answers with the actor's `self`
+  # URL; that URL is what we store and compare. No per-form rules here.
+  defp target_actor_uri(input), do: WebFinger.resolve_self(input)
 
   defp do_move(%Account{} = account, %Account{} = target) do
     target_uri = target.actor_uri || actor_uri(target)

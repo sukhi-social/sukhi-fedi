@@ -155,4 +155,18 @@ defmodule SukhiApi.Views.MastodonStatusTest do
       assert MastodonStatus.context_key(note("public")) == 1
     end
   end
+
+  describe "url is the page a person opens; uri stays the ActivityPub id" do
+    test "a local note's url is /@name/<id>, like the AP Note's own url" do
+      out = MastodonStatus.render(note("public"))
+      assert out.url == "https://localhost:4000/@alice/1"
+      assert out.uri == "https://localhost:4000/users/alice/notes/1"
+    end
+
+    test "a remote note keeps its ap_id for both" do
+      out = MastodonStatus.render(Map.put(note("public"), :ap_id, "https://remote.test/notes/9"))
+      assert out.url == "https://remote.test/notes/9"
+      assert out.uri == "https://remote.test/notes/9"
+    end
+  end
 end

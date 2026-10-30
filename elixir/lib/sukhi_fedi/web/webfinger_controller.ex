@@ -80,10 +80,20 @@ defmodule SukhiFedi.Web.WebfingerController do
 
     with %URI{host: host, path: path} when host == our_domain and is_binary(path) <-
            URI.parse(url),
-         ["users", username] <- path |> String.trim("/") |> String.split("/") do
+         username when is_binary(username) <- local_name(path) do
       lookup_local_actor(username, our_domain)
     else
       _ -> {:error, :not_found}
+    end
+  end
+
+  # The actor URI (`/users/:name`) and the profile page (`/@name`) name
+  # the same person; both answer with the same JRD.
+  defp local_name(path) do
+    case path |> String.trim("/") |> String.split("/") do
+      ["users", username] -> username
+      [<<"@", username::binary>>] when username != "" -> username
+      _ -> nil
     end
   end
 

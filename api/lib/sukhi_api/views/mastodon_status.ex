@@ -56,7 +56,7 @@ defmodule SukhiApi.Views.MastodonStatus do
       visibility: mastodon_visibility(Map.get(note, :visibility)),
       language: nil,
       uri: uri,
-      url: uri,
+      url: human_url(note, uri),
       replies_count: Map.get(counts, :replies, 0),
       reblogs_count: Map.get(counts, :reblogs, 0),
       favourites_count: Map.get(counts, :favourites, 0),
@@ -393,6 +393,17 @@ defmodule SukhiApi.Views.MastodonStatus do
   # そこから username を拾って `users/<u>/notes/<id>` を組む。それも
   # 無ければ `notes/<id>` だけでも返す ─ 形式が崩れていても non-null
   # の文字列であることが優先。
+  # `url` は人が開く頁。local の投稿は AP Note の `"url"` と同じ
+  # `/@name/<id>`(ap_id を持たない行が local)。remote はその ap_id のまま。
+  defp human_url(note, uri) do
+    with nil <- Map.get(note, :ap_id),
+         %{username: u} when is_binary(u) <- Map.get(note, :account) do
+      "https://#{SukhiApi.Config.domain!()}/@#{u}/#{Map.get(note, :id)}"
+    else
+      _ -> uri
+    end
+  end
+
   defp derived_uri(note) do
     domain = SukhiApi.Config.domain!()
     id = Map.get(note, :id)
