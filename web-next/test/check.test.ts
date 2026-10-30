@@ -102,3 +102,48 @@ test('入る・はじめるのフォームは、Unpoly に任せずふつうに�
   assert.match(list, /form\[action\^="\/login"\]/);
   assert.match(list, /form\[action\^="\/signup"\]/);
 });
+
+// メールのコードを送るのも、関所の後(元の web の「メールは Anubis の後」)。
+// 最初の段は行き先を預けるだけで、/check を通った人にだけコードの画面が出る(=送られる)。
+test('メールのログイン: コードは /check を通ってから。最初の段では送らない', async () => {
+  const b = browser();
+  const first = await b('/login', form({ method: 'email', step: 'request', email: 'a@b.c' }));
+  assert.equal(first.status, 303);
+  assert.equal(first.headers.get('location'), '/check?intent=login-email');
+
+  const passed = await b('/check?intent=login-email');
+  assert.equal(passed.status, 200);
+  const page = await passed.text();
+  assert.match(page, /name="step" value="confirm"/);
+  assert.match(page, /a@b\.c/);
+
+  const again = await b('/check?intent=login-email');
+  assert.equal(again.headers.get('location'), '/login');
+});
+
+test('加入: 最初の段は /check へ。コードの画面は、通った人にだけ。下書きは /signup に戻ると埋まる', async () => {
+  const b = browser();
+  const first = await b(
+    '/signup',
+    form({ username: 'shiro', email: 'a@b.c', invite_code: 'CODE', agree: '1' })
+  );
+  assert.equal(first.status, 303);
+  assert.equal(first.headers.get('location'), '/check?intent=signup');
+
+  const back = await (await b('/signup')).text();
+  assert.match(back, /value="shiro"/);
+  assert.match(back, /value="a@b\.c"/);
+  assert.match(back, /value="CODE"/);
+  assert.doesNotMatch(back, /name="agree"[^>]*checked/);
+
+  const passed = await b('/check?intent=signup');
+  assert.equal(passed.status, 200);
+  assert.match(await passed.text(), /name="step" value="confirm"/);
+
+  const confirmed = await b(
+    '/signup',
+    form({ step: 'confirm', username: 'shiro', email: 'a@b.c', invite_code: 'CODE', agree: '1', code: '123456' })
+  );
+  assert.equal(confirmed.headers.get('location'), '/check?intent=signup');
+  assert.equal((await b('/check?intent=signup')).headers.get('location'), '/');
+});

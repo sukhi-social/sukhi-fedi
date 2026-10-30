@@ -31,6 +31,7 @@ PoW」ではなく「久しぶりに来た人は一度だけ」)。
 > web-next では `/check` がサーバの手順の一部になる ── 一段目のあとで `/check?intent=login|signup`
 > へ redirect し、anubis が PoW を終えて届いたところで、OAuth を始める・アカウントを作る。
 > 行き先は session に置く一度きりで、URL の `intent` は合図にすぎない(`web-next/server/routes/auth.ts`)。
+> メールの 6 桁コードを送るのも `/check` の後(`login-email` と、加入の最初の段)── 「メールは Anubis の後」。
 
 ### login
 ```
