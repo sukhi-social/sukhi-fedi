@@ -48,8 +48,10 @@ mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
 - Unpoly は、いつも `<main>` を差し替える。入る・出る・ことば替えだけは、ふつうのフォーム(フルリロード)。
 - **関所(`/check`)**: anubis が PoW を解かせるのは `GET /check` だけ(`config/anubis/botPolicies.yaml`)。
   ログインは一段目(合言葉・メールのコード・2FA)のあとで、加入はメールのコードの確認のあとで、
-  `/check?intent=login|signup` へ送る。通れた人だけがここへ届き、そこで初めて OAuth が始まる・
-  アカウントが作られる。何をするかは session の `check` に置いてあり(URL の `intent` は合図にすぎない)、
+  `/check?intent=login|signup` へ送る。**メールのコードを送るのも、この関所の後**(`login-email` と、加入の
+  最初の段 ── 元の web の「メールは Anubis の後」)。通れた人だけがここへ届き、そこで初めてコードが送られる・
+  OAuth が始まる・アカウントが作られる。加入のやりかけ(ハンドル・メール・招待コード)は session に置き、
+  `/signup` に戻ったとき埋める(同意は埋めない)。何をするかは session の `check` に置いてあり(URL の `intent` は合図にすぎない)、
   一度きり ── リロードしても二度は始まらず、何も無い人が来たら `/login` か `/signup` に戻す。
   anubis を前に立てない開発(`pnpm run dev:mock`)でも、そのまま通る。
 

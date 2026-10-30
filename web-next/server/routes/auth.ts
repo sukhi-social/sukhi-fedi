@@ -55,15 +55,66 @@ route("GET", "/check", async (ctx) => {
   const c = s?.check;
   if (!s || !c || c.intent !== intent)
     return redirect(intent === "signup" ? "/signup" : "/login");
-  s.check = undefined; // 一度きり。リロードで二度は始まらない。
+  s.check = undefined; // 一度きり。リロードで二度は始まらない(メールも二度は送らない)。
   saveSession(s);
   if (c.intent === "login") return beginOAuth(ctx);
+  if (c.intent === "login-email") return sendLoginCode(ctx, c.email);
+  // 加入: 証明がまだなら、ここでコードを送る。証明があれば、アカウントを作る。
+  if (c.proof === undefined) return sendSignupCode(ctx, c);
   return finishSignup(
     ctx,
     { username: c.username, email: c.email, invite: c.invite },
     c.proof,
   );
 });
+
+// メールのコードを送るのは、関所(/check)を通った人だけ。
+async function sendLoginCode(ctx: Ctx, email: string): Promise<Reply> {
+  try {
+    // 知らないアドレスにも 200 が返る(居る/居ないを言わない)ので、送った前提で次の画面へ。
+    await gw(ctx, "POST", "/login/email/request", {
+      auth: false,
+      json: { email },
+    });
+    return loginPage(ctx, { method: "email", step: "code", email });
+  } catch (e) {
+    const msg = e instanceof GatewayError ? e.message : "";
+    const status = e instanceof GatewayError ? e.status : 0;
+    const error =
+      msg === "rate_limited" || status === 429
+        ? ctx.t("login.rateLimited")
+        : ctx.t("login.failed");
+    return loginPage(ctx, { method: "email", email, error }, 422);
+  }
+}
+
+async function sendSignupCode(
+  ctx: Ctx,
+  v: { username: string; email: string; invite: string },
+): Promise<Reply> {
+  const view: SignupView = {
+    username: v.username,
+    email: v.email,
+    invite: v.invite,
+  };
+  try {
+    await gw(ctx, "POST", "/signup/email/request", {
+      auth: false,
+      json: { email: v.email },
+    });
+    return signupPage(ctx, { ...view, step: "code" });
+  } catch (e) {
+    return signupPage(
+      ctx,
+      {
+        ...view,
+        needInvite: await inviteRequired(ctx),
+        error: signupStepError(ctx, e),
+      },
+      422,
+    );
+  }
+}
 
 route("GET", "/app/callback", async (ctx) => {
   const q = ctx.url.searchParams;
@@ -366,12 +417,9 @@ route("POST", "/login", async (ctx) => {
       });
       return afterFirstFactor(ctx, res);
     }
-    // 知らないアドレスにも 200 が返る(居る/居ないを言わない)ので、送った前提で次の画面へ。
-    await gw(ctx, "POST", "/login/email/request", {
-      auth: false,
-      json: { email },
-    });
-    return loginPage(ctx, { method: "email", step: "code", email });
+    // コードを送るのは、関所(/check)を通ってから。ここでは行き先を預けるだけ。
+    if (!email) return loginPage(ctx, { method: "email", error: t("login.failed") }, 422);
+    return toCheck(ctx, { intent: "login-email", email });
   } catch (e) {
     const msg = e instanceof GatewayError ? e.message : "";
     const status = e instanceof GatewayError ? e.status : 0;
@@ -629,9 +677,26 @@ function signupPage(ctx: Ctx, v: SignupView = {}, status = 200): Reply {
   );
 }
 
+// 加入の段で gateway が返した理由を、ことばにする。
+function signupStepError(ctx: Ctx, e: unknown): string {
+  const t = ctx.t;
+  const msg = e instanceof GatewayError ? e.message : "";
+  if (msg === "code") return t("security.codeWrong");
+  if (msg === "expired") return t("security.codeExpired");
+  if (msg === "too_many_attempts" || msg === "rate_limited")
+    return t("login.rateLimited");
+  if (msg === "email_taken") return t("security.emailTaken");
+  if (msg === "email") return t("security.emailInvalid");
+  if (msg === "send_failed") return t("security.sendFailed");
+  return t("common.deliverFailed");
+}
+
 route("GET", "/signup", async (ctx) => {
   if (ctx.session?.token) return redirect("/");
-  return signupPage(ctx, { needInvite: await inviteRequired(ctx) });
+  return signupPage(ctx, {
+    ...ctx.session?.signupDraft,
+    needInvite: await inviteRequired(ctx),
+  });
 });
 
 route("POST", "/signup", async (ctx) => {
@@ -645,17 +710,7 @@ route("POST", "/signup", async (ctx) => {
   };
   const step = str("step");
 
-  const stepFail = (e: unknown): string => {
-    const msg = e instanceof GatewayError ? e.message : "";
-    if (msg === "code") return t("security.codeWrong");
-    if (msg === "expired") return t("security.codeExpired");
-    if (msg === "too_many_attempts" || msg === "rate_limited")
-      return t("login.rateLimited");
-    if (msg === "email_taken") return t("security.emailTaken");
-    if (msg === "email") return t("security.emailInvalid");
-    if (msg === "send_failed") return t("security.sendFailed");
-    return t("common.deliverFailed");
-  };
+  const stepFail = (e: unknown): string => signupStepError(ctx, e);
 
   if (
     !/^[a-z0-9_]{1,30}$/.test(v.username ?? "") ||
@@ -673,21 +728,23 @@ route("POST", "/signup", async (ctx) => {
     );
   }
 
-  // 一段目: 6 桁のコードを送る。
+  // 下書きは session に置く(/signup に戻ったとき埋める。同意は埋めない)。
+  const sess = ctx.sess();
+  sess.signupDraft = {
+    username: v.username ?? "",
+    email: v.email ?? "",
+    invite: v.invite ?? "",
+  };
+  saveSession(sess);
+
+  // 一段目: 6 桁のコードは、関所(/check)を通ってから送る。ここでは行き先を預けるだけ。
   if (step !== "confirm") {
-    try {
-      await gw(ctx, "POST", "/signup/email/request", {
-        auth: false,
-        json: { email: v.email },
-      });
-      return signupPage(ctx, { ...v, step: "code" });
-    } catch (e) {
-      return signupPage(
-        ctx,
-        { ...v, needInvite: await inviteRequired(ctx), error: stepFail(e) },
-        422,
-      );
-    }
+    return toCheck(ctx, {
+      intent: "signup",
+      username: v.username ?? "",
+      email: v.email ?? "",
+      invite: v.invite ?? "",
+    });
   }
 
   // 二段目: コード → 証明 → アカウント作成 → そのまま入る。
@@ -763,6 +820,7 @@ async function finishSignup(
     const s = ctx.sess();
     s.token = made;
     s.me = undefined;
+    s.signupDraft = undefined;
     saveSession(s);
     await ctx.me().catch(() => null);
 
