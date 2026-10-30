@@ -209,12 +209,21 @@ html:lang(ko) .hero h1 {
     letter-spacing: 0.03em;
   }
 
-  /* 本文は 18px・行間 1.7。小さな画面で長く読む字は 17–20px が目安(Hou ら 2022 の総説)。
-   * 読み手が OS の文字サイズを上げたときは、rem なのでそのまま追従する。 */
+  /* 流れは、さっと見る場所。本文は 16px・行間 1.6 で、一画面に多く載せる
+   * (さっと見る文字は 14px、じっくり読む文字は 17〜20px が目安 ─ Hou ら 2022 の総説)。
+   * 投稿を開いたときの本文(.reader)だけ、19px・行間 1.85 で、ゆっくり読める大きさにする。
+   * どちらも rem なので、OS の文字サイズや HiDPI でも、見た目の大きさが保たれる。 */
   .content {
-    font-size: 1.125rem;
-    line-height: 1.7;
+    font-size: 1rem;
+    line-height: 1.6;
     margin-block-start: var(--space-2);
+  }
+  .content-wrap.reader .content {
+    font-size: 1.1875rem;
+    line-height: 1.85;
+  }
+  .content-wrap.reader .content:lang(ja) {
+    letter-spacing: 0.05em;
   }
 
   /* ナビ・フィルターのピル */
