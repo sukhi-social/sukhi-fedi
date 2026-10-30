@@ -86,6 +86,8 @@ async function migrationPage(ctx: Ctx, o: Opts = {}): Promise<Reply> {
 }
 
 route('GET', '/settings/migration', (ctx) => migrationPage(ctx));
+// 元の web には /migration の口は無いが、Mastodon の習いで /migration と打つ人のために、静かに案内する。
+route('GET', '/migration', () => redirect('/settings/migration'));
 
 route('POST', '/settings/migration/aliases', async (ctx) => {
   const t = ctx.t;
