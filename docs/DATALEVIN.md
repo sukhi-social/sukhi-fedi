@@ -176,15 +176,16 @@ What changes for the delivery half:
   stores.
 - **Migrations.** `migrate_all` does nothing; the schema is the catalog
   (`priv/datalevin/catalog.exs`).
-- **Image.** `combined/Dockerfile` carries the pinned `dtlv` (glibc build) and
-  runs it through `gcompat`. The release is picked per CPU (`TARGETARCH`): the
-  amd64 build does not start on arm64, which is what production runs. The arm64
-  build needs `posix_fallocate64`, which gcompat lacks, so the image ships a
-  one-function shim and `dtlv` is a wrapper that preloads it. Checked on an
-  arm64 box: `dtlv --version` and `dtlv mcp -w` (`initialize`) work; the amd64
-  path is not exercised. This is still not covered by CI; if `dtlv` will not
-  start in the Alpine image, set `DATALEVIN_BIN` to a glibc build and run the
-  release from a glibc base.
+- **Image.** `dtlv` is only published as a glibc build and the runtime image is
+  Alpine. `combined/Dockerfile` therefore gives `dtlv` its own glibc (loader and
+  libm/libmvec/libgomp, copied from an Ubuntu stage) and `/usr/local/bin/dtlv`
+  is a wrapper that runs the real binary through that loader. The release is
+  picked per CPU (`TARGETARCH`), pinned by SHA-256: the amd64 build does not
+  start on arm64, which is what production runs. `gcompat` alone is not enough:
+  the arm64 build lacks `posix_fallocate64` there and, with that shimmed, still
+  fails to load its JNI library ("Can't load library: jniDTLV"). Checked on an
+  arm64 box: `dtlv mcp -w` opens a database from an Alpine container this way;
+  the amd64 path is not exercised and none of this is covered by CI.
 
 ## Switching an existing instance
 
