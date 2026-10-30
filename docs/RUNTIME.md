@@ -194,7 +194,147 @@ Podman 側には、似た目的の **zstd:chunked** がある(目次を zstd の
 4. 本物の lazy pulling(起動しながら取る)は containerd + stargz-snapshotter(nerdctl 側)の仕事で、Podman の部分取得とは別物。
    nerdctl を選ぶ人向けの**任意の最適化**に留める。
 
-## 9. 決めたいこと
+## 9. コンテナの外に nginx を置く
+
+> 提案(ひなた): コンテナの外に nginx の導入も書く。サーバーは「古き良き文化」と「静かに支えてくれる新技術」の共存で。
+
+玄関(TLS と振り分け)は、長く使われて挙動がよく知られている **nginx をホストに直接**置く。
+その奥の、入れ替わりの激しい部分(アプリ本体)をコンテナにする。玄関は変わらず、中身だけが静かに新しくなる。
+
+```
+インターネット ─▶ nginx(ホスト、443)─▶ Anubis(127.0.0.1:8080)─▶ gateway(コンテナ内 :4000)
+                    TLS・Host の維持         /login だけ確認(docs/anubis.md)
+```
+
+これは `docker-compose.yml` の Anubis の注記(「edge は Anubis の 8080 に向ける」)と同じ形。
+
+> 以下は一般的な手順の要約で、**実機では試していない。** 公式の手順を優先し、住所・ドメインは読み替える。
+
+### 9.1 導入(Fedora / RHEL 系)
+
+```bash
+sudo dnf install -y nginx certbot python3-certbot-nginx
+sudo systemctl enable --now nginx
+sudo firewall-cmd --permanent --add-service=http --add-service=https && sudo firewall-cmd --reload
+# SELinux が有効なとき、nginx が奥のポートへつなげるように
+sudo setsebool -P httpd_can_network_connect 1
+```
+
+Debian / Ubuntu なら `sudo apt install nginx certbot python3-certbot-nginx`(SELinux の行は不要)。
+
+### 9.2 設定の例
+
+`/etc/nginx/conf.d/sukhi.conf`:
+
+```nginx
+server {
+    listen 80;
+    server_name example.tld;                 # DOMAIN と同じ名前
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name example.tld;
+
+    # 証明書は certbot が書き込む(下の 9.3)
+    ssl_certificate     /etc/letsencrypt/live/example.tld/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.tld/privkey.pem;
+
+    # 画像や動画のアップロードの上限。アプリ側の上限(docs/ENV.md)と合わせる
+    client_max_body_size 100m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;     # Anubis。直接 gateway(:4000)でもよい
+        proxy_http_version 1.1;
+
+        # 大事: 元の Host をそのまま渡す。ActivityPub の署名は Host も含めて確かめるので、
+        # ここが変わると、他のサーバーからの配送が静かに受け付けられなくなる。
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # ストリーミング(WebSocket / 送りっぱなしの応答)
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+
+    # タイムライン等のストリーミング。溜め込まず、長く待つ
+    location /api/v1/streaming {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+    }
+}
+
+# http ブロック側(nginx.conf、または conf.d の先頭)に一度だけ
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+```
+
+確かめてから反映する(**一度で壊さないための古い作法**):
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+`reload` は接続を切らずに設定を読み直す。アプリの更新のとき、玄関の nginx は止めなくてよい。
+
+### 9.3 証明書
+
+```bash
+sudo certbot --nginx -d example.tld
+```
+
+更新は certbot のタイマーが自動で行う(`systemctl list-timers | grep certbot`)。
+`DOMAIN` は**最初のサインアップの前に**正しい名前にしておく(変えると、連合上の ID が迷子になる。docs/ENV.md)。
+
+### 9.4 コンテナ側(Anubis をローカルだけに出す)
+
+nginx と同じホストからだけ届けばよいので、**外に開けない**:
+
+```yaml
+# docker-compose.override.yml(Podman でも同じ)
+services:
+  anubis:
+    ports:
+      - "127.0.0.1:8080:8080"
+```
+
+Podman(rootless)でも、1024 以上のポートなので、そのまま動く。
+
+### 9.5 構成の選びかた
+
+| 構成 | 玄関 | 向く場面 |
+| --- | --- | --- |
+| **ホストの nginx(推奨の基準)** | nginx + certbot | 自分の箱を持っている。古くからの手触りで、困ったときに調べやすい |
+| Cloudflare Tunnel(cloudflared) | クラウド側 | 家庭回線、ポートを開けられない。compose の x64 free-tier 構成が使っている |
+| Coolify などの配備基盤 | 基盤の内蔵 | すでに使っていて、その流儀に任せたい |
+
+どれでも、奥(Anubis → gateway)は同じ。玄関だけを選ぶ。
+
+## 10. 文体の方針(書き分け)
+
+- **利用者に向けた文(画面、案内、告知、エラー)は和やかに。** 責めない、急かさない、次の一手を添える。
+  更新の告知も、例えば「あと 10 分ほどで、ほんの少しのあいだ再起動します。そのまま使っていて大丈夫です」のように。
+  (既存の `docs/KINDNESS.md` の考え方に揃える。)
+- **サーバー管理者に向けた文(この文書、SSH の案内、設計)は、古くからの作法を大切に、新しい技術は静かに支える側に置く。**
+  玄関は nginx、入り口は SSH、見張りは systemd、確認は `nginx -t` のように、長く効いてきたやり方を土台にして、
+  署名の検証、部分取得、デーモンレスといった新しい仕組みは「そっと効いている」位置にとどめる。画面は見る・止める用で、更新は手で。
+- 迷ったら、**読む人が一人で夜に開いても、落ち着いて進められるか**で決める。
+
+## 11. 決めたいこと
 
 1. **正本を「Compose + SSH」にして、haloy は任意の話に下げるか。** 推奨: そうする(本番の運用者は haloy を使い続けてよい)。
 2. **既定の実行環境。** 推奨: **Podman(rootless)を既定にする**。ただし §7 の三条件が揃うまでは「Podman 推奨、Docker も対応」。
@@ -202,3 +342,5 @@ Podman 側には、似た目的の **zstd:chunked** がある(目次を zstd の
 3. **Quadlet。** 推奨: Compose から生成する形で、Compose が通ったあとの段階に足す。
 4. **`combined` の multi-arch / semver 公開**(§6)。推奨: 出す。署名も同じ workflow で付ける。
 5. **eStargz / zstd:chunked。** 推奨: まず測る(§8)。効果が出て、GHCR と CI が対応していれば、任意の最適化として足す。既定にはしない。
+6. **玄関の基準。** 推奨: ホストの nginx + certbot を手順書の基準にする(§9)。cloudflared と Coolify は選択肢として併記。
+   上の設定例は、実機で `nginx -t` を通してから確定する。
