@@ -184,3 +184,136 @@ html:lang(ko) .hero h1 {
 [hidden] {
   display: none !important;
 }
+
+/* ── スマホの読み心地 ────────────────────────────────────────────────
+ * 狭い画面で、字の大きさ・字間・見出し行・押す輪・下の帯をそろえて見直した。
+ * (YouTube Music の低いチップと、Discord の「名前と時刻が一行・余白が一定」を手本に。)
+ *   - 字間: 日本語の本文は 0.075em だと、小さな画面では一字ずつ離れて見える。
+ *     本文は 0.04em、ナビ・ピルは 0.03em まで。about の 0.05em は、読む幅の広い画面のまま。
+ *   - ピル: 高さは指のために 2.5rem を保ち、字は縦の真ん中に置く。
+ *   - 見出し行: 名前と時刻が一行、ハンドルはその下で、長ければ末尾だけ削る。
+ *     三つとも下線は引かない(リンクだと分かる色と、押せる場所は残る)。
+ *   - 操作の輪: 見える大きさを 2.5rem に。押せる領域は ::after が --tap-min を持つ。 */
+@media (width <= 40rem) {
+  html[lang='ja'] {
+    --tracking: 0.04em;
+  }
+  .content:lang(ja) {
+    letter-spacing: 0.04em;
+  }
+  html:lang(ja) .app-nav,
+  html:lang(ja) .tabs,
+  html:lang(ja) .legal-foot,
+  html:lang(ja) .muted,
+  html:lang(ja) .chip {
+    letter-spacing: 0.03em;
+  }
+
+  /* 本文は 17px・行間 1.7。Discord の読みやすさに寄せる。 */
+  .content {
+    line-height: 1.7;
+    margin-block-start: var(--space-2);
+  }
+
+  /* ナビ・フィルターのピル */
+  nav.tabs {
+    gap: var(--space-2);
+  }
+  nav.tabs .tab,
+  .timeline-filter summary.chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0 var(--space-4);
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .timeline-filter summary.chip {
+    border-color: var(--color-border-strong);
+  }
+  .timeline-filter > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* アバターは 40px。右の余白は 12px で一定。 */
+  .status > a[aria-hidden='true'] .avatar {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+  .status {
+    padding-block: var(--space-4);
+  }
+
+  /* 見出し行: [名前 ………… 時刻 ↗] / [@ハンドル] */
+  .meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: var(--space-2);
+    row-gap: 0;
+    align-items: baseline;
+    line-height: 1.4;
+  }
+  .meta a {
+    text-decoration: none;
+  }
+  .display-name {
+    max-width: none;
+    min-width: 0;
+    grid-column: 1;
+    font-size: 1.0625rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .meta .handle {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+  }
+  .meta .timestamp {
+    grid-column: 2;
+    grid-row: 1;
+    margin-inline-start: 0;
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+    white-space: nowrap;
+  }
+  .meta .orig {
+    grid-column: 3;
+    grid-row: 1;
+    margin-inline-start: 0;
+    text-decoration: none;
+  }
+
+  /* 操作の行: 見える大きさ 2.5rem、押せる領域は ::after で 44px 以上。 */
+  .status-actions {
+    margin-block-start: var(--space-2);
+    gap: var(--space-1) var(--space-2);
+  }
+  .chip {
+    text-decoration: none;
+  }
+  .status-actions .chip {
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+    padding-inline: var(--space-3);
+    font-size: 0.9375rem;
+  }
+  .status-actions {
+    --nav-ico-size: 1.3em;
+  }
+
+  /* 下の帯: ラベルは 12px、アイコンと一つの塊で中央に。 */
+  .nav-bottom .nav-link {
+    justify-content: center;
+    font-size: 0.75rem;
+    letter-spacing: 0;
+    padding-block: var(--space-2) var(--space-1);
+  }
+  .nav-bottom .nav-link[aria-current='page'] {
+    background: none;
+    color: var(--color-accent-strong);
+  }
+}
