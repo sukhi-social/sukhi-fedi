@@ -209,8 +209,10 @@ html:lang(ko) .hero h1 {
     letter-spacing: 0.03em;
   }
 
-  /* 本文は 17px・行間 1.7。Discord の読みやすさに寄せる。 */
+  /* 本文は 18px・行間 1.7。小さな画面で長く読む字は 17–20px が目安(Hou ら 2022 の総説)。
+   * 読み手が OS の文字サイズを上げたときは、rem なのでそのまま追従する。 */
   .content {
+    font-size: 1.125rem;
     line-height: 1.7;
     margin-block-start: var(--space-2);
   }
@@ -270,14 +272,14 @@ html:lang(ko) .hero h1 {
     grid-column: 1 / -1;
     grid-row: 2;
     color: var(--color-text-muted);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
   }
   .meta .timestamp {
     grid-column: 2;
     grid-row: 1;
     margin-inline-start: 0;
     color: var(--color-text-muted);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     white-space: nowrap;
   }
   .meta .orig {
@@ -305,10 +307,10 @@ html:lang(ko) .hero h1 {
     --nav-ico-size: 1.3em;
   }
 
-  /* 下の帯: ラベルは 12px、アイコンと一つの塊で中央に。 */
+  /* 下の帯: ラベルは 13px、アイコンと一つの塊で中央に。 */
   .nav-bottom .nav-link {
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     letter-spacing: 0;
     padding-block: var(--space-2) var(--space-1);
   }
