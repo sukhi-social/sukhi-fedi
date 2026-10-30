@@ -23,7 +23,7 @@ const LABEL: Record<Kind, TranslationKey> = {
   mutes: 'data.mutes'
 };
 
-type ImportResult = { imported: number; skipped: number; unresolved: string[] };
+type ImportResult = { imported: number; skipped: number; unresolved: string[]; queued?: number };
 
 async function dataPage(ctx: Ctx, o: { error?: { kind: Kind; text: string }; status?: number } = {}): Promise<Reply> {
   const t = ctx.t;
@@ -90,7 +90,9 @@ route('POST', '/settings/data/import/:kind', async (ctx) => {
 
   try {
     const r = await gwJson<ImportResult>(ctx, 'POST', `/api/v1/accounts/import/${kind}`, { json: { data: await file.text() } });
-    ctx.flash('notice', r.skipped > 0 ? t('data.done.skipped', { n: r.imported, m: r.skipped }) : t('data.done', { n: r.imported }));
+    // フォローは、gateway が一定の間合いで順に出す(速すぎず、遅すぎず)。受け付けた件数だけ言う。
+    if (r.queued) ctx.flash('notice', t('data.queued', { n: r.queued }));
+    else ctx.flash('notice', r.skipped > 0 ? t('data.done.skipped', { n: r.imported, m: r.skipped }) : t('data.done', { n: r.imported }));
     return redirect('/settings/data');
   } catch (e) {
     if (e instanceof GatewayError) {

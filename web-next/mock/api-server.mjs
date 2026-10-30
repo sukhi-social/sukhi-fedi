@@ -225,6 +225,8 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
         if (rows.length > 1000) return reply(422, { error: 'too_many_rows' });
         const good = rows.filter((r) => /^[\w.-]+(@[\w.-]+)?$/.test(r) && !r.startsWith('ghost'));
         for (const r of good) if (!lists[kind].includes(r)) lists[kind].push(r);
+        // 本物のフォローは、受け付けて(queued)順に出す。ブロック・ミュートは、その場で。
+        if (kind === 'following') return reply(200, { imported: 0, skipped: 0, unresolved: [], queued: rows.length });
         return reply(200, { imported: good.length, skipped: rows.length - good.length, unresolved: rows.filter((r) => !good.includes(r)) });
       }
     }

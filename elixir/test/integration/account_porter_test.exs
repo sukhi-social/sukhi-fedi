@@ -64,11 +64,15 @@ defmodule SukhiFedi.Integration.AccountPorterTest do
     refute Moderation.muted?(alice.id, alice.id)
   end
 
-  test "follows import creates the follow rows for known accounts" do
+  test "follows import is queued; the paced half follows known accounts" do
     alice = create_account!("porter_follower")
     bob = create_account!("porter_followee")
 
-    assert {:ok, %{imported: 1}} = AccountPorter.import_csv(alice.id, :following, "#{bob.username}\n")
+    assert {:ok, %{imported: 0, queued: 1}} =
+             AccountPorter.import_csv(alice.id, :following, "#{bob.username}\n")
+
+    # The background task runs in its own process; drive the same function here.
+    assert 1 = AccountPorter.follow_paced(alice, [bob], [], 0)
 
     {:ok, csv} = AccountPorter.export(alice.id, :following)
     assert csv == "Account address\r\n#{bob.username}@#{SukhiFedi.Config.domain!()}\r\n"

@@ -14,7 +14,7 @@ defmodule SukhiFedi.AccountPorter do
       format check), then resolved in batch: two queries cover every
       address this server already knows. Only the rest go out over
       WebFinger (`Accounts.lookup_by_acct/2`, at most `@max_resolve`
-      per import, a few at a time); whatever is still unknown is reported
+      per import, ten at a time); whatever is still unknown is reported
       back as `unresolved` rather than failing the run. Applying goes
       through the same functions the single-account API uses
       (`Social.request_follow/2`, `Moderation.block/2`, `Moderation.mute/2`),
@@ -36,8 +36,10 @@ defmodule SukhiFedi.AccountPorter do
   @header "Account address"
   @max_rows 1_000
   @max_bytes 256 * 1024
-  @max_resolve 50
+  @max_resolve 200
   @max_unresolved_report 20
+  # One follow every 100 ms ≈ 10 a second: 1000 rows in under two minutes.
+  @follow_interval_ms 100
 
   @address ~r/\A[A-Za-z0-9_.\-]{1,64}(@[A-Za-z0-9.\-]{1,253})?\z/
 
@@ -101,36 +103,82 @@ defmodule SukhiFedi.AccountPorter do
   # ── import ──────────────────────────────────────────────────────────────
 
   @doc """
-  Apply the CSV `csv` to `account_id`'s `kind` list. Returns counts and (a
-  sample of) the addresses that could not be resolved.
+  Apply the CSV `csv` to `account_id`'s `kind` list.
+
+  Blocks and mutes are local writes — they are done before this returns, with
+  counts and (a sample of) the addresses that could not be resolved. Follows
+  each federate a `Follow`, so they are **paced** and run in the background
+  (`follow_paced/4`): this returns at once with `queued` set to how many rows
+  were accepted, and the follows go out at a steady `@follow_interval_ms`
+  — not a burst that reads as spam to the other servers, not a crawl.
   """
   @spec import_csv(integer(), kind(), binary()) ::
-          {:ok, %{imported: non_neg_integer(), skipped: non_neg_integer(), unresolved: [String.t()]}}
+          {:ok,
+           %{
+             imported: non_neg_integer(),
+             skipped: non_neg_integer(),
+             unresolved: [String.t()],
+             queued: non_neg_integer()
+           }}
           | {:error, :not_found | :too_large | :too_many}
   def import_csv(account_id, kind, csv)
       when is_integer(account_id) and kind in @kinds and is_binary(csv) do
     with %Account{} = account <- Repo.get(Account, account_id),
          {:ok, addresses, invalid} <- parse(csv) do
       {known, missing} = resolve_known(addresses)
-      {fetched, unresolved} = resolve_remote(missing)
-
-      targets =
-        (known ++ fetched)
-        |> Enum.uniq_by(& &1.id)
-        |> Enum.reject(&(&1.id == account.id))
-
-      imported = Enum.count(targets, &apply_one(account, kind, &1))
-
-      {:ok,
-       %{
-         imported: imported,
-         skipped: invalid + length(unresolved) + (length(known) + length(fetched) - imported),
-         unresolved: Enum.take(unresolved, @max_unresolved_report)
-       }}
+      run_import(account, kind, known, missing, invalid)
     else
       nil -> {:error, :not_found}
       {:error, _} = e -> e
     end
+  end
+
+  defp run_import(%Account{} = account, :following, known, missing, invalid) do
+    {:ok, _pid} =
+      Task.Supervisor.start_child(SukhiFedi.AccountPorter.TaskSup, fn ->
+        follow_paced(account, known, missing)
+      end)
+
+    {:ok, %{imported: 0, skipped: invalid, unresolved: [], queued: length(known) + length(missing)}}
+  end
+
+  defp run_import(%Account{} = account, kind, known, missing, invalid) when kind in [:blocks, :mutes] do
+    {fetched, unresolved} = resolve_remote(missing)
+    targets = importable(account, known ++ fetched)
+    imported = Enum.count(targets, &apply_one(account, kind, &1))
+
+    {:ok,
+     %{
+       imported: imported,
+       skipped: invalid + length(unresolved) + (length(known) + length(fetched) - imported),
+       unresolved: Enum.take(unresolved, @max_unresolved_report),
+       queued: 0
+     }}
+  end
+
+  @doc """
+  The background half of a follow import: look up what this server does not
+  know yet, then follow one account every `interval_ms`. Public so a test can
+  run it in its own process; callers go through `import_csv/3`.
+  """
+  @spec follow_paced(Account.t(), [Account.t()], [String.t()], non_neg_integer()) ::
+          non_neg_integer()
+  def follow_paced(%Account{} = account, known, missing, interval_ms \\ @follow_interval_ms) do
+    {fetched, _unresolved} = resolve_remote(missing)
+
+    account
+    |> importable(known ++ fetched)
+    |> Enum.reduce(0, fn target, followed ->
+      done? = apply_one(account, :following, target)
+      Process.sleep(interval_ms)
+      if done?, do: followed + 1, else: followed
+    end)
+  end
+
+  defp importable(%Account{id: own_id}, accounts) do
+    accounts
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.reject(&(&1.id == own_id))
   end
 
   @doc """
@@ -242,7 +290,7 @@ defmodule SukhiFedi.AccountPorter do
       Task.async_stream(
         try_now,
         fn address -> {address, Accounts.lookup_by_acct(address, resolve: true)} end,
-        max_concurrency: 5,
+        max_concurrency: 10,
         timeout: 15_000,
         on_timeout: :kill_task,
         ordered: true
