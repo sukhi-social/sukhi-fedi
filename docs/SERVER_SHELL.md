@@ -603,5 +603,5 @@ MCP のツールは level で**別のサーバー設定**に分ける。クラ�
   同意、公開範囲、手当てを持ち込まない、を橋の約束にする。両方向(案 B)は、中継で様子を見たあと。
 
 **Q22. (決定済み・2026-10-30 ひなた)** Rocky(OCI)では、Podman は Quadlet を主、専用のサービスユーザーで rootless、EPEL は使ってよい(最小に)。
-- Cockpit は 127.0.0.1 のみで、届く道はまず SSH のトンネル。Tailscale などの VPN は、必要が出てから(RUNTIME.md §12.5)。
+- Cockpit は 127.0.0.1 のみで、届く道は SSH のトンネル、または Tailscale(手順は TAILSCALE.md。最初は公開の 22 番を閉じない)。
 - 秘密は Podman のシークレット(`entrypoint.sh` がすでに `/run/secrets` を読む)。`AutoUpdate=` は検証をしないので既定では使わず、検証つきの `sukhi release` が主。

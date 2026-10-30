@@ -23,7 +23,8 @@
 | 初回の起動、更新、戻し | [`OPS_DEPLOY.md`](OPS_DEPLOY.md) |
 | 日課・週課・月課、控え(バックアップ)、見守り、困ったとき | [`OPS_MAINTAIN.md`](OPS_MAINTAIN.md) |
 | SSH のはじめかた(鍵、tmux) | [`OPERATING_OVER_SSH.md`](OPERATING_OVER_SSH.md) |
-| Docker / Podman / nerdctl の選び方と導入、nginx、CVE への備え | [`RUNTIME.md`](RUNTIME.md) |
+| Docker / Podman / nerdctl の選び方と導入、nginx、CVE への備え、Rocky(OCI)の Cockpit | [`RUNTIME.md`](RUNTIME.md) |
+| Tailscale で SSH と Cockpit を網の中にだけ出す | [`TAILSCALE.md`](TAILSCALE.md) |
 | 弱くなりやすいところを、やさしく | [`CARING_FOR_YOUR_SERVER.md`](CARING_FOR_YOUR_SERVER.md) |
 | 小さな独立コミュニティの見守り | [`COMMUNITY_SUPPORT.md`](COMMUNITY_SUPPORT.md) |
 | `sukhi` コマンドと更新の設計 | [`SERVER_SHELL.md`](SERVER_SHELL.md) |
