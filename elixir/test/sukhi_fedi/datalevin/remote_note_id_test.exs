@@ -16,7 +16,7 @@ defmodule SukhiFedi.Datalevin.RemoteNoteIdTest do
 
   test "a remote note's id encodes created_at" do
     id = Writer.snowflake("notes", %{ap_id: "https://r.example/n/1", created_at: @published_us})
-    assert Snowflake.to_datetime(id) == @published
+    assert DateTime.compare(Snowflake.to_datetime(id), @published) == :eq
   end
 
   test "a local note (no ap_id) keeps the insert clock" do
