@@ -202,6 +202,7 @@ route('GET', '/@:acct', async (ctx) => {
           <p class="muted">@${account.acct}</p>
         </div>
         ${rel ? followButton(ctx, account.id, rel) : ''}
+        ${isSelf ? html`<a class="chip" href="/settings">${t('profile.edit')}</a>` : ''}
       </div>
       ${account.roles?.length ? html`<p class="profile-roles">${account.roles.map((r) => html`<span class="role-badge">${r.name}</span>`)}</p>` : ''}
       ${account.note ? html`<div class="profile-note">${raw(renderEmojis(account.note, account.emojis))}</div>` : ''}

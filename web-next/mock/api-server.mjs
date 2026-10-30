@@ -29,13 +29,47 @@ import { fileURLToPath } from 'node:url';
 export async function startApiServer({ port = Number(process.env.PORT ?? 4000), quiet = false } = {}) {
   // mock.mjs が読まれる前に置く(NOW は読み込み時に決まる)。
   process.env.SUKHI_MOCK_NOW ??= new Date().toISOString();
-  const { respond } = await import('./mock.mjs');
+  const { respond, ME } = await import('./mock.mjs');
 
   const unknown = new Set();
   const open = new Set();
 
   // 予約投稿(お預かり)だけは、覚えておく ── 四半刻の見直しの余白を、画面で試すため。
   const scheduled = [];
+
+  // プロフィールの編集(PATCH update_credentials)も、覚えておく ── 設定の画面を、行って帰って試すため。
+  // 形は gateway の verify_credentials に合わせる(source に原文・ひとこと欄・通知のペース)。
+  let me = {
+    ...ME,
+    location: null,
+    birthday: null,
+    discoverable: false,
+    indexable: false,
+    source: { note: 'お茶と、古い本。', fields: [], language: null, notification_hold_minutes: null, notification_grouping: false }
+  };
+  const bool = (v) => v === 'true' || v === true;
+  async function patchMe(req, chunks) {
+    const type = req.headers['content-type'] ?? '';
+    const f = await new Request('http://localhost/', { method: 'POST', headers: { 'content-type': type }, body: Buffer.concat(chunks) }).formData();
+    const next = { ...me, source: { ...me.source } };
+    if (f.has('display_name')) next.display_name = String(f.get('display_name'));
+    if (f.has('note')) {
+      next.source.note = String(f.get('note'));
+      next.note = `<p>${next.source.note}</p>`;
+    }
+    for (const k of ['location', 'birthday']) if (f.has(k)) next[k] = String(f.get(k)) || null;
+    for (const k of ['locked', 'bot', 'discoverable', 'indexable']) if (f.has(k)) next[k] = bool(f.get(k));
+    if (f.has('fields')) {
+      next.source.fields = JSON.parse(String(f.get('fields')));
+      next.fields = next.source.fields.map((x) => ({ name: x.name, value: x.value, verified_at: null }));
+    }
+    if (f.has('notification_hold_minutes')) next.source.notification_hold_minutes = Number(f.get('notification_hold_minutes'));
+    if (f.has('notification_grouping')) next.source.notification_grouping = bool(f.get('notification_grouping'));
+    const big = [...f.values()].find((x) => typeof x !== 'string' && x.size > 8 * 1024 * 1024);
+    if (big) return null;
+    me = next;
+    return me;
+  }
 
   const server = http.createServer(async (req, res) => {
     const chunks = [];
@@ -63,6 +97,18 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       if (i >= 0) scheduled.splice(i, 1);
       res.writeHead(i >= 0 ? 200 : 404, { 'content-type': 'application/json' });
       res.end('{}');
+      return;
+    }
+
+    if (pathname === '/api/v1/accounts/verify_credentials' && method === 'GET') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(me));
+      return;
+    }
+    if (pathname === '/api/v1/accounts/update_credentials' && method === 'PATCH') {
+      const updated = await patchMe(req, chunks).catch(() => null);
+      res.writeHead(updated ? 200 : 422, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(updated ?? { error: 'validation_failed', details: {} }));
       return;
     }
 
