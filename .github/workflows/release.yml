@@ -52,7 +52,6 @@ jobs:
           # The single-BEAM image docker-compose.combined.yml points at
           # (`sukhi-fedi-combined:${SUKHI_VERSION:-v1}`) and Quadlet boxes run.
           - { name: combined, context: ., file: combined/Dockerfile }
-          - { name: bun, context: ./bun }
           - { name: anubis, context: ./config/anubis }
         platform:
           - { name: amd64, runner: ubuntu-24.04, docker: linux/amd64 }
@@ -102,7 +101,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [gateway, delivery, api, combined, bun, anubis]
+        image: [gateway, delivery, api, combined, anubis]
     steps:
       - uses: actions/download-artifact@v4
         with:
