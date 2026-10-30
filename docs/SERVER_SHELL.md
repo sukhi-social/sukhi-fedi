@@ -605,3 +605,7 @@ MCP のツールは level で**別のサーバー設定**に分ける。クラ�
 **Q22. (決定済み・2026-10-30 ひなた)** Rocky(OCI)では、Podman は Quadlet を主、専用のサービスユーザーで rootless、EPEL は使ってよい(最小に)。
 - Cockpit は 127.0.0.1 のみで、届く道は SSH のトンネル、または Tailscale(手順は TAILSCALE.md。最初は公開の 22 番を閉じない)。
 - 秘密は Podman のシークレット(`entrypoint.sh` がすでに `/run/secrets` を読む)。`AutoUpdate=` は検証をしないので既定では使わず、検証つきの `sukhi release` が主。
+
+**Q23. tailnet の持ち主と 2 段階認証(TAILSCALE.md §2)。**
+- 推奨: 持ち主はひなたの個人アカウント(GitHub か Google)で、ハードウェアキーかパスキーの多要素認証。第二の管理者を一人付ける。
+  役割のアカウント(B)や自前の OIDC(C)は、費用と手間を見てから。他のコミュニティの実例は見つからなかった。
