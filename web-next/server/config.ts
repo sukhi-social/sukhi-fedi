@@ -8,6 +8,9 @@
 //   POST_DELAY_MIN    投稿が上がるまでの「見直しの余白」(分、既定 15 = 約四半刻)
 //   NOTIFY_HOLD_MIN   通知をポツポツ届けるまでの間(分、既定 60 = 一刻のうち)
 //   ABOUT_URL         はじめての人の行き先(既定 https://about.sukhi.social)。空にすると、ここの入口を見せる
+//   SITE_NAME         ナビ・入口の帯・<title> に出すサイトの名前(既定 sukhi-fedi)
+//   SITE_LOGO         その横に出すロゴの画像。`/…` のパスか `https://…`(既定 /favicon.png)。
+//                     image を焼きなおさずに替えるなら、data/brand/ にファイルを置いて /brand/<ファイル名> を書く
 //   SUKHI_DEV_TOKEN   dev のときだけ。入った状態から始める(mock 用)
 
 import { fileURLToPath } from 'node:url';
@@ -20,6 +23,11 @@ export const config = {
   port,
   gateway: (process.env.GATEWAY_URL ?? 'http://localhost:4000').replace(/\/$/, ''),
   publicOrigin: (process.env.PUBLIC_ORIGIN ?? `http://localhost:${port}`).replace(/\/$/, ''),
+  siteName: (process.env.SITE_NAME ?? '').trim() || 'sukhi-fedi',
+  // パス(/…)か http(s) の URL だけ。ほかは既定に戻す。
+  siteLogo: /^(\/(?!\/)|https?:\/\/)/.test((process.env.SITE_LOGO ?? '').trim())
+    ? (process.env.SITE_LOGO ?? '').trim()
+    : '/favicon.png',
   aboutUrl: (process.env.ABOUT_URL ?? 'https://about.sukhi.social').replace(/\/$/, ''),
   secureCookie: process.env.COOKIE_SECURE === '1',
   postDelayMin: Number(process.env.POST_DELAY_MIN ?? 15),

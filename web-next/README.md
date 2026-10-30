@@ -23,6 +23,8 @@ pnpm test
 | `GATEWAY_URL` | gateway のもと |
 | `PUBLIC_ORIGIN` | ブラウザから見えるこのサイトの origin(OAuth の戻り先になる) |
 | `COOKIE_SECURE=1` | https の裏に置くとき |
+| `SITE_NAME` | ナビ・入口の帯・`<title>` の末尾に出るサイトの名前(既定 `sukhi-fedi`) |
+| `SITE_LOGO` | その横のロゴ画像。`/…` のパスか `https://…` の URL(既定 `/favicon.png`)。ほかの書きかたは既定に戻す。image を焼きなおさずに替えるには、`data/brand/` にファイルを置き(コンテナなら `/app/data/brand/`)、`/brand/<ファイル名>` を書く |
 | `ABOUT_URL` | はじめての人の行き先(既定 `https://about.sukhi.social`。空ならここの入口) |
 | `POST_DELAY_MIN` | 投稿が上がるまでの余白(分、既定 15 = 約四半刻。0 ですぐ上がる) |
 | `NOTIFY_HOLD_MIN` | 「反応」の通知を置く時間(分、既定 60)。gateway に `hold_minutes` として毎回添える |
