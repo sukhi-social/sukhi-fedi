@@ -85,7 +85,7 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
   <meta name="description" content="${p.description ?? 'しずかな Fediverse のお家。'}" />
   <title>${title}</title>
-  <link rel="icon"${/\.svg(\?|$)/i.test(config.siteLogo) ? ' type="image/svg+xml"' : ''} href="${config.siteLogo}" />
+  <link rel="icon"${/\.svg(\?|$)/i.test(config.siteLogo) ? html` type="image/svg+xml"` : ''} href="${config.siteLogo}" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#fffaf3" media="(prefers-color-scheme: light)" />
