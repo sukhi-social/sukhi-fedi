@@ -127,6 +127,48 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
 route('GET', '/timeline', (ctx) => timeline(ctx, null));
 route('GET', '/tags/:tag', (ctx) => timeline(ctx, ctx.params.tag));
 
+// ── フォロワー・フォロー中の一覧 ─────────────────────────────────
+// 数は出さない(プロフィールと同じ)。名前の並びだけを、ここに置く。
+// '/@:acct/:id' より先に置く ── そうしないと "followers" という名前の投稿として探されてしまう。
+async function connections(ctx: Ctx, kind: 'followers' | 'following') {
+  const t = ctx.t;
+  const me = await maybeMe(ctx);
+  const acct = ctx.params.acct;
+
+  let account: Account;
+  try {
+    account = await gwJson<Account>(ctx, 'GET', '/api/v1/accounts/lookup', { auth: false, query: { acct }, notFound: true });
+  } catch (e) {
+    if (e instanceof NotFound) {
+      return ok(
+        layout(ctx, { title: acct, me, entrance: !me, body: html`<p class="error">${t('common.acctNotFound', { acct })}</p><p><a class="chip" href="/timeline">${t('common.backToTimeline')}</a></p>` }),
+        404
+      );
+    }
+    throw e;
+  }
+
+  const items = await gwJson<Account[]>(ctx, 'GET', `/api/v1/accounts/${encodeURIComponent(account.id)}/${kind}`, { auth: 'optional' }).catch(() => null);
+  let rels = new Map<string, Relationship>();
+  if (me && items?.length) {
+    const rs = await gwJson<Relationship[]>(ctx, 'GET', '/api/v1/accounts/relationships', { query: { 'id[]': items.map((a) => a.id) } }).catch(() => []);
+    rels = new Map(rs.map((r) => [r.id, r]));
+  }
+
+  const title = kind === 'followers' ? t('profile.followersSuffix') : t('profile.followingSuffix');
+  const body = html`<header class="timeline page-head">
+      <h1>${title}</h1>
+      <p class="muted"><a href="/@${account.acct}">${nameHtml(account)}</a> <span>@${account.acct}</span></p>
+    </header>
+    ${items === null ? html`<p class="error">${t('profile.listError')}</p>` : ''}
+    ${items && items.length === 0 ? html`<p class="prose-small">${t(kind === 'followers' ? 'profile.noFollowers' : 'profile.noFollowing')}</p>` : ''}
+    ${items && items.length ? html`<section class="account-list">${items.map((a) => accountRow(ctx, a, rels.get(a.id) ?? null, me))}</section>` : ''}`;
+  return ok(layout(ctx, { title: `${nameOf(account)} · ${title}`, me, entrance: !me, legal: !me, body }));
+}
+
+route('GET', '/@:acct/followers', (ctx) => connections(ctx, 'followers'));
+route('GET', '/@:acct/following', (ctx) => connections(ctx, 'following'));
+
 // ── 投稿の詳細 ──────────────────────────────────────────────────
 route('GET', '/@:acct/:id', async (ctx) => {
   const me = await maybeMe(ctx);
@@ -213,6 +255,10 @@ route('GET', '/@:acct', async (ctx) => {
             ${account.created_at ? html`<div class="profile-field"><dt>${t('profile.joined')}</dt><dd>${timeWords(account.created_at, ctx.locale)}</dd></div>` : ''}
           </dl>`
         : ''}
+      <p class="profile-links">
+        <a class="chip" href="${base}/following">${t('profile.followingSuffix')}</a>
+        <a class="chip" href="${base}/followers">${t('profile.followersSuffix')}</a>
+      </p>
       ${fields.length
         ? html`<dl class="profile-fields">${fields.map((f) => html`<div class="profile-field"><dt>${f.name}</dt><dd>${raw(renderEmojis(f.value, account.emojis))}</dd></div>`)}</dl>`
         : ''}
