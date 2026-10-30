@@ -12,6 +12,9 @@ up.link.config.followSelectors.push('a[href^="/"]');
 up.form.config.submitSelectors.push("form");
 
 // gateway が焼いた頁(規約など)・OAuth・API・ログアウトは、ふつうの遷移で。
+// 入る(/login)・はじめる(/signup)のフォームも、ふつうの送信(フルリロード)にする。通ったあとは
+// anubis の関所(/check)へ飛ぶが、あれは頁まるごとの HTML で、本物の遷移でないと JS が動かない。
+// Unpoly の fetch で受けると <main> の差し替えになり、確認の画面が壊れる(2026-10-30)。
 up.link.config.noFollowSelectors.push(
   'a[href^="/terms"]',
   'a[href^="/privacy"]',
@@ -19,6 +22,8 @@ up.link.config.noFollowSelectors.push(
   'a[href^="/api"]',
 );
 up.form.config.noSubmitSelectors.push(
+  'form[action^="/login"]',
+  'form[action^="/signup"]',
   'form[action^="/logout"]',
   'form[action^="/oauth"]',
   'form[action^="/api"]',
