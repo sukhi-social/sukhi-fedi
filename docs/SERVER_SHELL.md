@@ -96,6 +96,7 @@ sukhi script run <name> [--execute] [--timeout 30m] [-- 引数]
 sukhi script runs [<id>]      # 実行履歴、進み具合、終了状態
 sukhi script cancel <id>
 sukhi audit [--since 1d]      # 監査ログ
+sukhi doctor                  # 健康診断(やさしい文で、気にかけたい点と次の一手。CARING_FOR_YOUR_SERVER.md)
 sukhi shell                   # 対話モード(下記)
 sukhi mcp                     # MCP サーバーを stdio で起動(§6)
 sukhi completion bash|zsh|fish
@@ -579,3 +580,7 @@ MCP のツールは level で**別のサーバー設定**に分ける。クラ�
 
 **Q16. 玄関をホストの nginx にして、手順書の基準にするか。文体を「利用者向けは和やかに、管理者向けは古い作法を土台に新技術は静かに」で書き分けるか。**
 - 推奨: どちらもそうする(RUNTIME.md §9・§10)。nginx の設定は実機で確かめてから確定する。
+
+**Q17. 「はじめての管理者」向けの案内書と `sukhi doctor` を、設計に入れるか(CARING_FOR_YOUR_SERVER.md)。**
+- 推奨: 入れる。`doctor` は読み取りだけで副作用がなく、第 0 段(§5.10)の `status` と同時に作れる。
+  文体の基準は KINDNESS.md に揃え、画面の文章もこの案内書と同じ調子にする。
