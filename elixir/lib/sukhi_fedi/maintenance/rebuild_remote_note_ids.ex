@@ -39,7 +39,9 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
   `ap_id`) are never touched — their id and created_at are minted
   together at post time and already agree.
 
-  Run on the gateway (it owns the Repo):
+  Runs on both stores: Postgres and Datalevin (every statement is Ecto; the
+  FK list comes from `RebuildRemoteNotes.note_fk_refs/0`, which reads the
+  catalog snapshot on Datalevin). Run on the gateway (it owns the Repo):
 
       bin/sukhi_fedi eval 'SukhiFedi.Maintenance.RebuildRemoteNoteIds.run(:dry_run)'
       bin/sukhi_fedi eval 'SukhiFedi.Maintenance.RebuildRemoteNoteIds.run(:execute)'
@@ -48,12 +50,13 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
   import Ecto.Query
   require Logger
 
-  alias SukhiFedi.Maintenance.Progress
+  alias SukhiFedi.Maintenance.{Progress, RebuildRemoteNotes}
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Note
+  alias SukhiFedi.Snowflake
 
   # Matches the `snowflake_id()` migration: epoch 2024-01-01, 16-bit seq.
-  @epoch_ms 1_704_067_200_000
+  @epoch_ms Snowflake.epoch_ms()
   @seq_threshold 1_000_000_000_000
 
   # Default drift tolerance. Live posts land well under a minute of their
@@ -95,6 +98,10 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
   `created_at` by more than `skew_s` seconds.
   """
   def target_notes(skew_s \\ @default_skew_s) do
+    if SukhiFedi.Store.datalevin?(), do: drifted_in_elixir(skew_s), else: drifted_in_sql(skew_s)
+  end
+
+  defp drifted_in_sql(skew_s) do
     from(n in Note,
       where: not is_nil(n.domain) and n.id > ^@seq_threshold,
       where:
@@ -110,25 +117,22 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
     |> Repo.all()
   end
 
-  @doc "Every `(table, column)` whose FOREIGN KEY points at `notes(id)`."
-  def note_fk_refs do
-    sql = """
-    SELECT tc.table_name, kcu.column_name
-    FROM information_schema.table_constraints tc
-    JOIN information_schema.key_column_usage kcu
-      ON tc.constraint_name = kcu.constraint_name
-     AND tc.table_schema = kcu.table_schema
-    JOIN information_schema.constraint_column_usage ccu
-      ON tc.constraint_name = ccu.constraint_name
-     AND tc.table_schema = ccu.table_schema
-    WHERE tc.constraint_type = 'FOREIGN KEY'
-      AND ccu.table_name = 'notes'
-      AND ccu.column_name = 'id'
-    """
-
-    Repo.query!(sql).rows
-    |> Enum.map(fn [table, column] -> {table, column} end)
+  # Datalevin has no date arithmetic in a query: read the remote snowflake
+  # notes and compare the id's instant to `created_at` here.
+  defp drifted_in_elixir(skew_s) do
+    from(n in Note,
+      where: not is_nil(n.domain) and n.id > ^@seq_threshold,
+      order_by: n.created_at
+    )
+    |> Repo.all()
+    |> Enum.filter(fn n ->
+      abs(Snowflake.to_unix_ms(n.id) - DateTime.to_unix(n.created_at, :millisecond)) >
+        skew_s * 1000
+    end)
   end
+
+  @doc "Every `(table, column)` whose FOREIGN KEY points at `notes(id)`."
+  defdelegate note_fk_refs, to: RebuildRemoteNotes
 
   defp process(%Note{} = old, refs) do
     case rebuild(old, refs) do
@@ -142,62 +146,44 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
     end
   end
 
+  # Every column the copy carries verbatim; `id` and `ap_id` are set apart.
+  @carried ~w(account_id content visibility cw in_reply_to_ap_id conversation_ap_id
+              quote_of_ap_id mfm emojis domain title sensitive created_at)a
+
   @doc """
   Swap one note for a copy whose snowflake id encodes its `created_at`,
   carrying every FK ref across. Exposed for testing; `refs` is the
-  `note_fk_refs/0` list.
+  `note_fk_refs/0` list. Plain Ecto, so it runs on Postgres and Datalevin.
   """
   def rebuild(%Note{} = old, refs) do
     Repo.transaction(fn ->
-      new_id = mint_id_from_created_at(old.id)
-
-      Repo.query!(
-        """
-        INSERT INTO notes
-          (id, account_id, content, visibility, ap_id, created_at, cw,
-           in_reply_to_ap_id, conversation_ap_id, quote_of_ap_id, mfm, emojis,
-           domain, title, sensitive)
-        SELECT $1, account_id, content, visibility, NULL, created_at, cw,
-           in_reply_to_ap_id, conversation_ap_id, quote_of_ap_id, mfm, emojis,
-           domain, title, sensitive
-        FROM notes WHERE id = $2
-        """,
-        [new_id, old.id]
-      )
+      new =
+        %Note{}
+        |> Ecto.Changeset.change(
+          old
+          |> Map.take(@carried)
+          # NULL for now: the real ap_id still lives on `old` and the column is
+          # uniquely indexed. It moves over after the delete.
+          |> Map.merge(%{id: RebuildRemoteNotes.mint_id(old.created_at), ap_id: nil})
+        )
+        |> Repo.insert!()
 
       Enum.each(refs, fn {table, column} ->
-        Repo.query!(
-          "UPDATE #{quote_ident(table)} SET #{quote_ident(column)} = $1 WHERE #{quote_ident(column)} = $2",
-          [new_id, old.id]
-        )
+        repoint(table, String.to_atom(column), old.id, new.id)
       end)
 
-      Repo.query!("DELETE FROM notes WHERE id = $1", [old.id])
-      Repo.query!("UPDATE notes SET ap_id = $1 WHERE id = $2", [old.ap_id, new_id])
+      Repo.delete!(old)
+      Repo.update_all(from(n in Note, where: n.id == ^new.id), set: [ap_id: old.ap_id])
 
-      {old.id, new_id}
+      {old.id, new.id}
     end)
   end
 
-  # Mint the id in SQL so it shares `snowflake_id()`'s exact arithmetic
-  # and the same `snowflake_seq` (the low 16 bits stay globally unique).
-  defp mint_id_from_created_at(old_id) do
-    %{rows: [[new_id]]} =
-      Repo.query!(
-        """
-        SELECT ((floor(extract(epoch from (created_at at time zone 'UTC')) * 1000)::bigint - $1) << 16)
-               | (nextval('snowflake_seq') % 65536)
-        FROM notes WHERE id = $2
-        """,
-        [@epoch_ms, old_id]
-      )
-
-    new_id
+  # Table/column names come from the catalog, not user input.
+  defp repoint(table, column, old_id, new_id) do
+    from(t in table, where: field(t, ^column) == ^old_id)
+    |> Repo.update_all(set: [{column, new_id}])
   end
-
-  # Table/column names come from the catalog, not user input, but quote
-  # them anyway so an unusual identifier can't break the statement.
-  defp quote_ident(name), do: ~s("#{String.replace(name, "\"", "\"\"")}")
 
   defp tally(results) do
     %{

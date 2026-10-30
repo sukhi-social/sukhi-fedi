@@ -100,9 +100,9 @@ Be careful with this list; it is the honest part.
   stores is written as Ecto queries. That is done for the pull federation,
   `SukhiShared.PullStats` and `SukhiShared.PeerCapabilities` (the shared
   library now depends on Ecto, which every node already has). Still raw SQL,
-  and Postgres-only: `Maintenance.RebuildRemoteNotes` / `RebuildRemoteNoteIds`
-  (one-off repair tasks), and `mix sukhi.datalevin.catalog` (which reads
-  Postgres on purpose).
+  and Postgres-only: `Maintenance.RebuildRemoteNotes` (a one-off repair task),
+  and `mix sukhi.datalevin.catalog` (which reads Postgres on purpose).
+  `Maintenance.RebuildRemoteNoteIds` is plain Ecto and runs on both stores.
 - **Oban's tables are in SQLite, not in `Repo`.** Code that reads `oban_jobs`
   goes through `SukhiFedi.Queue.repo/0` (the delivery status, the server
   activity page and the metrics do). Jobs are not in the same store as the

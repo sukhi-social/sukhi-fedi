@@ -201,9 +201,11 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNotes do
     end)
   end
 
-  # A snowflake id for `created_at`: the same layout and `snowflake_seq` as
-  # the notes_remote_id_from_published trigger, so id order == authored order.
-  defp mint_id(%DateTime{} = created_at) do
+  @doc """
+  A snowflake id for `created_at`: the same layout and `snowflake_seq` as
+  the notes_remote_id_from_published trigger, so id order == authored order.
+  """
+  def mint_id(%DateTime{} = created_at) do
     if SukhiFedi.Store.datalevin?() do
       SukhiFedi.Snowflake.encode(
         DateTime.to_unix(created_at, :millisecond),
