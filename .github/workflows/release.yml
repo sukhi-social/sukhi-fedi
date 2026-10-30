@@ -11,6 +11,8 @@
 #   :vX.Y     — rolling patch
 #   :vX       — rolling minor
 #   :latest   — newest tag pushed
+#   :sha-xxxxxxx — combined only; the same name combined-sha.yml gives
+#                  a main commit, so a tagged commit is addressable both ways
 #
 # Operators pin :v0 in their compose; Watchtower (or Coolify) picks
 # up patch releases automatically. Major bumps are opt-in.
@@ -46,6 +48,9 @@ jobs:
           - { name: gateway, context: ., file: elixir/Dockerfile }
           - { name: delivery, context: ., file: delivery/Dockerfile }
           - { name: api, context: ., file: api/Dockerfile }
+          # The single-BEAM image docker-compose.combined.yml points at
+          # (`sukhi-fedi-combined:${SUKHI_VERSION:-v1}`) and Quadlet boxes run.
+          - { name: combined, context: ., file: combined/Dockerfile }
           - { name: bun, context: ./bun }
           - { name: anubis, context: ./config/anubis }
         platform:
@@ -96,7 +101,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [gateway, delivery, api, bun, anubis]
+        image: [gateway, delivery, api, combined, bun, anubis]
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -121,6 +126,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern=v{{major}}
             type=raw,value=latest
+            type=sha,prefix=sha-,enable=${{ matrix.image == 'combined' }}
 
       - name: Create multi-arch manifest
         working-directory: /tmp/digests

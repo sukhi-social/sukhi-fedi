@@ -135,6 +135,8 @@ Watchtower の archive(SERVER_SHELL.md §5.9)の代わりに、Podman を選ん�
   いまのところ見つからなかった(別の経路があれば教えてほしい)。
   正本を「素の Docker/Podman/nerdctl + Compose」にするなら、**combined を multi-arch で、semver タグで出す**
   ことが前提になる。
+- **対応済み(案):** `release.yml` が `combined` を multi-arch・semver・`sha-` タグで出すようにした。
+  ただし `v1` は `v1.0.0` を打つまで存在しない(VERSION は 0.x)。更新の手作業は [`OPS_UPDATE_QUADLET.md`](OPS_UPDATE_QUADLET.md)。
 - 同じ理由で、`.env.example` の既定(`v1`)が実在するタグを指しているかも確かめる。
 
 ## 7. Podman を既定にする案
