@@ -44,7 +44,7 @@ defmodule SukhiFedi.AccountPorter do
   # Ten follows a second: 1000 rows in under two minutes.
   @follow_per_second 10
 
-  @address ~r/\A[A-Za-z0-9_.\-]{1,64}(@[A-Za-z0-9.\-]{1,253})?\z/
+  @address ~r/\A[A-Za-z0-9_.\-]{1,64}(@[A-Za-z0-9.\-]{1,253}(:[0-9]{1,5})?)?\z/
 
   # ── export ──────────────────────────────────────────────────────────────
 
