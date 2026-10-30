@@ -37,6 +37,8 @@ defmodule SukhiFedi.Web.MediaProxyController do
 
   @max_bytes 50 * 1024 * 1024
   @timeout_ms 20_000
+  # 取得全体の上限(redirect 込み)。chunk 単位の @timeout_ms とは別。
+  @deadline_ms 30_000
   @max_redirects 3
 
   # 添付の remote_url は行ごと不変なので長め。avatar / banner は actor
@@ -110,32 +112,46 @@ defmodule SukhiFedi.Web.MediaProxyController do
     end
   end
 
-  defp fetch(conn, _url, _cache_control, _variant, 0), do: send_resp(conn, 502, "")
+  # 上流取得(guard の DNS 解決 + redirect 追従 + 本文受信)全体に一本の
+  # 期限を掛ける。`receive_timeout` は chunk ごとの待ちなので、少しずつ
+  # 垂れ流す相手や、返ってこない DNS 解決だと、リクエストが際限なく
+  # 張り付く(2026-10-30 /proxy/avatar が止まった件)。期限を越えたら
+  # task ごと殺して 504。
+  defp fetch(conn, url, cache_control, variant, hops) do
+    task = Task.async(fn -> upstream(url, hops) end)
 
-  defp fetch(conn, url, cache_control, variant, hops_left) do
+    case Task.yield(task, @deadline_ms) || Task.shutdown(task, :brutal_kill) do
+      {:ok, {:ok, resp}} -> serve(conn, resp, cache_control, variant)
+      {:ok, {:error, status}} -> send_resp(conn, status, "")
+      _ -> send_resp(conn, 504, "")
+    end
+  end
+
+  defp upstream(_url, 0), do: {:error, 502}
+
+  defp upstream(url, hops_left) do
     if UrlGuard.safe?(url) do
       case request(url) do
         {:ok, %Req.Response{status: 200, body: body} = resp} when is_binary(body) ->
-          serve(conn, resp, cache_control, variant)
+          {:ok, resp}
 
         {:ok, %Req.Response{status: status} = resp} when status in [301, 302, 303, 307, 308] ->
           case Req.Response.get_header(resp, "location") do
             [location | _] ->
-              next = URI.merge(url, location) |> URI.to_string()
-              fetch(conn, next, cache_control, variant, hops_left - 1)
+              upstream(URI.merge(url, location) |> URI.to_string(), hops_left - 1)
 
             _ ->
-              send_resp(conn, 502, "")
+              {:error, 502}
           end
 
         {:ok, %Req.Response{status: 404}} ->
-          send_resp(conn, 404, "")
+          {:error, 404}
 
         _ ->
-          send_resp(conn, 502, "")
+          {:error, 502}
       end
     else
-      send_resp(conn, 502, "")
+      {:error, 502}
     end
   end
 
@@ -145,6 +161,7 @@ defmodule SukhiFedi.Web.MediaProxyController do
       retry: false,
       decode_body: false,
       receive_timeout: @timeout_ms,
+      connect_options: [timeout: 5_000],
       finch: SukhiFedi.Finch,
       into: &cap_body/2
     )
