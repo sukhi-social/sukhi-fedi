@@ -17,6 +17,10 @@ export type Session = {
   // verify_credentials のひかえ。ナビのアバターと「これは自分の投稿か」に使う。
   me?: Account;
   oauthState?: string;
+  // anubis の関所(/check)を通ったあとの行き先。ここに無い人が /check に来ても、何も始まらない。
+  check?:
+    | { intent: 'login' }
+    | { intent: 'signup'; username: string; email: string; invite: string; proof: string };
   // ログイン後に戻る先(/oauth/authorize から弾かれて来たとき)。
   next?: string;
   // 次の一枚の頁にだけ見せる、ひとこと。

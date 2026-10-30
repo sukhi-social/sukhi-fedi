@@ -344,7 +344,10 @@ const ROUTES = [
   ['/signup/email/request', () => ({ ok: true })],
   ['/signup/email/confirm', () => ({ email_proof: 'mock-proof' })],
   ['/signup/session', () => ({ ok: true })],
-  ['/oauth/token', () => ({ access_token: 'mock', scope: 'read write push', created_at: 0 })]
+  ['/oauth/token', () => ({ access_token: 'mock', scope: 'read write push', created_at: 0 })],
+  // アプリ登録(client.ts)と加入(POST /api/v1/accounts)。/check のあとで通る。
+  ['/api/v1/apps', () => ({ client_id: 'mock', client_secret: 'mock' })],
+  ['/api/v1/accounts', () => ({ access_token: 'mock', scope: 'read write push', created_at: 0 })]
 ];
 
 // 「中身は無い」と答える印。`getServerDraft` は 204 を「下書きはまだ

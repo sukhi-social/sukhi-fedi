@@ -27,6 +27,11 @@ Fediverse 連携 (`/inbox`, `/users/*`, `/.well-known/*`) と SPA の API 通信
 当面は他の `/check` 訪問もすぐ抜ける(つまり「ログインのたびに
 PoW」ではなく「久しぶりに来た人は一度だけ」)。
 
+> **web-next(Node の郵便局)でも同じ関所を通る。** SPA ではブラウザが `/check` で手順を進めたが、
+> web-next では `/check` がサーバの手順の一部になる ── 一段目のあとで `/check?intent=login|signup`
+> へ redirect し、anubis が PoW を終えて届いたところで、OAuth を始める・アカウントを作る。
+> 行き先は session に置く一度きりで、URL の `intent` は合図にすぎない(`web-next/server/routes/auth.ts`)。
+
 ### login
 ```
 1. ユーザが「入る」を押す
