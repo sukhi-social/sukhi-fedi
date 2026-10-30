@@ -3,12 +3,13 @@
 // (「今日の昼下がり」が三つ並んでいれば、どれが先かは、言えない。)
 // だから、その中だけで、並べなおす。同じ人の続けざまの投稿が、ひとかたまりにならないように。
 //
-//   ・ことばの切れ目(=時間のことばが変わるところ)は、またがない。古いものが先に来たりはしない。
+//   ・ことばの切れ目(=時間のことばが変わるところ)と、日付の切れ目は、またがない。古いものが先に来たりはしない。
+//     (9/10 19:00 と 9/10 20:00 は入れ替わってよいが、9/10 19:00 と 9/11 20:00 は入れ替わらない。)
 //   ・並べ方は、札(seed)と投稿の id だけで決まる。読み込みなおしても、同じ順。
 //   ・同じ人が続かないように、できるかぎり。ほかに選べる人が居ないときは、そのまま続ける。
 
 import type { Locale } from './i18n.ts';
-import { timeWords } from './time.ts';
+import { dayKey, timeWords } from './time.ts';
 import type { Status } from './types.ts';
 
 // 文字列から、ゆるい 32bit の数(FNV-1a)。乱数ではなく、「いつも同じ」のため。
@@ -45,7 +46,8 @@ export function spreadWithinMoments(items: Status[], locale: Locale, seed: strin
     run = [];
   };
   for (const s of items) {
-    const k = timeWords(s.created_at, locale, now);
+    // 混ぜるのは、同じ日付の、同じ時間帯のなかだけ。日付はまたがない。
+    const k = `${dayKey(s.created_at, locale)}|${timeWords(s.created_at, locale, now)}`;
     if (k !== key) flush();
     key = k;
     run.push(s);

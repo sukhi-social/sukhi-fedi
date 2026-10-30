@@ -80,6 +80,14 @@ function dayGap(now: ReturnType<typeof zoned>, then: ReturnType<typeof zoned>): 
   return Math.round((a - b) / 86_400_000);
 }
 
+// 暦の日付(閲覧者の側の tz)。「ことば」が何日分をまとめていても、日付は日付。
+export function dayKey(iso: string, locale: Locale): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const z = zoned(d, TZ[locale]);
+  return `${z.y}-${z.m}-${z.day}`;
+}
+
 /**
  * 日時を、うつろいのことばで。
  *   同じ日   「今日の昼下がり」

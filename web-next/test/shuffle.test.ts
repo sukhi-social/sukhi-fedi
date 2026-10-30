@@ -46,3 +46,13 @@ test('ことばの切れ目はまたがない(昨日のものは、昨日のま�
 test('ふたつ以下は、そのまま', () => {
   assert.deepEqual(spreadWithinMoments(day.slice(0, 2), 'ja', 's', now).map((s) => s.id), ['9', '8']);
 });
+
+test('日付はまたがない(「このあいだの朝」が二日分でも、日付ごとに)', () => {
+  // 3 日前と 4 日前の朝は、どちらも「このあいだの朝」。でも別の日。
+  const d3 = ['a', 'a', 'b'].map((who, i) => mk(`n${i}`, who, `2026-10-26T0${i}:00:00Z`)).reverse();
+  const d4 = ['a', 'a', 'b'].map((who, i) => mk(`o${i}`, who, `2026-10-25T0${i}:00:00Z`)).reverse();
+  assert.equal(timeWords(d3[0].created_at, 'ja', now), timeWords(d4[0].created_at, 'ja', now));
+  const out = spreadWithinMoments([...d3, ...d4], 'ja', 'seed', now).map((s) => s.id);
+  assert.deepEqual(out.slice(0, 3).sort(), ['n0', 'n1', 'n2']);
+  assert.deepEqual(out.slice(3).sort(), ['o0', 'o1', 'o2']);
+});
