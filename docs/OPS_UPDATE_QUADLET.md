@@ -73,16 +73,28 @@ Anubis と web-next(`sukhi-fedi-web-next`、`sha-` タグを `--tag` に)も同�
 - **データベースの変更を含む版は、image を戻しても戻らないことがある**(SERVER_SHELL.md §5.6)。Datalevin の控え(`dtlv copy`、OPS_MAINTAIN.md §3)を更新の前に取る。
 - 古い image は残る(戻すため)。容量が気になったら `podman image prune` ではなく、`podman images` で `d-…` の古いタグを選んで消す。
 
-## 5. 署名について
+## 5. 署名
 
-いまの workflow は image に署名していない。**このスクリプトはダイジェストを固定するだけで、「誰が焼いたか」は確かめない**
-(GHCR のタグを書き換えられる人がいれば、その image が入る)。署名を足したら、`copy` の前に `cosign verify` を挟む
-(SERVER_SHELL.md §5.8)。それまでは、`plan` の出力のダイジェストを GitHub Actions の実行ログと目で突き合わせる。
+`release.yml`(`v*` タグ)と `combined-sha.yml`(main)は、push した image を **cosign の keyless 署名**でダイジェストに対して署名する
+(Sigstore。秘密の鍵はない。身元は GitHub Actions の OIDC)。`sukhi-swap-image.sh` は `apply` の前に次を確かめ、通らなければ何も変えない:
+
+```sh
+cosign verify \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github\.com/sukhi-social/sukhi-fedi/\.github/workflows/(release\.yml@refs/tags/v.+|combined-sha\.yml@refs/heads/main)$' \
+  ghcr.io/<owner>/sukhi-fedi-combined@sha256:…
+```
+
+- `cosign` が箱に要る(Rocky は EPEL か公式の rpm。`dnf info cosign` で確認)。
+- 署名が入る前に焼かれた image は検証に通らない。入れるなら `SUKHI_VERIFY=0` を明示する。
+- main 以外のブランチ(`refactor/web-batches` や手動実行)の `sha-` は、身元が `refs/heads/main` でないので通らない。
+- 署名は透明性ログ(Rekor)に残る。検証はオンラインで行う(オフライン検証は未確認)。
 
 ## 6. 未確認
 
 - `skopeo copy` の宛先 `containers-storage:` に、このタグ形式で rootless のまま書けること。
 - Quadlet のドロップイン(`<unit>.container.d/*.conf`)が使う Podman の版で効くこと。効かなければ、`Image=` の行を `sed` で直す形に替える。
 - Rocky の AppStream の skopeo の版と、`skopeo inspect --format` の `{{.Digest}}` が multi-arch の一覧のダイジェストを返すこと。
+- 署名の工程が CI で実際に通ること(初回の v1.0.0 タグ / main への push で確かめる)と、検証の正規表現が実物の身元と合うこと。
 - ヘルスの URL(gateway に確認用の口があるか)。
 - amd64 の combined が実際に焼けること(arm64 は combined-sha.yml で通っている)。

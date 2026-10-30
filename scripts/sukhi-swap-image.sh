@@ -18,7 +18,13 @@
 #   SUKHI_STATE_DIR   current/previous record (${XDG_STATE_HOME:-~/.local/state}/sukhi-release)
 #   SUKHI_QUADLET_DIR drop-in lives under it  (${XDG_CONFIG_HOME:-~/.config}/containers/systemd)
 #
-# Signature verification is NOT done: nothing is signed yet (SERVER_SHELL.md §5.9).
+#   SUKHI_VERIFY      1 = cosign verify before copy (default), 0 = skip
+#   SUKHI_SIGNER_RE   accepted signer identity (this repo's release.yml at a v* tag,
+#                     or combined-sha.yml on main)
+#
+# Images are signed keyless by release.yml / combined-sha.yml (Sigstore); an image
+# without a matching signature is refused. Images built before signing existed
+# need SUKHI_VERIFY=0.
 # Not yet run on a real box; see the "未確認" list in the doc.
 
 set -euo pipefail
@@ -28,6 +34,8 @@ UNIT="${SUKHI_UNIT:-sukhi-gateway}"
 LOCAL="${SUKHI_LOCAL_NAME:-localhost/sukhi-combined}"
 HEALTH="${SUKHI_HEALTH_URL:-}"
 WAIT="${SUKHI_WAIT_SECS:-60}"
+VERIFY="${SUKHI_VERIFY:-1}"
+SIGNER_RE="${SUKHI_SIGNER_RE:-^https://github\\.com/sukhi-social/sukhi-fedi/\\.github/workflows/(release\\.yml@refs/tags/v.+|combined-sha\\.yml@refs/heads/main)$}"
 STATE="${SUKHI_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/sukhi-release}/$UNIT"
 DROPIN_DIR="${SUKHI_QUADLET_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd}/$UNIT.container.d"
 DROPIN="$DROPIN_DIR/10-image.conf"
@@ -43,7 +51,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-for bin in skopeo systemctl; do
+for bin in skopeo systemctl $([ "$VERIFY" = 1 ] && echo cosign); do
   command -v "$bin" >/dev/null || die "$bin not found"
 done
 
@@ -97,6 +105,16 @@ case "$cmd" in
     say "now        ${current:-"(not recorded)"}"
     if [ "$current" = "$target" ]; then say "already running this image"; exit 0; fi
     [ "$cmd" = plan ] && { say "plan only. run with: apply"; exit 0; }
+
+    if [ "$VERIFY" = 1 ]; then
+      say "verify signature"
+      cosign verify \
+        --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+        --certificate-identity-regexp "$SIGNER_RE" \
+        "$src" >/dev/null || die "signature check failed for $src; nothing was changed"
+    else
+      say "verify skipped (SUKHI_VERIFY=0)"
+    fi
 
     say "copy"
     skopeo copy "docker://$src" "containers-storage:$target"
