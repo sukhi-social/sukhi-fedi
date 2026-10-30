@@ -9,6 +9,7 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigrationTest do
 
     def call(SukhiFedi.AccountMigration, fun, args, _t), do: lookup(:fake_migration, fun, args)
     def call(SukhiFedi.OAuth, fun, args, _t), do: lookup(:fake_oauth, fun, args)
+    def call(SukhiFedi.Accounts, fun, args, _t), do: lookup(:fake_accounts, fun, args)
     def call(_, _, _, _), do: {:error, :not_connected}
 
     defp lookup(env_key, fun, args) do
@@ -32,6 +33,7 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigrationTest do
       rpc: Application.get_env(:sukhi_api, :gateway_rpc_impl),
       addons: Application.get_env(:sukhi_api, :enabled_addons),
       migration: Application.get_env(:sukhi_api, :fake_migration),
+      accounts: Application.get_env(:sukhi_api, :fake_accounts),
       oauth: Application.get_env(:sukhi_api, :fake_oauth)
     }
 
@@ -53,6 +55,7 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigrationTest do
       restore(:gateway_rpc_impl, prev.rpc)
       restore(:enabled_addons, prev.addons)
       restore(:fake_migration, prev.migration)
+      restore(:fake_accounts, prev.accounts)
       restore(:fake_oauth, prev.oauth)
     end)
 
@@ -77,10 +80,20 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigrationTest do
       defstruct id: 7, aliases: ["https://old.example/users/alice"], moved_to_uri: nil
     end
 
-    test "reads aliases and moved_to from the account struct" do
+    # 認証 cache の account(60 秒古いことがある)ではなく、gateway の今の行を返す。
+    test "reads aliases and moved_to from the gateway's current row, not the cached account" do
       Application.put_env(:sukhi_api, :fake_oauth, %{
         verify_bearer:
-          {:ok, %{account: %AccountStruct{}, app: %{id: 1, name: "x"}, scopes: ["read:accounts"]}}
+          {:ok,
+           %{
+             account: %AccountStruct{aliases: ["https://stale.example/users/alice"]},
+             app: %{id: 1, name: "x"},
+             scopes: ["read:accounts"]
+           }}
+      })
+
+      Application.put_env(:sukhi_api, :fake_accounts, %{
+        get_account: {:ok, %AccountStruct{aliases: ["https://fresh.example/users/alice"]}}
       })
 
       {:ok, resp} = Router.handle(authed("GET", "/api/v1/accounts/migration", ""))
@@ -88,7 +101,7 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigrationTest do
       assert resp.status == 200
 
       assert JSON.decode!(resp.body) == %{
-               "aliases" => ["https://old.example/users/alice"],
+               "aliases" => ["https://fresh.example/users/alice"],
                "moved_to" => nil
              }
     end

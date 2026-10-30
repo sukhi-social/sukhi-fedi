@@ -29,12 +29,23 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigration do
 
   # ── read ───────────────────────────────────────────────────────────────────
 
+  # The account in `req` comes from the token cache (up to 60 s old), so a
+  # just-saved alias set would read back stale. Ask the gateway for the row.
   def show(req) do
-    with_account(req, fn account ->
-      ok(200, %{
-        aliases: Map.get(account, :aliases) || [],
-        moved_to: Map.get(account, :moved_to_uri)
-      })
+    with_account(req, fn %{id: id} ->
+      case GatewayRpc.run(SukhiFedi.Accounts, :get_account, [id]) do
+        {:ok, account} ->
+          ok(200, %{
+            aliases: Map.get(account, :aliases) || [],
+            moved_to: Map.get(account, :moved_to_uri)
+          })
+
+        {:error, :not_found} ->
+          ok(404, %{error: "account_not_found"})
+
+        other ->
+          gateway_error(other)
+      end
     end)
   end
 
