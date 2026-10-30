@@ -38,7 +38,8 @@ server/
   http.ts        文脈(Ctx)・ルーター・静的ファイル・gateway への通し道
   gateway.ts     /api/v1 を呼ぶ(トークン付与・refresh・Link の次ページ)
   session.ts     トークンはここ(サーバ)。ブラウザには札(sukhi_sid)だけ
-  routes/        auth(入口・入る・はじめる)/ read(読む)/ write(書く・押す・通知)
+  routes/        auth(入口・入る・はじめる)/ read(読む)/ write(書く・押す・通知)/
+                 settings(プロフィール)/ security(ログインと安全・あいことば)/ migration(引っ越し)
   views/         HTML(html`` は差し込みを自動でエスケープ。raw() だけがそのまま)
   time.ts        時計の針を外した、うつろいのことば
 public/          css(sukhi-web-next から借用)と app.js
@@ -65,11 +66,14 @@ mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
 - **反応は、ポツポツ**: お気に入り・ブーストなどの通知は、`NOTIFY_HOLD_MIN` 置いてから出し、同じ投稿への反応は一つにまとめる。返信・フォロー申請はすぐ。置くのもまとめるのも gateway の仕事で(アカウントごとの設定がある。docs/MASTODON_API.md の「Pace」)、この郵便局は、設定にかかわらず `hold_minutes` と `grouping` を添えて呼ぶ。
 - **列に終わりがある**: 「もっと読む」(Unpoly が後ろに足す)か、「ここまで、です。」のどちらかが、かならず末尾に付く。
 - トークンは、ブラウザの localStorage ではなく、サーバのセッション。
+- ログインの要素(メール・2FA・パスキー・端末・あいことば)は、gateway が bearer を受けず、ブラウザの `session_token` cookie だけを見る。
+  この郵便局は、その cookie を一本だけ添えて呼ぶ(`gwCookie`)。cookie が無い・切れていれば、フォームを出さずに「入りなおして」。
 
 ## まだ(縦に一本、のあと)
 
-入口・入る・はじめる・タイムライン・タグ・投稿の詳細・プロフィール・書く・通知・さがす まで。
-ない: settings 一式(WebAuthn・2FA・移行・掃除)/ lists / clips / map / messages(DM)/ bookmarks / favourites の頁 /
+入口・入る・はじめる・タイムライン・タグ・投稿の詳細・プロフィール・書く・通知・さがす・設定(プロフィール・
+ログインと安全〔メール・2FA・パスキー・端末・あいことば〕・引っ越し)まで。
+ない: 設定の掃除・BOT・アカウントを閉じる /  lists / clips / map / messages(DM)/ bookmarks / favourites の頁 /
 絵文字ピッカー / メンションの補完 / 下書きの保存 / 投票 / プロフィールの編集・ミュート・ブロック・私的メモ /
 Service Worker・Push。
 

@@ -125,3 +125,62 @@ html:lang(ko) .hero h1 {
   font: inherit;
   padding: var(--space-2) var(--space-3);
 }
+
+/* ログインと安全・引っ越し: 入力の幅、台帳の行、QR、別名の行。 */
+.settings-form input[type='password'],
+.settings-form input[type='email'],
+.settings-form input[type='url'] {
+  width: 100%;
+}
+.settings-form details > summary {
+  display: inline-block;
+  cursor: pointer;
+  list-style: none;
+}
+.settings-form details > summary::-webkit-details-marker {
+  display: none;
+}
+.settings-form details[open] > summary {
+  margin-block-end: var(--space-3);
+}
+.rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+.rows li > details {
+  flex: 1 1 100%;
+}
+.qr {
+  max-width: 12rem;
+  margin-block: var(--space-3);
+  background: #fff;
+  padding: var(--space-2);
+  border-radius: var(--radius-md, 0.5rem);
+}
+.qr svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.alias-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.alias-row input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+[hidden] {
+  display: none !important;
+}

@@ -10,7 +10,7 @@
 
 import { config } from './config.ts';
 import { getClient } from './client.ts';
-import { saveSession } from './session.ts';
+import { destroySession, saveSession } from './session.ts';
 import { Unauthorized, NotFound, type Ctx } from './http.ts';
 import type { Page, TokenSet } from './types.ts';
 
@@ -162,4 +162,62 @@ export async function gwPage<T>(ctx: Ctx, path: string, init: Init = {}): Promis
 // (/oauth/authorize は、ブラウザの cookie を読むため。同じ origin の前にこの郵便局が立っている。)
 export function forwardCookies(ctx: Ctx, res: Response): void {
   for (const c of res.headers.getSetCookie()) ctx.cookies.push(c);
+}
+
+// ── cookie 専用の口 ───────────────────────────────────────────────
+// gateway の /auth/state と /settings/*(ログインの要素・端末・あいことば)は、ブラウザが持っている
+// `session_token` cookie だけを見る(bearer は第三者のアプリにも渡るので、ログインの要素には触らせない)。
+// その cookie は、入るときに forwardCookies でブラウザへ渡したもの。ここでは、それを一本だけ取り出して
+// 添える ── ほかの cookie(sukhi_sid など)は、gateway へは渡さない。
+// /auth/state だけは、cookie が無くても bearer で読める(manageable: false が返る)ので、bearer も添える。
+export function sessionCookie(ctx: Pick<Ctx, 'req'>): string | null {
+  const m = /(?:^|;\s*)session_token=([^;\s]+)/.exec(ctx.req.headers.cookie ?? '');
+  return m ? m[1] : null;
+}
+
+export type CookieReply<T = Record<string, unknown>> = { status: number; body: T & { error?: string }; setCookies: string[] };
+
+// 2xx でなくても投げない ── 呼び元が、status と error のことばで頁を作る。届かなかったとき(TypeError)だけ投げる。
+export async function gwCookie<T = Record<string, unknown>>(
+  ctx: Ctx,
+  method: 'GET' | 'POST',
+  path: string,
+  json?: unknown
+): Promise<CookieReply<T>> {
+  const headers: Record<string, string> = { accept: 'application/json', ...clientHeaders(ctx) };
+  const cookie = sessionCookie(ctx);
+  if (cookie) headers.cookie = `session_token=${cookie}`;
+  const token = ctx.session?.token;
+  if (token) headers.authorization = `Bearer ${token.access_token}`;
+  let body: string | undefined;
+  if (json !== undefined) {
+    headers['content-type'] = 'application/json';
+    body = JSON.stringify(json);
+  }
+  const res = await fetch(config.gateway + path, { method, headers, body });
+  const parsed = (await res.json().catch(() => ({}))) as CookieReply<T>['body'];
+  return { status: res.status, body: parsed, setCookies: res.headers.getSetCookie() };
+}
+
+// この郵便局の預かりものを閉じる(出る・合言葉を変えたあと)。gateway にも失効を伝える(RFC 7009、ベストエフォート)。
+export async function endSession(ctx: Ctx): Promise<void> {
+  const s = ctx.session;
+  if (s?.token) {
+    try {
+      const client = await getClient();
+      await fetch(`${config.gateway}/oauth/revoke`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...clientHeaders(ctx) },
+        body: JSON.stringify({
+          token: s.token.access_token,
+          client_id: client.client_id,
+          client_secret: client.client_secret
+        })
+      });
+    } catch {
+      // そっとしておく。落ちても、出るのは止めない。
+    }
+  }
+  if (s) destroySession(s.id);
+  ctx.setCookie('sukhi_sid', '', { maxAge: 0, httpOnly: true });
 }

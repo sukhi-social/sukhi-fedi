@@ -199,3 +199,74 @@ document.addEventListener("alpine:init", () => {
     if (loaded && !dressed) dress();
   });
 }
+
+// ── パスキーを足す(設定 › ログインと安全) ───────────────────────
+// 認証器を呼べるのはブラウザだけ。サーバは options を渡し、できあがりを gateway に渡すだけ。
+// 対応していないブラウザには、フォームを出さず、「対応していません」の一言のまま。
+const b64uToBuf = (s) => {
+  const b = s.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(b + "=".repeat((4 - (b.length % 4)) % 4));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0)).buffer;
+};
+const bufToB64u = (buf) =>
+  btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+async function post(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || data.error || "failed");
+  return data;
+}
+
+up.compiler("form[data-passkey-add]", (form) => {
+  if (!window.PublicKeyCredential) return;
+  form.hidden = false;
+  document.querySelector("[data-passkey-unsupported]")?.setAttribute("hidden", "");
+  const errorEl = form.querySelector("[data-passkey-error]");
+  const button = form.querySelector("button[type=submit]");
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (button.disabled) return;
+    button.disabled = true;
+    errorEl.hidden = true;
+    try {
+      const { ref, publicKey: o } = await post("/settings/security/passkeys/options", {});
+      const cred = await navigator.credentials.create({
+        publicKey: {
+          ...o,
+          challenge: b64uToBuf(o.challenge),
+          user: { ...o.user, id: b64uToBuf(o.user.id) },
+          excludeCredentials: (o.excludeCredentials ?? []).map((c) => ({
+            type: "public-key",
+            id: b64uToBuf(c.id),
+          })),
+        },
+      });
+      if (!cred) return;
+      await post("/settings/security/passkeys", {
+        ref,
+        nickname: form.elements.nickname.value,
+        attestation_object: bufToB64u(cred.response.attestationObject),
+        client_data_json: bufToB64u(cred.response.clientDataJSON),
+      });
+      up.reload("main", { cache: false });
+    } catch (e) {
+      // 自分でやめたとき(NotAllowedError)は、何も言わない。
+      if (e?.name === "NotAllowedError") return;
+      errorEl.textContent = e?.message || "";
+      errorEl.hidden = !errorEl.textContent;
+    } finally {
+      button.disabled = false;
+    }
+  });
+});

@@ -32,6 +32,9 @@ importers:
       unpoly:
         specifier: ^3.15.0
         version: 3.15.0
+      uqr:
+        specifier: ^0.1.3
+        version: 0.1.3
 
 packages:
 
@@ -167,6 +170,9 @@ packages:
 
   unpoly@3.15.0:
     resolution: {integrity: sha512-tquOPxRRqE3dPSQ2XuqS/wFZUUzBlaly6oo07bL1qEG1T5am2Lfbz+MtwxHHV8z4k8M2tlnqsvrwjJ3g0gaB6A==}
+
+  uqr@0.1.3:
+    resolution: {integrity: sha512-0rjE8iEJe4YmT9TOhwsZtqCMRLc5DXZUI2UEYUUg63ikBkqqE5EYWaI0etFe/5KUcmcYwLih2RND1kq+hrUJXA==}
 
 snapshots:
 
@@ -306,3 +312,5 @@ snapshots:
   universalify@0.1.2: {}
 
   unpoly@3.15.0: {}
+
+  uqr@0.1.3: {}

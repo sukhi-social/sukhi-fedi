@@ -485,7 +485,8 @@ textarea,
 select,
 input[type='text'],
 input[type='password'],
-input[type='email'] {
+input[type='email'],
+input[type='url'] {
   font: inherit;
   background: var(--color-surface);
   color: var(--color-text);
@@ -510,6 +511,7 @@ textarea {
   input[type='text'],
   input[type='password'],
   input[type='email'],
+  input[type='url'],
   input[type='search'] {
     font-size: max(16px, var(--text-base));
   }

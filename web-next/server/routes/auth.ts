@@ -11,10 +11,10 @@
 import { randomUUID } from "node:crypto";
 import { config } from "../config.ts";
 import { getClient } from "../client.ts";
-import { clientHeaders, forwardCookies, gw, gwJson, GatewayError } from "../gateway.ts";
+import { clientHeaders, endSession, forwardCookies, gw, gwJson, GatewayError } from "../gateway.ts";
 import { html, raw, type SafeHtml } from "../html.ts";
 import { ok, redirect, route, type Ctx, type Reply } from "../http.ts";
-import { destroySession, saveSession, type Session } from "../session.ts";
+import { saveSession, type Session } from "../session.ts";
 import type { TokenSet } from "../types.ts";
 import { layout } from "../views/layout.ts";
 import { entranceBar, legalFooter } from "../views/parts.ts";
@@ -871,26 +871,7 @@ async function finishSignup(
 
 // ── logout / lang ───────────────────────────────────────────────
 route("POST", "/logout", async (ctx) => {
-  const s = ctx.session;
-  if (s?.token) {
-    // RFC 7009: gateway にも失効を伝える(ベストエフォート)。落ちても、出るのは止めない。
-    try {
-      const client = await getClient();
-      await fetch(`${config.gateway}/oauth/revoke`, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...clientHeaders(ctx) },
-        body: JSON.stringify({
-          token: s.token.access_token,
-          client_id: client.client_id,
-          client_secret: client.client_secret,
-        }),
-      });
-    } catch {
-      // そっとしておく。
-    }
-  }
-  if (s) destroySession(s.id);
-  ctx.setCookie("sukhi_sid", "", { maxAge: 0, httpOnly: true });
+  await endSession(ctx);
   return redirect("/");
 });
 
