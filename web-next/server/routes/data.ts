@@ -80,6 +80,9 @@ route('POST', '/settings/data/import/:kind', async (ctx) => {
   if (!isKind(kind)) return redirect('/settings/data');
   const fail = (text: string, status = 422) => dataPage(ctx, { error: { kind, text }, status });
 
+  // 本文を読む前に、大きさで断る(ctx.form() は丸ごとメモリに読む)。ふつうの CSV は 256KB まで。
+  if (Number(ctx.req.headers['content-length'] ?? 0) > MAX_FILE + 16 * 1024) return fail(t('data.err.tooLarge'), 413);
+
   const f = await ctx.form();
   const file = f.get('file');
   if (!(file instanceof File) || file.size === 0) return fail(t('data.err.empty'));

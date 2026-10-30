@@ -57,6 +57,10 @@ defmodule SukhiFedi.AccountPorter do
           |> targets(kind)
           |> Repo.all()
           |> Enum.map(fn {username, domain} -> "#{username}@#{domain || local}" end)
+          # A remote actor picks its own username; only lines `parse/1` would
+          # accept leave, so a name like `=HYPERLINK(...)` never reaches a
+          # spreadsheet and every exported line imports back.
+          |> Enum.filter(&Regex.match?(@address, &1))
           |> Enum.sort()
 
         {:ok, Enum.join([@header | lines], "\r\n") <> "\r\n"}
