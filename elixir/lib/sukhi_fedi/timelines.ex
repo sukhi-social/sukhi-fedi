@@ -131,9 +131,8 @@ defmodule SukhiFedi.Timelines do
       if opts[:hide_boosts], do: [], else: home_boosts(boost_account_ids, opts, limit, id, hidden)
     end
 
-    # Notes and boosts do not depend on each other: on Datalevin they go down
-    # the pipe together (docs/DATALEVIN.md); on Postgres they run in turn.
-    [notes, boosts] = SukhiFedi.Store.concurrently([load_notes, load_boosts])
+    notes = load_notes.()
+    boosts = load_boosts.()
 
     # Both notes (id) and boost wrappers (synthesized id) share one
     # time-sortable id space, so a plain id-desc merge is chronological.

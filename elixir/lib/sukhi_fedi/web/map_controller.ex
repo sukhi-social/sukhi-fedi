@@ -28,7 +28,6 @@ defmodule SukhiFedi.Web.MapController do
   alias SukhiFedi.Metrics
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.{Note, OutboxEvent}
-  @cache_ms 5_000
   @window_hours 24
 
   def show(conn, _opts) do
@@ -38,20 +37,9 @@ defmodule SukhiFedi.Web.MapController do
     |> send_resp(200, JSON.encode!(payload()))
   end
 
-  # 直近の結果を :persistent_term に持ち回す。無認証の口が DB の
-  # 直通にならないための、いちばん小さい弁。
+  # 無認証の口が DB の直通にならないよう、数秒だけ同じ答えを渡す(HotCache)。
   defp payload do
-    now = System.monotonic_time(:millisecond)
-
-    case :persistent_term.get({__MODULE__, :cache}, nil) do
-      {at, body} when now - at < @cache_ms ->
-        body
-
-      _ ->
-        body = build()
-        :persistent_term.put({__MODULE__, :cache}, {now, body})
-        body
-    end
+    SukhiFedi.HotCache.fetch(:map, SukhiFedi.HotCache.ttl(:map), &build/0)
   end
 
   defp build do

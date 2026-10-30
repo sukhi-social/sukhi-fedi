@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Web.MapControllerTest do
-  # Repo に書き、controller の :persistent_term キャッシュを消すので not async。
+  # Repo に書き、HotCache の設定を一時的に変えるので not async。
   use SukhiFedi.IntegrationCase, async: false
 
   @moduletag :integration
@@ -12,7 +12,7 @@ defmodule SukhiFedi.Web.MapControllerTest do
 
   setup do
     # 5 秒キャッシュを挟んでいるので、テスト同士が前の答えを見ないように毎回消す。
-    :persistent_term.erase({MapController, :cache})
+    SukhiFedi.HotCache.forget(:map)
     :ok
   end
 
@@ -56,7 +56,7 @@ defmodule SukhiFedi.Web.MapControllerTest do
 
   test "counts the day's notes split by locality, and delivered receipts" do
     body_before = show()
-    :persistent_term.erase({MapController, :cache})
+    SukhiFedi.HotCache.forget(:map)
 
     local = Repo.insert!(%Account{username: "map_local", display_name: "l", summary: ""})
 
@@ -111,7 +111,7 @@ defmodule SukhiFedi.Web.MapControllerTest do
   test "lists only allow-listed peers, with their day's note count" do
     body_before = show()
     refute Enum.any?(body_before["peers"], &(&1["domain"] == "starry.example"))
-    :persistent_term.erase({MapController, :cache})
+    SukhiFedi.HotCache.forget(:map)
 
     remote =
       Repo.insert!(%Account{
@@ -141,6 +141,15 @@ defmodule SukhiFedi.Web.MapControllerTest do
   end
 
   test "serves the second call within the window from cache" do
+    # テスト設定は HotCache を切っている。この一件だけ入れる。
+    previous = Application.get_env(:sukhi_fedi, :hot_cache)
+    Application.put_env(:sukhi_fedi, :hot_cache, true)
+
+    on_exit(fn ->
+      SukhiFedi.HotCache.forget(:map)
+      Application.put_env(:sukhi_fedi, :hot_cache, previous)
+    end)
+
     body = show()
     # キャッシュ窓の内側なので、書き込んでも答えは変わらない。
     local = Repo.insert!(%Account{username: "map_cache", display_name: "c", summary: ""})
