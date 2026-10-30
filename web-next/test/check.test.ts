@@ -116,6 +116,9 @@ test('メールのログイン: コードは /check を通ってから。最初�
   const page = await passed.text();
   assert.match(page, /name="step" value="confirm"/);
   assert.match(page, /a@b\.c/);
+  // Cloudflare のメール保護が「[email protected]」に書き換えないよう、アドレスは email_off の間に置く。
+  assert.match(page, /<!--email_off-->[\s\S]*a@b\.c[\s\S]*<!--\/email_off-->/);
+  assert.doesNotMatch(page.replace(/<!--email_off-->[\s\S]*<!--\/email_off-->/, ''), /a@b\.c/);
 
   const again = await b('/check?intent=login-email');
   assert.equal(again.headers.get('location'), '/login');

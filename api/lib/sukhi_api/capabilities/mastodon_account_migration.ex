@@ -32,8 +32,8 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigration do
   def show(req) do
     with_account(req, fn account ->
       ok(200, %{
-        aliases: account[:aliases] || account["aliases"] || [],
-        moved_to: account[:moved_to_uri] || account["moved_to_uri"]
+        aliases: Map.get(account, :aliases) || [],
+        moved_to: Map.get(account, :moved_to_uri)
       })
     end)
   end

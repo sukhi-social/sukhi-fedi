@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // 頁の枠。<head>・ナビ・<main>・スクリプトの順番を、ここ一か所で決める。
 //
+// Cloudflare のメール保護は、頁の中のアドレスを「[email protected]」に書き換える。<!--email_off--> の間は、そのまま通す。
 // Unpoly は、いつも <main up-main> を差し替える。だから、入ったか出たかで変わるもの(ナビ)は
 // <main> の外に置き、ログイン・ログアウト・ことば替えは、ふつうのフォーム(フルリロード)にする。
 // 頁そのものは、View Transitions の下絵(@view-transition)が、静かにつなぐ。
@@ -104,7 +105,9 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
     <div id="flash-container" up-hungry>
       ${flash ? html`<p class="${flash.kind === 'error' ? 'error' : 'notice'}" role="status">${flash.text}</p>` : ''}
     </div>
+    <!--email_off-->
     ${p.body}
+    <!--/email_off-->
     ${p.legal ? legalFooter(ctx) : ''}
   </main>
 </body>
