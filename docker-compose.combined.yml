@@ -75,7 +75,7 @@ services:
           memory: 64M
 
   gateway:
-    image: ghcr.io/${SUKHI_REPO_OWNER:-nyanrus}/sukhi-fedi-combined:${SUKHI_VERSION:-v1}
+    image: ghcr.io/${SUKHI_REPO_OWNER:-sukhi-social}/sukhi-fedi-combined:${SUKHI_VERSION:-v1}
     build:
       context: .
       dockerfile: combined/Dockerfile

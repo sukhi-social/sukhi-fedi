@@ -24,7 +24,7 @@
 | `latest` | 最後に打ったタグ |
 | `sha-xxxxxxx` | combined だけ。`combined-sha.yml` が main に付けるのと同じ名前 |
 
-(`docker-compose.combined.yml` の既定 `v1` は、まだ指す先がない。PR で決めたいこと参照。)
+`v1` は `v1.0.0` のタグで初めて現れる(VERSION も 1.0.0)。`web-next` は release.yml の対象外で、`sha-` タグのみ(combined-sha.yml)。
 
 ## 2. 一回目の準備(未確認の箇所あり)
 
@@ -63,7 +63,7 @@ systemctl --user daemon-reload && systemctl --user restart sukhi-gateway        
 systemctl --user is-active sukhi-gateway; journalctl --user -u sukhi-gateway -n 50   # 5. 確認
 ```
 
-Anubis と web-next も同じ形で、`SUKHI_UNIT` / `SUKHI_LOCAL_NAME` / `--tag` を替えて呼ぶ。
+Anubis と web-next(`sukhi-fedi-web-next`、`sha-` タグを `--tag` に)も同じ形で、`SUKHI_UNIT` / `SUKHI_LOCAL_NAME` / `--tag` を替えて呼ぶ。
 **gateway と Anubis など複数の image は、一つずつ。**「同じ sha でそろえる」(combined-sha.yml)ときは、sha タグを `--tag` に渡す。
 
 ## 4. 戻し方とその限界

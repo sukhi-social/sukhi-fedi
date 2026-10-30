@@ -10,7 +10,7 @@
 #   sukhi-swap-image.sh rollback               # go back to the previous image
 #
 # Settings (environment, all optional):
-#   SUKHI_IMAGE_REF   default tag to follow   (ghcr.io/nyanrus/sukhi-fedi-combined:v1)
+#   SUKHI_IMAGE_REF   default tag to follow   (ghcr.io/sukhi-social/sukhi-fedi-combined:v1)
 #   SUKHI_UNIT        user unit to restart    (sukhi-gateway)
 #   SUKHI_LOCAL_NAME  name in local storage   (localhost/sukhi-combined)
 #   SUKHI_HEALTH_URL  checked after restart   (unset: only `is-active` is checked)
@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-REF="${SUKHI_IMAGE_REF:-ghcr.io/nyanrus/sukhi-fedi-combined:v1}"
+REF="${SUKHI_IMAGE_REF:-ghcr.io/sukhi-social/sukhi-fedi-combined:v1}"
 UNIT="${SUKHI_UNIT:-sukhi-gateway}"
 LOCAL="${SUKHI_LOCAL_NAME:-localhost/sukhi-combined}"
 HEALTH="${SUKHI_HEALTH_URL:-}"

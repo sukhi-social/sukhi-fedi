@@ -6,6 +6,13 @@
 > **このセッションでは実機で試していない**(読み替えて使う)。
 > 入り方は [`OPERATING_OVER_SSH.md`](OPERATING_OVER_SSH.md)、更新の設計は [`SERVER_SHELL.md`](SERVER_SHELL.md)。
 
+## 0. 既定の構成(v1 から)
+
+- **バックエンドは Datalevin**(`SUKHI_STORE=datalevin`、`combined` image、`docker-compose.datalevin.yml` を重ねる)。
+- **フロントは `web-next`**(Unpoly + Alpine.js の郵便局。image は `sukhi-fedi-web-next`)。
+- Postgres 版と、SvelteKit の SPA(`web/`)は**維持のみ**。新機能の対象にしない。
+- 公開 image: `ghcr.io/sukhi-social/sukhi-fedi-combined:v1`(`v1.0.0` のタグで出る)。更新は [`OPS_UPDATE_QUADLET.md`](OPS_UPDATE_QUADLET.md)。
+
 ## 1. 考え方
 
 - **正本は「Compose ファイル + image のダイジェスト + SSH で一回の再起動」。** 配備専用のツールは要らない。
