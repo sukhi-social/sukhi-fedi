@@ -71,6 +71,29 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigrationTest do
     }
   end
 
+  # verify_bearer は Ecto の構造体(Access を持たない)を返す。[]/["..."] で読むと落ちて 502 になった。
+  describe "GET /api/v1/accounts/migration" do
+    defmodule AccountStruct do
+      defstruct id: 7, aliases: ["https://old.example/users/alice"], moved_to_uri: nil
+    end
+
+    test "reads aliases and moved_to from the account struct" do
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        verify_bearer:
+          {:ok, %{account: %AccountStruct{}, app: %{id: 1, name: "x"}, scopes: ["read:accounts"]}}
+      })
+
+      {:ok, resp} = Router.handle(authed("GET", "/api/v1/accounts/migration", ""))
+
+      assert resp.status == 200
+
+      assert JSON.decode!(resp.body) == %{
+               "aliases" => ["https://old.example/users/alice"],
+               "moved_to" => nil
+             }
+    end
+  end
+
   describe "POST /api/v1/accounts/migration/aliases" do
     test "sets the alias list" do
       uri = "https://old.example/users/alice"
