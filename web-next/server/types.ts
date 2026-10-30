@@ -26,8 +26,6 @@ export type AvatarDecoration = {
 
 export type Account = {
   id: string;
-  // verify_credentials のときだけ付く。language は、sukhi に置いた自分の言語(未設定なら null)。
-  source?: { language?: string | null };
   username: string;
   acct: string;
   display_name: string;
@@ -39,8 +37,16 @@ export type Account = {
   header_static?: string | null;
   url: string;
   note?: string;
-  // verify_credentials のみ。自己紹介を書いたままの Markdown 原文。
-  source?: { note?: string; fields?: { name: string; value: string }[] };
+  // verify_credentials のときだけ付く。note は自己紹介を書いたままの Markdown 原文。
+  // language は、sukhi に置いた自分の言語(未設定なら null)。
+  // notification_* は通知のペース(docs/MASTODON_API.md の「Pace」)。hold は未設定なら null(= 0 と同じ)。
+  source?: {
+    language?: string | null;
+    note?: string;
+    fields?: { name: string; value: string }[];
+    notification_hold_minutes?: number | null;
+    notification_grouping?: boolean;
+  };
   // 管理者が渡した公開バッジ（Moderator など）。color は #hex か空。
   // Misskey 式のプロフィール項目。birthday は YYYY-MM-DD。
   location?: string | null;

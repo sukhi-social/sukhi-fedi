@@ -59,6 +59,7 @@ function appNav(ctx: Ctx, me: Account): SafeHtml {
           </button>
           <div class="nav-menu-panel" role="menu" x-show="open" x-cloak x-transition.opacity.duration.150ms>
             <a class="nav-menu-item" role="menuitem" href="${profileHref}" aria-current="${ctx.url.pathname === profileHref ? 'page' : null}">${icon('user')}<span>${ctx.t('nav.profile')}</span></a>
+            <a class="nav-menu-item" role="menuitem" href="/settings" aria-current="${ctx.url.pathname === '/settings' ? 'page' : null}">${icon('settings')}<span>${ctx.t('nav.settings')}</span></a>
             <div class="nav-menu-sep" role="separator"></div>
             <form method="post" action="/logout">
               <button type="submit" class="nav-menu-item" role="menuitem">${icon('logout')}<span>${ctx.t('nav.logout')}</span></button>

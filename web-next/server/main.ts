@@ -10,6 +10,7 @@ import { layout } from './views/layout.ts';
 import './routes/auth.ts';
 import './routes/read.ts';
 import './routes/write.ts';
+import './routes/settings.ts';
 
 // 頁が見つからない・戸が閉まっている・向こうに届かない、のとき。責めずに、帰り道を置く。
 setErrorPage((ctx, status) => {

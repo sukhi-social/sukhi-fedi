@@ -16,7 +16,25 @@ export const jaExtra = {
   'compose.withdrawn': 'とりやめました。',
   'compose.withdrawFailed': 'とりやめられませんでした。すこしあとで、もう一度どうぞ。',
   'notif.holdNote': '反応は、一刻ほど置いてから、ポツポツお届けしています。',
-  'notif.groupOthers': '、ほか'
+  'notif.groupOthers': '、ほか',
+  'settings.profile': 'プロフィール',
+  'settings.visibility': 'ひろがりかた',
+  'settings.pace': '通知のペース',
+  'settings.paceHint': 'お気に入りやブーストなどの「反応」を、どれだけ置いてから届けるか。返信とフォロー申請は、いつもすぐです。',
+  'settings.paceHold': '反応を置く時間',
+  'settings.paceGrouping': '同じ投稿への反応を、ひとつにまとめる',
+  'settings.paceFloor': 'この郵便局は、{when}より早くは出しません。これより短くしても、そちらが先に効きます。',
+  'settings.hold0': 'すぐ',
+  'settings.hold15': '約四半刻（15分）',
+  'settings.hold30': '半刻ほど（30分）',
+  'settings.hold60': '一刻ほど（1時間）',
+  'settings.hold180': '三刻ほど（3時間）',
+  'settings.hold720': '半日',
+  'settings.hold1440': '一日',
+  'settings.holdOther': '{n}分',
+  'settings.avatarKeep': '選ばなければ、いまのままです。',
+  'settings.fileTooLarge': '画像は 8MB までです。',
+  'settings.languageHint': 'この端末で見るときのことばです。'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -33,5 +51,23 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'compose.withdrawn': '거두었어요.',
   'compose.withdrawFailed': '거두지 못했어요. 잠시 뒤에 다시 해 주세요.',
   'notif.holdNote': '반응은 한 시간쯤 두었다가, 하나둘 전해 드리고 있어요.',
-  'notif.groupOthers': ' 외'
+  'notif.groupOthers': ' 외',
+  'settings.profile': '프로필',
+  'settings.visibility': '퍼지는 방식',
+  'settings.pace': '알림의 속도',
+  'settings.paceHint': '좋아요나 부스트 같은 "반응"을 얼마나 두었다가 전할지. 답글과 팔로우 요청은 언제나 바로 와요.',
+  'settings.paceHold': '반응을 두는 시간',
+  'settings.paceGrouping': '같은 글에 온 반응을 하나로 묶기',
+  'settings.paceFloor': '이 우체국은 {when}보다 빨리는 내보내지 않아요. 이보다 짧게 해도 그쪽이 먼저 적용돼요.',
+  'settings.hold0': '바로',
+  'settings.hold15': '약 15분',
+  'settings.hold30': '30분쯤',
+  'settings.hold60': '한 시간쯤',
+  'settings.hold180': '세 시간쯤',
+  'settings.hold720': '반나절',
+  'settings.hold1440': '하루',
+  'settings.holdOther': '{n}분',
+  'settings.avatarKeep': '고르지 않으면 지금 그대로예요.',
+  'settings.fileTooLarge': '이미지는 8MB까지예요.',
+  'settings.languageHint': '이 기기에서 볼 때의 언어예요.'
 };

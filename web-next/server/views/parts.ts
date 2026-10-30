@@ -10,7 +10,7 @@ import type { Ctx } from '../http.ts';
 // ── 線画のアイコン(NavIcon.svelte と同じ形。currentColor、色は持たない)────
 export type IconName =
   | 'home' | 'bell' | 'search' | 'compose' | 'user' | 'logout' | 'plus'
-  | 'star' | 'repeat' | 'quote' | 'reply' | 'more' | 'trash' | 'flag' | 'bookmark' | 'pin' | 'image';
+  | 'star' | 'repeat' | 'quote' | 'reply' | 'more' | 'trash' | 'flag' | 'bookmark' | 'pin' | 'image' | 'settings';
 
 const PATHS: Record<IconName, string> = {
   home: '<path d="M3.5 11.5 12 4l8.5 7.5" /><path d="M6 10v9.5h12V10" />',
@@ -30,6 +30,7 @@ const PATHS: Record<IconName, string> = {
   flag: '<path d="M6 20.5V4.5" /><path d="M6 5h11l-2.2 3.5L17 12H6" />',
   bookmark: '<path d="M7 4.5h10v15l-5-4-5 4Z" />',
   pin: '<path d="M9 4.5h6l-1 5 2.5 2.5v1.5h-9V12L10 9.5Z" /><path d="M12 13.5V20" />',
+  settings: '<path d="M5 7h8M17 7h2M5 17h2M11 17h8" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" />',
   image: '<rect x="3.5" y="5" width="17" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.4" /><path d="M4 17l4.5-4.5L12 16l3-3 5 5" />'
 };
 
