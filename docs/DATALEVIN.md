@@ -177,9 +177,14 @@ What changes for the delivery half:
 - **Migrations.** `migrate_all` does nothing; the schema is the catalog
   (`priv/datalevin/catalog.exs`).
 - **Image.** `combined/Dockerfile` carries the pinned `dtlv` (glibc build) and
-  runs it through `gcompat`. That combination is the one thing not exercised in
-  CI; if `dtlv` will not start in the Alpine image, set `DATALEVIN_BIN` to a
-  glibc build and run the release from a glibc base.
+  runs it through `gcompat`. The release is picked per CPU (`TARGETARCH`): the
+  amd64 build does not start on arm64, which is what production runs. The arm64
+  build needs `posix_fallocate64`, which gcompat lacks, so the image ships a
+  one-function shim and `dtlv` is a wrapper that preloads it. Checked on an
+  arm64 box: `dtlv --version` and `dtlv mcp -w` (`initialize`) work; the amd64
+  path is not exercised. This is still not covered by CI; if `dtlv` will not
+  start in the Alpine image, set `DATALEVIN_BIN` to a glibc build and run the
+  release from a glibc base.
 
 ## Switching an existing instance
 
