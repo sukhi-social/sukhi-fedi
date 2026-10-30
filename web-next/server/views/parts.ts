@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // 頁をまたいで使う、小さな部品。アイコン、アバター、入口の帯、法的ページへの入り口、言語の窓。
 
+import { config } from '../config.ts';
 import { html, raw, type SafeHtml } from '../html.ts';
 import { avatarColor, avatarInitial, isDefaultAvatar } from '../avatar.ts';
 import { LOCALES, LOCALE_NAMES, type Locale } from '../i18n.ts';
@@ -52,7 +53,7 @@ export function avatar(src: string | null | undefined, name: string, cls = 'avat
 // ── 入る前の画面の、いちばん上の帯 ───────────────────────────────
 export function entranceBar(ctx: Ctx): SafeHtml {
   return html`<header class="entrance-bar">
-    <a class="mark" href="/"><img src="/favicon.png" alt="" width="64" height="64" />sukhi-fedi</a>
+    <a class="mark" href="/"><img src="${config.siteLogo}" alt="" width="64" height="64" />${config.siteName}</a>
     ${langPicker(ctx)}
   </header>`;
 }

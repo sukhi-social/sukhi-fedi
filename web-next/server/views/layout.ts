@@ -5,6 +5,7 @@
 // <main> の外に置き、ログイン・ログアウト・ことば替えは、ふつうのフォーム(フルリロード)にする。
 // 頁そのものは、View Transitions の下絵(@view-transition)が、静かにつなぐ。
 
+import { config } from '../config.ts';
 import { html, type SafeHtml } from '../html.ts';
 import type { Ctx } from '../http.ts';
 import type { Account } from '../types.ts';
@@ -48,7 +49,7 @@ function appNav(ctx: Ctx, me: Account): SafeHtml {
   return html`<header class="app-nav">
     <div class="wrap app-nav-row">
       <a class="app-nav-name" href="/" up-preload>
-        <img class="app-nav-mark" src="/favicon.png" alt="" width="64" height="64" />sukhi-fedi
+        <img class="app-nav-mark" src="${config.siteLogo}" alt="" width="64" height="64" />${config.siteName}
       </a>
       <nav class="nav-top" aria-label="${ctx.t('nav.label')}" up-nav>
         ${top.map((f) => flowLink(ctx, f))}
@@ -74,7 +75,7 @@ function appNav(ctx: Ctx, me: Account): SafeHtml {
 
 export function layout(ctx: Ctx, p: Page): SafeHtml {
   const flash = ctx.takeFlash();
-  const title = p.title ? `${p.title} · sukhi-fedi` : 'sukhi-fedi';
+  const title = p.title ? `${p.title} · ${config.siteName}` : config.siteName;
   return html`<!doctype html>
 <html lang="${ctx.locale}">
 <head>
