@@ -151,14 +151,59 @@ defmodule SukhiFedi.Datalevin.Writer do
     end
   end
 
-  # `conflict_target: {:unsafe_fragment, "(a, b) WHERE ..."}` names its columns
-  # in the leading parentheses.
-  defp target_columns({:unsafe_fragment, sql}) do
-    [_, cols] = Regex.run(~r/^\s*\(([^)]*)\)/, sql)
-    cols |> String.split(",") |> Enum.map(&String.trim/1)
+  # `conflict_target: {:unsafe_fragment, "(a, lower(b)) WHERE ..."}` names its columns
+  # in the leading parentheses, which may nest (`lower(email)`); a plain column is
+  # its name, an expression is kept as written.
+  @doc false
+  def target_columns({:unsafe_fragment, sql}) do
+    sql |> leading_group() |> split_top_level() |> Enum.map(&String.trim/1)
   end
 
-  defp target_columns(cols) when is_list(cols), do: cols
+  def target_columns(cols) when is_list(cols), do: cols
+
+  # The text inside the leading parentheses, up to the one that closes them.
+  defp leading_group(sql) do
+    "(" <> rest = String.trim_leading(sql)
+
+    {_depth, acc} =
+      rest
+      |> String.graphemes()
+      |> Enum.reduce_while({1, []}, fn
+        "(", {d, acc} -> {:cont, {d + 1, ["(" | acc]}}
+        ")", {1, acc} -> {:halt, {0, acc}}
+        ")", {d, acc} -> {:cont, {d - 1, [")" | acc]}}
+        g, {d, acc} -> {:cont, {d, [g | acc]}}
+      end)
+
+    acc |> Enum.reverse() |> Enum.join()
+  end
+
+  # Split on the commas that are not inside nested parentheses.
+  defp split_top_level(text) do
+    {parts, current, _depth} =
+      text
+      |> String.graphemes()
+      |> Enum.reduce({[], [], 0}, fn
+        ",", {parts, cur, 0} -> {[cur | parts], [], 0}
+        "(", {parts, cur, d} -> {parts, ["(" | cur], d + 1}
+        ")", {parts, cur, d} -> {parts, [")" | cur], d - 1}
+        g, {parts, cur, d} -> {parts, [g | cur], d}
+      end)
+
+    [current | parts] |> Enum.reverse() |> Enum.map(&(&1 |> Enum.reverse() |> Enum.join()))
+  end
+
+  # A unique index's columns as a conflict target spells them: a plain column by
+  # name, a lowercased one as `lower(col)`.
+  @doc false
+  def unique_columns(%{keys: keys}) do
+    for key <- keys do
+      case key do
+        {:col, c} -> c
+        {:lower, c} -> "lower(" <> c <> ")"
+      end
+    end
+  end
 
   # Conflicts on the named target columns (all conflicts when no target).
   defp relevant(cs, _t, []), do: cs
@@ -172,7 +217,7 @@ defmodule SukhiFedi.Datalevin.Writer do
           n when is_binary(n) ->
             case Enum.find(t.unique, &(&1.name == n)) do
               nil -> t.pk
-              u -> for {:col, c} <- u.keys, do: c
+              u -> unique_columns(u)
             end
         end
 
