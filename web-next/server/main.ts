@@ -13,6 +13,7 @@ import './routes/write.ts';
 import './routes/settings.ts';
 import './routes/security.ts';
 import './routes/migration.ts';
+import './routes/data.ts';
 
 // 頁が見つからない・戸が閉まっている・向こうに届かない、のとき。責めずに、帰り道を置く。
 setErrorPage((ctx, status) => {

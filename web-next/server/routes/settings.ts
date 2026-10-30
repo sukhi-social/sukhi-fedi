@@ -76,6 +76,7 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
         <ul>
           <li><a class="chip" href="/settings/security">${t('settings.security')}</a></li>
           <li><a class="chip" href="/settings/migration">${t('settings.migration')}</a></li>
+          <li><a class="chip" href="/settings/data">${t('settings.data')}</a></li>
         </ul>
       </nav>
       <form class="settings-form" method="post" action="/settings" enctype="multipart/form-data">

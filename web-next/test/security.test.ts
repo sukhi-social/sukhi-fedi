@@ -199,3 +199,32 @@ test('引っ越し: 別名を保存し、同意の無い行き先は断られ、
   assert.match(done, /href="https:\/\/back\.example\/users\/k"/);
   assert.doesNotMatch(done, /action="\/settings\/migration\/move"/);
 });
+
+test('書き出しと読み込み: CSV を書き出し、読み込むと足され、不正な行は飛ばす', async () => {
+  sid = '';
+  const page = await text('/settings/data');
+  assert.match(page, /href="\/settings\/data\/export\/following"/);
+  assert.match(page, /action="\/settings\/data\/import\/mutes"/);
+
+  const csv = await go('/settings/data/export/following');
+  assert.equal(csv.status, 200);
+  assert.match(csv.headers.get('content-type') ?? '', /text\/csv/);
+  assert.match(csv.headers.get('content-disposition') ?? '', /following\.csv/);
+  assert.match(await csv.text(), /^Account address\r\nbob@remote\.example/);
+
+  const fd = new FormData();
+  fd.set('file', new File(['Account address\ncarol@other.example\nghost@nowhere.example\n'], 'in.csv', { type: 'text/csv' }));
+  const res = await go('/settings/data/import/following', { method: 'POST', body: fd });
+  assert.equal(res.status, 303);
+  assert.match(await (await go('/settings/data/export/following')).text(), /carol@other\.example/);
+
+  const empty = new FormData();
+  empty.set('file', new File([], ''));
+  assert.equal((await go('/settings/data/import/blocks', { method: 'POST', body: empty })).status, 422);
+
+  const big = new FormData();
+  big.set('file', new File([new Uint8Array(256 * 1024 + 1)], 'big.csv'));
+  assert.equal((await go('/settings/data/import/blocks', { method: 'POST', body: big })).status, 413);
+
+  assert.equal((await go('/settings/data/export/nope')).status, 303);
+});

@@ -71,6 +71,9 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     return me;
   }
 
+  // 書き出し・読み込みの中身。
+  const lists = { following: ['bob@remote.example'], blocks: [], mutes: [] };
+
   // 引っ越し(別名と行き先)。
   const migration = { aliases: ['https://old.example/users/kuro'], moved_to: null };
 
@@ -207,6 +210,23 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       if (!signedIn) return reply(401, { error: 'unauthorized' });
       const [status, body] = security.handle(method, pathname, json ?? {});
       return reply(status, body);
+    }
+    // 書き出し・読み込み(フォロー・ブロック・ミュート)。読み込みは行を数えるだけ(一行ごとに足す)。
+    const porter = pathname.match(/^\/api\/v1\/accounts\/(export|import)\/(following|blocks|mutes)$/);
+    if (porter) {
+      const [, op, kind] = porter;
+      if (op === 'export' && method === 'GET') {
+        res.writeHead(200, { 'content-type': 'text/csv; charset=utf-8' });
+        res.end(`Account address\r\n${lists[kind].join('\r\n')}\r\n`);
+        return;
+      }
+      if (op === 'import' && method === 'POST') {
+        const rows = String(json?.data ?? '').split(/\r?\n/).map((l) => l.split(',')[0].trim().replace(/^@/, '')).filter((l) => l && l !== 'Account address');
+        if (rows.length > 1000) return reply(422, { error: 'too_many_rows' });
+        const good = rows.filter((r) => /^[\w.-]+(@[\w.-]+)?$/.test(r) && !r.startsWith('ghost'));
+        for (const r of good) if (!lists[kind].includes(r)) lists[kind].push(r);
+        return reply(200, { imported: good.length, skipped: rows.length - good.length, unresolved: rows.filter((r) => !good.includes(r)) });
+      }
     }
     if (pathname === '/api/v1/accounts/migration' && method === 'GET') return reply(200, migration);
     if (pathname === '/api/v1/accounts/migration/aliases' && method === 'POST') {

@@ -39,7 +39,7 @@ server/
   gateway.ts     /api/v1 を呼ぶ(トークン付与・refresh・Link の次ページ)
   session.ts     トークンはここ(サーバ)。ブラウザには札(sukhi_sid)だけ
   routes/        auth(入口・入る・はじめる)/ read(読む)/ write(書く・押す・通知)/
-                 settings(プロフィール)/ security(ログインと安全・あいことば)/ migration(引っ越し)
+                 settings(プロフィール)/ security(ログインと安全・あいことば)/ migration(引っ越し)/ data(フォロー等の CSV)
   views/         HTML(html`` は差し込みを自動でエスケープ。raw() だけがそのまま)
   time.ts        時計の針を外した、うつろいのことば
 public/          css(sukhi-web-next から借用)と app.js
@@ -72,7 +72,7 @@ mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
 ## まだ(縦に一本、のあと)
 
 入口・入る・はじめる・タイムライン・タグ・投稿の詳細・プロフィール・書く・通知・さがす・設定(プロフィール・
-ログインと安全〔メール・2FA・パスキー・端末・あいことば〕・引っ越し)まで。
+ログインと安全〔メール・2FA・パスキー・端末・あいことば〕・引っ越し・書き出しと読み込み)まで。
 ない: 設定の掃除・BOT・アカウントを閉じる /  lists / clips / map / messages(DM)/ bookmarks / favourites の頁 /
 絵文字ピッカー / メンションの補完 / 下書きの保存 / 投票 / プロフィールの編集・ミュート・ブロック・私的メモ /
 Service Worker・Push。

@@ -20,6 +20,7 @@ up.link.config.noFollowSelectors.push(
   'a[href^="/privacy"]',
   'a[href^="/oauth"]',
   'a[href^="/api"]',
+  'a[href^="/settings/data/export"]',
 );
 up.form.config.noSubmitSelectors.push(
   'form[action^="/login"]',
