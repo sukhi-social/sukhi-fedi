@@ -36,6 +36,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write # cosign keyless signing
 
 jobs:
   build:
@@ -70,7 +71,8 @@ jobs:
           # 176s cold run (run 38718204455); zstd compresses faster.
           cache-to: type=gha,scope=combined-arm64,mode=max,compression=zstd
 
-      - uses: docker/build-push-action@v5
+      - id: push
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: combined/Dockerfile
@@ -78,6 +80,11 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-combined:${{ steps.tag.outputs.sha }}
           cache-from: type=gha,scope=combined-arm64
+
+      - uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Sign
+        run: cosign sign --yes ghcr.io/${{ github.repository_owner }}/sukhi-fedi-combined@${{ steps.push.outputs.digest }}
 
   anubis:
     runs-on: ubuntu-24.04-arm
@@ -97,12 +104,18 @@ jobs:
 
       # Policy and imprints on top of a pinned Anubis base: a few COPY lines,
       # so there is no layer cache worth keeping.
-      - uses: docker/build-push-action@v5
+      - id: push
+        uses: docker/build-push-action@v5
         with:
           context: config/anubis
           platforms: linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-anubis:${{ steps.tag.outputs.sha }}
+
+      - uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Sign
+        run: cosign sign --yes ghcr.io/${{ github.repository_owner }}/sukhi-fedi-anubis@${{ steps.push.outputs.digest }}
 
   ssr:
     runs-on: ubuntu-24.04-arm
@@ -120,7 +133,8 @@ jobs:
       - id: tag
         run: echo "sha=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/build-push-action@v5
+      - id: push
+        uses: docker/build-push-action@v5
         with:
           context: web-natadeco
           platforms: linux/arm64
@@ -128,6 +142,11 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-natadeco-ssr:${{ steps.tag.outputs.sha }}
           cache-from: type=gha,scope=ssr-arm64
           cache-to: type=gha,scope=ssr-arm64,mode=max,compression=zstd
+
+      - uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Sign
+        run: cosign sign --yes ghcr.io/${{ github.repository_owner }}/sukhi-fedi-natadeco-ssr@${{ steps.push.outputs.digest }}
 
   web-next:
     runs-on: ubuntu-24.04-arm
@@ -145,7 +164,8 @@ jobs:
       - id: tag
         run: echo "sha=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/build-push-action@v5
+      - id: push
+        uses: docker/build-push-action@v5
         with:
           context: web-next
           platforms: linux/arm64
@@ -153,3 +173,8 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-web-next:${{ steps.tag.outputs.sha }}
           cache-from: type=gha,scope=web-next-arm64
           cache-to: type=gha,scope=web-next-arm64,mode=max,compression=zstd
+
+      - uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Sign
+        run: cosign sign --yes ghcr.io/${{ github.repository_owner }}/sukhi-fedi-web-next@${{ steps.push.outputs.digest }}
