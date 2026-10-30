@@ -65,7 +65,10 @@ test('開く: メール・パスキー・端末が並び、あいことばの無
   const page = await text('/settings/security');
   assert.match(page, /kuro@example\.com/);
   assert.match(page, /ノート PC/);
-  assert.match(page, /Safari \/ iPhone/);
+  assert.match(page, /Safari · iOS/);
+  // この端末には「出す」操作を置かない(ほかの端末だけ)。
+  assert.doesNotMatch(page, /sessions\/1\/revoke/);
+  assert.match(page, /sessions\/2\/revoke/);
   assert.match(page, /name="reauth_code"/);
   assert.doesNotMatch(page, /type="password" name="password"/);
   assert.match(page, /data-passkey-add/);

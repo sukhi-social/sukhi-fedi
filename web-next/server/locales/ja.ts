@@ -439,7 +439,6 @@ export const ja = {
   'security.sessionCurrent': '（この端末）',
   'security.sessionWhere': 'だいたいの場所',
   'security.sessionRevoke': 'サインアウトさせる',
-  'security.sessionSignOutHere': 'この端末からサインアウト',
   'security.passwordTitle': 'あいことば（レガシー）',
   'security.passwordOn': '設定されています。',
   'security.passwordNone': '設定されていません。メール（とパスキー）で入ります。',

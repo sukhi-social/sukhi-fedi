@@ -16,6 +16,7 @@ import { endSession, gwCookie, type CookieReply } from '../gateway.ts';
 import { html, raw, type SafeHtml } from '../html.ts';
 import { ok, redirect, route, type Ctx, type Reply } from '../http.ts';
 import type { TranslationKey } from '../i18n.ts';
+import { deviceLabel, placeLabel } from '../device.ts';
 import { timeWords } from '../time.ts';
 import { layout } from '../views/layout.ts';
 import { needMe } from './shared.ts';
@@ -266,21 +267,27 @@ async function securityPage(ctx: Ctx, o: Opts = {}): Promise<Reply> {
       : devices.length === 0
         ? html`<p class="muted">${t('security.sessionsNone')}</p>`
         : html`<ul class="rows">
-            ${devices.map(
-              (s) => html`<li>
-                <span>${s.user_agent ?? t('security.sessionUnknownDevice')}${s.current ? html` <span class="muted">${t('security.sessionCurrent')}</span>` : ''}</span>
-                <span class="muted text-sm">${t('security.sessionWhere')}: ${s.ip} · ${t('security.lastUsed')}: ${when(s.last_seen_at)}</span>
-                ${fold(
-                  `sess-${s.id}`,
-                  s.current ? t('security.sessionSignOutHere') : t('security.sessionRevoke'),
-                  html`<form class="stack" method="post" action="/settings/security/sessions/${s.id}/revoke">
-                    <input type="hidden" name="current" value="${s.current ? '1' : ''}" />
-                    ${reauthField(ctx, a, `sess-${s.id}`)}
-                    <div><button type="submit" class="btn px-6 py-2">${s.current ? t('security.sessionSignOutHere') : t('security.sessionRevoke')}</button></div>
-                  </form>`
-                )}
-              </li>`
-            )}
+            ${devices.map((s) => {
+              const place = placeLabel(s.ip);
+              const meta = [place ? `${t('security.sessionWhere')}: ${place}` : '', `${t('security.lastUsed')}: ${when(s.last_seen_at)}`]
+                .filter(Boolean)
+                .join(' · ');
+              // 出す操作は、ほかの端末だけ。この端末は、ふだんのサインアウト(メニュー)で出る。
+              return html`<li>
+                <span>${deviceLabel(s.user_agent) ?? t('security.sessionUnknownDevice')}${s.current ? html` <span class="muted">${t('security.sessionCurrent')}</span>` : ''}</span>
+                <span class="muted text-sm">${meta}</span>
+                ${s.current
+                  ? ''
+                  : fold(
+                      `sess-${s.id}`,
+                      t('security.sessionRevoke'),
+                      html`<form class="stack" method="post" action="/settings/security/sessions/${s.id}/revoke">
+                        ${reauthField(ctx, a, `sess-${s.id}`)}
+                        <div><button type="submit" class="btn px-6 py-2">${t('security.sessionRevoke')}</button></div>
+                      </form>`
+                    )}
+              </li>`;
+            })}
           </ul>`}
     ${err('session')}
   </section>`;
