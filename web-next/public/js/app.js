@@ -34,6 +34,13 @@ up.form.config.noSubmitSelectors.push(
 // 先読みは、指が乗って少し経ってから。急がない。
 up.link.config.preloadDelay = 200;
 
+// 「もっと読む」(up-preload="insert")は、現れたら次のひと頁だけ、そっと先に取っておく。
+// 押したときは手元の控えから足され、足された頁の末尾に新しい「もっと読む」が現れて、
+// また次のひと頁を取る ── 先読みは、いつも一頁ぶん。通信をひかえたい設定(Save-Data)なら、取らない。
+up.on("up:link:preload", (event) => {
+  if (navigator.connection?.saveData) event.preventDefault();
+});
+
 // ふわりとした遷移。動きを減らす設定なら、動かさない。
 // (頁の差し替えは cross-fade が受け持ち、重なるモーダル(Layer)は Web Animations API が受け持つ。)
 up.motion.config.enabled = !reduced;

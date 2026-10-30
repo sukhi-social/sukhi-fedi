@@ -331,7 +331,7 @@ route('GET', '/notifications', async (ctx) => {
         )}
       </div>
       <div id="nf-more">${moreHref
-        ? html`<a class="load-more" href="${moreHref}" up-target="#nf-items:after, #nf-more" up-history="false" up-scroll="false">${t('common.loadMore')}</a>`
+        ? html`<a class="load-more" up-preload="insert" href="${moreHref}" up-target="#nf-items:after, #nf-more" up-history="false" up-scroll="false">${t('common.loadMore')}</a>`
         : arrived.length ? html`<p class="the-end" role="note">${t('end.here')}</p>` : ''}</div>
     </section>`;
 
@@ -353,7 +353,7 @@ route('GET', '/notifications', async (ctx) => {
         )}
       </div>
       <div id="nf-more">${moreHref
-        ? html`<a class="load-more" href="${moreHref}" up-target="#nf-items:after, #nf-more" up-history="false" up-scroll="false">${t('common.loadMore')}</a>`
+        ? html`<a class="load-more" up-preload="insert" href="${moreHref}" up-target="#nf-items:after, #nf-more" up-history="false" up-scroll="false">${t('common.loadMore')}</a>`
         : arrived.length ? html`<p class="the-end" role="note">${t('end.here')}</p>` : ''}</div>
     `);
   }

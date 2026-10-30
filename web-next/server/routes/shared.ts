@@ -73,7 +73,7 @@ export async function statusList(
 ): Promise<SafeHtml> {
   const replyAccts = await replyAcctsFor(ctx, items);
   const more = o.moreHref
-    ? html`<a class="load-more" href="${o.moreHref}" up-target="#${o.idPrefix}-items:after, #${o.idPrefix}-more" up-history="false" up-scroll="false">${ctx.t('common.loadMore')}</a>`
+    ? html`<a class="load-more" up-preload="insert" href="${o.moreHref}" up-target="#${o.idPrefix}-items:after, #${o.idPrefix}-more" up-history="false" up-scroll="false">${ctx.t('common.loadMore')}</a>`
     : items.length > 0
       ? theEnd(ctx)
       : '';
