@@ -227,6 +227,39 @@ async function post(url, body) {
   return data;
 }
 
+// 「もっと読む」の一つ先読み。リンクが画面の少し手前まで来たら、次の 1 頁だけを裏で取っておく。
+// 押したら、取れている頁がすぐ付く。付いた頁には新しい「もっと読む」が現れるので、またその次の 1 頁だけ。
+// 数を増やさないための決まり:
+//   - 画面から遠いうちは取らない(IntersectionObserver で、1 画面ぶん手前から)。
+//   - 裏のタブでは取らない(見えるようになってから)。
+//   - 通信量を減らす設定(Save-Data)のときは取らない。
+//   - 1 つのリンクにつき 1 回だけ(取れたら observer を外す)。
+up.compiler("a.load-more", (link) => {
+  if (navigator.connection?.saveData || !("IntersectionObserver" in window)) return;
+  let near = false;
+  let done = false;
+  const go = () => {
+    if (done || !near || document.hidden) return;
+    done = true;
+    io.disconnect();
+    // 失敗しても何もしない(押したときに、ふつうに取りにいく)。
+    up.link.preload(link).catch(() => {});
+  };
+  const io = new IntersectionObserver(
+    (entries) => {
+      near = entries[entries.length - 1].isIntersecting;
+      go();
+    },
+    { rootMargin: "0px 0px 100% 0px" },
+  );
+  io.observe(link);
+  document.addEventListener("visibilitychange", go);
+  return () => {
+    io.disconnect();
+    document.removeEventListener("visibilitychange", go);
+  };
+});
+
 up.compiler("form[data-passkey-add]", (form) => {
   if (!window.PublicKeyCredential) return;
   form.hidden = false;

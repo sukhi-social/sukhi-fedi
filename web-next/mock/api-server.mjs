@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 export async function startApiServer({ port = Number(process.env.PORT ?? 4000), quiet = false } = {}) {
   // mock.mjs が読まれる前に置く(NOW は読み込み時に決まる)。
   process.env.SUKHI_MOCK_NOW ??= new Date().toISOString();
-  const { respond, ME } = await import('./mock.mjs');
+  const { respond, ME, HOME } = await import('./mock.mjs');
 
   const unknown = new Set();
   const open = new Set();
@@ -170,6 +170,15 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       scheduled.push(s);
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(s));
+      return;
+    }
+    // タイムラインは 3 件ずつ 2 頁。「もっと読む」と、その先読みを試せる。
+    if (/^\/api\/v1\/timelines\/(home|public)$/.test(pathname) && method === 'GET') {
+      const first = !new URL(req.url ?? '/', 'http://localhost').searchParams.get('max_id');
+      const headers = { 'content-type': 'application/json' };
+      if (first) headers.link = `<http://localhost:${port}${pathname}?max_id=page2>; rel="next"`;
+      res.writeHead(200, headers);
+      res.end(JSON.stringify(first ? HOME.slice(0, 3) : HOME.slice(3)));
       return;
     }
     if (pathname === '/api/v1/scheduled_statuses' && method === 'GET') {
