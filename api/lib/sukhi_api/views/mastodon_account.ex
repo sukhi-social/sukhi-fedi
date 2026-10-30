@@ -58,6 +58,14 @@ defmodule SukhiApi.Views.MastodonAccount do
       Map.get(account, :actor_uri) ||
         "https://#{local_domain}/users/#{username}"
 
+    # `url` は人が開く頁、`uri` は ActivityPub の id。local の人の頁は
+    # actor JSON の `"url"` と同じ `/@name`(`/users/…` を開くと JSON が
+    # 出る)。remote の頁の場所は保存していないので、actor_uri のまま。
+    profile_url =
+      if remote_domain in [nil, ""],
+        do: "https://#{local_domain}/@#{username}",
+        else: actor_uri
+
     # Mastodon spec は avatar/header を「常に非 null の URL」と決めて
     # おり、Moshidon など Kotlin/Gson 系のクライアントは String non-null
     # で受けるので、null を返すと NPE で即クラッシュする。だから画像の
@@ -91,7 +99,7 @@ defmodule SukhiApi.Views.MastodonAccount do
       group: false,
       created_at: Timestamp.iso8601(Map.get(account, :created_at)),
       note: Map.get(account, :summary) || "",
-      url: actor_uri,
+      url: profile_url,
       uri: actor_uri,
       avatar: avatar,
       avatar_static: avatar,
