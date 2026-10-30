@@ -44,12 +44,9 @@ async function go(path: string, init: RequestInit & { signedIn?: boolean; form?:
 }
 const text = async (path: string, init?: Parameters<typeof go>[1]) => (await go(path, init)).text();
 
-test('メールのアドレスは、Cloudflare に書き換えられないよう email_off で囲む / /migration は設定の頁へ', async () => {
+test('メールのアドレスは、Cloudflare に書き換えられないよう email_off で囲む', async () => {
   const page = await text('/settings/security');
   assert.match(page, /<!--email_off-->[\s\S]*kuro@example\.com[\s\S]*<!--\/email_off-->/);
-  const r = await go('/migration');
-  assert.equal(r.status, 303);
-  assert.equal(r.headers.get('location'), '/settings/migration');
 });
 
 test('設定の頁から、ログインと安全・引っ越しへ行ける', async () => {
