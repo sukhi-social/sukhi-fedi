@@ -5,6 +5,7 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 const PORT = 5197;
 const BASE = `http://localhost:${PORT}`;
@@ -90,4 +91,14 @@ test('何も始まっていない人や、行き先の違う人が /check に来
   await b('/login', form({ method: 'password', username: 'a', password: 'b' }));
   const wrong = await b('/check?intent=signup');
   assert.equal(wrong.headers.get('location'), '/signup');
+});
+
+// /check は anubis が頁まるごとの HTML で返す。Unpoly の fetch が受けると <main> の差し替えになり、
+// anubis の JS が壊れる(確認の画面で `x(...) is null`)。入る・はじめるのフォームは、ふつうの送信に。
+test('入る・はじめるのフォームは、Unpoly に任せずふつうに送る', () => {
+  const js = readFileSync(new URL('../public/js/app.js', import.meta.url), 'utf8');
+  const noSubmit = js.slice(js.indexOf('up.form.config.noSubmitSelectors.push('));
+  const list = noSubmit.slice(0, noSubmit.indexOf(');'));
+  assert.match(list, /form\[action\^="\/login"\]/);
+  assert.match(list, /form\[action\^="\/signup"\]/);
 });
