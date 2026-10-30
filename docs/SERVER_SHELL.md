@@ -1,0 +1,358 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+# サーバーシェル(`sukhi`)設計
+
+> 状態: **設計のみ。実装はまだない。** 運用者が、人でも AI でも、同じ入口から
+> サーバーのバージョンアップと簡易スクリプトの実行をできるようにするための設計書。
+> 最後の §12 に、決めたいことを選択肢と推奨つきでまとめた。
+
+## 0. この文書の読み方(曖昧だった点)
+
+依頼は「使いやすいサーバーシェル(人にも AI にも、MCP 対応)。バージョンアップと簡易スクリプト実行など」。
+次の読みで進めた。違っていたら §12 の Q1 で直す。
+
+- 対象は **sukhi-fedi の運用者向けの管理シェル**。汎用の SSH シェルの代わりではない。
+- 形は二つ。ホストで叩く CLI `sukhi`、そして BEAM の中で動く操作の登録簿(以下 **Ops**)。
+- 主な対象リリースは `combined`(gateway + delivery + api を一つの BEAM に入れたもの)。
+  分割構成の `gateway` でも同じ Ops が動く。
+- 主軸の前提は、プロジェクト方針どおり **Datalevin(`SUKHI_STORE=datalevin`)**。
+  Postgres は「動くまま維持」で、新機能の対象にしない(§7 で差分だけ書く)。
+
+## 1. 今あるもの(調査)
+
+| 仕組み | 場所 | できること | 足りないこと |
+| --- | --- | --- | --- |
+| リリースの `eval` | `combined/rel/entrypoint.sh` が `bin/combined eval 'SukhiFedi.Release.migrate_all()'` を呼ぶ | 起動前のマイグレーション。`check_migration_sanity/0` で順序の狂いを止める | 実行中のノードには入れない(別 BEAM が立つ)。出力は文字列のまま |
+| `rpc` | リリース標準。`rel/env.sh.eex` が cookie を fail-closed で強制 | 動いているノードの中で式を評価 | 認証は cookie だけ。cookie を知れば**何でも**できる(任意コード実行)。権限の段階も監査もない |
+| mix タスク | `elixir/lib/mix/tasks/sukhi.*.ex`(migrate, emoji.add/list, datalevin.catalog, graph.bench) | 開発時の入口 | リリースには Mix がない。本番では使えない |
+| メンテナンス・スクリプト | `SukhiFedi.Maintenance.*`(RebuildRemoteNoteIds, RebuildFromArchive, RefetchActors, WipeRemote, RebuildDirectVisibility, ArchiveIntegrity …) | `run(:dry_run \| :execute)` という共通の形。`Progress` が `maintenance_runs` に進み具合を書く | 一覧がない。呼ぶには `eval '…run(:execute)'` を手で打つ。同時実行の制限・タイムアウトがない |
+| 管理ダッシュボード | `Web.Admin.*`(`/admin`)、`Schema.AdminAudit`(追記専用・DB のトリガで更新削除を禁止) | 進捗の表示、モデレーションの監査 | 人がブラウザで見る用。操作の入口としては作られていない |
+| デプロイ | Makefile(`DEPLOY_HOST` つきのターゲット)、docker compose、Watchtower が GHCR を見て自動更新(SETUP.md「Upgrades」) | 自動で更新される | 「今の版は何か」「更新前に確かめる」「戻す」の入口がない |
+
+**所見。** 部品はそろっていて、足りないのは「ひとつの登録簿」と「境界での認証・権限・監査」。
+`rpc` をそのまま AI に渡すのは危ない(任意コード実行になる)。だから AI にも人にも、
+**名前のついた操作だけ**を出す。これは CODE_STYLE の規則(§0:安全性は一か所に置き、構造がすべての経路をそこへ通す)の、運用面への適用。
+
+## 2. 全体像
+
+```
+ 人 ──▶ sukhi (ホスト側の薄いスクリプト) ─┐
+ AI ──▶ sukhi mcp (stdio の MCP サーバー) ─┤  どちらも同じ線:
+ 他 ──▶ HTTP /admin-api (トークン,任意) ───┤
+                                          ▼
+                    Unix ドメインソケット(コンテナ内、0600)
+                                          ▼
+                     SukhiFedi.Ops.Gateway   ← 認証・権限・監査はここ「だけ」
+                                          ▼
+                     SukhiFedi.Ops.Registry  ← 操作の登録簿(単一の正本)
+                                          ▼
+          Release / Maintenance.* / Store / Version … (既存の文脈モジュール)
+```
+
+三つの原則。
+
+1. **操作は一か所で定義する。** CLI のサブコマンド、MCP のツール、`--json` の形、
+   ヘルプ文、権限の段階は、すべて Registry の一つの宣言から作る。
+   表面ごとに別実装を持たない(増えると必ずずれる)。
+2. **境界で一回だけ確かめ、内側は信じる。** 認証・権限・監査・タイムアウト・
+   同時実行の制限は `Ops.Gateway` のみ。各操作はそれを覚えていなくてよい。
+3. **既定は安全側。** 変更系は何も言わなければ dry-run。実行には明示の `--execute`(MCP では承認)が要る。
+
+## 3. 操作の宣言(Registry)
+
+各操作は、次のような宣言を持つ。
+
+```elixir
+%Op{
+  name: "script.run",
+  summary: "登録済みスクリプトを実行する",
+  level: :mutate,            # :read | :plan | :mutate | :dangerous
+  args: [name: :string, mode: {:enum, [:dry_run, :execute]}, opts: :map],
+  concurrency: {:exclusive, :maintenance},   # 同時に走らせてよい範囲
+  timeout_ms: 3_600_000,
+  run: &SukhiFedi.Ops.Script.run/1,
+  output: schema        # --json と MCP の戻り値の形。人向け整形も同じ構造体から作る
+}
+```
+
+- `level` は §8 の権限の段階と一対一。
+- 戻り値は必ず `{:ok, map}` か `{:error, %{code, message, hint}}`。人向けの表は同じ map の描画で、`--json` はそのままの map。
+  AI は文字列の解釈をしなくてよい。
+- 秘密を含みうる項目は schema に `secret: true` と書き、描画の前に取り除く(§8)。
+
+## 4. 人向け CLI
+
+ホストで叩く `sukhi`(bash の薄いスクリプト。中身は `docker compose exec` でコンテナ内の
+`bin/combined rpc` → ソケットの呼び出しに変える。Erlang の cookie を人が扱わなくて済む)。
+
+```
+sukhi status                  # 版・稼働時間・store・キュー・直近のマイグレーション
+sukhi version                 # 現在版 / 最新版 / 差分(取得だけ。変更しない)
+sukhi upgrade [--to 0.4.15]   # 計画を出す(dry-run)。--execute で実施
+sukhi rollback [--to 0.4.14]  # 同上
+sukhi migrate [--execute]     # Datalevin では「やることなし」と理由つきで返す
+sukhi store info              # 種類(datalevin/postgres)、場所、サイズ、スキーマ版、直近バックアップ
+sukhi script list             # 登録済みスクリプト、説明、dry_run の有無
+sukhi script run <name> [--execute] [--timeout 30m] [-- 引数]
+sukhi script runs [<id>]      # 実行履歴、進み具合、終了状態
+sukhi script cancel <id>
+sukhi audit [--since 1d]      # 監査ログ
+sukhi shell                   # 対話モード(下記)
+sukhi mcp                     # MCP サーバーを stdio で起動(§6)
+sukhi completion bash|zsh|fish
+```
+
+使いやすさの決まり。
+
+- **dry-run が既定。** 変更系は「何をするか」の計画を出して止まる。`--execute` で本番。
+  計画には対象件数・所要見込み・戻せるか・必要な前提(バックアップがあるか)を載せる。
+- **確認プロンプト**は `:mutate` 以上で、`--execute` のとき端末なら一回だけ。「もう一度 y と打つ」ではなく、
+  対象を言い直させる(例: `upgrade` なら版の番号)。`--yes` で省略できるが、`:dangerous` は省略できない。
+- **出力**は端末なら整形、パイプなら自動で JSON(`--json` / `--no-json` で強制)。
+  終了コードは 0 成功、1 失敗、2 使い方の誤り、3 権限不足、4 計画のみで未実行(スクリプトから判定できる)。
+- **補完**はサブコマンド、スクリプト名、`--to` の版を動的に補う(`script list` / `version` を呼ぶ)。
+- **エラーには次の一手**を書く(`hint`)。例:「`maintenance` ロックを別の実行が持っています。`sukhi script runs` で確認」。
+- **対話モード**(`sukhi shell`)は、同じ Ops を呼ぶだけの REPL。履歴と補完があり、IEx のような任意の式評価は**出さない**。
+  どうしても必要なときの非常口は別に残す(§5.3)。
+
+## 5. バージョンアップ
+
+### 5.1 コンテナの外と中の分担
+
+コンテナの中の BEAM は、自分のイメージを入れ替えられない。だから二段に分ける。
+
+| 段 | 動く場所 | 担当 |
+| --- | --- | --- |
+| 判断 | BEAM(Ops) | 現在版、最新版の取得、検証、更新前チェック、更新後の健全性の確認 |
+| 実施 | ホストの `sukhi`(compose / Kamal を呼ぶ) | `pull`、再作成、ローリング、戻し |
+
+BEAM は「やってよいか」を決めて**計画(plan)**を返し、ホスト側が計画どおり実施する。
+実施後、ホスト側が `sukhi status --wait` で新しい版の健全性を確かめて閉じる。
+
+### 5.2 手順
+
+`sukhi upgrade`(dry-run が既定):
+
+1. **現在版**: `VERSION`(今は 0.4.14)とイメージのダイジェストを読む。
+2. **最新版の取得**: GHCR のタグ一覧。`--to` で固定もできる。
+3. **検証**: 既定はダイジェスト固定(`@sha256:`)に変えて pull し、可能なら署名(cosign)を確かめる。
+   署名が未導入のうちは「ダイジェストが公開メタデータと一致」までを検証とし、**未署名と明示**して表示する。
+4. **更新前チェック**(失敗したら止まる): バックアップが新しいか(`infra/backup` の検証タイマーの結果)、
+   `check_migration_sanity/0`、ディスク残量、キューの滞留、同時実行中のスクリプトがないこと。
+5. **計画の表示**: 版、ダイジェスト、マイグレーションの有無、戻せるか、止まる時間の見込み。
+6. `--execute` で、**Watchtower を一時停止**(または版を固定)してから pull と再作成。
+   起動時の `migrate_all()` は既存の entrypoint がそのまま実行する。
+7. **更新後の確認**: `/healthz` 相当と `status` が新しい版を名乗り、キューが流れ、
+   エラー率が上がっていないこと。一定時間(既定 5 分)見て、だめなら §5.4 の戻しを**提案**する(自動では戻さない — 後述)。
+
+### 5.3 Watchtower との関係
+
+今は Watchtower が GHCR を見て勝手に更新する。シェルを入れても二重に動かないよう、
+`sukhi upgrade` は固定(pin)中は Watchtower の対象外のラベルを付ける。
+**既定を「自動更新のまま」にするか「シェル経由に寄せる」にするかは §12 の Q3。**
+
+### 5.4 マイグレーションとロールバック
+
+| | Datalevin(主) | Postgres(維持) |
+| --- | --- | --- |
+| マイグレーション | なし。スキーマは `priv/datalevin/catalog.exs` から導き、store を開くときに入れる(`Release.migrate_all/0` は何もせず返す) | `migrate_all/0`。`check_migration_sanity/0` が順序の狂いを止める |
+| 更新前の安全網 | `dtlv` のコピー(スナップショット)を必ず取る | `pg_dump` 相当(既存の backup を使う) |
+| 戻し | 前のイメージへ戻す。スキーマ追加だけの変更なら読める見込み。**非互換の変更があった版は、スナップショットから戻す** | マイグレーションは前進のみ。戻しは「前のイメージ + バックアップから復元」。down は書かない |
+
+戻しは**人の判断**を挟む。自動ロールバックは、書き込みの多いサーバーではデータを失いやすい。
+`sukhi rollback` は、(a) 前のイメージへ戻すだけで足りるか、(b) スナップショットの復元が要るか、
+(c) 復元でどの時点までのデータが消えるか、を計画に書いてから止まる。
+この「互換性があるか」の判定は、リリースごとに `compat` の宣言(最低限の戻り先の版)を持たせる案が自然だが、
+まだ設計していない。**未確認の点として §12 Q5 に残す。**
+
+### 5.5 Alpine イメージとローリング
+
+- リリースイメージは Alpine(musl)。シェル用の追加パッケージは**入れない**。
+  コンテナ内の部品は BEAM だけで完結させ、ホスト側スクリプトは bash と docker CLI だけに依存する。
+- ローリングは分割構成(gateway と api を別コンテナで持つ構成)でだけ意味がある。
+  `combined` は一つの BEAM なので、止まる時間が短く出るだけ(再作成の間)。
+  ARCHITECTURE の規則で gateway と api は **cookie を同時に更新**する必要がある(ENV.md)。
+  版の組み合わせも同じで、分割構成では「api → gateway」の順に上げ、互換のない版の組み合わせを計画の段階で拒否する。
+
+## 6. AI 向け: MCP
+
+### 6.1 公開のしかた
+
+- `sukhi mcp` は **stdio の MCP サーバー**。AI クライアント(Claude Code など)は、
+  ホストまたは SSH 先でこのコマンドを起動するだけで使える。HTTP を外に開けなくてよい。
+- 中身は §2 のソケットを呼ぶだけ。MCP のツール定義は Registry から**自動生成**する(別に書かない)。
+- 将来、遠隔から使うために streamable HTTP を足す余地は残すが、既定では出さない(§12 Q2)。
+
+### 6.2 ツールの切り分け
+
+MCP のツールは level で**別のサーバー設定**に分ける。クライアントが読み取り専用のほうだけ繋げば、
+変更系は定義そのものが見えない。
+
+| 接続名 | 含むもの | 既定 |
+| --- | --- | --- |
+| `sukhi-ro`(読み取り専用) | `status`, `version`, `store_info`, `script_list`, `script_runs`, `audit`, `upgrade_plan`, `rollback_plan`, `script_plan`(dry-run) | 有効 |
+| `sukhi-rw`(変更系) | `upgrade_apply`, `rollback_apply`, `script_run`(execute), `script_cancel` | 無効。トークンの段階が `:mutate` 以上のときだけ |
+
+ツール名は動詞つきの短い名前、説明は「いつ使うか・いつ使わないか」まで書く。
+引数は enum と型で固め、自由な式は受け取らない。
+
+### 6.3 承認と安全
+
+- **plan と apply を別のツールにする。** apply は plan の `plan_id`(短時間で失効、計画の内容にひもづく)を
+  受け取る。計画を見ずに実行はできない。計画が変わった(版が進んだ、ロックが取られた)ら `plan_id` は無効になる。
+- `:mutate` 以上は、MCP クライアントの承認(ツール実行の確認)に加えて、**サーバー側でも**
+  `plan_id` と、トークンが持つ段階を確かめる。クライアントの承認だけには頼らない。
+- `:dangerous`(`WipeRemote` など)は MCP からは**出さない**。人が CLI でのみ実行できる。
+- ツールの戻り値は構造化(JSON)で、秘密は取り除かれる。長い出力は要約と、`script_runs` で取る追跡 id に分ける。
+- ツールの説明文や、スクリプトの出力に含まれる文字列(リモートの投稿本文など)は**データ**であり、
+  AI への指示として扱わない。出力の中に外部由来の文字列が入りうる操作は、戻り値でその項目に `untrusted: true` を付ける。
+
+## 7. 簡易スクリプトの実行
+
+### 7.1 登録
+
+`SukhiFedi.Maintenance.*` のうち、`run(:dry_run | :execute)` の形に従うものを、
+モジュール属性(`@sukhi_script`)で宣言して Registry に載せる。
+
+```elixir
+@sukhi_script %{
+  name: "rebuild_remote_note_ids",
+  summary: "リモートの投稿の id を created_at から作り直す",
+  modes: [:dry_run, :execute],
+  level: :mutate,            # WipeRemote は :dangerous
+  lock: :maintenance,
+  timeout_ms: 7_200_000,
+  options: [skew_s: :integer]
+}
+```
+
+- 新しいスクリプトを足すとき、宣言を書かなければ**一覧に出ない**(既定で出さない)。
+  `eval` の手打ちは当面残るが、手順書は `sukhi script run` に寄せる。
+- 任意の Elixir 式を走らせる `sukhi eval '<式>'` は、**既定では無効**。
+  有効にするには、サーバー側の環境変数と `:dangerous` 段階のトークン、人の端末(MCP では不可)が要る。
+  使われるたびに監査へ式の全文を残す。これは非常口であって、日常の入口ではない。
+
+### 7.2 実行の管理
+
+- **実行履歴**は既存の `maintenance_runs`(`Progress` が書く)を使う。足りない列(依頼した主体、
+  引数、終了コード)は追加するが、Datalevin 側のスキーマ(`priv/datalevin/catalog.exs`)にも同じ変更が要る。
+  Postgres の移行ファイルを新しく足すかどうかは §12 Q4。
+- **同時実行の制限**: `lock` が同じものは同時に一つだけ(`:maintenance` は排他)。取れなければ、
+  待たずに即座に失敗して「誰がいつから持っているか」を返す。
+- **タイムアウト**: 宣言の値が上限。超えたらキャンセル信号 → 猶予 → 強制終了。強制終了した場合は
+  `state: "killed"` として記録し、各スクリプトの冪等性(§7.3)に頼って再実行を促す。
+- **実行場所**: 別プロセス(`Task.Supervisor` の子)で動かし、要求元の接続が切れても続ける。
+  進み具合は `script runs <id> --follow` で追える。
+- **dry-run の結果を実行の条件に使う**(任意): `--execute` は直近の dry-run の要約(件数)を表示し、
+  人が確認した件数と大きくずれたら止まる。
+
+### 7.3 スクリプトを書く側の約束
+
+既存のスクリプトがすでにそうしているものを、規則として書く。
+
+1. `run(:dry_run)` は書き込まない。`:execute` と同じ判定で、数だけ返す。
+2. 冪等。二度走らせても結果が変わらない(`RebuildRemoteNoteIds` は id が既に合っていれば飛ばす)。
+3. `Progress` で進み具合を出す(件ごとではなく、時間で間引かれる)。
+4. 戻り値は map。秘密や投稿本文を入れない。
+
+## 8. セキュリティ
+
+### 8.1 認証(どこから呼べるか)
+
+| 入口 | 認証 | 備考 |
+| --- | --- | --- |
+| Unix ドメインソケット | ファイルの権限(0600、コンテナ内の実行ユーザー)。`docker compose exec` できる人 = 運用者 | **既定の入口。** ネットワークに何も開けない |
+| HTTP(任意、既定では無効) | 長い無作為のトークン(`SUKHI_OPS_TOKEN`、ハッシュで保存し、比較は定数時間)+ 送信元の絞り込み | `METRICS_TOKEN` と同じ「未設定なら 404」の方式にする |
+| Erlang の cookie | **使わない** | cookie を知れば何でもできるので、シェルの認証には混ぜない |
+
+トークンは複数持てて、それぞれに **段階**と有効期限、名前(「ひなたの Claude Code」など)を持つ。
+失効はすぐ効く。発行は人が CLI でのみ行い(MCP からは発行できない)、表示は一度だけ。
+
+### 8.2 権限の段階
+
+| level | できること | 例 |
+| --- | --- | --- |
+| `:read` | 状態を読む | status, version, audit, script list |
+| `:plan` | 計画を作る(副作用なし。外部へ問い合わせはする) | upgrade plan, script dry-run |
+| `:mutate` | 実際に変える | upgrade apply, script execute |
+| `:dangerous` | 取り返しがつかない、または任意のコード | WipeRemote, eval |
+
+段階は上のほうが下を含む。トークンごとに上限を決める。`:dangerous` は MCP とトークン認証の HTTP から
+**そもそも到達できない**(構造で閉じる。呼び出しの中で毎回確かめるのではない)。
+
+### 8.3 秘密情報
+
+- 戻り値・ログ・監査に秘密を出さない。これも一か所:`Ops.Gateway` が返す前に、schema の `secret: true`
+  と、既知の環境変数名(`ERLANG_COOKIE`, `*_TOKEN`, `*_KEY`, `SECRET*`)の値を伏せる。
+- `status` に環境変数の一覧は出さない。設定の有無(設定済み/未設定)だけ出す。
+- 監査にも引数の値は残すが、`secret: true` の引数は伏せる。
+
+### 8.4 監査
+
+- 既存の `admin_audits`(追記専用、DB のトリガで更新と削除を禁止)と**同じ方式**の表を使う。
+  列: 時刻、主体(トークン名または `local-socket`)、入口(cli / mcp / http)、操作名、引数(伏せ済み)、
+  段階、結果、`plan_id`、`run_id`。
+- 変更系だけでなく、`:read` も残す(AI が何を見たかを後で確かめられる)。ただし量が多いので、
+  読み取りは「操作名と主体と時刻」だけにして、本文は残さない。
+- 監査の書き込みに失敗したら、`:mutate` 以上の操作は**実行しない**(監査なしでは変えない)。
+  `:read` は実行し、警告を残す。
+
+## 9. 既存の仕組みをどう使うか(比較)
+
+| 案 | 内容 | 良い点 | 悪い点 | 判断 |
+| --- | --- | --- | --- | --- |
+| A | `bin/combined rpc` と `eval` をそのまま案内する | 追加実装なし | 任意コード実行。AI に渡せない。出力が文字列。権限と監査なし | 非常口として残す |
+| B | `/admin`(Web)に操作を足す | 認証とセッションが既にある。監査もある | ブラウザ前提で、AI と CLI から使いにくい。更新の「コンテナの外」の実施ができない | 表示専用として残す。進み具合は引き続きここ |
+| C | **Ops の登録簿 + ソケット + 薄い CLI + MCP(本設計)** | 一か所で定義。人と AI が同じ操作。権限・監査が境界に一つ | 新しく作るもの。ホスト側スクリプトの保守 | **推奨** |
+| D | 外部の運用ツール(Ansible, Kamal の hooks, SSH 越しのスクリプト)に寄せる | 実績がある | 項目ごとの権限・MCP・dry-run の統一が弱い。AI 向けの構造化が自前 | 実施の段(§5.1)で Kamal/compose を呼ぶ形で併用 |
+
+再利用するもの: `Release.migrate_all/0` と `check_migration_sanity/0`、`Maintenance.*` と `Progress` と
+`maintenance_runs`、`admin_audits` の方式、`rel/env.sh.eex` の fail-closed の考え方、`infra/backup` の検証結果、
+`METRICS_TOKEN` の「未設定なら無効」の方式。
+
+## 10. 実装の順番(提案)
+
+後ろの段階は前の段階がなくても有用なように切る。
+
+1. **Registry + ソケット + `status` / `version` / `store info` / `script list|run`**(read と dry-run のみ)。
+   既存スクリプトに宣言を足す。`sukhi` のホスト側スクリプト。ここまでで「手打ちの `eval` が要らなくなる」。
+2. 監査、同時実行の制限、タイムアウト、実行履歴の拡張。`--execute` を有効にする。
+3. `sukhi mcp`(`sukhi-ro` から)。ツール定義の自動生成。
+4. `upgrade` / `rollback` の計画と実施(ホスト側)。Watchtower との整理。
+5. `sukhi-rw` と `plan_id` による承認。トークンの発行と失効。HTTP(必要なら)。
+
+## 11. やらないこと
+
+- 汎用のリモートシェル、任意コマンドの実行を AI に渡すこと。
+- 自動ロールバック。
+- Postgres 向けの新しい運用機能(維持のみ)。
+- ブラウザの `/admin` を操作の入口に拡張すること。
+- Datalevin の内部ファイルを直接操作するコマンド(store の中身は文脈モジュールを通す)。
+
+## 12. 決めたいこと(選択肢と推奨)
+
+**Q1. 想定のとおりでよいか(運用者向けの管理シェルで、コンテナ内の Ops + ホストの `sukhi`)。**
+- 推奨: このとおり。違う場合(例: 利用者向けの対話シェル、Fediverse 上のボット操作)は設計の前提が変わる。
+
+**Q2. AI からの接続は、stdio だけで始めるか、HTTP(遠隔)も出すか。**
+- 推奨: **stdio だけ**で始める(ネットワークに何も開けない、攻撃面が最小)。遠隔が要る場面が出たら、段階 5 で追加。
+
+**Q3. 更新の既定は、Watchtower の自動更新のままにするか、`sukhi upgrade` に寄せるか。**
+- 推奨: 当面は**自動更新のまま**、`sukhi` は版の確認と、pin / unpin、更新前チェックを担う。
+  慣れたら寄せる。理由: 今の運用を変えずに入れられる。
+
+**Q4. 実行履歴の列(依頼元・引数・終了コード)と監査の表を、Datalevin のカタログにだけ足すか、Postgres の移行も足すか。**
+- 推奨: **Datalevin のカタログに足し、Postgres は `maintenance_runs` を既存のまま**(新機能の対象にしない方針)。
+  Postgres 構成では、監査を構造化ログ(1 行 1 件の JSON)で代える。
+
+**Q5. ロールバックの互換性(戻り先の最低版)を、リリースごとに宣言させるか。**
+- 推奨: **宣言させる**(`priv/ops/compat.exs` のような小さな表)。宣言がない版は「スナップショットからの復元のみ」と扱う。
+  なお、Datalevin のスキーマ変更が前の版から読めるかの実際の挙動は、この設計では**検証していない**。実装の前に確かめる。
+
+**Q6. `eval` の非常口を残すか。**
+- 推奨: **残す**が、既定で無効、`:dangerous`、人の端末のみ、式の全文を監査。完全に無いと、結局 `bin/combined rpc` を直接叩く運用に戻り、監査の外に出る。
+
+**Q7. 署名の検証(cosign)を、更新の必須条件にするか。**
+- 推奨: 署名が CI で付くようになるまでは**ダイジェスト一致のみ**を必須にして、「未署名」と明示。付いたら必須にする。
+
+**Q8. コマンド名と置き場所。**
+- 推奨: `sukhi`(ホストの `bin/sukhi`)。Elixir 側は `SukhiFedi.Ops.*`。今ある `bin/build-on-box.sh` と同じ階層に置く。
