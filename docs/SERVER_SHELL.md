@@ -349,6 +349,20 @@ updater: ① 一次の検証(sigstore)  ② 二次の検証(パスキーの承�
 **実装の順番(§10)の先頭に置く:**
 `sukhi status|version|release(計画のみ)` と CI の署名 → `release --execute` と記録 → 告知とカウントダウン → 画面・MCP。
 
+### 5.11 配備ツールに頼らない(Docker / Podman / nerdctl + SSH)
+
+> 提案(ひなた): haloy ではなく、Docker / Podman(Fedora なら画面つき)/ nerdctl の導入方法と、SSH 経由の再起動での更新方法を正本にする。
+
+[`RUNTIME.md`](RUNTIME.md) に、実行環境ごとの導入と更新の手順を書いた。要点:
+
+- `sukhi release` の「入れ替える」部分は、haloy に限らず **`<runtime> compose pull && up -d`** でも実現できる。
+  実行環境は設定で選ぶ(`docker` / `podman` / `nerdctl`)。updater と §5.1 の流れは変えない。
+- 正本は「Compose + image のダイジェスト + SSH で再起動」。haloy は本番の運用者が使ってよい**任意の入れ替え役**にとどめる。
+- Podman を選んだ人には `podman auto-update`(起動失敗で自動で前の image に戻る)が Watchtower の代わりになるが、
+  署名の検証をしないので、検証つきの `sukhi release` とは別物として書く。
+- 食い違い: `combined` を公開 image として出す経路が、いまは arm64・sha タグのみ(RUNTIME.md §6)。
+  正本を素の Compose にするなら、multi-arch と semver での公開が前提になる。
+
 ## 6. AI 向け: MCP
 
 ### 6.1 公開のしかた
@@ -553,3 +567,7 @@ MCP のツールは level で**別のサーバー設定**に分ける。クラ�
 **Q13. 第 0 段を「SSH + `sukhi release`」にして、画面(§5.8)は後回しにするか。**
 - 推奨: そうする。作るものが最小で、認証は SSH に任せられ、画面が壊れても更新と戻しができる。
   画面は「SSH に入れない人・端末でも更新したい」という要望が出てから足す。
+
+**Q14. 正本を「素のコンテナ実行環境 + Compose + SSH」にして、haloy を任意に下げるか(§5.11、RUNTIME.md)。**
+- 推奨: そうする。Docker を基準に CI で通し、Podman は Compose が通ると確かめてから「対応」とする。nerdctl は未検証と明記。
+  前提として `combined` の multi-arch / semver 公開と署名を、同じ workflow で出す。
