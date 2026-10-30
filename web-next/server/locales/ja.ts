@@ -496,22 +496,25 @@ export const ja = {
     'ほかのアカウントへ、静かに移れます。フォローしてくれている人は、新しいほうへ付いてきてくれます。',
   'migration.aliasesTitle': '別名（これも自分です）',
   'migration.aliasesHelp':
-    'むかし使っていたアカウントを、ここに足しておけます。連合するので、向こうからこちらへ引っ越すときの「同意」になります。5 つまで。',
-  'migration.aliasPlaceholder': 'https://例.com/users/なまえ',
+    'むかし使っていたアカウントを、ここに足しておけます。連合するので、向こうからこちらへ引っ越すときの「同意」になります。@なまえ@例.com でも、URL でも入れられます。5 つまで。',
+  'migration.aliasPlaceholder': '@なまえ@例.com',
   'migration.aliasAdd': '足す',
   'migration.aliasRemove': '消す',
   'migration.aliasesSaved': '別名を、更新しました。',
   'migration.aliasesNone': 'まだ、ありません。',
   'migration.moveTitle': 'いま、引っ越す',
   'migration.moveHelp':
-    '引っ越し先の URL を入れてください。先に、引っ越し先の別名にこのアカウントを入れておいてください（双方向の同意）。',
-  'migration.movePlaceholder': 'https://例.com/users/なまえ',
+    '引っ越し先を、@なまえ@例.com か URL で入れてください。先に、引っ越し先の別名にこのアカウントを入れておいてください（双方向の同意）。',
+  'migration.movePlaceholder': '@なまえ@例.com',
   'migration.moveButton': 'このアカウントを移す',
   'migration.moveConfirm': '本当に移しますか。フォロワーは新しいアカウントへ案内されます。',
   'migration.moved': 'このアカウントは、移りました:',
   'migration.err.target_must_alias_back':
     '引っ越し先が、まだこのアカウントを別名に入れていません。向こうで先に足してもらってください。',
-  'migration.err.invalid_target': 'その引っ越し先の URL が、うまく読めませんでした。',
+  'migration.err.invalid_target':
+    'その引っ越し先が、見つかりませんでした。@なまえ@例.com か、URL を確かめてください。',
+  'migration.err.invalid_alias':
+    '別名のどれかが、見つかりませんでした。@なまえ@例.com か、URL を確かめてください。',
   'migration.err.already_moved': 'このアカウントは、もう移っています。',
   'migration.err.generic': 'うまくいきませんでした。',
 

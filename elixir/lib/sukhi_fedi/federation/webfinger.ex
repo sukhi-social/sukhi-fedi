@@ -16,39 +16,67 @@ defmodule SukhiFedi.Federation.WebFinger do
   @timeout_ms 10_000
 
   @doc """
-  Look up `acct:user@host` and return the actor's `self` URL (the
-  canonical AP id). Result is ETS-cached for an hour, keyed on the
-  bare handle.
+  What to ask, and of whom: `{:ok, {host, resource}}` for a handle
+  (`name@host`, `@name@host` → `acct:name@host`) or an http(s) URL (the
+  URL itself, asked of its own host — an actor URI or a profile page,
+  whichever that server answers). `:error` for anything else.
   """
-  @spec resolve_self(String.t()) :: {:ok, String.t()} | {:error, term()}
-  def resolve_self(acct) when is_binary(acct) do
-    handle = String.trim_leading(acct, "@")
+  @spec parse_resource(String.t()) :: {:ok, {String.t(), String.t()}} | :error
+  def parse_resource(input) when is_binary(input) do
+    input = String.trim(input)
 
-    case Ets.get(:webfinger, {:self, handle}) do
-      {:ok, url} ->
-        {:ok, url}
+    case Regex.run(~r/\A@?([^@\s\/:]+)@([^@\s\/]+)\z/, input) do
+      [_, name, host] ->
+        {:ok, {host, "acct:#{name}@#{host}"}}
 
-      :miss ->
-        with {:ok, {_user, host}} <- split(handle),
-             {:ok, jrd} <- fetch_jrd(host, handle),
-             {:ok, self_url} <- pick_self(jrd) do
-          Ets.put(:webfinger, {:self, handle}, self_url, @ttl_seconds)
-          {:ok, self_url}
+      nil ->
+        case URI.parse(input) do
+          %URI{scheme: s, host: h} = uri when s in ["http", "https"] and is_binary(h) and h != "" ->
+            {:ok, {authority(uri), input}}
+
+          _ ->
+            :error
         end
     end
   end
 
-  defp split(handle) do
-    case String.split(handle, "@", parts: 2) do
-      [user, host] when user != "" and host != "" -> {:ok, {user, host}}
-      _ -> {:error, :bad_acct}
+  defp authority(%URI{host: h, port: port, scheme: s}) do
+    if port in [nil, URI.default_port(s)], do: h, else: "#{h}:#{port}"
+  end
+
+  @doc """
+  Ask the host about `input` (see `parse_resource/1`) and return the
+  actor's `self` URL (the canonical AP id). Success means the server
+  itself vouched for it. Result is ETS-cached for an hour, keyed on the
+  resource.
+  """
+  @spec resolve_self(String.t()) :: {:ok, String.t()} | {:error, term()}
+  def resolve_self(input) when is_binary(input) do
+    with {:ok, {host, resource}} <- parse(input) do
+      case Ets.get(:webfinger, {:self, resource}) do
+        {:ok, url} ->
+          {:ok, url}
+
+        :miss ->
+          with {:ok, jrd} <- fetch_jrd(host, resource),
+               {:ok, self_url} <- pick_self(jrd) do
+            Ets.put(:webfinger, {:self, resource}, self_url, @ttl_seconds)
+            {:ok, self_url}
+          end
+      end
     end
   end
 
-  defp fetch_jrd(host, handle) do
+  defp parse(input) do
+    case parse_resource(input) do
+      {:ok, _} = ok -> ok
+      :error -> {:error, :bad_acct}
+    end
+  end
+
+  defp fetch_jrd(host, resource) do
     url =
-      "https://#{host}/.well-known/webfinger?resource=" <>
-        URI.encode_www_form("acct:#{handle}")
+      "https://#{host}/.well-known/webfinger?resource=" <> URI.encode_www_form(resource)
 
     headers = [
       {"accept", "application/jrd+json, application/json"},
@@ -57,16 +85,16 @@ defmodule SukhiFedi.Federation.WebFinger do
 
     cond do
       not SukhiShared.UrlGuard.safe?(url) ->
-        # `host` comes from the handle (attacker-controlled via a mention /
-        # search), so refuse internal / non-https targets (SSRF).
+        # `host` comes from what was typed or mentioned (attacker-controlled
+        # via a mention / search), so refuse internal / non-https targets (SSRF).
         {:error, :blocked_host}
 
       true ->
-        do_fetch_jrd(url, headers, handle)
+        do_fetch_jrd(url, headers, resource)
     end
   end
 
-  defp do_fetch_jrd(url, headers, handle) do
+  defp do_fetch_jrd(url, headers, resource) do
     # `redirect: false` — a 30x Location could otherwise bounce us from a
     # public host to an internal one, past the guard above.
     case SukhiFedi.Fedi.HttpFetch.capped_get(url,
@@ -78,11 +106,11 @@ defmodule SukhiFedi.Federation.WebFinger do
         JSON.decode(body)
 
       {:ok, %{status: status}} ->
-        Logger.warning("WebFinger #{handle}: HTTP #{status}")
+        Logger.warning("WebFinger #{resource}: HTTP #{status}")
         {:error, {:http_status, status}}
 
       {:error, reason} ->
-        Logger.warning("WebFinger #{handle}: #{inspect(reason)}")
+        Logger.warning("WebFinger #{resource}: #{inspect(reason)}")
         {:error, reason}
     end
   end

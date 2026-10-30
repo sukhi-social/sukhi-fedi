@@ -56,7 +56,7 @@ async function migrationPage(ctx: Ctx, o: Opts = {}): Promise<Reply> {
           ${aliases.every((a) => a === '') ? html`<p class="prose-small">${t('migration.aliasesNone')}</p>` : ''}
           ${rows.map(
             (a, i) => html`<div class="alias-row">
-              <input type="url" name="alias" value="${a}" maxlength="512" placeholder="${t('migration.aliasPlaceholder')}" aria-label="${t('migration.aliasesTitle')}" />
+              <input type="text" inputmode="url" autocapitalize="none" spellcheck="false" name="alias" value="${a}" maxlength="512" placeholder="${t('migration.aliasPlaceholder')}" aria-label="${t('migration.aliasesTitle')}" />
               ${a ? html`<button type="submit" class="chip" name="remove" value="${i}" formnovalidate>${t('migration.aliasRemove')}</button>` : ''}
             </div>`
           )}
@@ -74,7 +74,7 @@ async function migrationPage(ctx: Ctx, o: Opts = {}): Promise<Reply> {
           : html`<form class="stack-tight" method="post" action="/settings/migration/move" up-confirm="${t('migration.moveConfirm')}">
               <h2 class="text-base">${t('migration.moveTitle')}</h2>
               <p class="muted text-sm">${t('migration.moveHelp')}</p>
-              <input type="url" name="target" value="${o.target ?? ''}" maxlength="512" placeholder="${t('migration.movePlaceholder')}" aria-label="${t('migration.moveTitle')}" required />
+              <input type="text" inputmode="url" autocapitalize="none" spellcheck="false" name="target" value="${o.target ?? ''}" maxlength="512" placeholder="${t('migration.movePlaceholder')}" aria-label="${t('migration.moveTitle')}" required />
               <div><button type="submit" class="btn px-6 py-2">${t('migration.moveButton')}</button></div>
               ${err('move')}
             </form>`}
@@ -107,7 +107,12 @@ route('POST', '/settings/migration/aliases', async (ctx) => {
     return redirect('/settings/migration');
   } catch (e) {
     if (e instanceof GatewayError || e instanceof TypeError) {
-      const text = e instanceof GatewayError && e.status >= 500 ? failText(ctx, e) : t('migration.err.generic');
+      const text =
+        e instanceof GatewayError && e.message === 'invalid_alias'
+          ? t('migration.err.invalid_alias')
+          : e instanceof GatewayError && e.status >= 500
+            ? failText(ctx, e)
+            : t('migration.err.generic');
       return migrationPage(ctx, { aliases: cleaned, error: { where: 'aliases', text }, status: 422 });
     }
     throw e;

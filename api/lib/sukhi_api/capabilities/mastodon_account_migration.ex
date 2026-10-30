@@ -62,6 +62,9 @@ defmodule SukhiApi.Capabilities.MastodonAccountMigration do
         {:error, :too_many} ->
           ok(422, %{error: "too_many_aliases"})
 
+        {:error, {:invalid_alias, _entry}} ->
+          ok(422, %{error: "invalid_alias"})
+
         {:error, :not_found} ->
           ok(404, %{error: "account_not_found"})
 
