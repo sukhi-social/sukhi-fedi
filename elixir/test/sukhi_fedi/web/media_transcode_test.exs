@@ -9,9 +9,10 @@ defmodule SukhiFedi.Web.MediaTranscodeTest do
   alias Vix.Vips.Operation
 
   # `mix test --no-start` (make test-elixir) leaves the app's cache tables
-  # unstarted; the worker records its verdicts in :media_variants.
+  # unstarted (and the worker with them); the worker records its verdicts in :media_variants.
   setup do
     if Process.whereis(SukhiFedi.Cache.Ets) == nil, do: start_supervised!(SukhiFedi.Cache.Ets)
+    if Process.whereis(Worker) == nil, do: start_supervised!(Worker)
     :ok
   end
 
