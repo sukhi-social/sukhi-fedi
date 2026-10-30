@@ -5,13 +5,13 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 
-const PORT = 5197;
+const PORT = 5192;
 const BASE = `http://localhost:${PORT}`;
 let child: ChildProcess;
 
 before(async () => {
   child = spawn('node', ['mock/dev.mjs'], {
-    env: { ...process.env, SUKHI_DEV_TOKEN: 'mock', QUIET: '1', PORT: String(PORT), MOCK_PORT: '4197', PUBLIC_ORIGIN: BASE },
+    env: { ...process.env, SUKHI_DEV_TOKEN: 'mock', QUIET: '1', PORT: String(PORT), MOCK_PORT: '4192', PUBLIC_ORIGIN: BASE },
     stdio: 'ignore'
   });
   for (let i = 0; i < 50; i++) {

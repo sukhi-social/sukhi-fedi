@@ -55,8 +55,10 @@ mix compile --warnings-as-errors
 echo "→ migrating"
 mix sukhi.migrate
 echo "→ running tests"
-# `--only` overrides test_helper's own exclusions, so repeat the dtlv one:
-# those tests need the Datalevin binary, which is not always installed.
+# Without dtlv the graph tests cannot run. CI installs it; elsewhere the
+# `--exclude dtlv` below is only a courtesy and does not hold against
+# `--only integration` (an include wins over an exclude for a test carrying
+# both tags), so install dtlv or name the files to run.
 skip=()
 command -v "${DATALEVIN_BIN:-dtlv}" >/dev/null || skip=(--exclude dtlv)
 mix test --only integration "${skip[@]}" "$@"

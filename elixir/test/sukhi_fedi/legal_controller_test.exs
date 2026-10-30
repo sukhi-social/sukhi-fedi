@@ -11,6 +11,10 @@ defmodule SukhiFedi.Web.LegalControllerTest do
 
   defp get(path), do: conn(:get, path) |> Plug.Conn.fetch_query_params()
 
+  # Japanese pages are BudouX-phrased: every phrase boundary is a <wbr>. The
+  # words the tests look for are the words as written, not where they may wrap.
+  defp plain(body), do: String.replace(body, "<wbr>", "")
+
   test "/privacy defaults to Japanese (APPI), self-contained HTML, no JS" do
     conn = get("/privacy") |> LegalController.privacy()
 
@@ -108,8 +112,8 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     conn = get("/licenses?lang=ja") |> LegalController.licenses()
 
     assert conn.status == 200
-    assert conn.resp_body =~ "あるがままの「ありがとう」"
-    assert conn.resp_body =~ "そのままの、感謝を"
+    assert plain(conn.resp_body) =~ "あるがままの「ありがとう」"
+    assert plain(conn.resp_body) =~ "そのままの、感謝を"
     assert conn.resp_body =~ "<strong>\nこのソフトウェア" or conn.resp_body =~ "<strong>このソフトウェア"
     refute conn.resp_body =~ "<em>このソフトウェア"
     assert conn.resp_body =~ "<summary>言語"
@@ -132,7 +136,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     ja = get("/licenses/rust?lang=ja") |> LegalController.rust() |> Map.get(:resp_body)
     assert ja =~ "ojak の中の Rust クレート"
     assert ja =~ ~s(href="/licenses?lang=ja")
-    assert ja =~ "あるがままの「ありがとう」"
+    assert plain(ja) =~ "あるがままの「ありがとう」"
   end
 
   test "/credits has a Korean page, and the three pages link each other" do
@@ -177,8 +181,8 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     ja = get("/credits?lang=ja") |> LegalController.credits() |> Map.get(:resp_body)
     assert ja =~ "クレジット"
     assert ja =~ ~s(href="/licenses?lang=ja")
-    assert ja =~ "あるがままの「ありがとう」"
-    assert ja =~ "この感謝は、譲渡できません。"
+    assert plain(ja) =~ "あるがままの「ありがとう」"
+    assert plain(ja) =~ "この感謝は、譲渡できません。"
   end
 
   test "the people on /credits link to their own sites in every language" do

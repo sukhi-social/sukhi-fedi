@@ -65,7 +65,7 @@ test('SITE_NAME と SITE_LOGO が、入口の帯と <title> に出る。ロゴ�
 });
 
 test('SITE_LOGO が .svg なら、タブのアイコンに type が付く(引用符が escape されない)', async () => {
-  await withServer(5197, { SITE_LOGO: 'https://example.test/logo.svg' }, async (base) => {
+  await withServer(5191, { SITE_LOGO: 'https://example.test/logo.svg' }, async (base) => {
     const page = await (await fetch(`${base}/login`)).text();
     assert.match(page, /<link rel="icon" type="image\/svg\+xml" href="https:\/\/example\.test\/logo\.svg" \/>/);
   });

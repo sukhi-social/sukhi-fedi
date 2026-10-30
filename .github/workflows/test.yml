@@ -13,6 +13,7 @@
 #   elixir-unit    make test-shared / -elixir / -api / -delivery (no DB)
 #   elixir-pglite  make test-pglite: compile with warnings as errors,
 #                  migrate, and run the DB integration suite on embedded PGlite
+#                  (with dtlv installed, so the Datalevin graph tests run too)
 name: test
 
 on:
@@ -143,6 +144,21 @@ jobs:
         env:
           MIX_ENV: test
         run: mix deps.get
+
+      # The graph tests (:dtlv) drive a real Datalevin, which is the active
+      # store, so the job installs the binary rather than skipping them. Same
+      # release and checksum as combined/Dockerfile; keep them in step.
+      - name: Install dtlv
+        env:
+          DTLV_VERSION: 1.2.10
+          DTLV_SHA256: b42c1ef4b6a9ccf2a42b21f9c576fe774ff877c15826031755f0b94a3c0df3e5
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/dtlv.zip" \
+            "https://github.com/datalevin/datalevin/releases/download/${DTLV_VERSION}/dtlv-${DTLV_VERSION}-ubuntu-22.04-amd64.zip"
+          echo "${DTLV_SHA256}  $RUNNER_TEMP/dtlv.zip" | sha256sum -c -
+          sudo unzip -j -q "$RUNNER_TEMP/dtlv.zip" dtlv -d /usr/local/bin
+          sudo chmod +x /usr/local/bin/dtlv
+          dtlv --version || true
 
       # The suite logs every SQL query, so the failure list drowns in the job
       # log; keep a copy and print just the failures when the run goes red.
