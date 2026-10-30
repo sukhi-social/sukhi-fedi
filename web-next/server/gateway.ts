@@ -24,6 +24,16 @@ export class GatewayError extends Error {
   }
 }
 
+// 利用者の IP を、gateway に伝える。gateway の回数制限(メールを送る口、ログインなど)は
+// `CF-Connecting-IP` を見て数える。伝えないと、web-next のコンテナ一つの IP に見えて、
+// 利用者みんなで一つの上限を分け合うことになる(メールは 1 時間に 12 通まで、など)。
+// Cloudflare の外から直接来た要求(dev・mock)には、このヘッダーは無い ── そのときは何も足さない。
+export function clientHeaders(ctx: Pick<Ctx, 'req'>): Record<string, string> {
+  const v = ctx.req.headers['cf-connecting-ip'];
+  const ip = (Array.isArray(v) ? v[0] : v)?.trim();
+  return ip ? { 'cf-connecting-ip': ip } : {};
+}
+
 type Init = {
   auth?: boolean | 'optional';
   json?: unknown;
@@ -47,7 +57,7 @@ async function refresh(ctx: Ctx): Promise<TokenSet | null> {
       const client = await getClient();
       const res = await fetch(`${config.gateway}/oauth/token`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...clientHeaders(ctx) },
         body: JSON.stringify({
           grant_type: 'refresh_token',
           refresh_token: s.token!.refresh_token,
@@ -83,7 +93,7 @@ export async function gw(ctx: Ctx, method: string, path: string, init: Init = {}
   }
 
   const send = (anonymous = false) => {
-    const headers: Record<string, string> = { accept: 'application/json' };
+    const headers: Record<string, string> = { accept: 'application/json', ...clientHeaders(ctx) };
     let body: BodyInit | undefined;
     if (init.json !== undefined) {
       headers['content-type'] = 'application/json';

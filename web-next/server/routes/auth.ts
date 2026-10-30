@@ -11,7 +11,7 @@
 import { randomUUID } from "node:crypto";
 import { config } from "../config.ts";
 import { getClient } from "../client.ts";
-import { forwardCookies, gw, gwJson, GatewayError } from "../gateway.ts";
+import { clientHeaders, forwardCookies, gw, gwJson, GatewayError } from "../gateway.ts";
 import { html, raw, type SafeHtml } from "../html.ts";
 import { ok, redirect, route, type Ctx, type Reply } from "../http.ts";
 import { destroySession, saveSession, type Session } from "../session.ts";
@@ -147,7 +147,7 @@ route("GET", "/app/callback", async (ctx) => {
   const client = await getClient();
   const res = await fetch(`${config.gateway}/oauth/token`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...clientHeaders(ctx) },
     body: JSON.stringify({
       grant_type: "authorization_code",
       code,
@@ -782,7 +782,7 @@ async function finishSignup(
     const client = await getClient();
     const cc = await fetch(`${config.gateway}/oauth/token`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...clientHeaders(ctx) },
       body: JSON.stringify({
         grant_type: "client_credentials",
         client_id: client.client_id,
@@ -799,6 +799,7 @@ async function finishSignup(
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${app.access_token}`,
+        ...clientHeaders(ctx),
       },
       body: JSON.stringify({
         username: v.username,
@@ -877,7 +878,7 @@ route("POST", "/logout", async (ctx) => {
       const client = await getClient();
       await fetch(`${config.gateway}/oauth/revoke`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...clientHeaders(ctx) },
         body: JSON.stringify({
           token: s.token.access_token,
           client_id: client.client_id,
