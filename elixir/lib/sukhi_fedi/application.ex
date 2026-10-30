@@ -44,8 +44,6 @@ defmodule SukhiFedi.Application do
       {SukhiShared.PullStats, repo: SukhiFedi.Repo},
       {Task.Supervisor, name: SukhiFedi.PullFederation.TaskSup},
       SukhiFedi.PullFederation.Puller,
-      # Paced follow imports (AccountPorter) run here, off the request.
-      {Task.Supervisor, name: SukhiFedi.AccountPorter.TaskSup},
       # Holds the latest L4 telemetry snapshot the WebTransport edge relay
       # (wt-relay, x64) publishes over NATS, for the /admin/system page. After
       # the Gnat connection above; subscribes lazily and retries if NATS isn't

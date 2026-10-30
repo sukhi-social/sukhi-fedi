@@ -15,10 +15,12 @@ defmodule SukhiFedi.AccountPorter do
       address this server already knows. Only the rest go out over
       WebFinger (`Accounts.lookup_by_acct/2`, at most `@max_resolve`
       per import, ten at a time); whatever is still unknown is reported
-      back as `unresolved` rather than failing the run. Applying goes
+      back as `unresolved` rather than failing the run. (Follows skip this
+      step: each `FollowWorker` job looks its own address up.) Applying goes
       through the same functions the single-account API uses
-      (`Social.request_follow/2`, `Moderation.block/2`, `Moderation.mute/2`),
-      so follow requests federate and idempotency stay in one place.
+      (`Social.request_follow/2` — from `FollowWorker`, one paced job per
+      address — `Moderation.block/2`, `Moderation.mute/2`), so follow
+      requests federate and idempotency stay in one place.
 
   Importing follows is "merge": nothing already followed, blocked or muted
   is removed.
@@ -26,7 +28,8 @@ defmodule SukhiFedi.AccountPorter do
 
   import Ecto.Query
 
-  alias SukhiFedi.{Accounts, Repo, Social}
+  alias SukhiFedi.{Accounts, Repo}
+  alias SukhiFedi.AccountPorter.FollowWorker
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Schema.{Account, Block, Follow, Mute}
 
@@ -38,8 +41,8 @@ defmodule SukhiFedi.AccountPorter do
   @max_bytes 256 * 1024
   @max_resolve 200
   @max_unresolved_report 20
-  # One follow every 100 ms ≈ 10 a second: 1000 rows in under two minutes.
-  @follow_interval_ms 100
+  # Ten follows a second: 1000 rows in under two minutes.
+  @follow_per_second 10
 
   @address ~r/\A[A-Za-z0-9_.\-]{1,64}(@[A-Za-z0-9.\-]{1,253})?\z/
 
@@ -107,10 +110,11 @@ defmodule SukhiFedi.AccountPorter do
 
   Blocks and mutes are local writes — they are done before this returns, with
   counts and (a sample of) the addresses that could not be resolved. Follows
-  each federate a `Follow`, so they are **paced** and run in the background
-  (`follow_paced/4`): this returns at once with `queued` set to how many rows
-  were accepted, and the follows go out at a steady `@follow_interval_ms`
-  — not a burst that reads as spam to the other servers, not a crawl.
+  each federate a `Follow`, so they are **paced** and kept in the database:
+  one `FollowWorker` job per address, scheduled `@follow_per_second` to a
+  second — not a burst that reads as spam to the other servers, not a
+  crawl. This returns at once with `queued` set to how many were accepted;
+  the jobs survive a restart and retry on their own.
   """
   @spec import_csv(integer(), kind(), binary()) ::
           {:ok,
@@ -125,24 +129,33 @@ defmodule SukhiFedi.AccountPorter do
       when is_integer(account_id) and kind in @kinds and is_binary(csv) do
     with %Account{} = account <- Repo.get(Account, account_id),
          {:ok, addresses, invalid} <- parse(csv) do
-      {known, missing} = resolve_known(addresses)
-      run_import(account, kind, known, missing, invalid)
+      run_import(account, kind, addresses, invalid)
     else
       nil -> {:error, :not_found}
       {:error, _} = e -> e
     end
   end
 
-  defp run_import(%Account{} = account, :following, known, missing, invalid) do
-    {:ok, _pid} =
-      Task.Supervisor.start_child(SukhiFedi.AccountPorter.TaskSup, fn ->
-        follow_paced(account, known, missing)
+  defp run_import(%Account{id: account_id}, :following, addresses, invalid) do
+    now = DateTime.utc_now()
+
+    jobs =
+      addresses
+      |> Enum.with_index()
+      |> Enum.map(fn {address, i} ->
+        FollowWorker.new(
+          %{"account_id" => account_id, "address" => address},
+          scheduled_at: DateTime.add(now, div(i, @follow_per_second), :second)
+        )
       end)
 
-    {:ok, %{imported: 0, skipped: invalid, unresolved: [], queued: length(known) + length(missing)}}
+    inserted = Oban.insert_all(SukhiFedi.Oban, jobs)
+
+    {:ok, %{imported: 0, skipped: invalid, unresolved: [], queued: length(inserted)}}
   end
 
-  defp run_import(%Account{} = account, kind, known, missing, invalid) when kind in [:blocks, :mutes] do
+  defp run_import(%Account{} = account, kind, addresses, invalid) when kind in [:blocks, :mutes] do
+    {known, missing} = resolve_known(addresses)
     {fetched, unresolved} = resolve_remote(missing)
     targets = importable(account, known ++ fetched)
     imported = Enum.count(targets, &apply_one(account, kind, &1))
@@ -154,25 +167,6 @@ defmodule SukhiFedi.AccountPorter do
        unresolved: Enum.take(unresolved, @max_unresolved_report),
        queued: 0
      }}
-  end
-
-  @doc """
-  The background half of a follow import: look up what this server does not
-  know yet, then follow one account every `interval_ms`. Public so a test can
-  run it in its own process; callers go through `import_csv/3`.
-  """
-  @spec follow_paced(Account.t(), [Account.t()], [String.t()], non_neg_integer()) ::
-          non_neg_integer()
-  def follow_paced(%Account{} = account, known, missing, interval_ms \\ @follow_interval_ms) do
-    {fetched, _unresolved} = resolve_remote(missing)
-
-    account
-    |> importable(known ++ fetched)
-    |> Enum.reduce(0, fn target, followed ->
-      done? = apply_one(account, :following, target)
-      Process.sleep(interval_ms)
-      if done?, do: followed + 1, else: followed
-    end)
   end
 
   defp importable(%Account{id: own_id}, accounts) do
@@ -305,9 +299,6 @@ defmodule SukhiFedi.AccountPorter do
 
     {Enum.reverse(fetched), Enum.reverse(failed) ++ over_cap}
   end
-
-  defp apply_one(%Account{} = account, :following, %Account{id: id}),
-    do: match?({:ok, _}, Social.request_follow(account, id))
 
   defp apply_one(%Account{id: account_id}, :blocks, %Account{id: id}),
     do: match?({:ok, _}, Moderation.block(account_id, id))
