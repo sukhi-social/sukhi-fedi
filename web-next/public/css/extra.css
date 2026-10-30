@@ -384,3 +384,32 @@ html:lang(ko) .hero h1 {
     display: none;
   }
 }
+
+/* 投稿の時刻は、投稿を開くリンク。声は上げず、「実は押せます」とだけ伝える:
+ * 字は淡いまま、足もとに細い点線を一本(色は罫線の濃いほう)。
+ * 触れた・フォーカスしたときだけ、橙の実線に変わる。押せる領域は ::after で広げる。 */
+.meta .timestamp {
+  position: relative;
+  color: var(--color-text-muted);
+  text-decoration: underline dotted;
+  text-decoration-color: var(--color-control);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.3em;
+  transition:
+    color var(--motion) ease,
+    text-decoration-color var(--motion) ease;
+}
+.meta .timestamp:hover,
+.meta .timestamp:focus-visible,
+.meta .timestamp:active {
+  color: var(--color-accent-strong);
+  text-decoration-style: solid;
+  text-decoration-color: var(--color-accent);
+}
+@media (pointer: coarse) {
+  .meta .timestamp::after {
+    content: '';
+    position: absolute;
+    inset: -0.6rem -0.4rem;
+  }
+}
