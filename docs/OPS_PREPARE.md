@@ -33,28 +33,30 @@
 入る方法は [`OPERATING_OVER_SSH.md`](OPERATING_OVER_SSH.md)。サーバーの中では:
 
 ```bash
-# 管理する人ごとに、自分の名前のユーザーを作って、鍵で入れるようにする(root で直接入らない)
-sudo useradd -m -s /bin/bash <あなたの名前>
-sudo mkdir -p ~<あなたの名前>/.ssh && sudo chmod 700 ~<あなたの名前>/.ssh
-# 公開鍵を ~<あなたの名前>/.ssh/authorized_keys に置く(権限 600)
-sudo usermod -aG wheel <あなたの名前>      # sudo を使えるように(Debian/Ubuntu は sudo グループ)
+# 管理する人ごとに、自分のユーザーID(サーバー内で使う名前)を作って、鍵で入れるようにする(root で直接入らない)
+sudo useradd -m -s /bin/bash <ユーザーID>
+sudo mkdir -p ~<ユーザーID>/.ssh && sudo chmod 700 ~<ユーザーID>/.ssh
+# 公開鍵を ~<ユーザーID>/.ssh/authorized_keys に置く(権限 600)
+sudo usermod -aG wheel <ユーザーID>      # sudo を使えるように(Debian/Ubuntu は sudo グループ)
 
 # /etc/ssh/sshd_config.d/10-sukhi.conf
 #   PasswordAuthentication no
 #   PermitRootLogin no
-#   AllowUsers <あなたの名前>           # 入れる人を名指しする(増えたらここに足す)
+#   AllowUsers <ユーザーID>           # 入れる人を名指しする(増えたらここに足す)
 sudo sshd -t && sudo systemctl reload sshd   # 設定を確かめてから反映。今の接続は切らない
 ```
 
-**ユーザー名のこと。** サーバーごとに名前を変える必要はありません(変えても、守りはほとんど増えません)。
-大事なのは**一人に一つ**の名前であること。誰が何をしたか、記録で読めるようになります。
+**ユーザーIDのこと。** サーバーの中で使う名前、くらいに考えてください。`hinata` のような、
+わかりやすい名前で構いません。**予想されにくくする必要はありません**(名前を隠しても、守りはほとんど増えません。
+守りは、鍵が担います)。サーバーごとに変える必要もありません。
+大事なのは**一人に一つ**であること。誰が何をしたか、記録で読めるようになります。
 共有の `admin` のようなアカウントは作らない。`root` は消せませんが、**直接は入れない**ようにしておきます
 (`PermitRootLogin no`)。作業は、自分のユーザーから `sudo` で。
 
 **大事:** 設定を変えたら、**今つないでいる画面を閉じる前に**、別の画面から入れることを確かめる。
 入れなくなったときの命綱になる。
 
-**確かめ:** 別の端末から `ssh <あなたの名前>@<箱>` で入れて、パスワードでは入れない。
+**確かめ:** 別の端末から `ssh <ユーザーID>@<箱>` で入れて、パスワードでは入れない。
 
 ## 3. 時計・ファイアウォール・更新
 

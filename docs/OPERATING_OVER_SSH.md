@@ -131,7 +131,8 @@ sukhi release cancel
 
 ### 5.2 いまの手順(`sukhi` ができるまで)
 
-いまの本番は、次の形で動いている(詳しくは `SERVER_SHELL.md` §5.0)。
+いまの本番(haloy で入れ替えている場合)は、次の形で動いている(詳しくは `SERVER_SHELL.md` §5.0)。
+Compose で動かしている場合は、[`RUNTIME.md`](RUNTIME.md) §5 の手順を使う。
 
 1. main に push すると、GitHub Actions が `sha-<commit>` というタグで image を GHCR に出す(自動)。
 2. 手元で、デプロイ用のリポジトリ(sukhi-deploy)の `haloy.yaml` にある image のタグを、新しい `sha-…` に書き換える。

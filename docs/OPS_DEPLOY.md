@@ -58,17 +58,21 @@ curl -s https://example.tld/.well-known/webfinger?resource=acct:<ユーザー>@e
 
 ### 2.1 いまの手順(`sukhi release` ができるまで)
 
-本番(haloy)の場合:
+共通の準備(どの入れ替え方でも):
 
 1. main に push すると、GitHub Actions が `sha-<commit>` で image を GHCR に出す(自動)。
    **四つの image(combined / anubis / natadeco-ssr / web-next)が、同じ sha でそろっている**ことを確かめる。
 2. その sha の build が成功していることを確かめる。
 3. 更新の前に、**控えが新しいか**を見る(OPS_MAINTAIN.md §3)。
-4. sukhi-deploy の `haloy.yaml` の image タグを、新しい sha に書き換える(四つとも同じ sha)。
-5. `haloy deploy -t sukhi-fedi-app`。
-6. §2.3 の確かめ。
 
-自前ホスト(Compose)の場合: [`RUNTIME.md`](RUNTIME.md) §5 の四拍子(検証 → 取得 → 再作成 → 確認)。
+入れ替え方は、環境に合わせて一つ:
+
+- **Compose(自前ホスト・基準)**: `.env` の `SUKHI_VERSION` を新しい sha に書き換えて、
+  [`RUNTIME.md`](RUNTIME.md) §5 の四拍子(検証 → 取得 → 再作成 → 確認)。
+- **haloy(今の本番。任意の一つのやり方)**: sukhi-deploy の `haloy.yaml` の image タグを新しい sha に
+  (四つとも同じ sha)書き換え、`haloy deploy -t sukhi-fedi-app`。
+
+そのあと §2.3 の確かめ。
 
 ### 2.2 予定の手順(`sukhi release`)
 
