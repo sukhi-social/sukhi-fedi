@@ -49,6 +49,8 @@ test('SITE_NAME と SITE_LOGO が、入口の帯と <title> に出る。ロゴ�
       assert.match(page, /<title>[^<]*· テスト星<\/title>/);
       assert.match(page, /<img src="\/brand\/logo-test\.png"[^>]*\/>テスト星/);
       assert.doesNotMatch(page, />sukhi-fedi</);
+      // タブのアイコンも同じ絵になる。
+      assert.match(page, /<link rel="icon" href="\/brand\/logo-test\.png" \/>/);
 
       const logo = await fetch(`${base}/brand/logo-test.png`);
       assert.equal(logo.status, 200);
@@ -67,6 +69,7 @@ test('何も書かなければ sukhi-fedi と /favicon.png。ロゴの指定が�
     const page = await (await fetch(`${base}/login`)).text();
     assert.match(page, /<img src="\/favicon\.png"[^>]*\/>sukhi-fedi/);
     assert.match(page, /<title>[^<]*· sukhi-fedi<\/title>/);
+    assert.match(page, /<link rel="icon" href="\/favicon\.png" \/>/);
     assert.doesNotMatch(page, /javascript:/);
   });
 });
