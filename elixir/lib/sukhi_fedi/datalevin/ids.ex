@@ -65,6 +65,18 @@ defmodule SukhiFedi.Datalevin.Ids do
     Snowflake.encode(ms, :erlang.unique_integer([:positive]) |> rem(0x10000))
   end
 
+  @doc """
+  A note-style id for a remote note, minted from its `created_at` (stored
+  microseconds) rather than the insert clock — the `set_remote_note_id`
+  trigger's job on Postgres. A back-filled post is inserted now but was
+  authored earlier; its id must sort where it was authored.
+  """
+  @spec snowflake_at(integer()) :: integer()
+  def snowflake_at(created_at_us) when is_integer(created_at_us) do
+    ms = div(created_at_us, 1000)
+    Snowflake.encode(ms, :erlang.unique_integer([:positive]) |> rem(0x10000))
+  end
+
   @doc "Forget the in-memory counters (tests that wipe the database)."
   def reset, do: :ets.delete_all_objects(@table)
 end
