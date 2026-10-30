@@ -119,23 +119,31 @@ COPY --from=deps /repo/combined/mix.exs /deps
 
 # ── dtlv (SUKHI_STORE=datalevin) ──────────────────────────────────────────
 # The Datalevin store runs `dtlv` as a child of the BEAM. Only releases built
-# for glibc are published, so the runtime stage below adds `gcompat`.
-# The release must match the image's CPU: the amd64 build does not start on
-# arm64 ("Error loading shared library ld-linux-x86-64.so.2"), which is what
-# production runs. Pinned per architecture and checked; ignored unless
-# SUKHI_STORE=datalevin.
+# for glibc are published, and the runtime image is Alpine (musl). Two things
+# were tried and failed on arm64, which is what production runs:
+#   - the amd64 release does not start there at all
+#     ("Error loading shared library ld-linux-x86-64.so.2");
+#   - the arm64 release under gcompat needs `posix_fallocate64` (missing), and
+#     once that is shimmed it still cannot open a database:
+#     "Can't load library: jniDTLV". Datalevin unpacks its JNI libraries at
+#     run time and they want glibc's libm/libmvec/libgomp.
+# So `dtlv` brings its own glibc: this stage (Ubuntu) collects the loader and
+# the shared libraries it needs, the release is pinned per architecture and
+# checked, and /usr/local/bin/dtlv is a wrapper that `exec`s the real binary
+# through that loader (no extra process stays). Only `dtlv` sees this glibc;
+# the BEAM stays on musl. Ignored unless SUKHI_STORE=datalevin.
 #
-# gcompat lacks `posix_fallocate64`, which the arm64 build needs at load time
-# ("Error relocating /dtlv: posix_fallocate64: symbol not found"). musl has
-# posix_fallocate, so a one-function shim maps it, and `dtlv` is a wrapper
-# that preloads the shim. The wrapper `exec`s, so no extra process stays.
-FROM alpine:3.22 AS dtlv
+# Checked on an arm64 box: `dtlv mcp -w` opens a database (created: true) from
+# an Alpine container this way. The amd64 path is not exercised.
+FROM ubuntu:24.04 AS dtlv
 ARG TARGETARCH
 ARG DTLV_VERSION=1.2.10
 ARG DTLV_SHA256_AMD64=b42c1ef4b6a9ccf2a42b21f9c576fe774ff877c15826031755f0b94a3c0df3e5
 ARG DTLV_SHA256_ARM64=8b4d6beed819861b0daa3a1bc363017238a93ffba34230cad3267228e5045083
-RUN apk add --no-cache curl unzip gcc musl-dev && \
-    case "${TARGETARCH}" in \
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends ca-certificates curl unzip libgomp1 libstdc++6 zlib1g && \
+    rm -rf /var/lib/apt/lists/*
+RUN case "${TARGETARCH}" in \
       amd64) asset=ubuntu-22.04-amd64;        sha="${DTLV_SHA256_AMD64}" ;; \
       arm64) asset=ubuntu-24.04-arm-aarch64;  sha="${DTLV_SHA256_ARM64}" ;; \
       *) echo "no dtlv release for ${TARGETARCH}" >&2; exit 1 ;; \
@@ -143,13 +151,14 @@ RUN apk add --no-cache curl unzip gcc musl-dev && \
     curl -fsSL -o /tmp/dtlv.zip \
       "https://github.com/datalevin/datalevin/releases/download/${DTLV_VERSION}/dtlv-${DTLV_VERSION}-${asset}.zip" && \
     echo "${sha}  /tmp/dtlv.zip" | sha256sum -c - && \
-    mkdir -p /opt/dtlv/bin /opt/dtlv/lib && \
-    unzip -j /tmp/dtlv.zip dtlv -d /opt/dtlv/lib && mv /opt/dtlv/lib/dtlv /opt/dtlv/lib/dtlv-real && \
-    chmod +x /opt/dtlv/lib/dtlv-real && \
-    printf '#define _GNU_SOURCE\n#include <fcntl.h>\nint posix_fallocate64(int fd, off_t o, off_t l) { return posix_fallocate(fd, o, l); }\n' > /tmp/shim.c && \
-    gcc -shared -fPIC -o /opt/dtlv/lib/libdtlvshim.so /tmp/shim.c && \
-    printf '#!/bin/sh\nLD_PRELOAD=/usr/local/lib/libdtlvshim.so exec /usr/local/lib/dtlv-real "$@"\n' > /opt/dtlv/bin/dtlv && \
-    chmod +x /opt/dtlv/bin/dtlv
+    mkdir -p /g && unzip -j -q /tmp/dtlv.zip dtlv -d /g && mv /g/dtlv /g/dtlv-real && chmod +x /g/dtlv-real
+RUN for l in libc.so.6 libm.so.6 libmvec.so.1 libgomp.so.1 libstdc++.so.6 libgcc_s.so.1 libz.so.1 libdl.so.2 libpthread.so.0 librt.so.1; do \
+      f=$(find /lib /usr/lib -name "$l" 2>/dev/null | head -1) && [ -n "$f" ] && cp -L "$f" /g/ \
+        || { echo "missing $l" >&2; exit 1; }; \
+    done && \
+    ld=$(ls /lib/*-linux-gnu/ld-linux-*.so.* | head -1) && cp -L "$ld" /g/ && \
+    printf '#!/bin/sh\nexec /opt/glibc/%s --library-path /opt/glibc /opt/glibc/dtlv-real "$@"\n' "$(basename "$ld")" > /dtlv-wrapper && \
+    chmod +x /dtlv-wrapper
 
 # ── Runtime ───────────────────────────────────────────────────────────────
 FROM elixir:1.20-alpine
@@ -159,8 +168,8 @@ LABEL service="sukhi-fedi"
 WORKDIR /app
 
 RUN apk add --no-cache libstdc++ openssl ncurses-libs vips gcompat zlib
-COPY --from=dtlv /opt/dtlv/bin/dtlv /usr/local/bin/dtlv
-COPY --from=dtlv /opt/dtlv/lib/ /usr/local/lib/
+COPY --from=dtlv /dtlv-wrapper /usr/local/bin/dtlv
+COPY --from=dtlv /g/ /opt/glibc/
 
 COPY --from=build /repo/combined/_build/prod/rel/combined ./
 COPY combined/rel/entrypoint.sh /app/entrypoint.sh
