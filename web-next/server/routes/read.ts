@@ -11,7 +11,7 @@ import type { Account, Context, Relationship, SearchResult, Status, TimelineKind
 import { renderEmojis } from '../emoji.ts';
 import { timeWords } from '../time.ts';
 import { layout } from '../views/layout.ts';
-import { avatar } from '../views/parts.ts';
+import { avatar, icon } from '../views/parts.ts';
 import { statusCard } from '../views/status.ts';
 import { accountRow, followButton, nameHtml, nameOf } from '../views/account.ts';
 import { spreadWithinMoments } from '../shuffle.ts';
@@ -92,7 +92,7 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
     <nav class="tabs timeline" aria-label="${t('timeline.tabsLabel')}">
       ${me ? tab('home', t('timeline.tabHome')) : ''}${tab('public', t('timeline.tabPublic'))}${tab('bubble', t('timeline.tabBubble'))}${tab('tag', t('timeline.tabTag'))}
       <details class="timeline-filter">
-        <summary class="chip">${t('timeline.filter')}</summary>
+        <summary class="chip">${icon('settings')}<span class="filter-label">${t('timeline.filter')}</span></summary>
         <form method="get" action="/timeline" class="filter-form">
           <input type="hidden" name="kind" value="${kind}" />${kind === 'tag' ? html`<input type="hidden" name="tag" value="${tag}" />` : ''}
           ${check('only_media', onlyMedia, t('timeline.onlyMedia'))}

@@ -328,3 +328,59 @@ html:lang(ko) .hero h1 {
     color: var(--color-accent-strong);
   }
 }
+
+/* ── スマホの上の空き ────────────────────────────────────────────────
+ * 貼りつく屋根(.app-nav)の下に、本文の余白・.stack の間隔・二段に折れた
+ * ピルの行、と空きが重なっていて、最初の投稿が画面の 1/4 より下から始まっていた。
+ * 画面の「使える面」は、固定の帯が増えるほど減る(上の屋根 + 下の親指の帯で、すでに 約 1/6)。
+ * そこで: 屋根の下の余白は 8px、見出しと行のあいだの間隔は 0、
+ * フィルターは「絵 + ことば」から、絵だけの丸(読み上げには ことば が残る)にして、
+ * 切り替え 4 つと同じ一行に収める。 */
+@media (width <= 40rem) {
+  main.wrap {
+    padding-block-start: var(--space-2);
+  }
+  /* 近いものは一つの塊に見える(近接の法則)。同じ投稿の中(名前 → 本文 → 操作)は詰め、
+   * 投稿と投稿のあいだは 16px + 罫線で離す。最初の投稿は、ピルの行のすぐ下から。 */
+  .status:first-child {
+    padding-block-start: var(--space-2);
+  }
+  .status .content {
+    margin-block-start: var(--space-1);
+  }
+  .visually-hidden + nav.tabs {
+    margin-block-start: 0;
+  }
+  nav.tabs {
+    gap: var(--space-2) var(--space-2);
+    margin-block-end: var(--space-1);
+  }
+  nav.tabs .tab {
+    padding-inline: var(--space-3);
+  }
+  .timeline-filter summary.chip {
+    padding: 0;
+    width: 2.5rem;
+    min-width: 2.5rem;
+    margin-inline-start: auto;
+  }
+  .timeline-filter .filter-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  /* 開いたとき、フォームは行の下に全幅で出る(details は行の端に居るので)。 */
+  nav.tabs > .timeline-filter {
+    margin-inline-start: auto;
+  }
+}
+
+/* 広い画面は、絵を出さず、ことばだけのまま。 */
+@media (width > 40rem) {
+  .timeline-filter summary .nav-ico {
+    display: none;
+  }
+}
