@@ -28,10 +28,14 @@ export class GatewayError extends Error {
 // `CF-Connecting-IP` を見て数える。伝えないと、web-next のコンテナ一つの IP に見えて、
 // 利用者みんなで一つの上限を分け合うことになる(メールは 1 時間に 12 通まで、など)。
 // Cloudflare の外から直接来た要求(dev・mock)には、このヘッダーは無い ── そのときは何も足さない。
+//
+// `User-Agent` も、利用者のブラウザのものを伝える。伝えないと、この郵便局の fetch の "node" が、
+// 「入っている端末」の一覧にそのまま並んで、どれがどの端末か分からなくなる。
 export function clientHeaders(ctx: Pick<Ctx, 'req'>): Record<string, string> {
-  const v = ctx.req.headers['cf-connecting-ip'];
-  const ip = (Array.isArray(v) ? v[0] : v)?.trim();
-  return ip ? { 'cf-connecting-ip': ip } : {};
+  const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)?.trim();
+  const ip = first(ctx.req.headers['cf-connecting-ip']);
+  const ua = first(ctx.req.headers['user-agent']);
+  return { ...(ip ? { 'cf-connecting-ip': ip } : {}), ...(ua ? { 'user-agent': ua.slice(0, 512) } : {}) };
 }
 
 type Init = {

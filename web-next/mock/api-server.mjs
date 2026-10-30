@@ -86,8 +86,8 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     totp_enabled: false,
     passkeys: [{ id: 1, nickname: 'ノート PC', created_at: '2026-09-01T00:00:00Z', last_used_at: '2026-10-28T06:00:00Z' }],
     sessions: [
-      { id: 1, ip: '203.0.113.x', user_agent: 'Firefox / Linux', created_at: '2026-10-01T00:00:00Z', last_seen_at: new Date().toISOString(), current: true },
-      { id: 2, ip: '198.51.100.x', user_agent: 'Safari / iPhone', created_at: '2026-09-15T00:00:00Z', last_seen_at: '2026-10-20T10:00:00Z', current: false }
+      { id: 1, ip: '203.0.113.x', user_agent: 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0', created_at: '2026-10-01T00:00:00Z', last_seen_at: new Date().toISOString(), current: true },
+      { id: 2, ip: '198.51.100.x', user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1', created_at: '2026-09-15T00:00:00Z', last_seen_at: '2026-10-20T10:00:00Z', current: false }
     ],
     reauthOk(b) {
       return this.has_password ? b.password === 'secret' : b.reauth_code === '123456';

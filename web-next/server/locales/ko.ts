@@ -439,7 +439,6 @@ export const ko: Dict = {
   'security.sessionCurrent': '(이 기기)',
   'security.sessionWhere': '대략적인 위치',
   'security.sessionRevoke': '로그아웃시키기',
-  'security.sessionSignOutHere': '이 기기에서 로그아웃',
   'security.passwordTitle': '비밀번호 (레거시)',
   'security.passwordOn': '설정되어 있어요.',
   'security.passwordNone': '설정되어 있지 않아요. 메일(과 패스키)로 들어가요.',

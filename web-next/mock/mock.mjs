@@ -334,8 +334,8 @@ const ROUTES = [
   ['/auth/state', () => AUTH_STATE],
   ['/settings/sessions', () => ({
     sessions: [
-      { id: '1', current: true, user_agent: 'Firefox / macOS', ip: '203.0.113.7', last_seen_at: ago(2) },
-      { id: '2', current: false, user_agent: 'Safari / iPhone', ip: '203.0.113.9', last_seen_at: ago(60 * 30) }
+      { id: '1', current: true, user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:130.0) Gecko/20100101 Firefox/130.0', ip: '203.0.113.7', last_seen_at: ago(2) },
+      { id: '2', current: false, user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1', ip: '203.0.113.9', last_seen_at: ago(60 * 30) }
     ]
   })],
   ['/login/email/request', () => ({ ok: true })],
