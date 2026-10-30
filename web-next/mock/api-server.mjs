@@ -71,6 +71,92 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     return me;
   }
 
+  // 書き出し・読み込みの中身。
+  const lists = { following: ['bob@remote.example'], blocks: [], mutes: [] };
+
+  // 引っ越し(別名と行き先)。
+  const migration = { aliases: ['https://old.example/users/kuro'], moved_to: null };
+
+  // ログインの要素。あいことばは持たない(いまの標準): 本人確認はメールの 6 桁(123456)。
+  const security = {
+    has_password: false,
+    email: 'kuro@example.com',
+    email_verified: true,
+    pending_email: null,
+    totp_enabled: false,
+    passkeys: [{ id: 1, nickname: 'ノート PC', created_at: '2026-09-01T00:00:00Z', last_used_at: '2026-10-28T06:00:00Z' }],
+    sessions: [
+      { id: 1, ip: '203.0.113.x', user_agent: 'Firefox / Linux', created_at: '2026-10-01T00:00:00Z', last_seen_at: new Date().toISOString(), current: true },
+      { id: 2, ip: '198.51.100.x', user_agent: 'Safari / iPhone', created_at: '2026-09-15T00:00:00Z', last_seen_at: '2026-10-20T10:00:00Z', current: false }
+    ],
+    reauthOk(b) {
+      return this.has_password ? b.password === 'secret' : b.reauth_code === '123456';
+    },
+    state(manageable) {
+      return {
+        manageable, acct: 'kuro', email: this.email, email_verified: this.email_verified,
+        has_password: this.has_password, totp_enabled: this.totp_enabled, totp_pending: false,
+        passkeys: this.passkeys
+      };
+    },
+    handle(method, path, b) {
+      if (method === 'GET' && path === '/settings/sessions') return [200, { sessions: this.sessions }];
+      if (path === '/settings/reauth/request') return [200, { ok: true }];
+      if (path === '/settings/email/request') {
+        if (!/^[^@\s]+@[^@\s]+$/.test(b.email ?? '')) return [422, { error: 'email' }];
+        if (this.email_verified && !this.reauthOk(b)) return [403, { error: 'reauth' }];
+        this.pending_email = b.email;
+        return [200, { ok: true }];
+      }
+      if (path === '/settings/email/confirm') {
+        if (b.code !== '123456' || !this.pending_email) return [422, { error: 'code' }];
+        this.email = this.pending_email; this.email_verified = true; this.pending_email = null;
+        return [200, { ok: true, email: this.email }];
+      }
+      if (path === '/settings/totp/setup') return [200, { secret: 'JBSWY3DPEHPK3PXP', otpauth: 'otpauth://totp/kuro@sukhi.test?secret=JBSWY3DPEHPK3PXP&issuer=sukhi.test' }];
+      if (path === '/settings/totp/enable') {
+        if (b.code !== '123456') return [422, { error: 'code' }];
+        this.totp_enabled = true;
+        return [200, { ok: true }];
+      }
+      if (path === '/settings/totp/disable') {
+        if (!this.reauthOk(b)) return [403, { error: 'reauth' }];
+        this.totp_enabled = false;
+        return [200, { ok: true }];
+      }
+      if (path === '/settings/passkeys/options') return [200, { ref: 'r1', publicKey: { challenge: 'AAAA', rp: { id: 'localhost', name: 'sukhi' }, user: { id: 'AAAA', name: 'kuro', displayName: 'kuro' }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }], timeout: 60000, attestation: 'none' } }];
+      if (path === '/settings/passkeys') {
+        this.passkeys.push({ id: this.passkeys.length + 10, nickname: b.nickname || null, created_at: new Date().toISOString(), last_used_at: null });
+        return [200, { ok: true }];
+      }
+      let m = path.match(/^\/settings\/passkeys\/(\d+)\/delete$/);
+      if (m) {
+        if (!this.reauthOk(b)) return [403, { error: 'reauth' }];
+        this.passkeys = this.passkeys.filter((p) => p.id !== Number(m[1]));
+        return [200, { ok: true }];
+      }
+      m = path.match(/^\/settings\/sessions\/(\d+)\/revoke$/);
+      if (m) {
+        if (!this.reauthOk(b)) return [403, { error: 'reauth' }];
+        this.sessions = this.sessions.filter((x) => x.id !== Number(m[1]));
+        return [200, { ok: true }];
+      }
+      if (path === '/settings/password') {
+        if (b.new_password !== b.confirm_password) return [422, { error: 'mismatch' }];
+        if ((b.new_password ?? '').length < 8) return [422, { error: 'short' }];
+        if (!this.has_password) { this.has_password = true; return [200, { ok: true, initial: true }]; }
+        if (b.current_password !== 'secret') return [422, { error: 'current' }];
+        return [200, { ok: true }];
+      }
+      if (path === '/settings/password/remove') {
+        if (b.password !== 'secret') return [403, { error: 'reauth' }];
+        this.has_password = false;
+        return [200, { ok: true }];
+      }
+      return [404, { error: 'not_found' }];
+    }
+  };
+
   const server = http.createServer(async (req, res) => {
     const chunks = [];
     for await (const c of req) chunks.push(c);
@@ -110,6 +196,54 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       res.writeHead(updated ? 200 : 422, { 'content-type': 'application/json' });
       res.end(JSON.stringify(updated ?? { error: 'validation_failed', details: {} }));
       return;
+    }
+
+    // ログインの要素・端末・引っ越し(設定の「ログインと安全」「引っ越し」)── 覚えて、行って帰って試せる。
+    // cookie 専用の口は `session_token=mock` が要る(本物と同じ。無ければ manageable: false / 401)。
+    const reply = (status, body) => {
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(body));
+    };
+    if (pathname === '/auth/state' || pathname.startsWith('/settings/')) {
+      const signedIn = /(?:^|;\s*)session_token=mock\b/.test(req.headers.cookie ?? '');
+      if (pathname === '/auth/state' && method === 'GET') return reply(200, security.state(signedIn));
+      if (!signedIn) return reply(401, { error: 'unauthorized' });
+      const [status, body] = security.handle(method, pathname, json ?? {});
+      return reply(status, body);
+    }
+    // 書き出し・読み込み(フォロー・ブロック・ミュート)。読み込みは行を数えるだけ(一行ごとに足す)。
+    const porter = pathname.match(/^\/api\/v1\/accounts\/(export|import)\/(following|blocks|mutes)$/);
+    if (porter) {
+      const [, op, kind] = porter;
+      if (op === 'export' && method === 'GET') {
+        res.writeHead(200, { 'content-type': 'text/csv; charset=utf-8' });
+        res.end(`Account address\r\n${lists[kind].join('\r\n')}\r\n`);
+        return;
+      }
+      if (op === 'import' && method === 'POST') {
+        const rows = String(json?.data ?? '').split(/\r?\n/).map((l) => l.split(',')[0].trim().replace(/^@/, '')).filter((l) => l && l !== 'Account address');
+        if (rows.length > 1000) return reply(422, { error: 'too_many_rows' });
+        const good = rows.filter((r) => /^[\w.-]+(@[\w.-]+)?$/.test(r) && !r.startsWith('ghost'));
+        for (const r of good) if (!lists[kind].includes(r)) lists[kind].push(r);
+        // 本物のフォローは、受け付けて(queued)順に出す。ブロック・ミュートは、その場で。
+        if (kind === 'following') return reply(200, { imported: 0, skipped: 0, unresolved: [], queued: rows.length });
+        return reply(200, { imported: good.length, skipped: rows.length - good.length, unresolved: rows.filter((r) => !good.includes(r)) });
+      }
+    }
+    if (pathname === '/api/v1/accounts/migration' && method === 'GET') return reply(200, migration);
+    if (pathname === '/api/v1/accounts/migration/aliases' && method === 'POST') {
+      const list = json?.aliases ?? [];
+      if (list.length > 5) return reply(422, { error: 'too_many_aliases' });
+      migration.aliases = list;
+      return reply(200, { aliases: list });
+    }
+    if (pathname === '/api/v1/accounts/migration/move' && method === 'POST') {
+      const target = String(json?.target ?? '');
+      if (migration.moved_to) return reply(422, { error: 'already_moved' });
+      if (!/^https?:\/\//.test(target)) return reply(422, { error: 'invalid_target' });
+      if (!target.includes('back')) return reply(422, { error: 'target_must_alias_back' });
+      migration.moved_to = target;
+      return reply(200, { moved_to: target });
     }
 
     const out = respond(pathname, method);

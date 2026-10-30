@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // 設定の頁: プロフィールの編集(表示名・自己紹介・ひとこと欄・アイコン・ヘッダ)、ひろがりかた
 // (鍵・BOT・見つけやすさ)、通知のペース。ぜんぶ gateway の PATCH update_credentials 一本で保存する。
+// ログインと安全(routes/security.ts)・アカウントの引っ越し(routes/migration.ts)は、別の頁で、ここから行く。
 //
 // 書き込みの道は一本(POST /settings)。値を作るのも、確かめるのも、gateway(Accounts.update_credentials)の
 // 仕事で、ここは、フォームの形を gateway の形に写すだけ。ことばの切り替えだけは cookie なので /lang へ。
@@ -71,6 +72,13 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
   const body: SafeHtml = html`<header class="timeline page-head"><h1>${t('settings.title')}</h1></header>
     <div class="timeline stack">
       ${flash ? html`<p class="${flash.kind === 'error' ? 'error' : 'notice'}" role="status">${flash.text}</p>` : ''}
+      <nav class="settings-nav" aria-label="${t('settings.title')}">
+        <ul>
+          <li><a class="chip" href="/settings/security">${t('settings.security')}</a></li>
+          <li><a class="chip" href="/settings/migration">${t('settings.migration')}</a></li>
+          <li><a class="chip" href="/settings/data">${t('settings.data')}</a></li>
+        </ul>
+      </nav>
       <form class="settings-form" method="post" action="/settings" enctype="multipart/form-data">
         <p class="muted">@${me.acct}</p>
 

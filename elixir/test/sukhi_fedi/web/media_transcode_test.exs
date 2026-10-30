@@ -1,11 +1,20 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Web.MediaTranscodeTest do
-  use ExUnit.Case, async: true
+  # Not async: the cache tables are one named process, started per test below.
+  use ExUnit.Case, async: false
 
   alias SukhiFedi.Web.MediaTranscode
   alias SukhiFedi.Web.MediaTranscode.Worker
   alias Vix.Vips.Image
   alias Vix.Vips.Operation
+
+  # `mix test --no-start` (make test-elixir) leaves the app's cache tables
+  # unstarted (and the worker with them); the worker records its verdicts in :media_variants.
+  setup do
+    if Process.whereis(SukhiFedi.Cache.Ets) == nil, do: start_supervised!(SukhiFedi.Cache.Ets)
+    if Process.whereis(Worker) == nil, do: start_supervised!(Worker)
+    :ok
+  end
 
   # 写真っぽい(圧縮しがいのある)テスト画像。真っ黒だと jpeg も avif も
   # 数百 byte になって大小の比較にならないので、ノイズを使う。

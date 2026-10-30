@@ -27,7 +27,9 @@ config :sukhi_fedi, Oban,
     outbound_archive: 10,
     publish: 5,
     preview: 3,
-    backfill: 2
+    backfill: 2,
+    # Imported follows (AccountPorter): scheduled ten a second.
+    import: 10
   ],
   plugins: [
     # NodeInfo monitor poll every 10 minutes. PollCoordinator enumerates

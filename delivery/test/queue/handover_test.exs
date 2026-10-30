@@ -12,6 +12,8 @@ defmodule SukhiDelivery.Queue.HandoverTest do
   end
 
   setup do
+    # `--no-start` leaves Ecto's repo registry down; the repos below need it.
+    {:ok, _} = Application.ensure_all_started(:ecto_sql)
     dir = Path.join(System.tmp_dir!(), "handover_#{System.unique_integer([:positive])}")
     File.mkdir_p!(dir)
 

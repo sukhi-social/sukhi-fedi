@@ -34,7 +34,23 @@ export const jaExtra = {
   'settings.holdOther': '{n}分',
   'settings.avatarKeep': '選ばなければ、いまのままです。',
   'settings.fileTooLarge': '画像は 8MB までです。',
-  'settings.languageHint': 'この端末で見るときのことばです。'
+  'settings.languageHint': 'この端末で見るときのことばです。',
+  'settings.data': '書き出しと読み込み',
+  'data.title': '書き出しと読み込み',
+  'data.intro': 'フォロー・ブロック・ミュートを、Mastodon と同じ CSV で書き出したり、読み込んだりできます。別のサーバへ移るときや、戻ってくるときに。',
+  'data.following': 'フォロー',
+  'data.blocks': 'ブロック',
+  'data.mutes': 'ミュート',
+  'data.export': '書き出す（CSV）',
+  'data.file': 'CSV のファイル',
+  'data.import': '読み込む',
+  'data.note': '読み込みは「足す」だけで、いまあるものは消しません。まだこのサーバが知らない相手は、探しに行くので、すこし時間がかかることがあります。一度に 1000 行までです。フォローは、相手のサーバに急かさないよう、一定の間合いで順に出します。',
+  'data.queued': '{n}件を受け付けました。いそがず、順にフォローしていきます（1 秒に 10 件ほど）。',
+  'data.done': '{n}件、読み込みました。',
+  'data.done.skipped': '{n}件、読み込みました。{m}件は、読み込めませんでした。',
+  'data.err.empty': 'ファイルを選んでください。',
+  'data.err.tooLarge': 'ファイルが大きすぎます（256KB まで）。',
+  'data.err.tooMany': '行が多すぎます（1000 行まで）。ふたつに分けてください。'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -69,5 +85,21 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'settings.holdOther': '{n}분',
   'settings.avatarKeep': '고르지 않으면 지금 그대로예요.',
   'settings.fileTooLarge': '이미지는 8MB까지예요.',
-  'settings.languageHint': '이 기기에서 볼 때의 언어예요.'
+  'settings.languageHint': '이 기기에서 볼 때의 언어예요.',
+  'settings.data': '내보내기와 가져오기',
+  'data.title': '내보내기와 가져오기',
+  'data.intro': '팔로우·차단·뮤트를 Mastodon과 같은 CSV로 내보내거나 가져올 수 있어요. 다른 서버로 옮기거나, 돌아올 때 쓰세요.',
+  'data.following': '팔로우',
+  'data.blocks': '차단',
+  'data.mutes': '뮤트',
+  'data.export': '내보내기 (CSV)',
+  'data.file': 'CSV 파일',
+  'data.import': '가져오기',
+  'data.note': '가져오기는 "더하기"만 하고, 지금 있는 것은 지우지 않아요. 이 서버가 아직 모르는 상대는 찾으러 가기 때문에 시간이 조금 걸릴 수 있어요. 한 번에 1000줄까지예요. 팔로우는 상대 서버를 재촉하지 않도록 일정한 간격으로 차례로 보내요.',
+  'data.queued': '{n}건을 받았어요. 서두르지 않고 차례로 팔로우해 갈게요 (1초에 10건쯤).',
+  'data.done': '{n}건을 가져왔어요.',
+  'data.done.skipped': '{n}건을 가져왔어요. {m}건은 가져오지 못했어요.',
+  'data.err.empty': '파일을 골라 주세요.',
+  'data.err.tooLarge': '파일이 너무 커요 (256KB까지).',
+  'data.err.tooMany': '줄이 너무 많아요 (1000줄까지). 둘로 나눠 주세요.'
 };
