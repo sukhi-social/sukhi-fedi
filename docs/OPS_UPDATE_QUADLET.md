@@ -53,6 +53,9 @@ scripts/sukhi-swap-image.sh apply    # 取得 → ドロップイン書き換え
 scripts/sukhi-swap-image.sh rollback # 動いたあとで気づいたとき、一つ前へ
 ```
 
+表示は、`SUKHI_LANG=ja`(または `LANG=ja_JP.UTF-8`)で日本語になる。文言は MS-DOS(J)の流儀に寄せた(一行で何が起きたかを言い、次にすることを添える。確認は `(Y/N)?`)。
+端末から `apply` / `rollback` を呼ぶと、先に確認が出る。自動化では `--yes`。
+
 手でやるなら(`apply` の中身):
 
 ```sh
