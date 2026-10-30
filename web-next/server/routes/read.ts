@@ -62,6 +62,8 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
       nextMaxId = page.nextMaxId;
     } catch (e) {
       if (e instanceof GatewayError || e instanceof TypeError) {
+        // The page only says "didn't reach"; the log says why (status, or a network error).
+        console.warn(`[gateway] ${kind} timeline ${path}:`, e instanceof GatewayError ? `${e.status} ${e.message}` : e);
         problem = e instanceof TypeError ? t('common.reconnecting') : t('common.deliverFailedRetry');
       } else throw e;
     }

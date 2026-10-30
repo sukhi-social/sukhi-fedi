@@ -98,6 +98,7 @@ export function backOr(ctx: Ctx, fragment: SafeHtml | null): Reply {
 
 // gateway のエラーを、やさしいひとことに。
 export function failText(ctx: Ctx, e: unknown): string {
+  console.warn('[gateway]', e instanceof GatewayError ? `${e.status} ${e.message}` : e);
   if (e instanceof GatewayError) {
     if (e.status === 429) return ctx.t('compose.err.rateLimited');
     if (e.status === 413) return ctx.t('compose.err.tooLarge');
