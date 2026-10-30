@@ -4,7 +4,7 @@
 # the thing standing in front; it gates `/check` and forwards everything
 # else to the app behind it. See docs/anubis.md.
 #
-# **This one image serves both sukhi.f3liz.casa and natadeco.com.** The
+# **This one image serves sukhi.f3liz.casa, natadeco.com and sukhi.social.** The
 # policy is byte-for-byte the same for both — only the imprint (who to
 # write to when you can't get through) differs, so both are baked and
 # `IMPRINT_FILE` picks one per target. No second image to keep in step:
@@ -34,3 +34,4 @@ LABEL service="sukhi-fedi"
 COPY botPolicies.yaml /data/cfg/botPolicies.yaml
 COPY imprint.md /data/cfg/imprint.md
 COPY imprint.natadeco.md /data/cfg/imprint.natadeco.md
+COPY imprint.sukhi-social.md /data/cfg/imprint.sukhi-social.md
