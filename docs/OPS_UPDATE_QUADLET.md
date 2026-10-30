@@ -69,6 +69,9 @@ systemctl --user is-active sukhi-gateway; journalctl --user -u sukhi-gateway -n 
 ```
 
 Anubis と web-next(`sukhi-fedi-web-next`、`sha-` タグを `--tag` に)も同じ形で、`SUKHI_UNIT` / `SUKHI_LOCAL_NAME` / `--tag` を替えて呼ぶ。
+
+**まとめて入れ替える:** `scripts/sukhi-update-all.sh plan|apply --sha sha-<commit>`。combined → web-next → anubis の順で、同じ commit の `sha-` タグに揃える
+(combined-sha.yml が四つの image に同じタグを付ける)。先に全部を `plan` して、一つでも通らなければ何も変えない。ユニット名の既定は `sukhi-social` / `sukhi-social-web` / `sukhi-social-anubis`(`SUKHI_TARGETS` で替える)。nats と rustfs は対象外。
 **gateway と Anubis など複数の image は、一つずつ。**「同じ sha でそろえる」(combined-sha.yml)ときは、sha タグを `--tag` に渡す。
 
 ## 4. 戻し方とその限界
