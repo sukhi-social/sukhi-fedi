@@ -601,3 +601,7 @@ MCP のツールは level で**別のサーバー設定**に分ける。クラ�
 **Q21. sukhi-fedi-dev を最初のコミュニティとして登録し、まず Matrix の公開ルームから sukhi への一方向の中継 bot(案 A)から始めるか(COMMUNITY_SUPPORT.md §7)。**
 - 推奨: そうする。つなぐのは Matrix と sukhi そのもので、sukhi の API を直接使う薄い橋にする。
   同意、公開範囲、手当てを持ち込まない、を橋の約束にする。両方向(案 B)は、中継で様子を見たあと。
+
+**Q22. Rocky(OCI)で、Cockpit(トンネル越し)と Podman の Quadlet・シークレット・自動ロールバックの考え方を活かすか(RUNTIME.md §12)。**
+- 推奨: 活かす。Cockpit は 127.0.0.1 のみ、アプリは専用のサービスユーザーで rootless、常駐は Quadlet、秘密は Podman のシークレット(`entrypoint.sh` がすでに `/run/secrets` を読む)。
+  `AutoUpdate=` は検証をしないので既定では使わず、検証つきの `sukhi release` が主。

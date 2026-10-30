@@ -380,7 +380,112 @@ Podman(rootless)でも、1024 以上のポートなので、そのまま動く�
 
 > 走査ツールの具体的な設定、再ビルドの頻度(週一でよいか)、重大度ごとの対応時間は、まだ決めていない。
 
-## 12. 決めたいこと
+## 12. Rocky Linux(OCI)で Podman と Cockpit を活かす
+
+> 本番の箱は OCI の Rocky Linux。Cockpit を入れても問題ないか、Podman の機能をどう活かすか。
+> 根拠は解説記事と一般的な知識で、**実機では試していない**。`dnf info` と `--version` で、手元の版を確かめてから。
+
+### 12.1 Cockpit は入れてよい。ただし「外に開けない」
+
+Rocky は RHEL 互換で、Cockpit は標準の仕組みとして使える(`cockpit` と `cockpit-podman` は AppStream にあるはず。`dnf info cockpit-podman` で確認)。
+
+```bash
+sudo dnf install -y cockpit cockpit-podman
+# 外に出さず、自分の箱の中だけで待ち受ける(空の ListenStream= で既定を消す)
+sudo mkdir -p /etc/systemd/system/cockpit.socket.d
+sudo tee /etc/systemd/system/cockpit.socket.d/listen.conf <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=127.0.0.1:9090
+EOF
+sudo systemctl daemon-reload && sudo systemctl enable --now cockpit.socket
+ss -tlnp | grep 9090          # 127.0.0.1 だけで待っていること
+```
+
+```bash
+# 手元から、SSH のトンネルを通して見る
+ssh -N -L 9090:localhost:9090 <ユーザーID>@<箱>      # → https://localhost:9090
+```
+
+- **9090 番は、OCI のセキュリティリスト / NSG でも、firewalld でも開けない。** トンネルなら変更は要らない。
+- `/etc/cockpit/cockpit.conf` に `AllowUnencrypted = false` と `IdleTimeout = 15`(分)を。
+- 証明書は自己署名なので、`localhost` では警告が出る(トンネルの中だけなので許容)。
+- **ログインは、そのサーバーのアカウントで行う**(一般的には PAM 認証のパスワード)。鍵だけで入る設定の人は、
+  パスワードがロックされているかもしれない。Rocky での挙動は**要確認**。2 段階認証は、標準ではない。
+  だから「トンネルの中だけ」にして、強いパスワードをパスワード管理に入れる。
+- **rootless のコンテナは、そのユーザーで入ったときだけ見える**(見込み)。サービス用の専用ユーザー(`sukhi`)で動かすなら、
+  Cockpit も、そのユーザーで入る必要がある。管理者それぞれのユーザーでコンテナを動かすと、見える人が分かれてしまう。
+  → 推奨は**専用のサービスユーザー**(§12.2)で、見るときはそのユーザーで入る。決めたい点(§13)。
+
+### 12.2 サービス用ユーザーで rootless
+
+```bash
+sudo useradd -m -s /bin/bash sukhi      # アプリを動かすためだけのユーザー(人用のユーザーIDとは別)
+sudo loginctl enable-linger sukhi       # ログインしていなくても、systemd のユーザー単位が動き続ける
+sudo -iu sukhi                          # 作業するとき。XDG_RUNTIME_DIR が通らないときは machinectl shell sukhi@
+```
+
+- 1024 未満のポートは使えない。アプリは `127.0.0.1:8080`(Anubis)に出し、nginx(ホスト)が受ける(§9)。
+- **`podman-compose` は Rocky の標準リポジトリにない**(EPEL にある)。`podman compose` は、中で docker-compose か podman-compose を呼ぶ。
+  Compose の重ね合わせが通るかは未確認(§2)。**Quadlet を主にすれば、この問題から離れられる**(下記)。
+- Rocky に入っている Podman の版は `podman --version`。Quadlet は 4.4 以降。
+
+### 12.3 Podman の活かせる機能(sukhi での使いどころ)
+
+| 機能 | 何か | sukhi での使いどころ |
+| --- | --- | --- |
+| **Quadlet**(`.container` `.pod` `.network` `.volume`) | コンテナを systemd のユニットとして書く。`podman generate systemd` は非推奨で、こちらが後継 | **常駐の正本にする**。自動起動、再起動、起動順(Anubis → gateway)が OS の仕組みに乗る。`systemctl --user status sukhi-gateway` で見える |
+| **自動更新と自動ロールバック** | `AutoUpdate=registry`(または `local`)で、新しい image に入れ替え。**入れ替えたユニットが起動に失敗したら、前の image に戻る**(記事の説明)。`podman auto-update --dry-run` で予行 | 手動の `sukhi release` の「戻し」の考え方に使える。**署名の検証はしない**ので、検証を通した image を `local` で入れる使い方が安全(後述) |
+| **ヘルスチェック** | `HealthCmd`、`HealthOnFailure=kill`、`Notify=true`(起動の完了をアプリが知らせる) | 更新後の「本当に動いているか」を OS に任せる。gateway の確認用の口(ヘルスの URL)があるかは**要確認** |
+| **シークレット** | `podman secret create` と Quadlet の `Secret=`。コンテナの `/run/secrets/<名前>` に出る | `combined/rel/entrypoint.sh` は、まさに **`/run/secrets` の 1 変数 1 ファイル**を読む。`ERLANG_COOKIE`・`SECRET_KEY_BASE` を `.env` でなくシークレットで渡せる |
+| **rootless と権限の絞り込み** | 一般ユーザーで動く。`DropCapability=ALL`、`NoNewPrivileges=true`、`ReadOnly=true`(+ 書く場所だけ volume/tmpfs)、`UserNS=` | アプリ本体と Anubis に付ける。**デーモンが落ちて巻き込まれることも、root が奪われることもない**(§7) |
+| **SELinux** | `Volume=…:Z`(ラベルの付け直し) | Rocky は有効が既定。bind mount に付け忘れない |
+| **journald ログ** | `LogDriver=journald`。`journalctl --user -u sukhi-gateway` | ログの回収が OS の仕組みに乗る。`infra/logrotate`(Docker 用)は不要になり、journald の上限設定に置き換わる |
+| **Pod** | 一つの名前空間に複数のコンテナ(`localhost` で話す) | Anubis と gateway を一つの Pod にできる。必須ではない |
+| **ネットワーク** | netavark / aardvark-dns、rootless は pasta | 名前でつながる内部ネットワーク。外には Anubis の 8080 だけ |
+| **画像の管理** | `podman image prune`、`podman system df` | ディスクの掃除(OPS_MAINTAIN.md §5)に使う |
+| **ボリュームの出し入れ** | `podman volume export` / `import` | 設定の控え。**Datalevin の控えは `dtlv copy`(OPS_MAINTAIN.md §3)で取り、ボリュームの丸ごとコピーに頼らない** |
+| **画像の信頼(policy.json の sigstore)** | 署名つき image だけを取る方針 | GitHub Actions の keyless 署名の身元(workflow の URI)を表せるかは**未確認**。確認できるまでは `cosign verify`(SERVER_SHELL.md §5.8)を使う |
+| **部分取得** | `zstd:chunked`(§8) | 更新時の取得量を減らす。**まず測る** |
+
+#### Quadlet の形(例・未検証)
+
+`~sukhi/.config/containers/systemd/sukhi-gateway.container`:
+
+```ini
+[Unit]
+Description=sukhi gateway
+After=network-online.target
+
+[Container]
+Image=ghcr.io/<owner>/sukhi-fedi-combined@sha256:<ダイジェスト>
+Network=sukhi.network
+Secret=erlang_cookie,type=mount,target=ERLANG_COOKIE
+Secret=secret_key_base,type=mount,target=SECRET_KEY_BASE
+Environment=DOMAIN=example.tld SUKHI_STORE=datalevin DATALEVIN_DIR=/var/lib/sukhi/datalevin
+Volume=sukhi-data.volume:/var/lib/sukhi:Z
+DropCapability=ALL
+NoNewPrivileges=true
+HealthCmd=…（確認用の口が決まってから）
+Notify=true
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+> `Secret=…,type=mount,target=` の書式と、`/run/secrets` に出る名前の対応は、使う Podman の版の man (`podman-systemd.unit`) で確かめる。
+
+#### 自動更新と `sukhi release` の分担
+
+- **`AutoUpdate=` は、既定では使わない**(署名の検証をしないので)。image は**ダイジェストで固定**し、`sukhi release` が
+  検証(cosign)→ ダイジェストの書き換え → `systemctl --user restart` の順で行う。
+- ただし、**起動に失敗したら前に戻す**考え方は、そのまま使う: 前のダイジェストを残し、起動が失敗したら戻す。
+- `AutoUpdate=local` と、検証済みの image を CI/デプロイ側から取り込む方法は、将来の選択肢(自動の更新を許す日が来たとき)。
+
+## 13. 決めたいこと
 
 1. **正本を「Compose + SSH」にして、haloy は任意の話に下げるか。** 推奨: そうする(本番の運用者は haloy を使い続けてよい)。
 2. **既定の実行環境。** 推奨: **Podman(rootless)を既定にする**。ただし §7 の三条件が揃うまでは「Podman 推奨、Docker も対応」。
@@ -391,3 +496,6 @@ Podman(rootless)でも、1024 以上のポートなので、そのまま動く�
 6. **玄関の基準。** 推奨: ホストの nginx + certbot を手順書の基準にする(§9)。cloudflared と Coolify は選択肢として併記。
    上の設定例は、実機で `nginx -t` を通してから確定する。
 7. **CVE への備え。** 推奨: 玄関はホスト(自動更新)、アプリと Anubis はコンテナ、土台の焼き直しは CI の定期ビルド + 走査 + `sukhi status` での見える化(§11)。
+8. **Rocky(OCI)で Cockpit を入れる**: 127.0.0.1 だけで待ち受け、SSH のトンネルでだけ見る。推奨: そうする。ログイン方法(パスワード)は実機で確かめる。
+9. **rootless のコンテナを動かすユーザー**: 専用のサービスユーザー `sukhi` か、管理者自身のユーザーか。推奨: 専用のサービスユーザー(Cockpit も、見るときだけそのユーザーで)。
+10. **常駐の正本を Quadlet にするか、Compose にするか。** 推奨: Podman 側は Quadlet を主にして(Compose の重ね合わせの問題から離れる)、Compose は Docker を使う人と開発用に残す。Compose から Quadlet への変換のしかた(`podlet` など)は未確認。

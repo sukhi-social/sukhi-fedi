@@ -81,7 +81,7 @@ sudo systemctl enable --now dnf-automatic.timer
 
 ## 4. 実行環境と玄関
 
-- 実行環境(Podman か Docker)の導入: [`RUNTIME.md`](RUNTIME.md) §3。
+- 実行環境(Podman か Docker)の導入: [`RUNTIME.md`](RUNTIME.md) §3。 Rocky(OCI)で Podman と Cockpit を使う場合は §12(Cockpit は 127.0.0.1 だけで待ち受けて、SSH のトンネルで見る)。
 - 玄関(nginx と証明書): [`RUNTIME.md`](RUNTIME.md) §9。**`Host` をそのまま渡す**ことが大事(署名に使われる)。
 
 **確かめ:** `podman --version`(または `docker compose version` が 2.24 以上)、`sudo nginx -t`。
