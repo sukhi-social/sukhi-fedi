@@ -271,7 +271,7 @@ defmodule SukhiFedi.Datalevin.Writer do
             {Map.put(r, key, n), [seq | seqs]}
 
           :snowflake ->
-            {Map.put(r, key, Ids.snowflake()), seqs}
+            {Map.put(r, key, snowflake(table, r)), seqs}
 
           :now ->
             {Map.put(r, key, System.os_time(:microsecond)), seqs}
@@ -287,6 +287,18 @@ defmodule SukhiFedi.Datalevin.Writer do
       end
     end)
   end
+
+  # A remote note (non-NULL `ap_id`) takes its id from `created_at`, which the
+  # mirror stamps with the origin `published` — what the Postgres
+  # `notes_remote_id_from_published` trigger does. Everything else (local
+  # notes, other tables) gets the insert clock.
+  @doc false
+  @spec snowflake(String.t(), map()) :: integer()
+  def snowflake("notes", %{ap_id: ap_id, created_at: at})
+      when not is_nil(ap_id) and is_integer(at),
+      do: Ids.snowflake_at(at)
+
+  def snowflake(_table, _row), do: Ids.snowflake()
 
   defp coerce(v, "double precision") when is_integer(v), do: v * 1.0
   defp coerce(v, _), do: v
