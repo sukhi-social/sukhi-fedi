@@ -3,7 +3,8 @@ defmodule SukhiFedi.HotCache do
   @moduledoc """
   A second or two of memory for answers that are the same for everyone:
   the public timeline's first page, the silenced-author set, the bubble
-  allow-list.
+  allow-list, the admin dashboard, the public map. It is the one place this
+  server keeps an answer for a little while; nothing else rolls its own.
 
   Under load the same question arrives many times a second. Asking the
   database once per TTL instead of once per request is the cheapest DB
@@ -20,7 +21,15 @@ defmodule SukhiFedi.HotCache do
   alias SukhiFedi.Cache.Ets
 
   @table :hot_cache
-  @defaults %{public_timeline: 2, tag_timeline: 2, bubble_timeline: 2, moderation_sets: 5}
+  @defaults %{
+    public_timeline: 2,
+    tag_timeline: 2,
+    bubble_timeline: 2,
+    moderation_sets: 5,
+    map: 5,
+    stats_dashboard: 30,
+    account_counts: 60
+  }
 
   @doc "TTL in seconds for `name`; 0 when the cache is switched off."
   @spec ttl(atom()) :: non_neg_integer()
@@ -47,4 +56,8 @@ defmodule SukhiFedi.HotCache do
         value
     end
   end
+
+  @doc "Let go of `key` now, so the next `fetch/3` asks again."
+  @spec forget(term()) :: true
+  def forget(key), do: Ets.delete(@table, key)
 end

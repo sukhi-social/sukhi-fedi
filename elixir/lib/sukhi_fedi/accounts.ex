@@ -8,7 +8,7 @@ defmodule SukhiFedi.Accounts do
   import Ecto.Query
 
   alias Ecto.Multi
-  alias SukhiFedi.{Outbox, Repo}
+  alias SukhiFedi.{HotCache, Outbox, Repo}
   alias SukhiFedi.Schema.{Account, Follow, Note, Session}
 
   # ── origin ────────────────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ defmodule SukhiFedi.Accounts do
   Return the three Mastodon profile counters in a single roundtrip.
 
   The numbers don't need to be perfectly fresh on every profile view,
-  so we cache for 60 s in an ETS table to absorb refresh storms when a
+  so `HotCache` keeps them for 60 s to absorb refresh storms when a
   user is featured/linked. Cache misses fall through to a single
   `SELECT count` per dimension. Acceptable at MVP scale; revisit when a
   Counters table or trigger-maintained aggregate becomes worth the
@@ -223,11 +223,7 @@ defmodule SukhiFedi.Accounts do
           statuses: integer()
         }
   def counts_for(account_id) when is_integer(account_id) do
-    case cache_get({:counts, account_id}) do
-      {:ok, value} ->
-        value
-
-      :miss ->
+    HotCache.fetch({:counts, account_id}, HotCache.ttl(:account_counts), fn ->
         actor_uri = local_actor_uri(account_id)
 
         followers =
@@ -267,10 +263,8 @@ defmodule SukhiFedi.Accounts do
             :id
           )
 
-        result = %{followers: followers, following: following, statuses: statuses}
-        cache_put({:counts, account_id}, result)
-        result
-    end
+        %{followers: followers, following: following, statuses: statuses}
+    end)
   end
 
   # ── update_credentials ───────────────────────────────────────────────────
@@ -323,7 +317,7 @@ defmodule SukhiFedi.Accounts do
     |> Repo.transaction()
     |> case do
       {:ok, %{account: a}} ->
-        cache_invalidate({:counts, a.id})
+        HotCache.forget({:counts, a.id})
         {:ok, a}
 
       {:error, :account, %Ecto.Changeset{} = cs, _} ->
@@ -610,47 +604,6 @@ defmodule SukhiFedi.Accounts do
   end
 
   # ── helpers ──────────────────────────────────────────────────────────────
-
-  @counts_table :sukhi_fedi_account_counts
-  @counts_ttl_ms 60_000
-
-  defp cache_get(key) do
-    ensure_table()
-
-    case :ets.lookup(@counts_table, key) do
-      [{^key, value, expires_at}] ->
-        if System.monotonic_time(:millisecond) < expires_at,
-          do: {:ok, value},
-          else: :miss
-
-      [] ->
-        :miss
-    end
-  end
-
-  defp cache_put(key, value) do
-    ensure_table()
-    expires_at = System.monotonic_time(:millisecond) + @counts_ttl_ms
-    :ets.insert(@counts_table, {key, value, expires_at})
-    value
-  end
-
-  defp cache_invalidate(key) do
-    ensure_table()
-    :ets.delete(@counts_table, key)
-  end
-
-  defp ensure_table do
-    case :ets.whereis(@counts_table) do
-      :undefined ->
-        :ets.new(@counts_table, [:set, :public, :named_table, read_concurrency: true])
-
-      _ref ->
-        :ok
-    end
-  rescue
-    ArgumentError -> :ok
-  end
 
   defp local_actor_uri(account_id) do
     case Repo.get(Account, account_id) do

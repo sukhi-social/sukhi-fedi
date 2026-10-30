@@ -5,13 +5,13 @@ defmodule SukhiFedi.Stats do
 
   A single `dashboard/0` call rolls up accounts, statuses, federation
   known/blocked domains, and moderation queue counts. The result is
-  cached in ETS for 30 seconds — admin dashboards poll often but the
+  kept for 30 seconds by `HotCache` — admin dashboards poll often but the
   numbers don't need to be second-fresh.
   """
 
   import Ecto.Query
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{HotCache, Repo}
 
   alias SukhiFedi.Schema.{
     Account,
@@ -22,21 +22,13 @@ defmodule SukhiFedi.Stats do
     Report
   }
 
-  @cache_table :sukhi_fedi_stats_cache
-  @cache_key :dashboard
-  @cache_ttl_ms 30_000
-
   @doc """
-  Return a dashboard-shaped map. Hits ETS if the last call was within
-  30 seconds; otherwise runs the aggregate queries and refreshes the
-  cache.
+  Return a dashboard-shaped map. A call within 30 seconds of the last one
+  gets the same map back; otherwise the aggregate queries run again.
   """
   @spec dashboard() :: map()
   def dashboard do
-    case cache_get() do
-      {:ok, value} -> value
-      :miss -> cache_put(compute())
-    end
+    HotCache.fetch(:stats_dashboard, HotCache.ttl(:stats_dashboard), &compute/0)
   end
 
   defp compute do
@@ -146,39 +138,4 @@ defmodule SukhiFedi.Stats do
   end
 
   defp host_of(_), do: nil
-
-  # ── cache ────────────────────────────────────────────────────────────────
-
-  defp cache_get do
-    ensure_table()
-
-    case :ets.lookup(@cache_table, @cache_key) do
-      [{_, value, expires_at}] ->
-        if System.monotonic_time(:millisecond) < expires_at,
-          do: {:ok, value},
-          else: :miss
-
-      [] ->
-        :miss
-    end
-  end
-
-  defp cache_put(value) do
-    ensure_table()
-    expires_at = System.monotonic_time(:millisecond) + @cache_ttl_ms
-    :ets.insert(@cache_table, {@cache_key, value, expires_at})
-    value
-  end
-
-  defp ensure_table do
-    case :ets.whereis(@cache_table) do
-      :undefined ->
-        :ets.new(@cache_table, [:set, :public, :named_table, read_concurrency: true])
-
-      _ref ->
-        :ok
-    end
-  rescue
-    ArgumentError -> :ok
-  end
 end
