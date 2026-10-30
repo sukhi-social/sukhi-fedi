@@ -113,7 +113,7 @@ defmodule SukhiFedi.Web.LegalControllerTest do
 
     assert conn.status == 200
     assert plain(conn.resp_body) =~ "あるがままの「ありがとう」"
-    assert plain(conn.resp_body) =~ "そのままの、感謝を"
+    assert plain(conn.resp_body) =~ "ささやかな感謝を"
     assert conn.resp_body =~ "<strong>\nこのソフトウェア" or conn.resp_body =~ "<strong>このソフトウェア"
     refute conn.resp_body =~ "<em>このソフトウェア"
     assert conn.resp_body =~ "<summary>言語"
