@@ -14,7 +14,7 @@ import { getClient } from "../client.ts";
 import { forwardCookies, gw, gwJson, GatewayError } from "../gateway.ts";
 import { html, raw, type SafeHtml } from "../html.ts";
 import { ok, redirect, route, type Ctx, type Reply } from "../http.ts";
-import { destroySession, saveSession } from "../session.ts";
+import { destroySession, saveSession, type Session } from "../session.ts";
 import type { TokenSet } from "../types.ts";
 import { layout } from "../views/layout.ts";
 import { entranceBar, legalFooter } from "../views/parts.ts";
@@ -36,6 +36,34 @@ async function beginOAuth(ctx: Ctx): Promise<Reply> {
   });
   return redirect(`/oauth/authorize?${qs}`);
 }
+
+// ── 関所(/check)───────────────────────────────────────────────
+// anubis が CHALLENGE するのは GET /check だけ。ログインも加入も、ここを経由する ──
+// 一段目(合言葉・メールのコード)のあとで /check へ送り、PoW を解いた人だけがここへ届く。
+// 通れなかった人は anubis の画面(imprint)で止まり、OAuth もアカウント作成も始まらない。
+// 何をするかは、ここでなく session に置く(URL の ?intent= は、行き先の合図にすぎない)。
+function toCheck(ctx: Ctx, check: NonNullable<Session["check"]>): Reply {
+  const s = ctx.sess();
+  s.check = check;
+  saveSession(s);
+  return redirect(`/check?intent=${check.intent}`);
+}
+
+route("GET", "/check", async (ctx) => {
+  const s = ctx.session;
+  const intent = ctx.url.searchParams.get("intent");
+  const c = s?.check;
+  if (!s || !c || c.intent !== intent)
+    return redirect(intent === "signup" ? "/signup" : "/login");
+  s.check = undefined; // 一度きり。リロードで二度は始まらない。
+  saveSession(s);
+  if (c.intent === "login") return beginOAuth(ctx);
+  return finishSignup(
+    ctx,
+    { username: c.username, email: c.email, invite: c.invite },
+    c.proof,
+  );
+});
 
 route("GET", "/app/callback", async (ctx) => {
   const q = ctx.url.searchParams;
@@ -301,7 +329,7 @@ async function afterFirstFactor(ctx: Ctx, res: Response): Promise<Reply> {
     return loginPage(ctx, { step: "totp", pending: body.pending });
   }
   forwardCookies(ctx, res);
-  return beginOAuth(ctx);
+  return toCheck(ctx, { intent: "login" });
 }
 
 route("POST", "/login", async (ctx) => {
@@ -318,7 +346,7 @@ route("POST", "/login", async (ctx) => {
         json: { pending: str("pending"), code: str("code") },
       });
       forwardCookies(ctx, res);
-      return beginOAuth(ctx);
+      return toCheck(ctx, { intent: "login" });
     }
     if (method === "password") {
       const res = await gw(ctx, "POST", "/login", {
@@ -676,6 +704,23 @@ route("POST", "/signup", async (ctx) => {
     return signupPage(ctx, { ...v, step: "code", error: stepFail(e) }, 422);
   }
 
+  // アカウントを作るのは、関所(/check)を通ってから。
+  return toCheck(ctx, {
+    intent: "signup",
+    username: v.username ?? "",
+    email: v.email ?? "",
+    invite: v.invite ?? "",
+    proof,
+  });
+});
+
+// 関所を通った人のアカウントを作る。作れたら、そのまま入る。
+async function finishSignup(
+  ctx: Ctx,
+  v: SignupView,
+  proof: string,
+): Promise<Reply> {
+  const t = ctx.t;
   try {
     const client = await getClient();
     const cc = await fetch(`${config.gateway}/oauth/token`, {
@@ -763,7 +808,7 @@ route("POST", "/signup", async (ctx) => {
       422,
     );
   }
-});
+}
 
 // ── logout / lang ───────────────────────────────────────────────
 route("POST", "/logout", async (ctx) => {

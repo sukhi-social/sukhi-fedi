@@ -46,6 +46,12 @@ mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
 - `/oauth/` `/api/` `/terms` `/privacy` `/static/` `/uploads/` `/proxy/` `/.well-known/` などは、gateway にそのまま通す。
   この郵便局が、同じ origin の前に立つ前提。
 - Unpoly は、いつも `<main>` を差し替える。入る・出る・ことば替えだけは、ふつうのフォーム(フルリロード)。
+- **関所(`/check`)**: anubis が PoW を解かせるのは `GET /check` だけ(`config/anubis/botPolicies.yaml`)。
+  ログインは一段目(合言葉・メールのコード・2FA)のあとで、加入はメールのコードの確認のあとで、
+  `/check?intent=login|signup` へ送る。通れた人だけがここへ届き、そこで初めて OAuth が始まる・
+  アカウントが作られる。何をするかは session の `check` に置いてあり(URL の `intent` は合図にすぎない)、
+  一度きり ── リロードしても二度は始まらず、何も無い人が来たら `/login` か `/signup` に戻す。
+  anubis を前に立てない開発(`pnpm run dev:mock`)でも、そのまま通る。
 
 ## sukhi-web-next との、意図した違い
 
@@ -61,6 +67,6 @@ mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
 入口・入る・はじめる・タイムライン・タグ・投稿の詳細・プロフィール・書く・通知・さがす まで。
 ない: settings 一式(WebAuthn・2FA・移行・掃除)/ lists / clips / map / messages(DM)/ bookmarks / favourites の頁 /
 絵文字ピッカー / メンションの補完 / 下書きの保存 / 投票 / プロフィールの編集・ミュート・ブロック・私的メモ /
-Service Worker・Push / `/check`(Anubis)。
+Service Worker・Push。
 
 `TODO.md` に、入口の行き先についての、次の予定がある。
