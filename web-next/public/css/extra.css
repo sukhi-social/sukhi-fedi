@@ -256,48 +256,6 @@ html:lang(ko) .hero h1 {
     padding-block: var(--space-4);
   }
 
-  /* 見出し行: [名前 ………… 時刻 ↗] / [@ハンドル] */
-  .meta {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    column-gap: var(--space-2);
-    row-gap: 0;
-    align-items: baseline;
-    line-height: 1.4;
-  }
-  .meta a {
-    text-decoration: none;
-  }
-  .display-name {
-    max-width: none;
-    min-width: 0;
-    grid-column: 1;
-    font-size: 1.0625rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .meta .handle {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    color: var(--color-text-muted);
-    font-size: var(--text-sm);
-  }
-  .meta .timestamp {
-    grid-column: 2;
-    grid-row: 1;
-    margin-inline-start: 0;
-    color: var(--color-text-muted);
-    font-size: var(--text-sm);
-    white-space: nowrap;
-  }
-  .meta .orig {
-    grid-column: 3;
-    grid-row: 1;
-    margin-inline-start: 0;
-    text-decoration: none;
-  }
-
   /* 操作の行: 見える大きさ 2.5rem、押せる領域は ::after で 44px 以上。 */
   .status-actions {
     margin-block-start: var(--space-2);
@@ -383,6 +341,57 @@ html:lang(ko) .hero h1 {
   .timeline-filter summary .nav-ico {
     display: none;
   }
+}
+
+/* 見出し行: [名前 ………… 時刻 ↗] / [@ハンドル]
+ * ハンドルは名前の右に並べず、下に小さく置く。右に置くと、長い `@user@host` が
+ * 名前を削るか、時刻を次の行へ押し出す。幅に関わらず、いつもこの形にする。 */
+.meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: var(--space-2);
+  row-gap: 0;
+  align-items: baseline;
+  line-height: 1.4;
+}
+.meta a {
+  text-decoration: none;
+}
+.meta .display-name {
+  max-width: none;
+  min-width: 0;
+  grid-column: 1;
+  font-size: 1.0625rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta .handle {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.meta .sep {
+  display: none;
+}
+.meta .timestamp {
+  grid-column: 2;
+  grid-row: 1;
+  margin-inline-start: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.meta .orig {
+  grid-column: 3;
+  grid-row: 1;
+  margin-inline-start: 0;
+  text-decoration: none;
 }
 
 /* 投稿の時刻は、投稿を開くリンク。声は上げず、「実は押せます」とだけ伝える:
