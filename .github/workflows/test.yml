@@ -1,0 +1,147 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The tests, on every change that can break them. Until this file, nothing
+# ran them: load-bench compiles and boots the Elixir code but runs no test,
+# web-e2e watches only web/, and web-next had no workflow at all — so a PR
+# touching only those could be green with its tests never run.
+#
+# Each job has its own `paths`, so a change runs exactly the suites that read
+# the files it touched, and a new source directory is one more line here. The
+# `push` trigger on main keeps main honest after a merge.
+#
+#   web-next       pnpm test (node --test, a mock gateway; no build step)
+#   elixir-unit    make test-shared / -elixir / -api / -delivery (no DB)
+#   elixir-pglite  make test-pglite: compile with warnings as errors,
+#                  migrate, and run the DB integration suite on embedded PGlite
+name: test
+
+on:
+  pull_request:
+    paths:
+      - "web-next/**"
+      - "elixir/**"
+      - "api/**"
+      - "shared/**"
+      - "delivery/**"
+      - "combined/**"
+      - "bun/**"
+      - "mise.toml"
+      - "Makefile"
+      - "scripts/test-pglite.sh"
+      - ".github/workflows/test.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "web-next/**"
+      - "elixir/**"
+      - "api/**"
+      - "shared/**"
+      - "delivery/**"
+      - "combined/**"
+      - "bun/**"
+      - "mise.toml"
+      - "Makefile"
+      - "scripts/test-pglite.sh"
+      - ".github/workflows/test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-next:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web-next
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # Node 24 reads the TypeScript as it is (no build), the same as the Dockerfile.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web-next/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test
+
+  elixir-unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+
+      - name: Cache deps and builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            shared/deps
+            shared/_build
+            elixir/deps
+            elixir/_build
+            api/deps
+            api/_build
+            delivery/deps
+            delivery/_build
+          key: unit-${{ runner.os }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: unit-${{ runner.os }}-
+
+      - name: Hex and rebar
+        run: mix local.hex --force && mix local.rebar --force
+
+      - name: Fetch deps
+        run: |
+          for d in shared elixir api delivery; do
+            (cd "$d" && mix deps.get)
+          done
+
+      - run: make test-shared test-elixir test-api test-delivery
+
+  elixir-pglite:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+
+      - name: Cache deps and builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            elixir/deps
+            elixir/_build
+          key: pglite-${{ runner.os }}-${{ hashFiles('elixir/mix.lock') }}
+          restore-keys: pglite-${{ runner.os }}-
+
+      - name: Hex and rebar
+        run: mix local.hex --force && mix local.rebar --force
+
+      - name: Fetch deps
+        working-directory: elixir
+        env:
+          MIX_ENV: test
+        run: mix deps.get
+
+      - run: make test-pglite
