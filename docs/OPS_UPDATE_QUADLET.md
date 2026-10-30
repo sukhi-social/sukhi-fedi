@@ -44,6 +44,8 @@ podman inspect --format '{{.ImageName}}' systemd-sukhi-gateway   # コンテナ�
 
 ```sh
 export SUKHI_IMAGE_REF=ghcr.io/<owner>/sukhi-fedi-combined:v0   # 追いかけるタグ
+# ユニット名は .container ファイルの名前(sukhi-gateway.container → sukhi-gateway.service)。rootful なら SUKHI_SCOPE=system
+# 先に確かめる: systemctl --user list-units --all 'sukhi*'
 export SUKHI_HEALTH_URL=http://127.0.0.1:4000/                  # 確認用の口(あれば。ヘルスの URL は要確認)
 
 scripts/sukhi-swap-image.sh plan     # 何に解決され、何を入れるか。変更はしない

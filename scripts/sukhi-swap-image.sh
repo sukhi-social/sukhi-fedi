@@ -11,7 +11,8 @@
 #
 # Settings (environment, all optional):
 #   SUKHI_IMAGE_REF   default tag to follow   (ghcr.io/sukhi-social/sukhi-fedi-combined:v1)
-#   SUKHI_UNIT        user unit to restart    (sukhi-gateway)
+#   SUKHI_UNIT        unit to restart         (sukhi-gateway; the .container file's name)
+#   SUKHI_SCOPE       user | system           (user; system = rootful Quadlet under /etc)
 #   SUKHI_LOCAL_NAME  name in local storage   (localhost/sukhi-combined)
 #   SUKHI_HEALTH_URL  checked after restart   (unset: only `is-active` is checked)
 #   SUKHI_WAIT_SECS   how long to wait        (60)
@@ -31,13 +32,19 @@ set -euo pipefail
 
 REF="${SUKHI_IMAGE_REF:-ghcr.io/sukhi-social/sukhi-fedi-combined:v1}"
 UNIT="${SUKHI_UNIT:-sukhi-gateway}"
+SCOPE="${SUKHI_SCOPE:-user}"
+case "$SCOPE" in
+  user)   SCTL=(systemctl --user); QDIR_DEFAULT="${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd" ;;
+  system) SCTL=(systemctl);        QDIR_DEFAULT=/etc/containers/systemd ;;
+  *) echo "error: SUKHI_SCOPE must be user or system" >&2; exit 1 ;;
+esac
 LOCAL="${SUKHI_LOCAL_NAME:-localhost/sukhi-combined}"
 HEALTH="${SUKHI_HEALTH_URL:-}"
 WAIT="${SUKHI_WAIT_SECS:-60}"
 VERIFY="${SUKHI_VERIFY:-1}"
 SIGNER_RE="${SUKHI_SIGNER_RE:-^https://github\\.com/sukhi-social/sukhi-fedi/\\.github/workflows/(release\\.yml@refs/tags/v.+|combined-sha\\.yml@refs/heads/main)$}"
 STATE="${SUKHI_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/sukhi-release}/$UNIT"
-DROPIN_DIR="${SUKHI_QUADLET_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd}/$UNIT.container.d"
+DROPIN_DIR="${SUKHI_QUADLET_DIR:-$QDIR_DEFAULT}/$UNIT.container.d"
 DROPIN="$DROPIN_DIR/10-image.conf"
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -55,6 +62,21 @@ for bin in skopeo systemctl $([ "$VERIFY" = 1 ] && echo cosign); do
   command -v "$bin" >/dev/null || die "$bin not found"
 done
 
+# Fail before changing anything if the unit is not there: a wrong name, the
+# wrong scope, or no Quadlet-generated unit yet.
+check_unit() {
+  "${SCTL[@]}" cat "$UNIT.service" >/dev/null 2>&1 && return 0
+  cat >&2 <<UNITERR
+error: $SCOPE unit $UNIT.service not found; nothing was changed.
+  - the unit is named after the .container file (sukhi-gateway.container -> sukhi-gateway.service)
+  - find it:  ${SCTL[*]} list-units --all 'sukhi*'   (try SUKHI_SCOPE=system, or SUKHI_UNIT=...)
+  - Quadlet generates units on daemon-reload; to see what it makes:
+      /usr/lib/systemd/system-generators/podman-system-generator [--user] --dryrun
+  - over ssh as a rootless user, XDG_RUNTIME_DIR must be set (log in directly with ssh, not su)
+UNITERR
+  exit 1
+}
+
 read_state() { [ -f "$STATE/$1" ] && cat "$STATE/$1" || true; }
 
 # Point the drop-in at an image and restart. Prints nothing; returns the
@@ -64,14 +86,14 @@ switch_to() {
   mkdir -p "$DROPIN_DIR"
   printf '[Container]\nImage=%s\n' "$image" > "$DROPIN.tmp"
   mv "$DROPIN.tmp" "$DROPIN"
-  systemctl --user daemon-reload
-  systemctl --user restart "$UNIT.service" || return 1
+  "${SCTL[@]}" daemon-reload
+  "${SCTL[@]}" restart "$UNIT.service" || return 1
   for ((i = 0; i < WAIT; i++)); do
-    if systemctl --user is-active --quiet "$UNIT.service" \
+    if "${SCTL[@]}" is-active --quiet "$UNIT.service" \
        && { [ -z "$HEALTH" ] || curl -fsS --max-time 3 "$HEALTH" >/dev/null 2>&1; }; then
       # A crash-looping unit can be "active" for a moment; require it to hold.
       sleep 3
-      systemctl --user is-active --quiet "$UNIT.service" && return 0
+      "${SCTL[@]}" is-active --quiet "$UNIT.service" && return 0
     fi
     sleep 1
   done
@@ -103,6 +125,7 @@ case "$cmd" in
     say "digest     $digest"
     say "will run   $target   (copied from $src)"
     say "now        ${current:-"(not recorded)"}"
+    check_unit
     if [ "$current" = "$target" ]; then say "already running this image"; exit 0; fi
     [ "$cmd" = plan ] && { say "plan only. run with: apply"; exit 0; }
 
@@ -128,9 +151,9 @@ case "$cmd" in
       prev="$(read_state current)"
       if [ -n "$prev" ]; then
         say "rolling back to $prev"
-        switch_to "$prev" || die "rollback failed too; check: journalctl --user -u $UNIT"
+        switch_to "$prev" || die "rollback failed too; check: journalctl $([ "$SCOPE" = user ] && echo --user) -u $UNIT"
       else
-        rm -f "$DROPIN"; systemctl --user daemon-reload
+        rm -f "$DROPIN"; "${SCTL[@]}" daemon-reload
         say "no previous image recorded; drop-in removed (unit uses its .container file)"
       fi
       exit 1
