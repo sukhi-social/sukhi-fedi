@@ -29,7 +29,7 @@ defmodule SukhiFedi.Integration.RebuildRemoteNotesTest do
       Repo.insert!(%Boost{account_id: reactor.id, note_id: old.id})
       Repo.insert!(%Bookmark{account_id: reactor.id, note_id: old.id})
 
-      json = %{"content" => "the original body", "published" => "2020-01-02T03:04:05Z"}
+      json = %{"content" => "the original body", "published" => "2026-01-02T03:04:05Z"}
 
       assert {:ok, {770_042, new_id}} =
                RebuildRemoteNotes.rebuild(old, json, RebuildRemoteNotes.note_fk_refs())
@@ -43,7 +43,10 @@ defmodule SukhiFedi.Integration.RebuildRemoteNotesTest do
       assert new.content == "the original body"
       assert new.account_id == author.id
       # created_at now the remote publish time, not the fetch time.
-      assert DateTime.compare(new.created_at, ~U[2020-01-02 03:04:05Z]) == :eq
+      assert DateTime.compare(new.created_at, ~U[2026-01-02 03:04:05Z]) == :eq
+      # ...and the id encodes it too, so id-ordered timelines agree with the date.
+      assert DateTime.to_unix(SukhiFedi.Snowflake.to_datetime(new_id)) ==
+               DateTime.to_unix(~U[2026-01-02 03:04:05Z])
 
       # Every ref moved to the new id — none cascade-deleted.
       assert Repo.get_by(Reaction, account_id: reactor.id, emoji: "🐾").note_id == new_id
