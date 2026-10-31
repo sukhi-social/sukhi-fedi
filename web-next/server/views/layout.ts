@@ -6,6 +6,7 @@
 // <main> の外に置き、ログイン・ログアウト・ことば替えは、ふつうのフォーム(フルリロード)にする。
 // 頁そのものは、View Transitions の下絵(@view-transition)が、静かにつなぐ。
 
+import { assetUrl } from '../assets.ts';
 import { config } from '../config.ts';
 import { html, type SafeHtml } from '../html.ts';
 import type { Ctx } from '../http.ts';
@@ -90,13 +91,13 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#fffaf3" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#1f1915" media="(prefers-color-scheme: dark)" />
-  <link rel="stylesheet" href="/assets/vendor/unpoly/unpoly.min.css" />
-  <link rel="stylesheet" href="/assets/css/app.css" />
-  <link rel="stylesheet" href="/assets/css/components.css" />
-  <link rel="stylesheet" href="/assets/css/extra.css" />
-  <script src="/assets/vendor/unpoly/unpoly.min.js"></script>
-  <script src="/assets/js/app.js"></script>
-  <script defer src="/assets/vendor/alpine/cdn.min.js"></script>
+  <link rel="stylesheet" href="${assetUrl('/assets/vendor/unpoly/unpoly.min.css')}" />
+  <link rel="stylesheet" href="${assetUrl('/assets/css/app.css')}" />
+  <link rel="stylesheet" href="${assetUrl('/assets/css/components.css')}" />
+  <link rel="stylesheet" href="${assetUrl('/assets/css/extra.css')}" />
+  <script src="${assetUrl('/assets/vendor/unpoly/unpoly.min.js')}"></script>
+  <script src="${assetUrl('/assets/js/app.js')}"></script>
+  <script defer src="${assetUrl('/assets/vendor/alpine/cdn.min.js')}"></script>
 </head>
 <body>
   ${p.me ? appNav(ctx, p.me) : ''}

@@ -7,8 +7,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
-import { extname, join, normalize, sep } from 'node:path';
+import { extname } from 'node:path';
 import { config } from './config.ts';
+import { locate, locateIn } from './assets.ts';
 import { detectLocale, makeT, type Locale, type T } from './i18n.ts';
 import { createSession, getSession, saveSession, type Session } from './session.ts';
 import type { Account } from './types.ts';
@@ -199,16 +200,6 @@ const MIME: Record<string, string> = {
   '.map': 'application/json'
 };
 
-// url の前置き → ディスクの場所。長い前置きが先。
-const MOUNTS: [string, string, boolean][] = [
-  ['/assets/vendor/unpoly/', `${config.nodeModules}unpoly/`, true],
-  ['/assets/vendor/alpine/', `${config.nodeModules}alpinejs/dist/`, true],
-  ['/assets/fonts/', `${config.nodeModules}@fontsource/`, true],
-  ['/twemoji/svg/', `${config.nodeModules}@twemoji/svg/`, true],
-  // ロゴなど、image を焼きなおさずに差し替えたいもの(SITE_LOGO=/brand/<ファイル名>)。volume の中。
-  ['/brand/', `${config.dataDir}brand/`, false],
-  ['/assets/', config.publicDir, false]
-];
 // ルート直下に置く、ブラウザが決め打ちで取りに来るもの。
 const ROOT_FILES = new Set([
   '/favicon.png',
@@ -219,26 +210,9 @@ const ROOT_FILES = new Set([
 ]);
 
 async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<boolean> {
-  let base: string | undefined;
-  let rel = '';
-  let immutable = false;
-  if (ROOT_FILES.has(pathname)) {
-    base = config.publicDir;
-    rel = pathname.slice(1);
-  } else {
-    for (const [prefix, dir, imm] of MOUNTS) {
-      if (pathname.startsWith(prefix)) {
-        base = dir;
-        rel = pathname.slice(prefix.length);
-        immutable = imm;
-        break;
-      }
-    }
-  }
-  if (!base) return false;
-
-  const full = normalize(join(base, decodeURIComponent(rel)));
-  if (full !== base.replace(/\/$/, '') && !full.startsWith(base.endsWith(sep) ? base : base + sep)) return false;
+  const at = ROOT_FILES.has(pathname) ? locateIn(config.publicDir, pathname.slice(1), false) : locate(pathname);
+  if (!at) return false;
+  const { full, immutable } = at;
   const st = await stat(full).catch(() => null);
   if (!st?.isFile()) return false;
 
