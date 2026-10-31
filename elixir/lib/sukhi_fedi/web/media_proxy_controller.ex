@@ -161,8 +161,10 @@ defmodule SukhiFedi.Web.MediaProxyController do
       retry: false,
       decode_body: false,
       receive_timeout: @timeout_ms,
+      # Req は :finch と :connect_options を同時に受け付けない(ArgumentError →
+      # 全部 504 になった)。接続の timeout を持たせたいのでここは専用プールに任せ、
+      # 共有の SukhiFedi.Finch には触れない。
       connect_options: [timeout: 5_000],
-      finch: SukhiFedi.Finch,
       into: &cap_body/2
     )
   end
