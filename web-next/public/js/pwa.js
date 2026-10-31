@@ -226,12 +226,13 @@ document.addEventListener("alpine:init", () => {
 
 // ── インストールの推薦 (Chrome / Chromium) ────────────────────────
 // Chrome の `beforeinstallprompt` を受け止め、勝手には出さずに、
-// 頁の中の推薦バナー・ボタンから人が押したときにだけ `prompt()` を開く。
+// 歓迎のウィンドウから人が押したときにだけ `prompt()` を開く。
 // 既に standalone のときや、閉じた記録があるときは静かにする。
 {
-  const BANNER_ID = "pwa-install-banner";
+  const DIALOG_ID = "pwa-install-dialog";
   const SNOOZE_KEY = "sukhi.pwaInstall.dismissed";
   let deferredPrompt = null;
+  let currentStep = "welcome";
 
   const isStandalone = () =>
     window.matchMedia("(display-mode: standalone)").matches ||
@@ -247,15 +248,7 @@ document.addEventListener("alpine:init", () => {
     }
   };
 
-  const showBanner = () => {
-    if (isStandalone() || isSnoozed() || !deferredPrompt) return;
-    const banner = document.getElementById(BANNER_ID);
-    if (banner) banner.hidden = false;
-  };
-
-  const hideBanner = (snoozeDays = 0) => {
-    const banner = document.getElementById(BANNER_ID);
-    if (banner) banner.hidden = true;
+  const setSnooze = (snoozeDays = 0) => {
     if (snoozeDays > 0) {
       try {
         localStorage.setItem(
@@ -266,26 +259,62 @@ document.addEventListener("alpine:init", () => {
     }
   };
 
+  const setStep = (stepName) => {
+    currentStep = stepName;
+    const dialog = document.getElementById(DIALOG_ID);
+    if (!dialog) return;
+    for (const el of dialog.querySelectorAll("[data-pwa-step]")) {
+      el.hidden = el.getAttribute("data-pwa-step") !== stepName;
+    }
+  };
+
+  const showDialog = () => {
+    if (isStandalone() || isSnoozed() || !deferredPrompt) return;
+    const dialog = document.getElementById(DIALOG_ID);
+    if (dialog) {
+      setStep(currentStep || "welcome");
+      dialog.hidden = false;
+    }
+  };
+
+  const hideDialog = (snoozeDays = 0) => {
+    const dialog = document.getElementById(DIALOG_ID);
+    if (dialog) dialog.hidden = true;
+    setSnooze(snoozeDays);
+  };
+
   window.addEventListener("beforeinstallprompt", (e) => {
     // ブラウザの自動ポップアップを抑え、自前の UI で出す
     e.preventDefault();
     deferredPrompt = e;
-    showBanner();
+    showDialog();
   });
 
   window.addEventListener("appinstalled", () => {
     deferredPrompt = null;
-    hideBanner(0);
+    setStep("installed");
+    const dialog = document.getElementById(DIALOG_ID);
+    if (dialog) dialog.hidden = false;
   });
 
   // Unpoly で <main> や周囲が差し替わったときにも、状態を保つ
   document.addEventListener("up:fragment:inserted", () => {
-    if (deferredPrompt) showBanner();
+    const dialog = document.getElementById(DIALOG_ID);
+    if (dialog && !dialog.hidden) return;
+    if (deferredPrompt) showDialog();
   });
 
   document.addEventListener("click", async (e) => {
     const target = e.target;
     if (!(target instanceof Element)) return;
+
+    // 「つぎへ」ボタン (チュートリアル歓迎画面からインストール案内へ進む)
+    const nextBtn = target.closest("[data-pwa-next]");
+    if (nextBtn) {
+      e.preventDefault();
+      setStep("prompt");
+      return;
+    }
 
     // インストール実行ボタン
     const installBtn = target.closest("[data-pwa-install]");
@@ -296,13 +325,14 @@ document.addEventListener("alpine:init", () => {
         await deferredPrompt.prompt();
         const choice = await deferredPrompt.userChoice;
         if (choice.outcome === "accepted") {
-          hideBanner(0);
+          setStep("installed");
         } else {
-          // 断られたときは 14 日間静かにする
-          hideBanner(14);
+          setStep("skipped");
+          setSnooze(14);
         }
       } catch {
-        hideBanner(0);
+        setStep("skipped");
+        setSnooze(14);
       } finally {
         deferredPrompt = null;
         installBtn.removeAttribute("disabled");
@@ -314,8 +344,17 @@ document.addEventListener("alpine:init", () => {
     const dismissBtn = target.closest("[data-pwa-dismiss]");
     if (dismissBtn) {
       e.preventDefault();
-      // 7 日間静かにする
-      hideBanner(7);
+      setStep("skipped");
+      setSnooze(7);
+      return;
+    }
+
+    // 「閉じる / はじめる」ボタン
+    const closeBtn = target.closest("[data-pwa-close]");
+    if (closeBtn) {
+      e.preventDefault();
+      hideDialog(7);
+      return;
     }
   });
 }
