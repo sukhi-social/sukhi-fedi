@@ -36,7 +36,7 @@ defmodule SukhiFedi.Web.Auth.SignupEmailController do
   defp do_request(conn) do
     email = to_string(conn.body_params["email"] || "")
 
-    case EmailAuth.request_signup_code(email) do
+    case EmailAuth.request_signup_code(email, lang_param(conn)) do
       :ok -> json(conn, 200, %{ok: true})
       {:error, :invalid_email} -> json(conn, 422, %{error: "email"})
       {:error, :email_taken} -> json(conn, 422, %{error: "email_taken"})
@@ -77,6 +77,15 @@ defmodule SukhiFedi.Web.Auth.SignupEmailController do
     else
       {:error, :invalid_proof} -> json(conn, 422, %{error: "email_proof_invalid"})
       nil -> json(conn, 404, %{error: "no_account"})
+    end
+  end
+
+  # Optional "ja" / "ko": the language picked on the page, so the mail
+  # reads in it. Missing or unknown → the bilingual mail.
+  defp lang_param(conn) do
+    case conn.body_params["lang"] do
+      l when l in ["ja", "ko"] -> l
+      _ -> nil
     end
   end
 

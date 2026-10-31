@@ -111,15 +111,16 @@ defmodule SukhiFedi.Auth.EmailAuth do
   tell. `:rate_limited` is keyed on the address alone (before lookup),
   so it leaks nothing either.
   """
-  @spec request_login_code(String.t()) :: :ok | {:error, :invalid_email | :rate_limited}
-  def request_login_code(email) do
+  @spec request_login_code(String.t(), String.t() | nil) ::
+          :ok | {:error, :invalid_email | :rate_limited}
+  def request_login_code(email, lang \\ nil) do
     with {:ok, norm} <- normalize_email(email),
          :ok <- check_rate(norm, nil) do
       case login_account_by_email(norm) do
         %Account{} = account ->
           # A failed send degrades to "the mail didn't come" — same as
           # an unknown address, which is exactly the public behaviour.
-          _ = issue(account, "login", norm)
+          _ = issue(account, "login", norm, lang)
           :ok
 
         nil ->
@@ -152,13 +153,13 @@ defmodule SukhiFedi.Auth.EmailAuth do
   @signup_proof_salt "sukhi signup email proof"
   @signup_proof_max_age 20 * 60
 
-  @spec request_signup_code(String.t()) ::
+  @spec request_signup_code(String.t(), String.t() | nil) ::
           :ok | {:error, :invalid_email | :email_taken | :rate_limited | :send_failed}
-  def request_signup_code(email) do
+  def request_signup_code(email, lang \\ nil) do
     with {:ok, norm} <- normalize_email(email),
          :ok <- check_rate(norm, nil),
          :ok <- check_available(norm, nil) do
-      issue_signup(norm)
+      issue_signup(norm, lang)
     end
   end
 
@@ -226,7 +227,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
 
   # ── shared internals ─────────────────────────────────────────────────────
 
-  defp issue(%Account{id: account_id, username: username}, purpose, email) do
+  defp issue(%Account{id: account_id, username: username}, purpose, email, lang \\ nil) do
     code = generate_code()
 
     {:ok, _} =
@@ -236,10 +237,10 @@ defmodule SukhiFedi.Auth.EmailAuth do
         conflict_target: [:account_id, :purpose]
       )
 
-    send_code(email, username, code)
+    send_code(email, username, code, lang)
   end
 
-  defp issue_signup(email) do
+  defp issue_signup(email, lang) do
     code = generate_code()
 
     # The partial unique index (lower(email), purpose) covers the
@@ -251,7 +252,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
         conflict_target: {:unsafe_fragment, "(lower(email), purpose) WHERE account_id IS NULL"}
       )
 
-    send_code(email, nil, code)
+    send_code(email, nil, code, lang)
   end
 
   defp new_code_row(account_id, purpose, email, code) do
@@ -265,8 +266,10 @@ defmodule SukhiFedi.Auth.EmailAuth do
     }
   end
 
-  defp send_code(email, username, code) do
-    case Mailer.deliver(email, subject(), body(username, code)) do
+  defp send_code(email, username, code, lang) do
+    lang = mail_lang(lang)
+
+    case Mailer.deliver(email, subject(lang), body(lang, username, code)) do
       :ok -> :ok
       {:error, _} -> {:error, :send_failed}
     end
@@ -396,16 +399,45 @@ defmodule SukhiFedi.Auth.EmailAuth do
     |> String.pad_leading(6, "0")
   end
 
-  defp subject do
-    "[#{domain()}] 認証コード / 인증 코드"
+  # The language picked at the top right of the page ("ja" / "ko").
+  # Anything else — no pick, an unknown tag — keeps the bilingual mail.
+  defp mail_lang(lang) when lang in ["ja", "ko"], do: lang
+  defp mail_lang(_), do: nil
+
+  defp subject("ja"), do: "[#{domain()}] 認証コード"
+  defp subject("ko"), do: "[#{domain()}] 인증 코드"
+  defp subject(nil), do: "[#{domain()}] 認証コード / 인증 코드"
+
+  defp body("ja", username, code) do
+    greeting = if username, do: "@#{username} さん\n\n", else: ""
+
+    """
+    #{greeting}#{domain()} の認証コードです。
+
+        #{code}
+
+    10分のあいだ、有効です。
+
+    心当たりがなければ、このメールは、そっと捨ててください。
+    """
   end
 
-  defp body(username, code) do
-    greeting =
-      case username do
-        nil -> ""
-        name -> "@#{name} さん / @#{name} 님\n\n"
-      end
+  defp body("ko", username, code) do
+    greeting = if username, do: "@#{username} 님\n\n", else: ""
+
+    """
+    #{greeting}#{domain()} 의 인증 코드입니다.
+
+        #{code}
+
+    10분 동안 유효합니다.
+
+    짚이는 데가 없다면, 이 메일은 그냥 버려 주세요.
+    """
+  end
+
+  defp body(nil, username, code) do
+    greeting = if username, do: "@#{username} さん / @#{username} 님\n\n", else: ""
 
     """
     #{greeting}#{domain()} の認証コードです。/ #{domain()} 의 인증 코드입니다.

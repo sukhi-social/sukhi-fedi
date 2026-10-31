@@ -28,7 +28,7 @@ defmodule SukhiFedi.Web.Auth.EmailLoginController do
   defp do_request(conn) do
     email = to_string(conn.body_params["email"] || "")
 
-    case EmailAuth.request_login_code(email) do
+    case EmailAuth.request_login_code(email, lang_param(conn)) do
       :ok -> json(conn, 200, %{ok: true})
       {:error, :invalid_email} -> json(conn, 422, %{error: "email"})
       {:error, :rate_limited} -> json(conn, 429, %{error: "rate_limited"})
@@ -51,6 +51,15 @@ defmodule SukhiFedi.Web.Auth.EmailLoginController do
 
       {:error, :invalid_code} ->
         json(conn, 422, %{error: "code"})
+    end
+  end
+
+  # Optional "ja" / "ko": the language picked on the page, so the mail
+  # reads in it. Missing or unknown → the bilingual mail.
+  defp lang_param(conn) do
+    case conn.body_params["lang"] do
+      l when l in ["ja", "ko"] -> l
+      _ -> nil
     end
   end
 
