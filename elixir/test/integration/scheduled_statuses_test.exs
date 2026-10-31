@@ -40,6 +40,16 @@ defmodule SukhiFedi.Integration.ScheduledStatusesTest do
           assert scheduled.account_id == a.id
           assert scheduled.params["status"] == "later"
           assert is_integer(scheduled.oban_job_id)
+
+          # …and that job is in the store the running Oban reads. Under
+          # SUKHI_STORE=datalevin that is not `Repo`; a job written to the
+          # wrong store is never picked up and the post never goes out.
+          assert %Oban.Job{
+                   worker: "SukhiFedi.ScheduledStatuses.PublishWorker",
+                   state: "scheduled"
+                 } =
+                   SukhiFedi.Queue.repo().get(Oban.Job, scheduled.oban_job_id)
+
           assert [] == published_notes(a.id)
 
           scheduled
