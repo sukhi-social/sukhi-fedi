@@ -1,7 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Pull Federation: まとめて取る(フォロー分の一括 pull)
 
-> 状態: **設計のみ。実装は変えていない。** [`PULL_FEDERATION.md`](PULL_FEDERATION.md) の拡張案。
+> 状態: **後回し(TODO)。** データベースの設計([`FEDERATION_REDUCER.md`](FEDERATION_REDUCER.md) の「データベースの設計」)が先。
+> この文書は、そのあとに取りかかるときの下書き。設計のみで、実装は変えていない。 [`PULL_FEDERATION.md`](PULL_FEDERATION.md) の拡張案。
 > 受け取った活動の扱いは [`FEDERATION_REDUCER.md`](FEDERATION_REDUCER.md) に従う。
 > 決め待ちは末尾の「決めたいこと」(Q1 から)。
 

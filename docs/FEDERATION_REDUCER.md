@@ -233,6 +233,102 @@ timeline_view(user, obj, actor) :- following(user, actor), next_post(obj, _, act
 | cursor 3 の流れに、seq 7 の Create | cursor は 7。束に何も無ければ 3 のまま |
 | tombstone のある `obj` に新しい Update | 載らない |
 
+## データベースの設計(Datalevin)
+
+reducer が読み書きする四つの状態を、[`schema.edn`](../elixir/priv/datalevin/schema.edn) のどこに置くか。
+方針は二つ。**既にある属性を使い、足すのは最小限**にすること。**状態と cursor を同じグラフに置き、
+同じ `transact` で書く**こと(`sync/outbox` が `Graph.Local` でやっているのと同じ形。不変条件 6 が、
+約束ではなく構造で守られる)。
+
+### 対応
+
+| reducer の状態 | 置き場 | 新しい属性 |
+| --- | --- | --- |
+| `db_post(obj, ver, owner)` | `:object/id`、`:object/attributed-to`(owner)、版 | `:object/ver` |
+| `db_tombstone(obj, by)` | `:object/type :Tombstone`、`:object/deleted-at`、誰が | `:object/deleted-by` |
+| `db_pending(obj, ver, actor)` | 新しい種類 `:pending/*` | 下のとおり |
+| `sync_cursor(stream, seq)` | 新しい種類 `:stream/*`(`:sync/*` の兄弟) | 下のとおり |
+
+### 足す属性
+
+```clojure
+;; ───────── reducer の状態 ─────────
+;; 版。updated があればそれ、なければ published(どちらも微秒)。書くのは Writer の一か所だけが決める。
+;; 読む側が (or updated published) を毎回組み立てない。索引は要らない(obj を引いてから比べる)。
+:object/ver        {:db/valueType :db.type/long}
+;; 誰が消すと言ったか。持ち主が分かっている obj では attributed-to と同じ actor。
+;; 持ち主が不明な obj(Delete が先に届いた)では、主張した actor。
+:object/deleted-by {:db/valueType :db.type/ref}
+
+;; 持ち主が分かる前に届いた Update。(obj, actor) ごとに最新の一つ。
+:pending/object  {:db/valueType :db.type/string}   ;; obj の IRI。ref にしないのは、実体がまだ無いことが多いため
+:pending/actor   {:db/valueType :db.type/string}   ;; 送った actor の IRI。同上
+:pending/ver     {:db/valueType :db.type/long}
+:pending/raw     {:db/valueType :db.type/string}   ;; 活動の原本(これが無いと、あとで適用できない)
+:pending/raw-ref {:db/valueType :db.type/string}   ;; 大きいときのポインタ。raw とどちらか一方(RawStore.put が決める)
+:pending/at      {:db/valueType :db.type/long}     ;; 受け取った時刻。期限の基準
+:pending/key     {:db/valueType :db.type/tuple
+                  :db/tupleAttrs [:pending/object :pending/actor]
+                  :db/unique :db.unique/identity}
+
+;; 流れの cursor。いまの stream は actor の URI(Q1)。
+:stream/key     {:db/valueType :db.type/string :db/unique :db.unique/identity}
+:stream/host    {:db/valueType :db.type/string}   ;; 出したホスト(統計と、ホストごとの後始末のため)
+:stream/seq     {:db/valueType :db.type/long}
+:stream/etag    {:db/valueType :db.type/string}   ;; 不透明な ETag を使うとき用(いまは使わない。空のまま)
+:stream/at      {:db/valueType :db.type/long}
+```
+
+### 気をつけた点
+
+- **`db_pending` に原本を持たせた**。Datalog の `db_pending(obj, ver, actor)` は版しか持たないが、
+  Update を後で適用するには本文が要る。`next_post` が選ぶのは「どの版を採るか」までで、
+  **本文を書くのは Writer が、その版の活動の原本から**。だから `:pending/raw` が要る。
+  取り込むときは、Writer が `pending` の原本を `AP.Ingest` の入口の**後ろ**(信じてよい側)で再生する。
+  入口を二度通さないのは、保留に入れる時点で一度通っているため。
+- **未知の obj の tombstone** は、`:object/id` と `:object/type :Tombstone`、`:object/deleted-at`、
+  `:object/deleted-by` だけを持つ**本文の無い `:object`**。`attributed-to` は付けない(owner が不明、の印)。
+  `Graph.Ingest.tombstone/2` は今、未知の id では何もしない。ここを「無ければ作る」に変えるのが、
+  実装での唯一の意味の変更。
+- **Create が tombstone に当たったとき**: Writer は同じ `:object/id` を upsert で見つける。
+  `deleted-by` が Create の actor と同じなら tombstone のまま(載せない)。違えば**偽の主張**として
+  `deleted-at` と `deleted-by` を retract し、Create を載せる(`effective_tombstone` の二本目)。
+- **cursor は `sync/*` と別の種類にした**。`:sync/name` は一つの名前に一つの値を持つ作りで、
+  ローカル取り込みの進み具合の置き場。`:stream/*` は actor の数だけ増える。混ぜると掃除と統計が曖昧になる。
+- **束を書くのは `Graph.exclusive` の中の一回の `transact`**。単一の書き手なので、
+  「読む→reducer→書く」の間に別の書き込みが割り込まない。`next_post` / `next_tombstone` /
+  `next_pending` / `next_cursor` が全部同じ取引に入る(不変条件 6)。
+
+### 読み書きの形
+
+束ごとに一回:
+
+```
+1. 束の中の obj と stream を集める(重複を畳んだ ev)
+2. 一度の問い合わせで、それらの db_post / tombstone / pending / cursor を引く(束ごとに払う)
+3. reducer(Elixir の純関数。Datalog の規則を写したもの)で next_* を出す
+4. 変わった分だけを一つの transact にして書く
+```
+
+引くための索引は既にある: `:object/id`(identity)、`:pending/key`(identity)、`:stream/key`(identity)。
+**新しい範囲索引は要らない**(どれも「この id を引く」だけ)。
+
+### 掃除
+
+- **pending**: `:pending/at` が期限(Q6)を過ぎたものを retract。持ち主が決まって取り込んだ行は、その場で retract。
+  `pending` の原本が `raw-ref` なら blob も同じ掃除の規則に乗せる([`DATALEVIN_SCHEMA.md`](DATALEVIN_SCHEMA.md) の掃除)。
+- **tombstone**: 消さない(消すと [`PULL_FEDERATION.md`](PULL_FEDERATION.md) §8 の窓が開く)。
+  持ち主が不明の tombstone だけは、Create が来ないまま長く残る。件数が増えるので、数だけ統計に出す(Q6)。
+- **stream**: 購読が無くなった actor の行は、フォローの掃除と同じ時に retract。
+
+### 移行
+
+- 既存の `:object` には `:object/ver` が無い。**読み出しは `(or ver updated published)`** で受け、
+  書くときに足す(一括の埋め直しは要らない)。`ver` が無い行は、版の比べで「一番古い」扱いになるので、
+  最初の Update で自然に埋まる。
+- `pull_cursors`(Postgres)は維持のみ。Datalevin では `:stream/*` に最初から空で始め、
+  初回は cursor 0(新しい 20 件)から。取り損ねの穴は、この初回の窓の分だけ。
+
 ## 今の実装のどこに当てはまるか
 
 今の実装は reducer の形をしていない。規則が **入口ごとに命令的に**散らばっている。
