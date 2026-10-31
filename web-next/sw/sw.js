@@ -100,7 +100,10 @@ const runtimeCaching = [
 const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
-  navigationPreload: true,
+  // 先読み(navigation preload)は使わない。respondWith しない道(/check ほか)でも、ブラウザは
+  // 本番の要求の前に「もう一本」同じ GET を郵便局へ送り、その返事を捨てる。/check は一度きりの
+  // 関所なので、捨てられる側が一度きりを使い切ると、本物の要求は /login に戻される(2026-10-31)。
+  navigationPreload: false,
   runtimeCaching,
   // 開発のときのログは、いらない。
   disableDevLogs: true
@@ -151,6 +154,11 @@ serwist.setCatchHandler(async ({ request }) => {
 });
 
 serwist.addEventListeners();
+
+// 先読みの「入」は registration に残る(Serwist は false でも切らない)。前の版が入れたものを、ここで切る。
+self.addEventListener('activate', (event) => {
+  if (self.registration.navigationPreload) event.waitUntil(self.registration.navigationPreload.disable().catch(() => {}));
+});
 
 // ── ノック(push)────────────────────────────────────────────────
 // ここだけが、見ていない人に届く。サーバは「これは割り込んでいい」と決めたうえで送っている

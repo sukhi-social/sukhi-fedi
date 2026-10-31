@@ -5,6 +5,7 @@
 export const jaExtra = {
   'end.here': 'ここまで、です。',
   'login.again': 'しばらく経ったので、もういちど入ってください。',
+  'check.expired': '確かめの途中で、手順が切れてしまいました。メールアドレスを入れなおして、もういちど。',
   'error.notFound': 'その頁は、見つかりませんでした。',
   'error.refused': 'その道は、ここからは通れません。',
   'compose.queuedHint': '送ると、{when}後に上がります。そのあいだ、見直したり、とりやめたりできます。',
@@ -69,6 +70,7 @@ export const jaExtra = {
 export const koExtra: Record<keyof typeof jaExtra, string> = {
   'end.here': '여기까지예요.',
   'login.again': '시간이 좀 지나서, 다시 한 번 들어와 주세요.',
+  'check.expired': '확인하는 도중에 순서가 끊어졌어요. 이메일 주소를 다시 넣고, 한 번 더.',
   'error.notFound': '그 페이지는 찾을 수 없었어요.',
   'error.refused': '그 길은 여기서는 지날 수 없어요.',
   'compose.queuedHint': '보내면 {when} 뒤에 올라가요. 그동안 다시 읽어 보거나 거둘 수 있어요.',

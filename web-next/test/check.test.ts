@@ -150,3 +150,36 @@ test('加入: 最初の段は /check へ。コードの画面は、通った人�
   assert.equal(confirmed.headers.get('location'), '/check?intent=signup');
   assert.equal((await b('/check?intent=signup')).headers.get('location'), '/');
 });
+
+// Chrome Android: service worker の navigation preload が、本物の要求の前に同じ GET /check を送る。
+// 一度きりの手順をそこで使い切ると、本物の要求は空の /login に戻される(2026-10-31)。
+test('/check: service worker の先読みは、一度きりの手順を使わない', async () => {
+  const b = browser();
+  await b('/login', form({ method: 'email', step: 'request', email: 'a@b.c' }));
+
+  const preload = await b('/check?intent=login-email', {
+    headers: { 'service-worker-navigation-preload': 'true' }
+  });
+  assert.equal(preload.status, 204);
+
+  const real = await b('/check?intent=login-email');
+  assert.equal(real.status, 200);
+  assert.match(await real.text(), /name="step" value="confirm"/);
+});
+
+test('/check: メールの手順が切れて戻されたときは、/login に一言添える', async () => {
+  const b = browser();
+  await b('/login', form({ method: 'email', step: 'request', email: 'a@b.c' }));
+  await b('/check?intent=login-email');
+  const again = await b('/check?intent=login-email');
+  assert.equal(again.headers.get('location'), '/login');
+  const page = await (await b('/login')).text();
+  assert.match(page, /role="status"/);
+  assert.match(page, /メールアドレスを入れなおして/);
+});
+
+test('service worker は navigation preload を使わず、前の版が入れたものも切る', () => {
+  const sw = readFileSync(new URL('../sw/sw.js', import.meta.url), 'utf8');
+  assert.match(sw, /navigationPreload: false/);
+  assert.match(sw, /navigationPreload\.disable\(\)/);
+});

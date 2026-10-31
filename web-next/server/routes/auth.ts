@@ -50,11 +50,25 @@ function toCheck(ctx: Ctx, check: NonNullable<Session["check"]>): Reply {
 }
 
 route("GET", "/check", async (ctx) => {
+  const h = ctx.req.headers;
+  // service worker の先読み(navigation preload)は、本物の要求の前に同じ GET を送ってくる。返事は
+  // 捨てられるので、一度きりの手順(メール・OAuth・アカウント作成)を、ここで使い切らせない。
+  if (h["service-worker-navigation-preload"] !== undefined) {
+    console.log("[check] ignored service-worker navigation preload");
+    return { status: 204, headers: { "cache-control": "no-store" }, body: "" };
+  }
   const s = ctx.session;
   const intent = ctx.url.searchParams.get("intent");
   const c = s?.check;
-  if (!s || !c || c.intent !== intent)
+  if (!s || !c || c.intent !== intent) {
+    // 何が欠けて戻されたか ── 実機でしか起きないので、あとから見分けられるよう残す(メールは書かない)。
+    console.log(
+      `[check] bounced: ${!s ? (h.cookie?.includes("sukhi_sid=") ? "session-unknown" : "no-cookie") : !c ? "no-pending-step" : "intent-mismatch"} intent=${intent} dest=${c?.intent ?? "-"} sec-fetch=${h["sec-fetch-site"] ?? "-"}/${h["sec-fetch-mode"] ?? "-"}/${h["sec-fetch-dest"] ?? "-"} ua=${String(h["user-agent"] ?? "").slice(0, 80)}`,
+    );
+    // メールのやりかけが消えた(リロード・タブの復元・二重の要求)。黙って空の /login にせず、一言添える。
+    if (intent === "login-email") ctx.flash("notice", ctx.t("check.expired"));
     return redirect(intent === "signup" ? "/signup" : "/login");
+  }
   s.check = undefined; // 一度きり。リロードで二度は始まらない(メールも二度は送らない)。
   saveSession(s);
   if (c.intent === "login") return beginOAuth(ctx);
