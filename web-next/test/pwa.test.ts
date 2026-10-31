@@ -95,6 +95,17 @@ test('頁の枠: 名前・全画面・つながっていない帯・pwa.js が�
   assert.match(page, /viewport-fit=cover/);
   assert.match(page, /id="net-banner"[^>]*hidden/);
   assert.match(page, /\/assets\/js\/pwa\.js\?v=/);
+  assert.match(page, /id="pwa-install-banner"[^>]*hidden/);
+  assert.match(page, /data-pwa-install/);
+  assert.match(page, /data-pwa-dismiss/);
+});
+
+test('pwa.js: Chrome の beforeinstallprompt を受け止め、インストール推薦を行う', () => {
+  const src = readFileSync('public/js/pwa.js', 'utf8');
+  assert.match(src, /addEventListener\("beforeinstallprompt"/);
+  assert.match(src, /addEventListener\("appinstalled"/);
+  assert.match(src, /data-pwa-install/);
+  assert.match(src, /deferredPrompt\.prompt\(\)/);
 });
 
 test('設定の頁に、知らせの入り切りがある(自動では、訊かない)', async () => {

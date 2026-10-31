@@ -473,6 +473,33 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
   cursor: pointer;
 }
 
+/* ── PWA インストール推薦バナー ──────────────────────────────── */
+.pwa-install-banner {
+  background: var(--color-surface);
+  border-block-end: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+.pwa-install-banner[hidden] {
+  display: none;
+}
+.pwa-install-banner-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.pwa-install-text {
+  margin: 0;
+  color: var(--color-text);
+}
+.pwa-install-actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
 /* ホーム画面から開いたとき(インストール後)だけ、「頁」の挙動をやめる。 */
 @media (display-mode: standalone), (display-mode: minimal-ui) {
   html {

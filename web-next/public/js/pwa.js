@@ -223,3 +223,99 @@ document.addEventListener("alpine:init", () => {
     },
   }));
 });
+
+// ── インストールの推薦 (Chrome / Chromium) ────────────────────────
+// Chrome の `beforeinstallprompt` を受け止め、勝手には出さずに、
+// 頁の中の推薦バナー・ボタンから人が押したときにだけ `prompt()` を開く。
+// 既に standalone のときや、閉じた記録があるときは静かにする。
+{
+  const BANNER_ID = "pwa-install-banner";
+  const SNOOZE_KEY = "sukhi.pwaInstall.dismissed";
+  let deferredPrompt = null;
+
+  const isStandalone = () =>
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.matchMedia("(display-mode: minimal-ui)").matches ||
+    navigator.standalone === true;
+
+  const isSnoozed = () => {
+    try {
+      const until = Number(localStorage.getItem(SNOOZE_KEY) ?? "0");
+      return Date.now() < until;
+    } catch {
+      return false;
+    }
+  };
+
+  const showBanner = () => {
+    if (isStandalone() || isSnoozed() || !deferredPrompt) return;
+    const banner = document.getElementById(BANNER_ID);
+    if (banner) banner.hidden = false;
+  };
+
+  const hideBanner = (snoozeDays = 0) => {
+    const banner = document.getElementById(BANNER_ID);
+    if (banner) banner.hidden = true;
+    if (snoozeDays > 0) {
+      try {
+        localStorage.setItem(
+          SNOOZE_KEY,
+          String(Date.now() + snoozeDays * 24 * 60 * 60 * 1000)
+        );
+      } catch {}
+    }
+  };
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    // ブラウザの自動ポップアップを抑え、自前の UI で出す
+    e.preventDefault();
+    deferredPrompt = e;
+    showBanner();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredPrompt = null;
+    hideBanner(0);
+  });
+
+  // Unpoly で <main> や周囲が差し替わったときにも、状態を保つ
+  document.addEventListener("up:fragment:inserted", () => {
+    if (deferredPrompt) showBanner();
+  });
+
+  document.addEventListener("click", async (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+
+    // インストール実行ボタン
+    const installBtn = target.closest("[data-pwa-install]");
+    if (installBtn && deferredPrompt) {
+      e.preventDefault();
+      installBtn.setAttribute("disabled", "true");
+      try {
+        await deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice.outcome === "accepted") {
+          hideBanner(0);
+        } else {
+          // 断られたときは 14 日間静かにする
+          hideBanner(14);
+        }
+      } catch {
+        hideBanner(0);
+      } finally {
+        deferredPrompt = null;
+        installBtn.removeAttribute("disabled");
+      }
+      return;
+    }
+
+    // 「あとで」ボタン
+    const dismissBtn = target.closest("[data-pwa-dismiss]");
+    if (dismissBtn) {
+      e.preventDefault();
+      // 7 日間静かにする
+      hideBanner(7);
+    }
+  });
+}

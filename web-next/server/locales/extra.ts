@@ -65,7 +65,10 @@ export const jaExtra = {
   'data.done.skipped': '{n}件、読み込みました。{m}件は、読み込めませんでした。',
   'data.err.empty': 'ファイルを選んでください。',
   'data.err.tooLarge': 'ファイルが大きすぎます（256KB まで）。',
-  'data.err.tooMany': '行が多すぎます（1000 行まで）。ふたつに分けてください。'
+  'data.err.tooMany': '行が多すぎます（1000 行まで）。ふたつに分けてください。',
+  'pwa.installBanner': 'ホーム画面に追加すると、アプリのように開けます。',
+  'pwa.installBtn': 'インストール',
+  'pwa.dismissBtn': 'あとで'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -131,5 +134,8 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'data.done.skipped': '{n}건을 가져왔어요. {m}건은 가져오지 못했어요.',
   'data.err.empty': '파일을 골라 주세요.',
   'data.err.tooLarge': '파일이 너무 커요 (256KB까지).',
-  'data.err.tooMany': '줄이 너무 많아요 (1000줄까지). 둘로 나눠 주세요.'
+  'data.err.tooMany': '줄이 너무 많아요 (1000줄까지). 둘로 나눠 주세요.',
+  'pwa.installBanner': '홈 화면에 추가하면 앱처럼 열 수 있어요.',
+  'pwa.installBtn': '설치',
+  'pwa.dismissBtn': '나중에'
 };

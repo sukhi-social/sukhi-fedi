@@ -111,6 +111,15 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
     <span data-net="server" hidden>${ctx.t('net.server')}</span>
     <button type="button" class="net-banner-retry">${ctx.t('net.retry')}</button>
   </div>
+  <aside id="pwa-install-banner" class="pwa-install-banner" role="status" hidden>
+    <div class="wrap pwa-install-banner-row">
+      <p class="pwa-install-text">${ctx.t('pwa.installBanner')}</p>
+      <div class="pwa-install-actions">
+        <button type="button" class="btn primary px-3 py-1" data-pwa-install>${ctx.t('pwa.installBtn')}</button>
+        <button type="button" class="btn secondary px-3 py-1" data-pwa-dismiss>${ctx.t('pwa.dismissBtn')}</button>
+      </div>
+    </div>
+  </aside>
   ${p.me ? appNav(ctx, p.me) : ''}
   <main class="wrap stack" up-main>
     ${p.entrance ? entranceBar(ctx) : ''}
