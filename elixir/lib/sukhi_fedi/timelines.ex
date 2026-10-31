@@ -187,12 +187,14 @@ defmodule SukhiFedi.Timelines do
         join: ba in Account,
         on: ba.id == b.account_id,
         where: b.account_id in ^account_ids,
-        where: n.account_id not in ^hidden,
         where: n.visibility in ^SukhiFedi.Visibility.public_only(),
         order_by: [desc: b.created_at],
         limit: ^limit,
         select: %{boost_id: b.id, created_at: b.created_at, booster: ba, note: n}
       )
+      # Nobody hidden is the usual case, and `not in []` is then always true:
+      # on Datalevin it still turned a ~0.3 s query into ~9 s, so leave it out.
+      |> gated(hidden, fn q, ids -> where(q, [_b, n], n.account_id not in ^ids) end)
       |> boost_time_bounds(opts)
       |> Repo.all()
 
@@ -465,8 +467,8 @@ defmodule SukhiFedi.Timelines do
 
   # ── helpers ──────────────────────────────────────────────────────────────
 
-  # `fun` adds an `account not in ids or …` clause; with no ids that clause is
-  # always true, so skip it rather than ask the store to evaluate an `or`.
+  # `fun` adds an `account not in ids [or …]` clause; with no ids that clause
+  # is always true, so skip it rather than ask the store to evaluate it.
   defp gated(query, [], _fun), do: query
   defp gated(query, ids, fun), do: fun.(query, ids)
 
