@@ -446,6 +446,7 @@ export const ko: Dict = {
   'security.passwordRemove': '그만 쓰기',
   'security.passwordRemoveHelp':
     '비밀번호를 내려놓아요. 앞으로는 메일 코드(나 패스키)로 들어가요.',
+  'security.passwordRemoveNeedsEmail': '비밀번호를 그만 쓰려면, 먼저 위의 메일 주소 확인을 마쳐 주세요.',
   'security.needRelogin': '설정을 바꾸려면 다시 한번 들어와 주세요.',
   'security.accountMismatch':
     '지금 이 설정은 「@{acct}」님의 것이에요. 지금 보고 있는 계정의 설정을 바꾸고 싶으면, 다시 한번 로그인해 주세요.',
