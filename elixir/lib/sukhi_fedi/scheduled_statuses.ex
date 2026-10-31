@@ -18,7 +18,6 @@ defmodule SukhiFedi.ScheduledStatuses do
 
   import Ecto.Query
 
-  alias Ecto.Multi
   alias SukhiFedi.Repo
   alias SukhiFedi.ScheduledStatuses.PublishWorker
   alias SukhiFedi.Schema.{Account, ScheduledStatus}
@@ -47,31 +46,17 @@ defmodule SukhiFedi.ScheduledStatuses do
 
   def create(account_id, params, scheduled_at) when is_integer(account_id) do
     with {:ok, at} <- parse_time(scheduled_at),
-         :ok <- far_enough_ahead(at) do
-      row =
-        Multi.insert(
-          Multi.new(),
-          :scheduled,
-          ScheduledStatus.changeset(%ScheduledStatus{}, %{
-            account_id: account_id,
-            params: stringify(params),
-            scheduled_at: at
-          })
-        )
-
-      # `Oban.insert/5` (named instance) takes the multi as its 2nd arg,
-      # so it can't sit in the pipe; thread it by hand.
-      Oban.insert(@oban, row, :job, fn %{scheduled: s} ->
-        PublishWorker.new(%{scheduled_status_id: s.id}, scheduled_at: at)
-      end)
-      |> Multi.update(:link, fn %{scheduled: s, job: job} ->
-        Ecto.Changeset.change(s, oban_job_id: job.id)
-      end)
-      |> Repo.transaction()
-      |> case do
-        {:ok, %{link: scheduled}} -> {:ok, scheduled}
-        {:error, _step, reason, _} -> {:error, reason}
-      end
+         :ok <- far_enough_ahead(at),
+         {:ok, scheduled} <-
+           %ScheduledStatus{}
+           |> ScheduledStatus.changeset(%{
+             account_id: account_id,
+             params: stringify(params),
+             scheduled_at: at
+           })
+           |> Repo.insert(),
+         {:ok, job} <- enqueue(scheduled, at) do
+      scheduled |> Ecto.Changeset.change(oban_job_id: job.id) |> Repo.update()
     end
   end
 
@@ -111,26 +96,19 @@ defmodule SukhiFedi.ScheduledStatuses do
   def reschedule(account_id, id, scheduled_at) when is_integer(account_id) do
     with %ScheduledStatus{} = scheduled <- owned(account_id, id),
          {:ok, at} <- parse_time(scheduled_at),
-         :ok <- far_enough_ahead(at) do
-      cancel_old =
-        Multi.run(Multi.new(), :cancel_old, fn _repo, _ ->
-          {:ok, cancel_job(scheduled.oban_job_id)}
-        end)
+         :ok <- far_enough_ahead(at),
+         {:ok, job} <-
+           Oban.insert(
+             @oban,
+             PublishWorker.new(%{scheduled_status_id: scheduled.id}, scheduled_at: at)
+           ) do
+      # New job is in before the old one goes, so a failed insert leaves
+      # the schedule with a live job instead of none.
+      cancel_job(scheduled.oban_job_id)
 
-      Oban.insert(
-        @oban,
-        cancel_old,
-        :job,
-        PublishWorker.new(%{scheduled_status_id: scheduled.id}, scheduled_at: at)
-      )
-      |> Multi.update(:scheduled, fn %{job: job} ->
-        Ecto.Changeset.change(scheduled, scheduled_at: at, oban_job_id: job.id)
-      end)
-      |> Repo.transaction()
-      |> case do
-        {:ok, %{scheduled: updated}} -> {:ok, updated}
-        {:error, _step, reason, _} -> {:error, reason}
-      end
+      scheduled
+      |> Ecto.Changeset.change(scheduled_at: at, oban_job_id: job.id)
+      |> Repo.update()
     else
       nil -> {:error, :not_found}
       {:error, _} = err -> err
@@ -164,6 +142,23 @@ defmodule SukhiFedi.ScheduledStatuses do
     case parse_int(id) do
       nil -> nil
       int -> Repo.get_by(ScheduledStatus, id: int, account_id: account_id)
+    end
+  end
+
+  # The job lives in the queue store (`SukhiFedi.Queue.repo/0`), which is
+  # not `Repo` under `SUKHI_STORE=datalevin`. Never thread this insert
+  # through a `Repo.transaction` multi: Oban would write the job into the
+  # multi's repo, where no queue ever looks, and the post would never go
+  # out. So the row is written first and forgotten again if the job can't
+  # be queued — a row without a job would sit "pending" forever.
+  defp enqueue(%ScheduledStatus{id: id} = scheduled, at) do
+    case Oban.insert(@oban, PublishWorker.new(%{scheduled_status_id: id}, scheduled_at: at)) do
+      {:ok, _job} = ok ->
+        ok
+
+      {:error, _} = err ->
+        Repo.delete(scheduled)
+        err
     end
   end
 
