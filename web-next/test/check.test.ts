@@ -183,3 +183,19 @@ test('service worker は navigation preload を使わず、前の版が入れた
   assert.match(sw, /navigationPreload: false/);
   assert.match(sw, /navigationPreload\.disable\(\)/);
 });
+
+test('招待リンク: 生きたコードは玄関、死んだコードは理由つきの 404(「頁がない」ではない)', async () => {
+  const b = browser();
+  const live = await b('/invite/some-code');
+  assert.equal(live.status, 200);
+  const page = await live.text();
+  assert.match(page, /href="\/signup\?invite=some-code"/);
+  assert.doesNotMatch(page, /その頁は、見つかりませんでした/);
+
+  const dead = await b('/invite/dead');
+  assert.equal(dead.status, 404);
+  assert.match(await dead.text(), /この招待リンクは/);
+
+  const signup = await (await b('/signup?invite=some-code')).text();
+  assert.match(signup, /value="some-code"/);
+});
