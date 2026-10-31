@@ -203,14 +203,24 @@ const MIME: Record<string, string> = {
 // ルート直下に置く、ブラウザが決め打ちで取りに来るもの。
 const ROOT_FILES = new Set([
   '/favicon.png',
+  '/icon-192.png',
+  '/icon-maskable-512.png',
   '/apple-touch-icon.png',
   '/icon-512.png',
   '/avatar-default.svg',
   '/manifest.webmanifest'
 ]);
 
+// service worker は、拡張子のない道で配る。Cloudflare は、.js の静的ファイルに max-age を足す ──
+// 更新が、最長 4 時間おくれる。scope は / のまま(道が / 直下にあるので)。
+const ROOT_ALIAS: Record<string, string> = { '/sw': 'sw.js' };
+
 async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<boolean> {
-  const at = ROOT_FILES.has(pathname) ? locateIn(config.publicDir, pathname.slice(1), false) : locate(pathname);
+  const at = ROOT_FILES.has(pathname)
+    ? locateIn(config.publicDir, pathname.slice(1), false)
+    : ROOT_ALIAS[pathname]
+      ? locateIn(config.publicDir, ROOT_ALIAS[pathname], false)
+      : locate(pathname);
   if (!at) return false;
   const { full, immutable } = at;
   const st = await stat(full).catch(() => null);

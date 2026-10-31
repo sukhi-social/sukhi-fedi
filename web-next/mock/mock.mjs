@@ -322,7 +322,11 @@ const ROUTES = [
     domain: 'sukhi.f3liz.casa',
     title: 'sukhi.f3liz.casa',
     description: 'しずかな星。',
-    configuration: { vapid: { public_key: '' } },
+    // 鍵は Web Push の仕様書にある見本(本物ではない)。鳴らす種類は gateway が決める(WebPush.direct_types/0)。
+    configuration: {
+      vapid: { public_key: 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U' },
+      direct_types: ['mention', 'follow_request']
+    },
     registrations: { enabled: true, approval_required: true }
   })],
   ['/api/map', () => MAP],

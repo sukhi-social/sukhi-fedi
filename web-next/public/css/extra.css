@@ -422,3 +422,68 @@ html:lang(ko) .hero h1 {
     inset: -0.6rem -0.4rem;
   }
 }
+
+/* ── アプリらしさ(PWA)──────────────────────────────────────────
+   ブラウザの「頁」らしい挙動を、操作の部品(ナビ・ボタン)からだけ外す。
+   本文・投稿・画像は、選べて、長押しで保存できるまま。 */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ダブルタップの拡大を待たない(押したら、すぐ反応する)。 */
+a, button, summary, label, select, [role="button"], [role="menuitem"] {
+  touch-action: manipulation;
+}
+
+/* 操作の部品は、文字として選ばれず、長押しのメニューも出さない。 */
+.app-nav, .nav-bottom, .nav-menu-panel, button, .btn, .chip, summary {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* つながっていないときの帯。<main> の外にあるので、頁を替えても残る。 */
+.net-banner {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-start: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  padding-block-start: max(var(--space-2), env(safe-area-inset-top, 0px));
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  border-block-end: 1px solid var(--color-border);
+}
+.net-banner[hidden] { display: none; }
+.net-banner-retry {
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-accent-strong);
+  background: none;
+  border: 0;
+  padding: var(--space-1) var(--space-2);
+  min-block-size: var(--tap-min, 44px);
+  cursor: pointer;
+}
+
+/* ホーム画面から開いたとき(インストール後)だけ、「頁」の挙動をやめる。 */
+@media (display-mode: standalone), (display-mode: minimal-ui) {
+  html {
+    /* 引っぱって更新・端のバウンドを止める(更新は、帯の「もういちど」や、リンクから)。 */
+    overscroll-behavior-y: none;
+  }
+  /* リンクと画像を、ドラッグで引き出さない。 */
+  a, img {
+    -webkit-user-drag: none;
+  }
+  body {
+    padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+  }
+}

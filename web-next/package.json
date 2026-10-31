@@ -7,10 +7,11 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "node --watch server/main.ts",
+    "build:sw": "node scripts/build-sw.mjs",
+    "dev": "node scripts/build-sw.mjs && node --watch server/main.ts",
     "start": "node server/main.ts",
     "mock:api": "node mock/api-server.mjs",
-    "dev:mock": "node mock/dev.mjs",
+    "dev:mock": "node scripts/build-sw.mjs && node mock/dev.mjs",
     "test": "node --test --test-concurrency=1 \"test/*.test.ts\""
   },
   "dependencies": {
@@ -23,5 +24,9 @@
     "budoux": "^0.10.1",
     "unpoly": "^3.15.0",
     "uqr": "^0.1.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "serwist": "^9.5.13"
   }
 }

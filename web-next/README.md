@@ -8,10 +8,12 @@ sukhi-fedi の web を、**Unpoly + Alpine.js の MPA** で作りなおしたも
 
 ## 動かす
 
-Node 24(型をそのまま読むので、ビルドは要らない)と pnpm。
+Node 24(型をそのまま読むので、サーバーにビルドは要らない)と pnpm。
+ビルドは、service worker(`sw/sw.js`、Serwist)を `public/sw.js` に束ねる一つだけ。`dev` `dev:mock` `test` が自分で呼ぶ(Docker は build stage)。
 
 ```
 pnpm install
+pnpm run build:sw   # sw/sw.js → public/sw.js(git には入らない)
 pnpm run dev:mock   # http://localhost:5174 — 偽の gateway(:4010)といっしょに、入った状態で立つ
 pnpm run dev        # 本物の gateway(GATEWAY_URL、既定 http://localhost:4000)に向けて立つ
 pnpm test
@@ -42,7 +44,8 @@ server/
                  settings(プロフィール)/ security(ログインと安全・あいことば)/ migration(引っ越し)/ data(フォロー等の CSV)
   views/         HTML(html`` は差し込みを自動でエスケープ。raw() だけがそのまま)
   time.ts        時計の針を外した、うつろいのことば
-public/          css(sukhi-web-next から借用)と app.js
+sw/              service worker(Serwist)。scripts/build-sw.mjs が public/sw.js に束ねる
+public/          css(sukhi-web-next から借用)・app.js(Unpoly・Alpine)・pwa.js(SW 登録・オフラインの帯・知らせの入り切り)
 mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
 ```
 
@@ -57,6 +60,25 @@ mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
   `/signup` に戻ったとき埋める(同意は埋めない)。何をするかは session の `check` に置いてあり(URL の `intent` は合図にすぎない)、
   一度きり ── リロードしても二度は始まらず、何も無い人が来たら `/login` か `/signup` に戻す。
   anubis を前に立てない開発(`pnpm run dev:mock`)でも、そのまま通る。
+
+## アプリとして(PWA)
+
+ストア不要(ホーム画面に追加)。軽く、落ちていても読みかえせて、返信やフォロー申請は端末にそっと届く。
+
+- **service worker**(`/sw`。Cloudflare が `.js` に足す max-age を避けて、拡張子なしで配る)
+  - 字・画像のような、中身で URL が決まるものは、置いたらそのまま(CacheFirst)。
+  - 読む頁(おうち・タグ・プロフィール・投稿)は、つながるなら新しいものを、だめなら置いてあるものを(NetworkFirst、3 日・40 まで)。
+    通知・検索・設定・書く頁は置かない。`/check` `/oauth` `/api` には触らない。置くかどうかは `sw/sw.js` の `KEEP_PAGES` 一か所。
+  - 落ちているときは、SW の中の一枚(`/offline` のような頁はない)。責めずに「もういちど」を置く。つながったら、自分で戻る。
+  - 出る(logout)ときは、置いた頁・画像と、この端末の知らせの購読を、頁側(pwa.js)が片づけてから出る。
+- **知らせ(Web Push)**: gateway の `/api/v1/push/subscription` につなぐ(`routes/push.ts`。トークンはサーバにあるので、ブラウザはここを通る)。
+  - 鳴っていい種類は gateway が決める(`direct_types` = 返信・フォロー申請)。web-next は足さない。お気に入り・ブーストでは鳴らない。
+  - 本文も数もバッジも出さない。見ている窓があれば鳴らさない。同じ人は一つに畳む。許可は、設定で人が入れたときだけ訊く。
+  - gateway の購読はアカウントに一つ。別の端末で入れると、そちらに替わる。
+- **ネイティブ風**: Unpoly で頁をつなぐ(MPA のまま、`<main>` だけ差し替え)。操作の部品からだけ、長押し・選択・ダブルタップ拡大・タップの光を外す
+  (本文と画像は選べるまま)。ホーム画面から開いたときだけ、引っぱって更新・端のバウンドを止める。つながっていない帯は `<main>` の外。
+- **Web API**: manifest の `share_target`(他のアプリの「共有」→ `/compose?text=&url=`)・`shortcuts`(書く・通知)。
+- アイコンは about.sukhi.social のロゴ(橙)。192 / 512 / maskable(角まで橙)/ apple-touch / favicon。
 
 ## sukhi-web-next との、意図した違い
 
@@ -74,7 +96,6 @@ mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
 入口・入る・はじめる・タイムライン・タグ・投稿の詳細・プロフィール・書く・通知・さがす・設定(プロフィール・
 ログインと安全〔メール・2FA・パスキー・端末・あいことば〕・引っ越し・書き出しと読み込み)まで。
 ない: 設定の掃除・BOT・アカウントを閉じる /  lists / clips / map / messages(DM)/ bookmarks / favourites の頁 /
-絵文字ピッカー / メンションの補完 / 下書きの保存 / 投票 / プロフィールの編集・ミュート・ブロック・私的メモ /
-Service Worker・Push。
+絵文字ピッカー / メンションの補完 / 下書きの保存 / 投票 / プロフィールの編集・ミュート・ブロック・私的メモ。
 
 `TODO.md` に、入口の行き先についての、次の予定がある。

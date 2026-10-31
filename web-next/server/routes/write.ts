@@ -99,7 +99,9 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
   const [replyTo, quoteOf, held] = await Promise.all([fetchOne(replyId), fetchOne(quoteId), heldList(ctx)]);
 
   // 返信は、相手の @ を頭に置いて始める(自分への返信は、置かない)。
-  const text = v.values?.status ?? (replyTo && replyTo.account.acct !== me.acct ? `@${replyTo.account.acct} ` : '');
+  // 他のアプリの「共有」から来たとき(manifest の share_target)は、題・本文・URL を、重ならないように置く。
+  const shared = [...new Set(['title', 'text', 'url'].map((k) => (q.get(k) ?? '').trim()).filter(Boolean))].join('\n');
+  const text = v.values?.status ?? (replyTo && replyTo.account.acct !== me.acct ? `@${replyTo.account.acct} ` : shared);
   const vis = v.values?.visibility ?? 'public';
   const visLabels: [string, string][] = [
     ['public', t('compose.visPublic')],
