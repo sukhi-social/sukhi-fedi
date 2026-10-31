@@ -65,7 +65,19 @@ export const jaExtra = {
   'data.done.skipped': '{n}件、読み込みました。{m}件は、読み込めませんでした。',
   'data.err.empty': 'ファイルを選んでください。',
   'data.err.tooLarge': 'ファイルが大きすぎます（256KB まで）。',
-  'data.err.tooMany': '行が多すぎます（1000 行まで）。ふたつに分けてください。'
+  'data.err.tooMany': '行が多すぎます（1000 行まで）。ふたつに分けてください。',
+  'pwa.welcomeTitle': 'ようこそ',
+  'pwa.welcomeDesc': '静かな Fediverse へようこそ。はじめに、この端末での便利な使い方をご案内します。',
+  'pwa.welcomeNext': 'つぎへ',
+  'pwa.installTitle': 'アプリのインストール',
+  'pwa.installBanner': 'ホーム画面に追加すると、全画面でアプリのように開けます。',
+  'pwa.installBtn': 'インストール',
+  'pwa.dismissBtn': 'あとで',
+  'pwa.installedTitle': '設定しました！',
+  'pwa.installedMsg': 'ホーム画面に追加されました。アプリのようにご利用いただけます。',
+  'pwa.skippedTitle': 'あとからでも大丈夫です',
+  'pwa.skippedMsg': '設定画面でインストールができますよ！',
+  'pwa.closeBtn': 'はじめる'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -131,5 +143,17 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'data.done.skipped': '{n}건을 가져왔어요. {m}건은 가져오지 못했어요.',
   'data.err.empty': '파일을 골라 주세요.',
   'data.err.tooLarge': '파일이 너무 커요 (256KB까지).',
-  'data.err.tooMany': '줄이 너무 많아요 (1000줄까지). 둘로 나눠 주세요.'
+  'data.err.tooMany': '줄이 너무 많아요 (1000줄까지). 둘로 나눠 주세요.',
+  'pwa.welcomeTitle': '어서 오세요',
+  'pwa.welcomeDesc': '조용한 Fediverse에 오신 것을 환영해요. 먼저 이 기기에서 편리하게 쓰는 방법을 안내해 드릴게요.',
+  'pwa.welcomeNext': '다음으로',
+  'pwa.installTitle': '앱 설치하기',
+  'pwa.installBanner': '홈 화면에 추가하면 전체 화면으로 앱처럼 열 수 있어요.',
+  'pwa.installBtn': '설치',
+  'pwa.dismissBtn': '나중에',
+  'pwa.installedTitle': '설정했어요!',
+  'pwa.installedMsg': '홈 화면에 추가되었어요. 앱처럼 편하게 쓰실 수 있어요.',
+  'pwa.skippedTitle': '나중에도 괜찮아요',
+  'pwa.skippedMsg': '설정 화면에서 설치할 수 있어요!',
+  'pwa.closeBtn': '시작하기'
 };

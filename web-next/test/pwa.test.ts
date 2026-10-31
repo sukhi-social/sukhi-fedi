@@ -97,6 +97,32 @@ test('頁の枠: 名前・全画面・つながっていない帯・pwa.js が�
   assert.match(page, /\/assets\/js\/pwa\.js\?v=/);
 });
 
+test('/welcome: 歓迎の専用頁で、チュートリアル形式の PWA インストール推薦ができる', async () => {
+  const res = await fetch(`${BASE}/welcome`);
+  assert.equal(res.status, 200);
+  const page = await res.text();
+  assert.match(page, /data-welcome-page/);
+  assert.match(page, /data-pwa-step="welcome"/);
+  assert.match(page, /data-pwa-step="prompt"/);
+  assert.match(page, /data-pwa-step="installed"/);
+  assert.match(page, /data-pwa-step="skipped"/);
+  assert.match(page, /data-pwa-next/);
+  assert.match(page, /data-pwa-install/);
+  assert.match(page, /data-pwa-dismiss/);
+  assert.match(page, /data-pwa-start/);
+});
+
+test('pwa.js: Chrome の beforeinstallprompt を受け止め、歓迎の頁からインストール推薦を行う', () => {
+  const src = readFileSync('public/js/pwa.js', 'utf8');
+  assert.match(src, /addEventListener\("beforeinstallprompt"/);
+  assert.match(src, /addEventListener\("appinstalled"/);
+  assert.match(src, /data-pwa-next/);
+  assert.match(src, /data-pwa-install/);
+  assert.match(src, /deferredPrompt\.prompt\(\)/);
+  assert.match(src, /setStep\("installed"\)/);
+  assert.match(src, /setStep\("skipped"\)/);
+});
+
 test('設定の頁に、知らせの入り切りがある(自動では、訊かない)', async () => {
   const page = await (await fetch(`${BASE}/settings`)).text();
   assert.match(page, /x-data="pushToggle"/);

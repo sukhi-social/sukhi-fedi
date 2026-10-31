@@ -223,3 +223,77 @@ document.addEventListener("alpine:init", () => {
     },
   }));
 });
+
+// ── インストールの推薦 (Chrome / Chromium) ────────────────────────
+// Chrome の `beforeinstallprompt` を受け止め、勝手には出さずに保持する。
+// 歓迎の専用頁(/welcome)で、人が押したときにだけ `prompt()` を開く。
+{
+  let deferredPrompt = null;
+
+  const setStep = (stepName) => {
+    const container = document.querySelector("[data-welcome-page]");
+    if (!container) return;
+    for (const el of container.querySelectorAll("[data-pwa-step]")) {
+      el.hidden = el.getAttribute("data-pwa-step") !== stepName;
+    }
+  };
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    // ブラウザの自動ポップアップを抑え、自前の UI で出す
+    e.preventDefault();
+    deferredPrompt = e;
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredPrompt = null;
+    setStep("installed");
+  });
+
+  document.addEventListener("click", async (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+
+    // 「つぎへ」ボタン (チュートリアル歓迎画面からインストール案内へ進む)
+    const nextBtn = target.closest("[data-pwa-next]");
+    if (nextBtn) {
+      e.preventDefault();
+      setStep("prompt");
+      return;
+    }
+
+    // インストール実行ボタン
+    const installBtn = target.closest("[data-pwa-install]");
+    if (installBtn) {
+      e.preventDefault();
+      if (!deferredPrompt) {
+        // すでにインストール済み、あるいはブラウザが prompt を直接提供しない場合
+        setStep("skipped");
+        return;
+      }
+      installBtn.setAttribute("disabled", "true");
+      try {
+        await deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice.outcome === "accepted") {
+          setStep("installed");
+        } else {
+          setStep("skipped");
+        }
+      } catch {
+        setStep("skipped");
+      } finally {
+        deferredPrompt = null;
+        installBtn.removeAttribute("disabled");
+      }
+      return;
+    }
+
+    // 「あとで」ボタン
+    const dismissBtn = target.closest("[data-pwa-dismiss]");
+    if (dismissBtn) {
+      e.preventDefault();
+      setStep("skipped");
+      return;
+    }
+  });
+}
