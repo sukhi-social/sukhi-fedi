@@ -268,7 +268,8 @@ Datalevin 側の置き場([`DATALEVIN_SCHEMA.md`](DATALEVIN_SCHEMA.md))に足す
 
 **Q1. 流れの単位は actor のままでよいか。** 今の線は actor ごと。サーバーごとにするには配信側の
 `Log.append` と `heads` の形を変える(互換が切れる)。**推奨: actor のまま**。Datalog の `server`
-は `stream` に直した。
+は `stream` に直した。リレー経由の一括 pull([`PULL_FEDERATION_BULK.md`](PULL_FEDERATION_BULK.md))を入れるなら、
+`stream` は (出したホスト, actor) になる。
 
 **Q2. 持ち主の確認は、actor 完全一致にしてよいか(いまはホスト一致)。**
 完全一致にすると、同じホストの別の actor(管理者や Group)が代わりに出す Delete が通らなくなる。
