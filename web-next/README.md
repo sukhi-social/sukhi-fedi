@@ -49,7 +49,7 @@ public/          css(sukhi-web-next から借用)・app.js(Unpoly・Alpine)・pw
 mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
 ```
 
-- `/oauth/` `/api/` `/terms` `/privacy` `/static/` `/uploads/` `/proxy/` `/.well-known/` などは、gateway にそのまま通す。
+- `/admin`(管理ページ。設定の「管理ページへ」が、トークンをサーバ側で /admin/login に置いて cookie を渡す)・`/oauth/` `/api/` `/terms` `/privacy` `/static/` `/uploads/` `/proxy/` `/.well-known/` などは、gateway にそのまま通す。
   この郵便局が、同じ origin の前に立つ前提。
 - Unpoly は、いつも `<main>` を差し替える。入る・出る・ことば替えだけは、ふつうのフォーム(フルリロード)。
 - **関所(`/check`)**: anubis が PoW を解かせるのは `GET /check` だけ(`config/anubis/botPolicies.yaml`)。

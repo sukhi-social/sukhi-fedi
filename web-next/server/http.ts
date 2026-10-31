@@ -249,6 +249,7 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: 
 // ここを通さないと、ブラウザは gateway に届かない(同じ origin の前に、この郵便局が立つため)。
 const PROXY_PREFIXES = [
   '/oauth/',
+  '/admin/',
   '/api/',
   '/.well-known/',
   '/nodeinfo',

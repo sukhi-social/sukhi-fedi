@@ -13,7 +13,7 @@ import { ok, redirect, route, type Ctx, type Reply } from '../http.ts';
 import { LOCALES, LOCALE_NAMES, type TranslationKey } from '../i18n.ts';
 import { saveSession } from '../session.ts';
 import { delayWords } from '../time.ts';
-import type { Account } from '../types.ts';
+import { isAdmin, type Account } from '../types.ts';
 import { layout } from '../views/layout.ts';
 import { avatar } from '../views/parts.ts';
 import { nameOf } from '../views/account.ts';
@@ -79,6 +79,13 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
           <li><a class="chip" href="/settings/data">${t('settings.data')}</a></li>
         </ul>
       </nav>
+      ${isAdmin(me.role?.name)
+        ? html`<form method="post" action="/settings/admin" class="stack-tight">
+            <h2 class="text-base">${t('settings.admin')}</h2>
+            <p class="muted text-sm">${t('settings.adminDesc')}</p>
+            <button type="submit" class="chip">${t('settings.adminEnter')}</button>
+          </form>`
+        : ''}
       <form class="settings-form" method="post" action="/settings" enctype="multipart/form-data">
         <p class="muted">@${me.acct}</p>
 
@@ -263,4 +270,33 @@ route('POST', '/settings', async (ctx) => {
     if (e instanceof GatewayError || e instanceof TypeError) return settingsPage(ctx, me, v, failText(ctx, e), e instanceof GatewayError && e.status === 422 ? 422 : 502);
     throw e;
   }
+});
+
+// ── 管理ページへ ──
+// 管理ページ(gateway の /admin)は、自分の cookie で入る。トークンはブラウザに渡さないので、
+// ここ(サーバ)が代わりに /admin/login へ置き、返ってきた cookie をブラウザへ渡す。
+// 入れるかどうかの判定は gateway(is_admin を毎回確かめる)の仕事。ここは、案内だけ。
+route('POST', '/settings/admin', async (ctx) => {
+  const me = await needMe(ctx);
+  const token = ctx.session?.token?.access_token;
+  if (!isAdmin(me.role?.name) || !token) return redirect('/settings');
+  let res: Response;
+  try {
+    res = await fetch(`${config.gateway}/admin/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token }),
+      redirect: 'manual'
+    });
+  } catch {
+    ctx.flash('error', ctx.t('check.err.internal_error'));
+    return redirect('/settings');
+  }
+  const cookies = res.headers.getSetCookie();
+  if (res.headers.get('location') !== '/admin' || cookies.length === 0) {
+    ctx.flash('error', ctx.t('check.err.internal_error'));
+    return redirect('/settings');
+  }
+  for (const c of cookies) ctx.cookies.push(c);
+  return redirect('/admin');
 });
