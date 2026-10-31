@@ -83,12 +83,17 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
 <html lang="${ctx.locale}">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
   <meta name="description" content="${p.description ?? 'しずかな Fediverse のお家。'}" />
   <title>${title}</title>
   <link rel="icon"${/\.svg(\?|$)/i.test(config.siteLogo) ? html` type="image/svg+xml"` : ''} href="${config.siteLogo}" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="application-name" content="${config.siteName}" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="${config.siteName}" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="theme-color" content="#fffaf3" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#1f1915" media="(prefers-color-scheme: dark)" />
   <link rel="stylesheet" href="${assetUrl('/assets/vendor/unpoly/unpoly.min.css')}" />
@@ -97,9 +102,14 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
   <link rel="stylesheet" href="${assetUrl('/assets/css/extra.css')}" />
   <script src="${assetUrl('/assets/vendor/unpoly/unpoly.min.js')}"></script>
   <script src="${assetUrl('/assets/js/app.js')}"></script>
+  <script defer src="${assetUrl('/assets/js/pwa.js')}"></script>
   <script defer src="${assetUrl('/assets/vendor/alpine/cdn.min.js')}"></script>
 </head>
 <body>
+  <div id="net-banner" class="net-banner" role="status" hidden>
+    <span>${ctx.t('net.offline')}</span>
+    <button type="button" class="net-banner-retry">${ctx.t('net.retry')}</button>
+  </div>
   ${p.me ? appNav(ctx, p.me) : ''}
   <main class="wrap stack" up-main>
     ${p.entrance ? entranceBar(ctx) : ''}

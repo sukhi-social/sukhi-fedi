@@ -163,6 +163,21 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
         </div>
       </form>
 
+      <section class="settings-form stack-tight" x-data="pushToggle" x-show="state !== 'unconfigured'" x-cloak>
+        <h2 class="text-base">${t('push.title')}</h2>
+        <p class="muted text-sm">${t('push.hint')}</p>
+        <p class="muted text-sm" x-show="state === 'working'">${t('push.working')}</p>
+        <p class="muted text-sm" x-show="state === 'unsupported'" x-cloak>${t('push.unsupported')}</p>
+        <p class="muted text-sm" x-show="state === 'denied'" x-cloak>${t('push.denied')}</p>
+        <p class="muted text-sm" x-show="state === 'reauth'" x-cloak>${t('push.reauth')} <a href="/login?again=true">${t('push.reauthLink')}</a></p>
+        <p class="muted text-sm" x-show="state === 'on'" x-cloak>${t('push.enabled')}</p>
+        <p class="error" role="alert" x-show="failed" x-cloak>${t('push.failed')}</p>
+        <div class="hstack" style="--gap: var(--space-2)">
+          <button type="button" class="btn primary px-6 py-2" x-show="state === 'off'" x-cloak @click="enable()">${t('push.on')}</button>
+          <button type="button" class="btn px-6 py-2" x-show="state === 'on'" x-cloak @click="disable()">${t('push.off')}</button>
+        </div>
+      </section>
+
       <form class="settings-form" method="post" action="/lang">
         <input type="hidden" name="next" value="/settings" />
         <section class="stack-tight">

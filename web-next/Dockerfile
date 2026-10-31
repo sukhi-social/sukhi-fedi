@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # web-next(Unpoly + Alpine.js の MPA)の郵便局。gateway の前に立ち、
 # /api /oauth /nodeinfo /users /inbox などはそのまま通す。
-# Node 24 は型をそのまま読むので、ビルドは要らない ── 依存を入れるだけ。
+# Node 24 は型をそのまま読むので、サーバーにビルドは要らない ── 依存を入れるだけ。
+# ひとつだけ例外: service worker(sw/sw.js)を Serwist ごと public/sw.js に束ねる(build stage)。
 #
 # 書くものが一つある: /app/data に、セッション(sessions.json)と OAuth の
 # アプリ登録(client.json)。volume に出さないと、deploy のたびに全員が
@@ -14,6 +15,15 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod
 
+FROM node:24.22.1-alpine AS sw
+WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY scripts ./scripts
+COPY sw ./sw
+RUN node scripts/build-sw.mjs
+
 FROM node:24.22.1-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000
@@ -21,6 +31,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY server ./server
 COPY public ./public
+COPY --from=sw /app/public/sw.js ./public/sw.js
 # volume の持ち主は、箱の側で uid 1000(node)にそろえる。
 RUN mkdir data && chown node:node data
 EXPOSE 3000
