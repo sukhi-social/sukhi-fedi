@@ -51,6 +51,18 @@ const upKey = {
 
 const ok200 = new CacheableResponsePlugin({ statuses: [200] });
 
+// 前に立つ proxy が返す 502/503/504 は「応え」ではなく「落ちている」ということ。そのまま通すと、ホーム画面から
+// 開いた PWA は、戻るも再読み込みも無い素の エラー頁で止まる。fetch の失敗として扱えば、NetworkFirst は
+// 置いてある頁に倒れ、無ければ下の catch handler が「もういちど」つきの画面を出す。
+// (郵便局が自分で返す 502 も同じ扱い。どちらも、人にできることは「もういちど」だけ。)
+const UPSTREAM_DOWN = new Set([502, 503, 504]);
+const upstreamDown = {
+  fetchDidSucceed: async ({ response }) => {
+    if (UPSTREAM_DOWN.has(response.status)) throw new Error(`upstream ${response.status}`);
+    return response;
+  }
+};
+
 const runtimeCaching = [
   // 中身で URL が決まるもの(?v=、fonts、vendor、emoji)。変わらないので、置いたら、そのまま。
   {
@@ -87,13 +99,14 @@ const runtimeCaching = [
     handler: new NetworkFirst({
       cacheName: PAGES,
       networkTimeoutSeconds: 4,
-      plugins: [upKey, ok200, new ExpirationPlugin({ maxEntries: 40, maxAgeSeconds: 3 * DAY, purgeOnQuotaError: true })]
+      plugins: [upKey, upstreamDown, ok200, new ExpirationPlugin({ maxEntries: 40, maxAgeSeconds: 3 * DAY, purgeOnQuotaError: true })]
     })
   },
   // ほかの navigate。置かずに、ただ通す ── 落ちていたら、下の「つながっていません」が出る。
   {
     matcher: ({ request, url }) => request.mode === 'navigate' && here(url) && !UNTOUCHED.test(url.pathname),
-    handler: new NetworkOnly()
+    // 返事が来ないまま固まらないよう、15 秒で諦めて画面を出す。
+    handler: new NetworkOnly({ networkTimeoutSeconds: 15, plugins: [upstreamDown] })
   }
 ];
 
@@ -113,8 +126,8 @@ const serwist = new Serwist({
 // サーバにも CSS にも頼らない、これ一枚(ほんとうに落ちているときに出すものだから)。
 // 責めないで、帰り道(もういちど)を置く。つながったら、自分で戻る。
 const OFFLINE = {
-  ja: { title: 'いまは、つながっていません', body: 'ネットワークに届きませんでした。つながったら、続きを読めます。', retry: 'もういちど' },
-  ko: { title: '지금은 연결되어 있지 않아요', body: '네트워크에 닿지 않았어요. 연결되면 이어서 읽을 수 있어요.', retry: '다시 해보기' }
+  ja: { title: 'いまは、つながっていません', body: 'ネットワークか、サーバーに届きませんでした。少し待って、もういちど試してください。', retry: 'もういちど' },
+  ko: { title: '지금은 연결되어 있지 않아요', body: '네트워크나 서버에 닿지 않았어요. 잠시 후 다시 해보세요.', retry: '다시 해보기' }
 };
 
 function offlinePage() {

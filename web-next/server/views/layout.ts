@@ -107,7 +107,8 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
 </head>
 <body>
   <div id="net-banner" class="net-banner" role="status" hidden>
-    <span>${ctx.t('net.offline')}</span>
+    <span data-net="offline">${ctx.t('net.offline')}</span>
+    <span data-net="server" hidden>${ctx.t('net.server')}</span>
     <button type="button" class="net-banner-retry">${ctx.t('net.retry')}</button>
   </div>
   ${p.me ? appNav(ctx, p.me) : ''}
