@@ -707,10 +707,97 @@ function signupStepError(ctx: Ctx, e: unknown): string {
 
 route("GET", "/signup", async (ctx) => {
   if (ctx.session?.token) return redirect("/");
+  // 招待リンクの玄関(/invite/:code)から来たときは、コードを欄に入れておく。
+  const fromInvite = ctx.url.searchParams.get("invite") ?? "";
+  const draft = ctx.session?.signupDraft;
   return signupPage(ctx, {
-    ...ctx.session?.signupDraft,
+    ...draft,
+    invite: fromInvite || draft?.invite,
     needInvite: await inviteRequired(ctx),
   });
+});
+
+// ── 招待リンクの玄関(/invite/:code)────────────────────────────
+// gateway の GET /api/v1/invite/:code は、死んだコードにも 200 + valid:false を返す
+// (理由は invalid / already_used / expired)。確認するだけで、コードは使わない。
+type InvitePreview =
+  | {
+      valid: true;
+      issuer_handle: string | null;
+      issuer_display_name: string | null;
+    }
+  | { valid: false; reason?: string };
+
+route("GET", "/invite/:code", async (ctx) => {
+  if (ctx.session?.token) return redirect("/");
+  const t = ctx.t;
+  const code = ctx.params.code;
+  const page = (inner: SafeHtml, status = 200): Reply =>
+    ok(
+      layout(ctx, {
+        title: t("invite.deadTitle"),
+        entrance: true,
+        body: html`<div class="measure">${inner}</div>`,
+      }),
+      status,
+    );
+
+  let preview: InvitePreview;
+  try {
+    preview = await gwJson<InvitePreview>(
+      ctx,
+      "GET",
+      `/api/v1/invite/${encodeURIComponent(code)}`,
+      { auth: false },
+    );
+  } catch {
+    return page(
+      html`<section class="hero"><p class="tagline">${t("invite.error")}</p></section>
+        <p>
+          <a class="btn px-6 py-2" href="/invite/${encodeURIComponent(code)}"
+            >${t("invite.retry")}</a
+          >
+        </p>`,
+      503,
+    );
+  }
+
+  if (!preview.valid) {
+    const reason = preview.reason;
+    const key: TranslationKey =
+      reason === "already_used"
+        ? "invite.dead.already_used"
+        : reason === "expired"
+          ? "invite.dead.expired"
+          : "invite.dead.invalid";
+    return page(
+      html`<section class="hero">
+          <h1>${t("invite.deadTitle")}</h1>
+          <p class="tagline">${t(key)}</p>
+        </section>
+        <p class="prose-small">${t("invite.deadHelp")}</p>
+        <p class="prose-small"><a href="/signup">${t("invite.toSignup")}</a></p>`,
+      404,
+    );
+  }
+
+  const name = preview.issuer_display_name?.trim();
+  const issuer =
+    name || (preview.issuer_handle ? "@" + preview.issuer_handle.replace(/^@/, "") : "");
+  return page(
+    html`<section class="hero">
+        <h1>${t("invite.welcomePre")}${ctx.url.host}${t("invite.welcomePost")}</h1>
+        <p class="tagline">
+          ${issuer ? t("invite.invitedBy", { who: issuer }) : t("invite.invitedAnon")}
+        </p>
+      </section>
+      <p class="prose-small">${t("invite.intro")}</p>
+      <p>
+        <a class="btn primary px-6 py-2" href="/signup?invite=${encodeURIComponent(code)}"
+          >${t("invite.join")}</a
+        >
+      </p>`,
+  );
 });
 
 route("POST", "/signup", async (ctx) => {

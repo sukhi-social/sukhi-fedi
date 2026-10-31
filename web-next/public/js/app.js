@@ -28,7 +28,7 @@ up.form.config.noSubmitSelectors.push(
   'form[action^="/logout"]',
   'form[action^="/oauth"]',
   'form[action^="/api"]',
-  'form[action^="/locale"]',
+  'form[action^="/lang"]',
 );
 
 // 先読みは、指が乗って少し経ってから。急がない。

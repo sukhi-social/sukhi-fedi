@@ -330,7 +330,7 @@ const ROUTES = [
     registrations: { enabled: true, approval_required: true }
   })],
   ['/api/map', () => MAP],
-  [/^\/api\/v1\/invite\/[^/]+$/, () => ({
+  [/^\/api\/v1\/invite\/[^/]+$/, (m) => /\/dead$/.test(m[0]) ? ({ valid: false, reason: 'invalid' }) : ({
     valid: true,
     issuer_handle: '@hinata@natadeco.com',
     issuer_display_name: 'ひなた'
