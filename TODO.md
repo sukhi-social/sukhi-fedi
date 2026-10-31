@@ -122,6 +122,21 @@ endpoint surface is mapped out in [`docs/MISSKEY_API.md`](docs/MISSKEY_API.md).
       capability that returns `{upload_url, fields}`. Design in
       [OPEN_QUESTIONS Q5](OPEN_QUESTIONS.md#q5-メディア-8-mib--presigned-url-の-capability-形).
 
+- [ ] **メディアプロキシ (`/proxy/avatar|header/*`) を Rust の別サービスに分ける.**
+      動機は「動作がわかりやすくなる」こと。いまは `MediaProxyController` が
+      本体の中で相手の URL を取りにいっていて、失敗の場所が見えにくい
+      (2026-10-31: `upstream/2` が Req に `:finch` と `:connect_options` を
+      両方渡して `ArgumentError`、リモートの avatar/header が全部 504 になった。
+      ログを見るまで原因が分からなかった)。
+      案: 本体が `HMAC(url, size, 期限)` つきの URL を作り、Rust 側は鍵だけ持つ
+      状態なしの形にする(DB は持たせない)。付随して、取りにいく先の遮断
+      (UrlGuard 相当)・タイムアウト・サイズ上限は Rust 側に一本化する。
+      Quadlet / GHCR combined の流れに一つ足りるかは要確認。
+      軽い代案: nginx `proxy_cache` + Cloudflare のキャッシュで足りるなら、
+      Elixir は取りにいくだけ残す。
+      **先にやる:** 分離とは別に、`:finch` / `:connect_options` の衝突は
+      本番の版で直す(1 行)。
+
 - [ ] **混んでいるときの表示を、正直に、ゆったりと (クライアント)。**
       (1) **SPA の白紙を解く。** 混雑のときだけでなく、ふだんも白紙の状態が長い
       (ひなたさんの報告)。原因は未調査 (SSR の遅さか、JS の読み込み待ちか、API の
