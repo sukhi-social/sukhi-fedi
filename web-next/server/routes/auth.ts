@@ -88,7 +88,7 @@ async function sendLoginCode(ctx: Ctx, email: string): Promise<Reply> {
     // 知らないアドレスにも 200 が返る(居る/居ないを言わない)ので、送った前提で次の画面へ。
     await gw(ctx, "POST", "/login/email/request", {
       auth: false,
-      json: { email },
+      json: { email, lang: ctx.locale },
     });
     return loginPage(ctx, { method: "email", step: "code", email });
   } catch (e) {
@@ -114,7 +114,7 @@ async function sendSignupCode(
   try {
     await gw(ctx, "POST", "/signup/email/request", {
       auth: false,
-      json: { email: v.email },
+      json: { email: v.email, lang: ctx.locale },
     });
     return signupPage(ctx, { ...view, step: "code" });
   } catch (e) {
