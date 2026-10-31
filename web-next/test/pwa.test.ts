@@ -95,7 +95,13 @@ test('頁の枠: 名前・全画面・つながっていない帯・pwa.js が�
   assert.match(page, /viewport-fit=cover/);
   assert.match(page, /id="net-banner"[^>]*hidden/);
   assert.match(page, /\/assets\/js\/pwa\.js\?v=/);
-  assert.match(page, /id="pwa-install-dialog"[^>]*hidden/);
+});
+
+test('/welcome: 歓迎の専用頁で、チュートリアル形式の PWA インストール推薦ができる', async () => {
+  const res = await fetch(`${BASE}/welcome`);
+  assert.equal(res.status, 200);
+  const page = await res.text();
+  assert.match(page, /data-welcome-page/);
   assert.match(page, /data-pwa-step="welcome"/);
   assert.match(page, /data-pwa-step="prompt"/);
   assert.match(page, /data-pwa-step="installed"/);
@@ -103,9 +109,10 @@ test('頁の枠: 名前・全画面・つながっていない帯・pwa.js が�
   assert.match(page, /data-pwa-next/);
   assert.match(page, /data-pwa-install/);
   assert.match(page, /data-pwa-dismiss/);
+  assert.match(page, /data-pwa-start/);
 });
 
-test('pwa.js: Chrome の beforeinstallprompt を受け止め、歓迎のウィンドウからインストール推薦を行う', () => {
+test('pwa.js: Chrome の beforeinstallprompt を受け止め、歓迎の頁からインストール推薦を行う', () => {
   const src = readFileSync('public/js/pwa.js', 'utf8');
   assert.match(src, /addEventListener\("beforeinstallprompt"/);
   assert.match(src, /addEventListener\("appinstalled"/);

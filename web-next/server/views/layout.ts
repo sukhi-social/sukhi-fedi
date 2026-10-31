@@ -111,39 +111,6 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
     <span data-net="server" hidden>${ctx.t('net.server')}</span>
     <button type="button" class="net-banner-retry">${ctx.t('net.retry')}</button>
   </div>
-  <aside id="pwa-install-dialog" class="pwa-install-dialog" role="dialog" aria-modal="true" aria-labelledby="pwa-install-title" hidden>
-    <div class="pwa-install-card stack">
-      <div class="pwa-install-step" data-pwa-step="welcome">
-        <h2 id="pwa-install-title" class="text-base">${ctx.t('pwa.welcomeTitle')}</h2>
-        <p class="prose-small">${ctx.t('pwa.welcomeDesc')}</p>
-        <div class="pwa-install-actions">
-          <button type="button" class="btn primary px-4 py-2" data-pwa-next>${ctx.t('pwa.welcomeNext')}</button>
-        </div>
-      </div>
-      <div class="pwa-install-step stack" data-pwa-step="prompt" hidden>
-        <h2 class="text-base">${ctx.t('pwa.installTitle')}</h2>
-        <p class="prose-small">${ctx.t('pwa.installBanner')}</p>
-        <div class="pwa-install-actions">
-          <button type="button" class="btn primary px-4 py-2" data-pwa-install>${ctx.t('pwa.installBtn')}</button>
-          <button type="button" class="btn secondary px-4 py-2" data-pwa-dismiss>${ctx.t('pwa.dismissBtn')}</button>
-        </div>
-      </div>
-      <div class="pwa-install-step stack" data-pwa-step="installed" hidden>
-        <h2 class="text-base">${ctx.t('pwa.installedTitle')}</h2>
-        <p class="prose-small">${ctx.t('pwa.installedMsg')}</p>
-        <div class="pwa-install-actions">
-          <button type="button" class="btn primary px-4 py-2" data-pwa-close>${ctx.t('pwa.closeBtn')}</button>
-        </div>
-      </div>
-      <div class="pwa-install-step stack" data-pwa-step="skipped" hidden>
-        <h2 class="text-base">${ctx.t('pwa.skippedTitle')}</h2>
-        <p class="prose-small">${ctx.t('pwa.skippedMsg')}</p>
-        <div class="pwa-install-actions">
-          <button type="button" class="btn primary px-4 py-2" data-pwa-close>${ctx.t('pwa.closeBtn')}</button>
-        </div>
-      </div>
-    </div>
-  </aside>
   ${p.me ? appNav(ctx, p.me) : ''}
   <main class="wrap stack" up-main>
     ${p.entrance ? entranceBar(ctx) : ''}

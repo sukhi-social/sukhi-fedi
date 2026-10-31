@@ -225,83 +225,28 @@ document.addEventListener("alpine:init", () => {
 });
 
 // ── インストールの推薦 (Chrome / Chromium) ────────────────────────
-// Chrome の `beforeinstallprompt` を受け止め、勝手には出さずに、
-// 歓迎のウィンドウから人が押したときにだけ `prompt()` を開く。
-// 既に standalone のときや、閉じた記録があるときは静かにする。
+// Chrome の `beforeinstallprompt` を受け止め、勝手には出さずに保持する。
+// 歓迎の専用頁(/welcome)で、人が押したときにだけ `prompt()` を開く。
 {
-  const DIALOG_ID = "pwa-install-dialog";
-  const SNOOZE_KEY = "sukhi.pwaInstall.dismissed";
   let deferredPrompt = null;
-  let currentStep = "welcome";
-
-  const isStandalone = () =>
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.matchMedia("(display-mode: minimal-ui)").matches ||
-    navigator.standalone === true;
-
-  const isSnoozed = () => {
-    try {
-      const until = Number(localStorage.getItem(SNOOZE_KEY) ?? "0");
-      return Date.now() < until;
-    } catch {
-      return false;
-    }
-  };
-
-  const setSnooze = (snoozeDays = 0) => {
-    if (snoozeDays > 0) {
-      try {
-        localStorage.setItem(
-          SNOOZE_KEY,
-          String(Date.now() + snoozeDays * 24 * 60 * 60 * 1000)
-        );
-      } catch {}
-    }
-  };
 
   const setStep = (stepName) => {
-    currentStep = stepName;
-    const dialog = document.getElementById(DIALOG_ID);
-    if (!dialog) return;
-    for (const el of dialog.querySelectorAll("[data-pwa-step]")) {
+    const container = document.querySelector("[data-welcome-page]");
+    if (!container) return;
+    for (const el of container.querySelectorAll("[data-pwa-step]")) {
       el.hidden = el.getAttribute("data-pwa-step") !== stepName;
     }
-  };
-
-  const showDialog = () => {
-    if (isStandalone() || isSnoozed() || !deferredPrompt) return;
-    const dialog = document.getElementById(DIALOG_ID);
-    if (dialog) {
-      setStep(currentStep || "welcome");
-      dialog.hidden = false;
-    }
-  };
-
-  const hideDialog = (snoozeDays = 0) => {
-    const dialog = document.getElementById(DIALOG_ID);
-    if (dialog) dialog.hidden = true;
-    setSnooze(snoozeDays);
   };
 
   window.addEventListener("beforeinstallprompt", (e) => {
     // ブラウザの自動ポップアップを抑え、自前の UI で出す
     e.preventDefault();
     deferredPrompt = e;
-    showDialog();
   });
 
   window.addEventListener("appinstalled", () => {
     deferredPrompt = null;
     setStep("installed");
-    const dialog = document.getElementById(DIALOG_ID);
-    if (dialog) dialog.hidden = false;
-  });
-
-  // Unpoly で <main> や周囲が差し替わったときにも、状態を保つ
-  document.addEventListener("up:fragment:inserted", () => {
-    const dialog = document.getElementById(DIALOG_ID);
-    if (dialog && !dialog.hidden) return;
-    if (deferredPrompt) showDialog();
   });
 
   document.addEventListener("click", async (e) => {
@@ -318,8 +263,13 @@ document.addEventListener("alpine:init", () => {
 
     // インストール実行ボタン
     const installBtn = target.closest("[data-pwa-install]");
-    if (installBtn && deferredPrompt) {
+    if (installBtn) {
       e.preventDefault();
+      if (!deferredPrompt) {
+        // すでにインストール済み、あるいはブラウザが prompt を直接提供しない場合
+        setStep("skipped");
+        return;
+      }
       installBtn.setAttribute("disabled", "true");
       try {
         await deferredPrompt.prompt();
@@ -328,11 +278,9 @@ document.addEventListener("alpine:init", () => {
           setStep("installed");
         } else {
           setStep("skipped");
-          setSnooze(14);
         }
       } catch {
         setStep("skipped");
-        setSnooze(14);
       } finally {
         deferredPrompt = null;
         installBtn.removeAttribute("disabled");
@@ -345,15 +293,6 @@ document.addEventListener("alpine:init", () => {
     if (dismissBtn) {
       e.preventDefault();
       setStep("skipped");
-      setSnooze(7);
-      return;
-    }
-
-    // 「閉じる / はじめる」ボタン
-    const closeBtn = target.closest("[data-pwa-close]");
-    if (closeBtn) {
-      e.preventDefault();
-      hideDialog(7);
       return;
     }
   });
