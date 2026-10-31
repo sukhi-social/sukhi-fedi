@@ -493,4 +493,8 @@ git status
       - 韓国語の分かち書き。Sudachi サーバーの選定(`Tokenizer.Sudachi` の契約は決めてある)。
       - 掃除は `SUKHI_GRAPH_SWEEP=execute` にするまで dry-run。ログの報告を見てから切り替える。
       - LMDB は retract してもファイルが縮まない。`dtlv copy -c` の詰め直しを運用に入れる。
-
+- [ ] **Pull Federation の一括取得(フォロー分 + リレー分)** — 下書きは
+      `docs/PULL_FEDERATION_BULK.md`。相手のサーバーに、こちらがフォローしている actor を
+      アクター別 ETag で照合して一度に頼み、リレーの証があれば相手のフォロー分も取る。
+      先に `docs/FEDERATION_REDUCER.md` の状態(`:object/ver`、`:pending/*`、`:stream/*`)を
+      Datalevin に置くところから。決め待ちは両文書の末尾の Q。
