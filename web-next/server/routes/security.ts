@@ -300,7 +300,8 @@ async function securityPage(ctx: Ctx, o: Opts = {}): Promise<Reply> {
           <div class="hstack" style="--gap: var(--space-2)">
             <a class="chip" href="/settings/password">${t('settings.changePassword')}</a>
           </div>
-          ${fold(
+          ${a.email_verified
+            ? fold(
             'pw-remove',
             t('security.passwordRemove'),
             html`<form class="stack" method="post" action="/settings/security/password/remove">
@@ -312,7 +313,8 @@ async function securityPage(ctx: Ctx, o: Opts = {}): Promise<Reply> {
               </label>
               <div><button type="submit" class="btn px-6 py-2">${t('security.passwordRemove')}</button></div>
             </form>`
-          )}`
+          )
+            : html`<p class="prose-small">${t('security.passwordRemoveNeedsEmail')}</p>`}`
       : html`<p class="muted">${t('security.passwordNone')}</p>
           <p><a class="chip" href="/settings/password">${t('security.passwordSet')}</a></p>`}
     ${err('password')}

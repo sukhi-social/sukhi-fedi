@@ -446,6 +446,7 @@ export const ja = {
   'security.passwordRemove': 'やめる',
   'security.passwordRemoveHelp':
     'あいことばを外します。これからは、メールのコード（やパスキー）で入ります。',
+  'security.passwordRemoveNeedsEmail': 'あいことばをやめるには、先に、上のメールアドレスの確認を済ませてください。',
   'security.needRelogin': '設定を変えるには、もう一度入りなおしてください。',
   'security.accountMismatch':
     'いまここの設定は「@{acct}」のものです。いま見ているアカウントの設定を変えたいときは、もう一度ログインしなおしてください。',
