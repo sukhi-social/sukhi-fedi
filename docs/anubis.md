@@ -32,6 +32,11 @@ PoW」ではなく「久しぶりに来た人は一度だけ」)。
 > へ redirect し、anubis が PoW を終えて届いたところで、OAuth を始める・アカウントを作る。
 > 行き先は session に置く一度きりで、URL の `intent` は合図にすぎない(`web-next/server/routes/auth.ts`)。
 > メールの 6 桁コードを送るのも `/check` の後(`login-email` と、加入の最初の段)── 「メールは Anubis の後」。
+>
+> **`/check` は service worker の navigation preload を受けつけない。** preload が有効だと、ブラウザは
+> 本物の要求の前に同じ GET を送って返事を捨てる。一度きりの手順(メール・OAuth)がそこで使い切られ、
+> 本物の要求は空の `/login` に戻された(Chrome Android, 2026-10-31)。SW は preload を使わず、
+> 郵便局も `Service-Worker-Navigation-Preload` 付きの `/check` には 204 を返すだけにしている。
 
 ### login
 ```
