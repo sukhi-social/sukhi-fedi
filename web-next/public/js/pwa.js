@@ -22,7 +22,13 @@ if ("serviceWorker" in navigator) {
   const banner = document.getElementById("net-banner");
   let retry = null;
 
-  const show = () => banner && (banner.hidden = false);
+  // 帯の文は二つ。ネットワークが無い / サーバーが応えない。
+  const show = (kind = "offline") => {
+    if (!banner) return;
+    for (const span of banner.querySelectorAll("[data-net]"))
+      span.hidden = span.dataset.net !== kind;
+    banner.hidden = false;
+  };
   const hide = () => {
     if (banner) banner.hidden = true;
     retry = null;
@@ -30,18 +36,30 @@ if ("serviceWorker" in navigator) {
 
   up.on("up:fragment:offline", (event) => {
     retry = event.retry;
-    show();
+    show("offline");
   });
-  addEventListener("offline", show);
+
+  // 前の proxy が 502/503/504 を返したとき。本文に <main> が無ければ(郵便局の頁ではない)、
+  // Unpoly は差し替え先を見つけられず、何も起きないまま固まる。差し替えを止めて、帯と「もういちど」を出す。
+  // 郵便局が自分で組んだ頁(<main> がある)は、これまでどおり差し替える。
+  up.on("up:fragment:loaded", (event) => {
+    const res = event.response;
+    if (!res || ![502, 503, 504].includes(res.status)) return;
+    if (/<main[\s>]/i.test(res.text || "")) return;
+    event.preventDefault();
+    retry = () => location.reload();
+    show("server");
+  });
+  addEventListener("offline", () => show("offline"));
   addEventListener("online", hide);
-  if (!navigator.onLine) show();
+  if (!navigator.onLine) show("offline");
 
   banner?.querySelector("button")?.addEventListener("click", () => {
     const again = retry;
     hide();
     if (again) again();
     else if (navigator.onLine) location.reload();
-    else show();
+    else show("offline");
   });
 }
 

@@ -130,3 +130,22 @@ test('/push/subscribe: 別の origin からの POST は、戸が閉まってい�
   });
   assert.equal(res.status, 403);
 });
+
+// ── 落ちているとき ──────────────────────────────────────────────
+test('頁の枠: 「サーバーが応えない」の文も帯に入っている(隠れた状態で)', async () => {
+  const page = await (await fetch(`${BASE}/login`)).text();
+  assert.match(page, /data-net="offline"/);
+  assert.match(page, /data-net="server"[^>]*hidden/);
+});
+
+test('service worker: 502/503/504 は fetch の失敗として扱い、頁にはエラー画面を出す', () => {
+  const src = readFileSync('sw/sw.js', 'utf8');
+  assert.match(src, /UPSTREAM_DOWN = new Set\(\[502, 503, 504\]\)/);
+  assert.match(src, /networkTimeoutSeconds: 15/);
+});
+
+test('pwa.js: Unpoly の 502 で、差し替えを止めて帯を出す', () => {
+  const src = readFileSync('public/js/pwa.js', 'utf8');
+  assert.match(src, /up:fragment:loaded/);
+  assert.match(src, /\[502, 503, 504\]/);
+});
