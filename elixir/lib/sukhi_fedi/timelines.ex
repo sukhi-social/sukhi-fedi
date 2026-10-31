@@ -94,23 +94,36 @@ defmodule SukhiFedi.Timelines do
     load_notes = fn ->
       Note
       |> where([n], n.account_id in ^note_account_ids)
-      |> where([n], n.account_id not in ^excluded or like(n.in_reply_to_ap_id, ^reply_here))
+      # These five are `account not in <members> or <condition>`. With no
+      # members the clause is always true, so `gated/3` leaves it out: on
+      # Datalevin an `or` with `like`/`EXISTS` is re-checked in Elixir on
+      # every candidate row, ~1.2 s each for someone who follows a lot.
+      |> gated(excluded, fn q, ids ->
+        where(q, [n], n.account_id not in ^ids or like(n.in_reply_to_ap_id, ^reply_here))
+      end)
       |> where([n], n.visibility in ^SukhiFedi.Visibility.not_direct())
-      |> where(
-        [n],
-        n.account_id not in ^pl.only_media or
-          fragment("EXISTS (SELECT 1 FROM note_media nm WHERE nm.note_id = ?)", n.id)
-      )
-      |> where(
-        [n],
-        n.account_id not in ^pl.hide_sensitive or (n.sensitive == false and is_nil(n.cw))
-      )
-      |> where([n], n.account_id not in ^pl.hide_replies or is_nil(n.in_reply_to_ap_id))
-      |> where(
-        [n],
-        n.account_id not in ^pl.replies_to_me or is_nil(n.in_reply_to_ap_id) or
-          like(n.in_reply_to_ap_id, ^reply_here)
-      )
+      |> gated(pl.only_media, fn q, ids ->
+        where(
+          q,
+          [n],
+          n.account_id not in ^ids or
+            fragment("EXISTS (SELECT 1 FROM note_media nm WHERE nm.note_id = ?)", n.id)
+        )
+      end)
+      |> gated(pl.hide_sensitive, fn q, ids ->
+        where(q, [n], n.account_id not in ^ids or (n.sensitive == false and is_nil(n.cw)))
+      end)
+      |> gated(pl.hide_replies, fn q, ids ->
+        where(q, [n], n.account_id not in ^ids or is_nil(n.in_reply_to_ap_id))
+      end)
+      |> gated(pl.replies_to_me, fn q, ids ->
+        where(
+          q,
+          [n],
+          n.account_id not in ^ids or is_nil(n.in_reply_to_ap_id) or
+            like(n.in_reply_to_ap_id, ^reply_here)
+        )
+      end)
       # Keyword gate: a post from an author who sits in a keyword-carrying
       # (non-exclusive) list of the viewer's must match that keyword — in its
       # content, or as a hashtag when the keyword leads with `#`. Each such
@@ -451,6 +464,11 @@ defmodule SukhiFedi.Timelines do
   defp clamp_limit(_), do: @default_limit
 
   # ── helpers ──────────────────────────────────────────────────────────────
+
+  # `fun` adds an `account not in ids or …` clause; with no ids that clause is
+  # always true, so skip it rather than ask the store to evaluate an `or`.
+  defp gated(query, [], _fun), do: query
+  defp gated(query, ids, fun), do: fun.(query, ids)
 
   defp following_local_account_ids(actor_uri) do
     from(f in Follow,
