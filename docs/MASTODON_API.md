@@ -175,7 +175,7 @@ Two more private preferences ride `update_credentials` and come back under
   the rest sorted; empty clears it. Returned as `""` when none. The gateway
   does not apply it: a client reads it and sends the matching query flags to
   `/api/v1/timelines/home` itself.
-- `boost_hide_name` — boolean. A boost row leaves out whose post it is.
+- `boost_hide_name` — boolean. A boost row leaves out the booster's name.
   Display only; clients honour it.
 
 ## Lists
