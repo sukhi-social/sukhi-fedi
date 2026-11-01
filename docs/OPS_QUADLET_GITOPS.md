@@ -11,7 +11,8 @@
 ## 0. 一言で
 
 ```
-main へ push ─▶ CI が 4 つの image を焼く(同じ sha-タグ・cosign 署名)
+タグ v1.0.0 ─▶ release.yml が 5 つの image に同じ版(1.0.0)を付ける・cosign 署名
+(dev は main への push ─▶ combined-sha.yml の sha-<commit>)
                     │
                     ▼
            sukhi-infra に「ダイジェストを上げる PR」が自動で立つ
@@ -100,7 +101,7 @@ rootless、ユーザー `sukhi`、`~sukhi/.config/containers/systemd/` に置く
 - **`Wants=network-online.target` は書かない。** rootless の user unit からは system の target に効かない
   (user manager は別の systemd。効くと思って書くと、効かないまま残る)。外向きの接続は gateway が再試行する。
   Quadlet が自動で付ける依存(network / volume)に任せる。
-- 同じ sha で揃えたいのは gateway と web-* と anubis の **image**。unit 同士の起動順とは別の話(§5)。
+- sukhi の 5 つの image の版を揃えるのは `sukhi.version`(§5)。unit 同士の起動順とは別の話。
 
 ### 2.1 gateway の例(未検証)
 
@@ -113,8 +114,8 @@ After=sukhi-nats.service
 
 [Container]
 ContainerName=sukhi-gateway
-# タグ + ダイジェスト。実体はダイジェストが決める。タグは人が読む用(と更新ツール用)。
-Image=ghcr.io/sukhi-social/sukhi-fedi-combined:sha-abc1234@sha256:<64桁>
+# 版とダイジェストは overlays/<env>/sukhi.version の値で、箱の同期スクリプトが埋める(§5)。実体はダイジェストが決める。
+Image=ghcr.io/sukhi-social/sukhi-fedi-combined:{{version}}@{{digest:combined}}
 Network=sukhi.network
 Volume=sukhi-data.volume:/var/lib/sukhi:Z
 Environment=DOMAIN=example.tld SUKHI_STORE=datalevin DATALEVIN_DIR=/var/lib/sukhi/datalevin
@@ -153,19 +154,21 @@ WantedBy=default.target
 
 ### 3.1 CI(sukhi-fedi 側)
 
-1. main への push で `combined-sha.yml` が 4 つの image を **同じ `sha-<commit>`** で出し、cosign で署名する(いま動いている)。
-2. 追加: 各 image の**ダイジェスト**を job の出力にし、最後の job が `sukhi-infra` に PR を立てる。
+1. **prod:** `v*.*.*` のタグで `release.yml` が 5 つの image(combined / web-next / web-simple / web-board / anubis)に**同じ版**(`1.0.0` `1.0` `v1`)を付け、cosign で署名する(いま動く形。タグはまだ無い)。
+   **dev:** main への push で `combined-sha.yml` が `sha-<commit>` を出し、署名する。
+2. 追加: リリース(または main)の最後の job が `scripts/bump-version.sh <env> <版>` を回して `sukhi-infra` に PR を立てる(5 つのダイジェストを `skopeo` で解決して `overlays/<env>/sukhi.version` を書き換える)。
    - 立てるのは **GitHub App のトークン**(`sukhi-infra` への `pull_requests: write` と `contents: write` の一部だけ。main へは直接書けない)。
-   - PR の中身は 4 つの `Image=` の書き換えだけ(タグ + ダイジェスト)。本文に前回からの `git log` の件名、マイグレーションの有無
+   - PR の中身は `sukhi.version` の書き換えだけ。本文に前回からの `git log` の件名、マイグレーションの有無
      (Datalevin は無し)、データ形が変わるかの印(§7)を載せる。
-3. 4 つが**そろっていなければ PR を立てない**(「どこも同じ sha」の約束。SERVER_SHELL.md §5.1)。
+3. 5 つのうち 1 つでも解決できなければ書き換えない(`bump-version.sh` は全部解決してから書く)。
+   **この CI の job はまだ無い。** 当面は手で `scripts/bump-version.sh` を回して PR を出す。
 
 ### 3.2 sukhi-infra(承認の関所)
 
 - 必須チェック(PR 上で走る):
-  - **署名検証**: PR が指す 4 つのダイジェストすべてに `cosign verify`(身元は `release.yml@refs/tags/v*` か `combined-sha.yml@refs/heads/main`。`sukhi-swap-image.sh` と同じ正規表現)。
+  - **署名検証**: 埋めたあとの sukhi の image すべてに `cosign verify`(身元は `release.yml@refs/tags/v*` か `combined-sha.yml@refs/heads/main`。`sukhi-swap-image.sh` と同じ正規表現)。
   - **Quadlet の文法検査**: `podman-system-generator --dryrun` 相当(または `quadlet -dryrun`)を CI で回し、unit が生成できることを見る。
-  - 4 つの `Image=` のタグ(sha)が一致していること。
+  - `sukhi.version` の形(prod は semver、dev は semver か `sha-<commit>`、digest が 5 つ揃う、`requires-sync` がある)。埋め方は sukhi-setup の `sukhi-render` を使う(`scripts/check.sh`)。
 - 人が読んで承認する。**PR を立てた bot は承認できない。**
 
 ### 3.3 箱(同期)
@@ -245,13 +248,26 @@ WantedBy=default.target
 | Podman の版 | `HealthOnFailure=` `Notify=healthy` などのキーは Podman の版で入った時期が違う。**箱の版で `man podman-systemd.unit` を確かめてから確定**(§12-6)。効かないキーは systemd が警告して無視する場合と、unit が生成されない場合がある |
 | 深いヘルス | `/up` は「BEAM が答える」だけ。Datalevin が開けたか・キューが詰まっていないかは別の口が要る(OPS_UPDATE_QUADLET.md §6 の未確認と同じ) |
 
-## 5. 4 つの image を「同じ sha」で揃える
+## 5. 版を `sukhi.version` に集約する
 
-- 揃えるのは **PR の単位**。1 つの PR が 4 つの `Image=` を同時に書き換え、1 回の同期が全部の `try-restart` を通す。
-  部分的に上がった状態を作らない(途中で失敗したら全体を last-good に戻す = §3.5)。
-- sha タグは**バージョンとして順序を持たない**ので、Renovate のような「新しい版を探す」ツールには向かない(§9)。
-  sukhi の image は CI の bump に任せ、第三者の image(NATS など)だけ Renovate にする。
-- v1.0.0 以降の公開向けタグ(`v1` `0.4.14`)は、sukhi-infra では使わない(公開 compose の人向け)。**本番は `sha-` + ダイジェスト**。
+決定(ひなた, 2026-11-01): sukhi-infra は**期待する版を 1 か所に書く**。`overlays/<env>/sukhi.version`:
+
+```
+requires-sync: 1                  # この形式を読める同期スクリプトの版。古い箱は適用せず通知する
+version: 1.0.0                    # prod はリリースの semver、dev は main の sha-<commit>
+digest.combined: sha256:<64桁>    # web-next / web-simple / web-board / anubis も同じ
+```
+
+- base の unit は `Image=ghcr.io/sukhi-social/sukhi-fedi-<name>:{{version}}@{{digest:<name>}}`。**埋めるのは sukhi-setup の `bin/sukhi-render` の一か所**
+  (箱の同期と sukhi-infra の CI が同じものを使う。infra の中に埋め方を置くと、infra を書き換えた人が検証の仕組みごと書き換えられる)。
+  知らない記法・manifest に無いキーは失敗する(Quadlet に `{{ }}` が渡らない)。第三者の image(nats)は素の `<name>:<tag>@sha256:…`。
+- **5 つの image が同じ版で揃う**のは、タグを 1 回打つと 5 つに付くことと、manifest が 1 か所であることで守られる。
+  部分的に上がった状態を作らない(1 回の同期が全部の `try-restart` を通し、途中で失敗したら全体を last-good に戻す = §3.5)。
+- 変化の検出は**埋めたあとの `Image=` の差**。`digest.combined` だけ変われば gateway だけ、版を上げれば 5 つの unit が動く(nats は動かない)。
+- **prod は厳密な版 + ダイジェスト**(`1.0.0@sha256:…`)。`v1` / `latest` のような動くタグは書かない。dev は `sha-<commit>` で main に追従。
+- semver なので順序があり、Renovate でも扱える見込みだが、`{{version}}` の形は Renovate の Quadlet マネージャが読めない。当面は `bump-version.sh` で上げ、
+  第三者の image だけ Renovate にする(§9)。
+- 代償: prod に出すたびに `vX.Y.Z` のタグを切る。
 
 ## 6. 秘密(podman secret)
 
@@ -301,7 +317,7 @@ Renovate についての注意(どれも**要確認**):
 
 - 文書に**ドロップイン(`*.container.d/*.conf`)の言及が無い**。`Image=` は本体の `.container` に置き、ドロップインに逃がさない。
 - **ダイジェストの固定(`pinDigests`)** は Renovate の docker データソース共通の機能だが、Quadlet マネージャで効くことは文書に書かれていない。試して確かめる。
-- `ghcr.io/sukhi-social/*` の `sha-` タグは新旧を比べられないので、`packageRules` で**無効にする**(§5)。
+- sukhi の image は `{{version}}` の形で Quadlet マネージャには読めない(§5)。`overlays/<env>/sukhi.version` は `bump-version.sh` で上げ、Renovate は第三者の image だけ。
 - 向く相手: `nats:2-alpine`、Anubis の土台、その他の第三者 image。PR は sukhi-infra の同じ関所(§3.2)を通り、自動マージはしない。
 - Dependabot は使えない前提で、sukhi-infra には入れない(`sukhi-fedi` 本体の npm / mix / Actions 用には従来どおり)。
 - Renovate は GitHub App(Mend)か自前の実行のどちらか。`renovate.json` を deploy に置くだけで始まるのは App の場合。
@@ -403,7 +419,7 @@ Cockpit の導入・127.0.0.1 だけで待つ設定・SSH トンネル・ログ�
 | 1 | `sukhi-infra` に §1.1 の base を置き(`sukhi-setup` に準備の手順)、§2 の unit を置く(compose から `podlet` で下書き → 手で直す)。手で `daemon-reload` して起動 | ヘルス(`wget`)、`Notify=healthy`、`podman secret` の事前作成、`enable-linger` |
 | 2 | 同期スクリプトを **`--check`(計画だけ、変更しない)** で timer に載せる | 差分 → 変わる unit の求め方、署名検証、ログの読みやすさ |
 | 3 | 適用を有効にする(承認はまだ全部人)。失敗の戻しを**わざと壊した PR で**試す | §3.5 の reset とヘルス待ち、`rejected` が効くこと |
-| 4 | CI の bump PR(4 つの image を同じ sha で) | 部分更新が起きないこと |
+| 4 | リリース / main の最後に `bump-version.sh` を回して PR を立てる CI | 5 つが同じ版で揃うこと、解決に失敗したら何も書かないこと |
 | 5 | Renovate を第三者 image に(`pinDigests` を確かめる) | §9 の要確認 |
 
 ## 14. 今は決めない・やらないこと
