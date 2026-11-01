@@ -20,8 +20,50 @@
 // land, the directory that gets served (and pushed):
 //
 //   adapter: withRoutesManifest(adapter({ ... }), 'build')
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+
+/**
+ * SvelteKit route id → the gateway's path patterns (SukhiFedi.Web.Upstreams):
+ * `[x]` one segment (`:x`; `@[acct]` → `@:acct`), `[...x]` the rest (`*`),
+ * `[[x]]` optional (the path with and without it), `(group)` no segment.
+ *
+ * @param {string} id
+ * @returns {string[]}
+ */
+export function toClaimPaths(id) {
+  let paths = [[]];
+  for (const seg of id.split("/").filter((s) => s && !/^\(.*\)$/.test(s))) {
+    if (/^\[\[.+\]\]$/.test(seg)) {
+      const name = seg.slice(2, -2);
+      paths = paths.flatMap((p) => [p, [...p, ":" + name]]);
+    } else if (/^\[\.\.\..+\]$/.test(seg)) {
+      paths = paths.map((p) => [...p, "*"]);
+    } else {
+      paths = paths.map((p) => [...p, seg.replace(/\[([^\]]+)\]/, ":$1")]);
+    }
+  }
+  return [...new Set(paths.map((p) => "/" + p.join("/")))];
+}
+
+/**
+ * The static `/.sukhi/web.json` the gateway reads (see Upstreams): which
+ * paths this build answers. Built from the same route table as routes.json,
+ * so there is no second list.
+ *
+ * @param {string[]} routeIds
+ */
+export function webManifest(routeIds) {
+  const pages = routeIds.flatMap(toClaimPaths);
+  const assets = ["/_app/*", "/twemoji/*"];
+  return {
+    name: "web-simple",
+    claims: [...new Set([...pages, ...assets])].sort().map((path) => ({ path })),
+    // The SPA runs in the browser and talks to the gateway itself; this
+    // server never needs a cookie.
+    cookies: [],
+  };
+}
 
 /**
  * @param {import('@sveltejs/kit').Adapter} adapter
@@ -40,6 +82,11 @@ export function withRoutesManifest(adapter, dir) {
         .sort();
 
       writeFileSync(join(dir, "routes.json"), JSON.stringify({ routes }, null, 2) + "\n");
+      mkdirSync(join(dir, ".sukhi"), { recursive: true });
+      writeFileSync(
+        join(dir, ".sukhi", "web.json"),
+        JSON.stringify(webManifest(routes), null, 2) + "\n",
+      );
       builder.log.minor(`routes manifest: ${routes.length} pages`);
     },
   };

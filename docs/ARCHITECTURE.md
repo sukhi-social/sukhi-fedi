@@ -111,6 +111,23 @@ apps into a single-BEAM release for small single-box deployments
 (`docker-compose.combined.yml`). Rules 1–6 hold unchanged in either
 topology; only the process count differs.
 
+**Web fronts.** The pages people read (web-simple, web-next, web-board,
+web-lobby…) are separate processes that sit *behind* the gateway, on a
+private network; the browser reaches only the gateway, so rule 1 holds.
+Each front serves a static `/.sukhi/web.json` listing the paths it can
+answer; the operator lists the fronts' URLs (`WEB_UPSTREAMS`) and, where
+two could answer, who wins (`WEB_ROUTES`, first match wins). Paths with a
+dot-led segment (`/.well-known/…`, `/.sukhi/…`) are the gateway's alone and
+are never forwarded. Everything the gateway itself routes (`/api`,
+`/oauth`, federation, media) is matched first and is not claimable. The one
+place this is decided is `SukhiFedi.Web.Upstreams`; the one place a request
+crosses is `SukhiFedi.Web.Proxy`. Each front is its own image: `sukhi-fedi-web-simple` (`web/`, the SPA build
+and a small static server), `sukhi-fedi-web-next` (`web-next/`) and
+`sukhi-fedi-web-board` (`web-natadeco/`, the natadeco SSR; also still pushed as
+`sukhi-fedi-natadeco-ssr`). Each answers `/.sukhi/web.json` itself, generated
+from its own route table. Design notes and the migration order:
+`gateway-web-split/DESIGN.md` (project files).
+
 ## 3. Repository layout
 
 ```

@@ -23,7 +23,22 @@ function pickLang(header: string | null): 'ja' | 'ko' {
   return 'ja';
 }
 
+// gateway への申告書。gateway が前に立つとき、内側から読みに来る
+// (ドット始まりの道は、外からは取れない)。頁の見分けはここが知っている
+// ── 知らない道は 404 を返すので、gateway には「全部」と申告する。
+// 札は session_token だけ(SSR が API に渡して、入った姿を描く)。
+const WEB_MANIFEST = JSON.stringify({
+  name: 'web-board',
+  claims: [{ path: '/**' }],
+  cookies: ['session_token']
+});
+
 export const handle: Handle = async ({ event, resolve }) => {
+  if (event.url.pathname === '/.sukhi/web.json') {
+    return new Response(WEB_MANIFEST, {
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
+    });
+  }
   event.locals.lang = pickLang(event.request.headers.get('accept-language'));
   // どの玄関か。Elixir が `x-forwarded-host` に載せて渡してくる
   // (HOST_HEADER で SvelteKit の url.hostname にもなる)。

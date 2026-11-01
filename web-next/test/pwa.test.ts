@@ -149,3 +149,21 @@ test('pwa.js: Unpoly の 502 で、差し替えを止めて帯を出す', () => 
   assert.match(src, /up:fragment:loaded/);
   assert.match(src, /\[502, 503, 504\]/);
 });
+
+test('/.sukhi/web.json: gateway に渡す申告書。道は route() から作られ、札の名前だけを申告する', async () => {
+  const res = await fetch(`${BASE}/.sukhi/web.json`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') ?? '', /application\/json/);
+  const m = (await res.json()) as { name: string; cookies: string[]; claims: { methods?: string[]; path: string }[] };
+  assert.equal(m.name, 'web-next');
+  assert.deepEqual(m.cookies, ['sukhi_sid']);
+  const has = (path: string, method?: string) =>
+    m.claims.some((c) => c.path === path && (!method || (c.methods ?? ['GET', 'HEAD']).includes(method)));
+  assert.ok(has('/timeline', 'GET'));
+  assert.ok(has('/@:acct', 'GET'));
+  assert.ok(has('/compose', 'POST'));
+  assert.ok(has('/assets/*'));
+  assert.ok(has('/sw'));
+  // ドット始まりの道は、申告できない(gateway が捨てる)── 自分から出さない。
+  assert.ok(m.claims.every((c) => !c.path.split('/').some((s) => s.startsWith('.'))));
+});

@@ -12,6 +12,7 @@
     "postbuild": "node scripts/static-manifest.mjs",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "node --test \"serve/*.test.mjs\" \"scripts/*.test.mjs\"",
     "test:e2e": "playwright test",
     "shots": "pnpm run build && node shots/run.mjs",
     "mock:api": "node shots/api-server.mjs",

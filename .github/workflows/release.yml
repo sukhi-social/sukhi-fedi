@@ -53,6 +53,12 @@ jobs:
           # (`sukhi-fedi-combined:${SUKHI_VERSION:-v1}`) and Quadlet boxes run.
           - { name: combined, context: ., file: combined/Dockerfile }
           - { name: anubis, context: ./config/anubis }
+          # The web fronts that sit behind the gateway (SukhiFedi.Web.Upstreams);
+          # each carries its own /.sukhi/web.json. Their context is their own
+          # directory — none reads anything outside it.
+          - { name: web-next, context: ./web-next }
+          - { name: web-simple, context: ./web }
+          - { name: web-board, context: ./web-natadeco }
         platform:
           - { name: amd64, runner: ubuntu-24.04, docker: linux/amd64 }
           - { name: arm64, runner: ubuntu-24.04-arm, docker: linux/arm64 }
@@ -101,7 +107,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [gateway, delivery, api, combined, anubis]
+        image: [gateway, delivery, api, combined, anubis, web-next, web-simple, web-board]
     steps:
       - uses: actions/download-artifact@v4
         with:
