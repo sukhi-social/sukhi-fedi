@@ -16,6 +16,7 @@ import { avatar } from '../views/parts.ts';
 import { followButton, nameHtml, nameOf } from '../views/account.ts';
 import { statusCard } from '../views/status.ts';
 import { backOr, failText, needMe, replyAcctsFor } from './shared.ts';
+import { FILTERS } from './read.ts';
 import { renderEmojis } from '../emoji.ts';
 
 // ── 押す ────────────────────────────────────────────────────────
@@ -55,6 +56,31 @@ route('POST', '/statuses/:id/:verb', async (ctx) => {
     return backOr(ctx, await cardFor(ctx, me, s));
   }
   return redirect('/');
+});
+
+// ── ホームのデフォルトの絞りこみ ─────────────────────────────────
+// フィルターの窓の「これをデフォルトにする」。フォームに出ている絞りこみを、そのまま gateway の
+// home_filter に置く(`reset=1` なら外す)。ホームを開いたとき、最初にかかるのがこれ。
+// 値を確かめる(知らない名前を捨てる)のは gateway。ここは、フォームの形を写すだけ。
+route('POST', '/timeline/default', async (ctx) => {
+  const t = ctx.t;
+  await needMe(ctx);
+  const f = await ctx.form();
+  const clear = f.get('reset') === '1';
+  const value = clear ? '' : FILTERS.filter((k) => f.get(k) === '1').join(',');
+  const fd = new FormData();
+  fd.set('home_filter', value);
+  try {
+    const updated = await gwJson<Account>(ctx, 'PATCH', '/api/v1/accounts/update_credentials', { form: fd });
+    const s = ctx.sess();
+    s.me = updated;
+    saveSession(s);
+    ctx.flash('notice', t(clear || !value ? 'timeline.defaultCleared' : 'timeline.defaultSaved'));
+  } catch (e) {
+    if (!(e instanceof GatewayError || e instanceof TypeError)) throw e;
+    ctx.flash('error', failText(ctx, e));
+  }
+  return redirect('/timeline?kind=home');
 });
 
 route('POST', '/accounts/:id/:verb', async (ctx) => {

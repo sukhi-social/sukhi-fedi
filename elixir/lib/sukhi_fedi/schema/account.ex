@@ -6,6 +6,7 @@ defmodule SukhiFedi.Schema.Account do
   @max_fields 4
   @max_remote_fields 16
   @max_location 128
+  @home_filters ~w(hide_boosts hide_sensitive only_media)
 
   schema "accounts" do
     field :username, :string
@@ -65,6 +66,12 @@ defmodule SukhiFedi.Schema.Account do
     # is NULL until someone chooses (see the migration); grouping is opt-in.
     field :notification_hold_minutes, :integer
     field :notification_grouping, :boolean, default: false
+    # How the person likes their home timeline shown (web-next reads these
+    # back from verify_credentials). `home_filter` is the filter the home
+    # timeline starts with — a comma list of @home_filters, NULL = none.
+    # `boost_hide_name` hides whose post a boost row is about.
+    field :home_filter, :string
+    field :boost_hide_name, :boolean, default: false
     field :suspended_at, :utc_datetime
     field :suspended_by_id, :id
     field :suspension_reason, :string
@@ -236,9 +243,12 @@ defmodule SukhiFedi.Schema.Account do
       :location,
       :birthday,
       :notification_hold_minutes,
-      :notification_grouping
+      :notification_grouping,
+      :home_filter,
+      :boost_hide_name
     ])
     |> update_change(:fields, &cast_local_fields/1)
+    |> update_change(:home_filter, &normalize_home_filter/1)
     |> validate_number(:notification_hold_minutes,
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 1440
@@ -460,6 +470,22 @@ defmodule SukhiFedi.Schema.Account do
     end
   rescue
     ArgumentError -> ""
+  end
+
+  # Only the known tokens survive, sorted and de-duplicated, so the stored
+  # value is canonical; nothing left means "no default" (NULL).
+  defp normalize_home_filter(nil), do: nil
+
+  defp normalize_home_filter(v) when is_binary(v) do
+    case v
+         |> String.split(",", trim: true)
+         |> Enum.map(&String.trim/1)
+         |> Enum.filter(&(&1 in @home_filters))
+         |> Enum.uniq()
+         |> Enum.sort() do
+      [] -> nil
+      tokens -> Enum.join(tokens, ",")
+    end
   end
 
   defp normalize_credentials_attrs(attrs) when is_map(attrs) do

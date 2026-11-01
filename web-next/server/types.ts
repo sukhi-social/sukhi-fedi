@@ -46,6 +46,10 @@ export type Account = {
     fields?: { name: string; value: string }[];
     notification_hold_minutes?: number | null;
     notification_grouping?: boolean;
+    // ホームの最初の絞りこみ(hide_boosts,hide_sensitive,only_media のカンマ区切り。無ければ "")。
+    home_filter?: string;
+    // ブーストの行で、ブーストされた人の名前を隠す。
+    boost_hide_name?: boolean;
   };
   // 管理者が渡した公開バッジ（Moderator など）。color は #hex か空。
   // Misskey 式のプロフィール項目。birthday は YYYY-MM-DD。

@@ -487,3 +487,91 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
     padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
   }
 }
+
+/* ── 新着の帯 ─────────────────────────────────────────────────────
+ * 新しい投稿が届いたときだけ、列の上にそっと現れる。押すまで列は動かない。
+ * 数は出さない。屋根(.app-nav)の下に貼りつく(高さは app.js が --app-nav-h に置く)。 */
+.fresh {
+  position: sticky;
+  inset-block-start: calc(var(--app-nav-h, 3.5rem) + var(--space-2));
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  margin-block-end: var(--space-2);
+  pointer-events: none;
+}
+.fresh[hidden] { display: none; }
+.fresh-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  min-block-size: var(--tap-min, 44px);
+  padding: var(--space-2) var(--space-5);
+  font: inherit;
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-text) 12%, transparent);
+  cursor: pointer;
+}
+.fresh-text { font-weight: 700; font-size: var(--text-sm); }
+.fresh-hint { font-size: 0.75rem; line-height: 1.2; }
+@media (prefers-reduced-motion: no-preference) {
+  .fresh:not([hidden]) .fresh-btn { animation: fresh-in 240ms ease-out; }
+}
+@keyframes fresh-in {
+  from { opacity: 0; transform: translateY(-0.5rem); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── フィルターの窓 ─────────────────────────────────────────────── */
+.timeline-filter summary.chip[data-on='true'] {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-strong);
+  color: var(--color-accent-strong);
+}
+.filter-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.filter-default { margin: 0; }
+.filter-clear {
+  align-self: flex-start;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-accent-strong);
+  background: none;
+  border: 0;
+  padding: var(--space-1) 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── ブーストの畳んだ行 ───────────────────────────────────────────
+ * 左から: ブーストした人のアイコン / (ブーストされた人の名前) / ブーストの印 /
+ * ブーストされた人のアイコン / 内容(二行まで)。 */
+.boost-compact { align-items: flex-start; gap: var(--space-2); }
+.boost-row-art { flex: none; display: inline-flex; padding-block-start: 0.1rem; }
+.boost-row-who {
+  flex: 0 1 auto;
+  max-inline-size: 7em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.boost-row-mark { flex: none; display: inline-flex; padding-block-start: 0.1rem; color: var(--color-accent-strong); }
+.boost-row-mark .nav-ico { width: 1rem; height: 1rem; }
+.boost-compact .boost-compact-preview {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}

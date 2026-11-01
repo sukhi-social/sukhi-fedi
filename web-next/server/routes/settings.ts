@@ -35,6 +35,7 @@ type Values = {
   indexable: boolean;
   hold: number;
   grouping: boolean;
+  boostHideName: boolean;
 };
 
 // いまの値(verify_credentials の source から)。自己紹介は、書いたままの原文で開き直す。
@@ -50,7 +51,8 @@ function valuesOf(me: Account): Values {
     discoverable: !!me.discoverable,
     indexable: !!me.indexable,
     hold: me.source?.notification_hold_minutes ?? 0,
-    grouping: !!me.source?.notification_grouping
+    grouping: !!me.source?.notification_grouping,
+    boostHideName: !!me.source?.boost_hide_name
   };
 }
 
@@ -164,6 +166,14 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
             : ''}
         </section>
 
+        <section class="stack">
+          <h2 class="text-base">${t('settings.timeline')}</h2>
+          <div class="settings-checks">
+            ${check('boost_hide_name', t('settings.boostHideName'), v.boostHideName)}
+            <p class="muted text-sm">${t('settings.boostHideNameHint')}</p>
+          </div>
+        </section>
+
         ${error ? html`<p class="error" role="alert">${error}</p>` : ''}
         <div class="hstack" style="--gap: var(--space-3)">
           <button type="submit" class="btn primary px-6 py-2">${t('settings.save')}</button>
@@ -232,7 +242,8 @@ route('POST', '/settings', async (ctx) => {
     discoverable: on('discoverable'),
     indexable: on('indexable'),
     hold,
-    grouping: on('grouping')
+    grouping: on('grouping'),
+    boostHideName: on('boost_hide_name')
   };
 
   // 画像は、選ばれたときだけ送る(空のままなら、いまのまま)。
@@ -255,6 +266,7 @@ route('POST', '/settings', async (ctx) => {
   for (const k of ['locked', 'bot', 'discoverable', 'indexable'] as const) fd.set(k, String(v[k]));
   fd.set('notification_hold_minutes', String(v.hold));
   fd.set('notification_grouping', String(v.grouping));
+  fd.set('boost_hide_name', String(v.boostHideName));
   if (avatarFile) fd.set('avatar', avatarFile);
   if (headerFile) fd.set('header', headerFile);
 

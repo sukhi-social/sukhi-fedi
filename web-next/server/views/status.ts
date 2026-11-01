@@ -192,16 +192,27 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
 
 export function statusCard(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   if (!s.reblog) return inner(ctx, s, o);
-  // ブーストは、ふだん一行に畳む(元の投稿が埋もれないように)。開くと「○○がブースト」+ 元の投稿。
-  // <details> なので、JS が無くても開ける。
-  const by = nameHtml(s.account);
+  // ブーストは、ふだん一行に畳む(元の投稿が埋もれないように)。左から:
+  //   ブーストした人のアイコン、(ブーストされた人の名前 ── 設定で隠せる)、ブーストの印、
+  //   ブーストされた人のアイコン、二行までの内容。
+  // 文は出さない代わりに、読み上げには一文で(「○○が、△△の投稿をブースト」)。
+  // 開くと、元の投稿が続く。<details> なので、JS が無くても開ける。
+  const booster = s.account;
+  const author = s.reblog.account;
+  const hideName = !!o.me?.source?.boost_hide_name;
+  const said = hideName
+    ? ctx.t('status.boostSummaryHidden', { by: nameOf(booster) })
+    : ctx.t('status.boostSummary', { by: nameOf(booster), who: nameOf(author) });
   return html`<details class="boost" id="bst-${s.id}">
     <summary class="boost-compact" title="${ctx.t('status.expandBoost')}">
-      ${avatar(s.reblog.account.avatar, nameOf(s.reblog.account), 'quote-avatar')}
-      <span class="boost-compact-by">${icon('repeat')} ${by} ${ctx.t('status.boostedBy')}</span>
+      <span class="visually-hidden">${said}</span>
+      <span class="boost-row-art" aria-hidden="true">${avatar(booster.avatar, nameOf(booster), 'quote-avatar')}</span>
+      ${hideName ? '' : html`<span class="boost-row-who" aria-hidden="true">${nameHtml(author)}</span>`}
+      <span class="boost-row-mark" aria-hidden="true">${icon('repeat')}</span>
+      <span class="boost-row-art" aria-hidden="true">${avatar(author.avatar, nameOf(author), 'quote-avatar')}</span>
       <span class="boost-compact-preview">${raw(renderEmojis(phrase(toPlainText(s.reblog.content)), s.reblog.emojis))}</span>
     </summary>
-    <a class="boost-by" href="/@${s.account.acct}">${icon('repeat')} ${by} ${ctx.t('status.boostedBy')}</a>
+    <a class="boost-by" href="/@${booster.acct}">${icon('repeat')} ${ctx.t('status.boostSummary', { by: nameOf(booster), who: nameOf(author) })}</a>
     ${inner(ctx, s.reblog, o)}
   </details>`;
 }

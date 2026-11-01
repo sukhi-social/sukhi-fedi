@@ -36,6 +36,8 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
 
   // 予約投稿(お預かり)だけは、覚えておく ── 四半刻の見直しの余白を、画面で試すため。
   const scheduled = [];
+  // 新着が「届いた」かどうか(画面で帯を試すため)。POST /__mock/fresh で立つ。
+  let freshArrived = false;
 
   // プロフィールの編集(PATCH update_credentials)も、覚えておく ── 設定の画面を、行って帰って試すため。
   // 形は gateway の verify_credentials に合わせる(source に原文・ひとこと欄・通知のペース)。
@@ -45,7 +47,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     birthday: null,
     discoverable: false,
     indexable: false,
-    source: { note: 'お茶と、古い本。', fields: [], language: null, notification_hold_minutes: null, notification_grouping: false }
+    source: { note: 'お茶と、古い本。', fields: [], language: null, notification_hold_minutes: null, notification_grouping: false, home_filter: '', boost_hide_name: false }
   };
   const bool = (v) => v === 'true' || v === true;
   async function patchMe(req, chunks) {
@@ -65,6 +67,11 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     }
     if (f.has('notification_hold_minutes')) next.source.notification_hold_minutes = Number(f.get('notification_hold_minutes'));
     if (f.has('notification_grouping')) next.source.notification_grouping = bool(f.get('notification_grouping'));
+    if (f.has('home_filter')) {
+      const ok = ['hide_boosts', 'hide_sensitive', 'only_media'];
+      next.source.home_filter = String(f.get('home_filter')).split(',').filter((x) => ok.includes(x)).sort().join(',');
+    }
+    if (f.has('boost_hide_name')) next.source.boost_hide_name = bool(f.get('boost_hide_name'));
     const big = [...f.values()].find((x) => typeof x !== 'string' && x.size > 8 * 1024 * 1024);
     if (big) return null;
     me = next;
@@ -172,9 +179,22 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       res.end(JSON.stringify(s));
       return;
     }
+    if (pathname === '/__mock/fresh' && method === 'POST') {
+      freshArrived = true;
+      res.writeHead(204);
+      res.end();
+      return;
+    }
     // タイムラインは 3 件ずつ 2 頁。「もっと読む」と、その先読みを試せる。
     if (/^\/api\/v1\/timelines\/(home|public)$/.test(pathname) && method === 'GET') {
-      const first = !new URL(req.url ?? '/', 'http://localhost').searchParams.get('max_id');
+      const params = new URL(req.url ?? '/', 'http://localhost').searchParams;
+      // 新着の問い合わせ(since_id)。POST /__mock/fresh で「届いた」ことにするまでは、空。
+      if (params.has('since_id')) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(freshArrived ? HOME.slice(0, 1) : []));
+        return;
+      }
+      const first = !params.get('max_id');
       const headers = { 'content-type': 'application/json' };
       if (first) headers.link = `<http://localhost:${port}${pathname}?max_id=page2>; rel="next"`;
       res.writeHead(200, headers);
