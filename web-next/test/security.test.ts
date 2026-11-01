@@ -236,3 +236,19 @@ test('書き出しと読み込み: CSV を書き出し、読み込むと足さ�
 
   assert.equal((await go('/settings/data/export/nope')).status, 303);
 });
+
+test('パスキーのログイン: options を返し、通ったら関所へ送る', async () => {
+  const opt = await go('/login/passkey/options', { method: 'POST', signedIn: false, headers: { 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(opt.status, 200);
+  const o = (await opt.json()) as { ref: string; publicKey: { challenge: string } };
+  assert.ok(o.ref && o.publicKey.challenge);
+
+  const fin = await go('/login/passkey', {
+    method: 'POST',
+    signedIn: false,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ref: o.ref, credential_id: 'x', authenticator_data: 'x', signature: 'x', client_data_json: 'x', user_handle: null })
+  });
+  assert.equal(fin.status, 200);
+  assert.deepEqual(await fin.json(), { ok: true, redirect: '/check?intent=login' });
+});

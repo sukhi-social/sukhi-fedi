@@ -19,6 +19,7 @@ import type { TokenSet } from "../types.ts";
 import { layout } from "../views/layout.ts";
 import { entranceBar, legalFooter } from "../views/parts.ts";
 import { timeline } from "./read.ts";
+import { json, readJson } from "./shared.ts";
 import { isLocale, type TranslationKey } from "../i18n.ts";
 
 // ── OAuth のはじまり ─────────────────────────────────────────────
@@ -215,6 +216,14 @@ function loginPage(ctx: Ctx, v: LoginView = {}, status = 200): Reply {
         : ""
     }
     ${v.error ? html`<p class="error" role="alert">${v.error}</p>` : ""}
+    ${
+      step === "first"
+        ? html`<section class="stack-tight" data-passkey-login hidden>
+            <button type="button" class="btn px-6 py-2">${t("login.passkey")}</button>
+            <p class="error" role="alert" data-passkey-error hidden></p>
+          </section>`
+        : ""
+    }
     ${
       step === "totp"
         ? html`<section class="section">
@@ -476,6 +485,33 @@ route("POST", "/login", async (ctx) => {
       );
     }
     return again(t("login.failed"));
+  }
+});
+
+// ── パスキーで入る ──────────────────────────────────────────────
+// 認証器を呼べるのはブラウザだけ(public/js/app.js)。ここは options と、できあがりの中継。
+// 通ったら、合言葉と同じく cookie をブラウザへ渡し、関所(/check)へ。パスキーそのものが
+// 本人確認(PIN・生体)を含むので、二段目(TOTP)は無い。
+route("POST", "/login/passkey/options", async (ctx) => {
+  try {
+    const res = await gw(ctx, "POST", "/login/passkey/options", { auth: false, json: {} });
+    return json(await res.json());
+  } catch (e) {
+    const status = e instanceof GatewayError && e.status === 429 ? 429 : 502;
+    return json({ error: "passkey", message: ctx.t(status === 429 ? "login.rateLimited" : "login.passkeyFailed") }, status);
+  }
+});
+
+route("POST", "/login/passkey", async (ctx) => {
+  const body = await readJson(ctx);
+  try {
+    const res = await gw(ctx, "POST", "/login/passkey", { auth: false, json: body });
+    forwardCookies(ctx, res);
+    const to = toCheck(ctx, { intent: "login" });
+    return json({ ok: true, redirect: to.headers.location });
+  } catch (e) {
+    const status = e instanceof GatewayError && e.status === 429 ? 429 : 401;
+    return json({ error: "passkey", message: ctx.t(status === 429 ? "login.rateLimited" : "login.passkeyFailed") }, status);
   }
 });
 

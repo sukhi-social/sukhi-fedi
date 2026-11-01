@@ -227,6 +227,44 @@ async function post(url, body) {
   return data;
 }
 
+// ── パスキーで入る(ログイン) ──────────────────────────────────────
+// 保存してある鍵を、ブラウザが選ばせてくれる(名前を入れなくてよい)。通ったら、サーバが返した行き先(関所)へ。
+up.compiler("[data-passkey-login]", (box) => {
+  if (!window.PublicKeyCredential) return;
+  box.hidden = false;
+  const errorEl = box.querySelector("[data-passkey-error]");
+  const button = box.querySelector("button");
+
+  button.addEventListener("click", async () => {
+    if (button.disabled) return;
+    button.disabled = true;
+    errorEl.hidden = true;
+    try {
+      const { ref, publicKey: o } = await post("/login/passkey/options", {});
+      const cred = await navigator.credentials.get({
+        publicKey: { ...o, challenge: b64uToBuf(o.challenge) },
+      });
+      if (!cred) return;
+      const r = cred.response;
+      const done = await post("/login/passkey", {
+        ref,
+        credential_id: cred.id,
+        authenticator_data: bufToB64u(r.authenticatorData),
+        signature: bufToB64u(r.signature),
+        client_data_json: bufToB64u(r.clientDataJSON),
+        user_handle: r.userHandle ? bufToB64u(r.userHandle) : null,
+      });
+      location.assign(done.redirect || "/");
+    } catch (e) {
+      if (e?.name === "NotAllowedError") return;
+      errorEl.textContent = e?.message || "";
+      errorEl.hidden = !errorEl.textContent;
+    } finally {
+      button.disabled = false;
+    }
+  });
+});
+
 // 「もっと読む」の一つ先読み。リンクが画面の少し手前まで来たら、次の 1 頁だけを裏で取っておく。
 // 押したら、取れている頁がすぐ付く。付いた頁には新しい「もっと読む」が現れるので、またその次の 1 頁だけ。
 // 数を増やさないための決まり:

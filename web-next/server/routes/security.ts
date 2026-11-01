@@ -19,7 +19,7 @@ import type { TranslationKey } from '../i18n.ts';
 import { deviceLabel, placeLabel } from '../device.ts';
 import { timeWords } from '../time.ts';
 import { layout } from '../views/layout.ts';
-import { needMe } from './shared.ts';
+import { json, needMe, readJson } from './shared.ts';
 
 type Auth = {
   manageable: boolean;
@@ -78,25 +78,6 @@ function reauthOf(f: FormData): { password?: string; reauth_code?: string } {
   if (code) out.reauth_code = code;
   return out;
 }
-
-async function readJson(ctx: Ctx): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const c of ctx.req) {
-    size += (c as Buffer).length;
-    if (size > 64 * 1024) return {};
-    chunks.push(c as Buffer);
-  }
-  try {
-    const v = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-}
-
-const json = (body: unknown, status = 200): Reply =>
-  ok(JSON.stringify(body), status, { 'content-type': 'application/json; charset=utf-8' });
 
 // ── 本人確認の欄 ──────────────────────────────────────────────
 // 外す操作の形(<form>)の中に置く。`open` は、コードを送って戻ったとき、同じ折りたたみを開いておくための印。

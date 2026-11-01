@@ -199,3 +199,21 @@ test('招待リンク: 生きたコードは玄関、死んだコードは理由
   const signup = await (await b('/signup?invite=some-code')).text();
   assert.match(signup, /value="some-code"/);
 });
+
+test('ログインの頁に、パスキーで入る口がある。通れば関所へ', async () => {
+  const b = browser();
+  const page = await (await b('/login')).text();
+  assert.match(page, /data-passkey-login/);
+
+  const opt = await b('/login/passkey/options', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  const o = (await opt.json()) as { ref: string; publicKey: { challenge: string } };
+  assert.ok(o.ref && o.publicKey.challenge);
+
+  const fin = await b('/login/passkey', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ref: o.ref, credential_id: 'x', authenticator_data: 'x', signature: 'x', client_data_json: 'x', user_handle: null })
+  });
+  assert.deepEqual(await fin.json(), { ok: true, redirect: '/check?intent=login' });
+  assert.equal((await b('/check?intent=login')).status, 303);
+});

@@ -107,3 +107,23 @@ export function failText(ctx: Ctx, e: unknown): string {
   if (e instanceof TypeError) return ctx.t('compose.err.network');
   return ctx.t('common.deliverFailedRetry');
 }
+
+// JSON の本文(64KB まで)。読めなければ空。
+export async function readJson(ctx: Ctx): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const c of ctx.req) {
+    size += (c as Buffer).length;
+    if (size > 64 * 1024) return {};
+    chunks.push(c as Buffer);
+  }
+  try {
+    const v = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export const json = (body: unknown, status = 200): Reply =>
+  ok(JSON.stringify(body), status, { 'content-type': 'application/json; charset=utf-8' });
