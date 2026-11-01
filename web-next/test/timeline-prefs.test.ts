@@ -61,13 +61,15 @@ test('ブーストの行: ブーストした人のアイコン → 名前 → �
   assert.ok(order.every((n) => n >= 0), String(order));
   assert.deepEqual(order, [...order].sort((a, b) => a - b));
   assert.match(out, /boosterが、authorの投稿をブースト/);
+  assert.match(out, /class="boost-row-who" aria-hidden="true">booster</);
 });
 
-test('設定で、ブーストされた人の名前を隠せる(読み上げの文も、名前を出さない)', () => {
+test('設定で、ブーストした人の名前を隠せる(読み上げの文も、その人の名前を出さない)', () => {
   const out = String(statusCard(ctx, boost, { me: me('', true) }));
   assert.doesNotMatch(out, /boost-row-who/);
-  assert.match(out, /boosterが、ブースト/);
-  assert.ok(out.includes('author.png'));
+  assert.match(out, /authorの投稿を、ブースト/);
+  assert.doesNotMatch(out, /boosterが/);
+  assert.ok(out.includes('booster.png') && out.includes('author.png'));
 });
 
 test('ブーストの行のなかの元の投稿は、単独の行と別の id を持つ(差し替えが混ざらない)', () => {

@@ -79,10 +79,10 @@ export const jaExtra = {
   'timeline.defaultCleared': 'ホームのデフォルトを、外しました。',
   'timeline.filterOn': '絞りこみ中',
   'settings.timeline': 'タイムラインの見え方',
-  'settings.boostHideName': 'ブーストの行で、ブーストされた人の名前を隠す',
+  'settings.boostHideName': 'ブーストの行で、ブーストした人の名前を隠す',
   'settings.boostHideNameHint': 'ブーストの行は、アイコンだけで並びます。',
   'status.boostSummary': '{by}が、{who}の投稿をブースト',
-  'status.boostSummaryHidden': '{by}が、ブースト',
+  'status.boostSummaryHidden': '{who}の投稿を、ブースト',
   'status.boostedLine': '{by}さんがブーストしました'
 } as const;
 
@@ -163,9 +163,9 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'timeline.defaultCleared': '홈의 기본을 해제했어요.',
   'timeline.filterOn': '필터 사용 중',
   'settings.timeline': '타임라인 보이는 방식',
-  'settings.boostHideName': '부스트 줄에서 부스트된 사람의 이름 숨기기',
+  'settings.boostHideName': '부스트 줄에서 부스트한 사람의 이름 숨기기',
   'settings.boostHideNameHint': '부스트 줄이 아이콘만으로 이어져요.',
   'status.boostSummary': '{by}님이 {who}님의 글을 부스트',
-  'status.boostSummaryHidden': '{by}님이 부스트',
+  'status.boostSummaryHidden': '{who}님의 글을 부스트',
   'status.boostedLine': '{by}님이 부스트했어요'
 };

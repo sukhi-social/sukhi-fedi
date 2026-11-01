@@ -69,7 +69,7 @@ defmodule SukhiFedi.Schema.Account do
     # How the person likes their home timeline shown (web-next reads these
     # back from verify_credentials). `home_filter` is the filter the home
     # timeline starts with — a comma list of @home_filters, NULL = none.
-    # `boost_hide_name` hides whose post a boost row is about.
+    # `boost_hide_name` hides the booster's name in a boost row.
     field :home_filter, :string
     field :boost_hide_name, :boolean, default: false
     field :suspended_at, :utc_datetime

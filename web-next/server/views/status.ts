@@ -200,7 +200,7 @@ export const boostInnerId = (boostId: string) => `bst-${boostId}-inner`;
 export function statusCard(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   if (!s.reblog) return inner(ctx, s, o);
   // ブーストは、ふだん一行に畳む(元の投稿が埋もれないように)。左から:
-  //   ブーストした人のアイコン、(ブーストされた人の名前 ── 設定で隠せる)、ブーストの印、
+  //   ブーストした人のアイコン、(ブーストした人の名前 ── 設定で隠せる)、ブーストの印、
   //   ブーストされた人のアイコン、二行までの内容。
   // 文は出さない代わりに、読み上げには一文で(「○○が、△△の投稿をブースト」)。
   // 開くと、元の投稿が続く。<details> なので、JS が無くても開ける。
@@ -208,7 +208,7 @@ export function statusCard(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   const author = s.reblog.account;
   const hideName = !!o.me?.source?.boost_hide_name;
   const said = hideName
-    ? ctx.t('status.boostSummaryHidden', { by: nameOf(booster) })
+    ? ctx.t('status.boostSummaryHidden', { who: nameOf(author) })
     : ctx.t('status.boostSummary', { by: nameOf(booster), who: nameOf(author) });
   // 画像があるとき、アイコンと同じ高さの四角いプレビューを添える。
   // 本文に CW がある、または画像が sensitive のときは、出さない(開くまで隠す)。
@@ -221,7 +221,7 @@ export function statusCard(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
     <summary class="boost-compact" title="${ctx.t('status.expandBoost')}">
       <span class="visually-hidden">${said}</span>
       <span class="boost-row-art" aria-hidden="true">${avatar(booster.avatar, nameOf(booster), 'quote-avatar')}</span>
-      ${hideName ? '' : html`<span class="boost-row-who" aria-hidden="true">${nameHtml(author)}</span>`}
+      ${hideName ? '' : html`<span class="boost-row-who" aria-hidden="true">${nameHtml(booster)}</span>`}
       <span class="boost-row-mark" aria-hidden="true">${icon('repeat')}</span>
       <span class="boost-row-art" aria-hidden="true">${avatar(author.avatar, nameOf(author), 'quote-avatar')}</span>
       ${thumb ? html`<img class="boost-row-thumb" src="${thumb}" alt="" loading="lazy" aria-hidden="true" />` : ''}
