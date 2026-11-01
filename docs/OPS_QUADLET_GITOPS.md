@@ -14,10 +14,10 @@
 main へ push ─▶ CI が 4 つの image を焼く(同じ sha-タグ・cosign 署名)
                     │
                     ▼
-           deploy リポジトリに「ダイジェストを上げる PR」が自動で立つ
+           sukhi-infra に「ダイジェストを上げる PR」が自動で立つ
                     │  人が読んで承認(必須レビュー・署名つきコミット)
                     ▼
-        deploy の main にマージ(ここが「上げる」という意思の記録)
+        sukhi-infra の main にマージ(ここが「上げる」という意思の記録)
                     │
                     ▼  5 分ごとに systemd timer が引く(箱から外へ。外から箱へ入らない)
    署名検証 ─▶ 変わった unit だけ try-restart ─▶ ヘルスを待つ
@@ -34,14 +34,47 @@ main へ push ─▶ CI が 4 つの image を焼く(同じ sha-タグ・cosign 
 
 | 部品 | 置き場所 | 中身 |
 | --- | --- | --- |
-| アプリ本体・image の CI | `sukhi-fedi`(いま) | `combined-sha.yml` / `release.yml`。**ダイジェストを出力**し、deploy リポジトリへ PR を立てる job を足す |
-| Quadlet の正本 | **`sukhi-deploy`(新設・箱ごとの設定)** | `*.container` `*.network` `*.volume` と同期スクリプト、timer |
-| 雛形・同期スクリプトの原本 | `sukhi-fedi/deploy/quadlet/` | 自前ホストの人がコピーして使う例(`.env` の例と同じ立ち位置) |
+| アプリ本体・image の CI | `sukhi-fedi`(いま) | `combined-sha.yml` / `release.yml`。**ダイジェストを出力**し、`sukhi-infra` へ PR を立てる job を足す |
+| Quadlet の正本(**箱が自動で引く**) | **`sukhi-infra`**(決定: ひなた, 2026-11-01) | `base/` と `overlays/<env>/`(§1.1)。**これだけが自動で適用される** |
+| 初回の準備と検証役(**人が手で入れる**) | **`sukhi-setup`**(決定: 同上) | ユーザー・linger・`podman secret` の手順、同期スクリプト、timer / service、`allowed_signers` の入れ方 |
 | 秘密 | **git に置かない** | `podman secret`(§6) |
-| 箱の信頼の根 | 箱の上(`/etc/sukhi/`) | `allowed_signers`(コミット署名の公開鍵)、cosign の身元(正規表現) |
+| 箱の信頼の根 | 箱の上(`/etc/sukhi/`) | `allowed_signers`(コミット署名の公開鍵)、cosign の身元(正規表現)、環境名(`/etc/sukhi/env`) |
 
-「sukhi-deploy」はいま haloy の `haloy.yaml` を持つリポジトリと同じ名前(SERVER_SHELL.md §5.0)。
-同じ場所に置くか、新設するかは §12-1。
+**infra と setup を分ける理由は、検証役を自動適用の外に置くため。** 同期スクリプトが `sukhi-infra` の中にあると、
+`sukhi-infra` を書き換えた人が検証の仕組みごと書き換えられる。setup は人が手で入れ、infra は署名と必須レビューで固める。
+`sukhi-infra` には terraform などの「人が手で流すもの」を入れない(それは `sukhi-fedi/infra/` のまま)。
+
+### 1.1 sukhi-infra の構成(base + overlays)
+
+```
+sukhi-infra/
+├── base/                         # 全環境共通
+│   ├── sukhi.network
+│   ├── sukhi-data.volume
+│   ├── sukhi-nats.container
+│   ├── sukhi-gateway.container   # Image= はここ(Renovate / bump が見る)
+│   ├── sukhi-web-next.container
+│   ├── sukhi-web-simple.container
+│   ├── sukhi-web-board.container
+│   └── sukhi-anubis.container
+└── overlays/
+    ├── dev/
+    │   └── sukhi-gateway.container.d/override.conf   # 例: DOMAIN、メモリ、ログの量
+    └── prod/
+        └── sukhi-gateway.container.d/override.conf
+```
+
+- 「`quadlets/containers/systemd/` の入れ子」は作らない。Quadlet が読むのは `~sukhi/.config/containers/systemd/` の**一か所**で、
+  同期スクリプトが `base/` の上に `overlays/$SUKHI_ENV/` を**重ねて平らに書き出す**(`rsync -a base/ out/ && rsync -a overlays/$ENV/ out/`)。
+  `$SUKHI_ENV` は箱の `/etc/sukhi/env`(git に置かない)から取る。
+- 重ね方は Quadlet 自身のドロップイン(`<unit>.container.d/*.conf`)に任せる。同じキーは**後のファイルが勝ち**、
+  `Environment=` のような列は**足される**(空の `Environment=` で一度消せる)。この挙動は Podman の版で確かめる(§12-6)。
+- **`Image=` は base に置く。** Renovate はドロップインを見ない(§9)。dev だけ先の sha にしたいときは overlay に `Image=` を置いてよいが、
+  その行は bump の対象外なので、prod へ上げるときは PR でダイジェストを写す(昇格 = base への PR)。
+- 箱は自分の環境の差分だけを見る: 差分の判定(§3.4)は `base/` と `overlays/$ENV/` の変更だけが対象。
+  `overlays/dev/` の変更で prod の箱は何もしない。
+- 箱が複数になったら、`overlays/<env>/` を `overlays/<host>/` に細かくするか、環境の下に箱を足す(今は決めない)。
+
 
 ## 2. sukhi の構成を unit にあてはめる
 
@@ -121,13 +154,13 @@ WantedBy=default.target
 ### 3.1 CI(sukhi-fedi 側)
 
 1. main への push で `combined-sha.yml` が 4 つの image を **同じ `sha-<commit>`** で出し、cosign で署名する(いま動いている)。
-2. 追加: 各 image の**ダイジェスト**を job の出力にし、最後の job が `sukhi-deploy` に PR を立てる。
-   - 立てるのは **GitHub App のトークン**(`sukhi-deploy` への `pull_requests: write` と `contents: write` の一部だけ。main へは直接書けない)。
+2. 追加: 各 image の**ダイジェスト**を job の出力にし、最後の job が `sukhi-infra` に PR を立てる。
+   - 立てるのは **GitHub App のトークン**(`sukhi-infra` への `pull_requests: write` と `contents: write` の一部だけ。main へは直接書けない)。
    - PR の中身は 4 つの `Image=` の書き換えだけ(タグ + ダイジェスト)。本文に前回からの `git log` の件名、マイグレーションの有無
      (Datalevin は無し)、データ形が変わるかの印(§7)を載せる。
 3. 4 つが**そろっていなければ PR を立てない**(「どこも同じ sha」の約束。SERVER_SHELL.md §5.1)。
 
-### 3.2 deploy リポジトリ(承認の関所)
+### 3.2 sukhi-infra(承認の関所)
 
 - 必須チェック(PR 上で走る):
   - **署名検証**: PR が指す 4 つのダイジェストすべてに `cosign verify`(身元は `release.yml@refs/tags/v*` か `combined-sha.yml@refs/heads/main`。`sukhi-swap-image.sh` と同じ正規表現)。
@@ -136,6 +169,8 @@ WantedBy=default.target
 - 人が読んで承認する。**PR を立てた bot は承認できない。**
 
 ### 3.3 箱(同期)
+
+同期スクリプトと timer / service は **`sukhi-setup` の側**にあり、人が手で入れる(`sukhi-infra` の中からは更新されない。§1)。
 
 `sukhi-gitops-sync.timer` が `OnCalendar=*:0/5`(5 分ごと)、`RandomizedDelaySec=30`、`Persistent=true` で
 `sukhi-gitops-sync.service`(`Type=oneshot`)を起こす。**cron ではなく systemd timer** にする理由:
@@ -155,6 +190,7 @@ WantedBy=default.target
  4. 【信頼】last-good..target の差分で Image= が変わった全ダイジェストに cosign verify。1 つでも通らなければ同上
  5. 差分のファイルから「変わった unit」を求める(§3.4)
  6. git merge --ff-only target(ff できなければ止めて通知。履歴の書き換えは受けない)
+ 6b. base/ + overlays/$SUKHI_ENV/ を一時ディレクトリに重ねて書き出し、Quadlet のディレクトリに入れ替える(§1.1)
  7. daemon-reload
  8. 変わった unit を依存の順に try-restart(§3.4)。Notify=healthy なので、各 restart は「ヘルスが通るまで」戻らない
  9. 全部通ったら 3 秒 + 30 秒保持して再確認(起動直後だけ active な暴れ方を弾く)→ last-good = target、history に一行
@@ -178,7 +214,7 @@ WantedBy=default.target
 
 - 通らなかった(`restart` が非 0、`TimeoutStartSec` 内に healthy にならない、保持の再確認で落ちた):
   1. `rejected` に target を記録(以後、この commit は再試行しない)。
-  2. **`git reset --hard <last-good>`**(箱の checkout だけの話。deploy リポジトリの main は書き換えない)。
+  2. **`git reset --hard <last-good>`**(箱の checkout だけの話。sukhi-infra の main は書き換えない)。
   3. `daemon-reload` → 変わっていた unit を `try-restart`。戻した側も通らなければ、止めて通知(これ以上は人)。
   4. 通知: journal、`OnFailure=` の unit、管理画面の「お知らせ」(§8)。
 - 箱の checkout は**デプロイ専用**(人が編集しない・push しない)。reset が安全なのはそのため。
@@ -193,7 +229,7 @@ WantedBy=default.target
 - ドロップイン `10-image.conf` が git の `Image=` を上書きするので、**git の外の状態**ができてしまう。
   同期スクリプトは、`*.container.d/10-image.conf` がある unit を見つけたら**警告して通知**し、
   `--clear-overrides` で消せるようにする(黙って食い違いを残さない)。
-- `sukhi release`(SERVER_SHELL.md §5.1)は GitOps の箱では「deploy リポジトリのブリッジ PR を作る/マージする」+
+- `sukhi release`(SERVER_SHELL.md §5.1)は GitOps の箱では「sukhi-infra の bump PR を作る/マージする」+
   「`sukhi-gitops-sync --now`(待たずに一回)」の入口にする。**updater が二通りの更新の仕方を持たない**(§5.10 の方針と同じ)。
 - 画面が壊れた夜・GitHub が落ちた夜は、箱の上で `sukhi-swap-image.sh apply` が使える(署名検証つき)。
 
@@ -214,7 +250,7 @@ WantedBy=default.target
   部分的に上がった状態を作らない(途中で失敗したら全体を last-good に戻す = §3.5)。
 - sha タグは**バージョンとして順序を持たない**ので、Renovate のような「新しい版を探す」ツールには向かない(§9)。
   sukhi の image は CI の bump に任せ、第三者の image(NATS など)だけ Renovate にする。
-- v1.0.0 以降の公開向けタグ(`v1` `0.4.14`)は、deploy リポジトリでは使わない(公開 compose の人向け)。**本番は `sha-` + ダイジェスト**。
+- v1.0.0 以降の公開向けタグ(`v1` `0.4.14`)は、sukhi-infra では使わない(公開 compose の人向け)。**本番は `sha-` + ダイジェスト**。
 
 ## 6. 秘密(podman secret)
 
@@ -265,20 +301,20 @@ Renovate についての注意(どれも**要確認**):
 - 文書に**ドロップイン(`*.container.d/*.conf`)の言及が無い**。`Image=` は本体の `.container` に置き、ドロップインに逃がさない。
 - **ダイジェストの固定(`pinDigests`)** は Renovate の docker データソース共通の機能だが、Quadlet マネージャで効くことは文書に書かれていない。試して確かめる。
 - `ghcr.io/sukhi-social/*` の `sha-` タグは新旧を比べられないので、`packageRules` で**無効にする**(§5)。
-- 向く相手: `nats:2-alpine`、Anubis の土台、その他の第三者 image。PR は deploy リポジトリの同じ関所(§3.2)を通り、自動マージはしない。
-- Dependabot は使えない前提で、deploy リポジトリには入れない(`sukhi-fedi` 本体の npm / mix / Actions 用には従来どおり)。
+- 向く相手: `nats:2-alpine`、Anubis の土台、その他の第三者 image。PR は sukhi-infra の同じ関所(§3.2)を通り、自動マージはしない。
+- Dependabot は使えない前提で、sukhi-infra には入れない(`sukhi-fedi` 本体の npm / mix / Actions 用には従来どおり)。
 - Renovate は GitHub App(Mend)か自前の実行のどちらか。`renovate.json` を deploy に置くだけで始まるのは App の場合。
 
 ## 10. 「main を信じる」ための守り
 
-この設計は、**deploy の main に入ったものを箱が実行する**。main への書き込み権限が奪われれば、箱で動くものを選ばれてしまう。守りを何重かに置く:
+この設計は、**sukhi-infra の main に入ったものを箱が実行する**。main への書き込み権限が奪われれば、箱で動くものを選ばれてしまう。守りを何重かに置く:
 
 | 層 | 守り |
 | --- | --- |
 | ブランチ保護 | main への直接 push 禁止、PR 必須、**必須レビュー 1 人以上**(PR の作者本人と bot は数えない)、必須チェック(§3.2)、force-push と削除の禁止、管理者にも適用(バイパス無し)、CODEOWNERS で `*.container` を指定 |
 | コミット署名 | **署名つきコミットを必須**にし、箱は `git verify-commit` で検証してから適用する(§3.3-3)。公開鍵(`allowed_signers`)は**箱の上**に置き、リポジトリの中に置かない(リポジトリを書き換えた人が鍵も書き換えられるため) |
 | image の署名 | main が何を指しても、各ダイジェストを cosign で検証する(§3.3-4)。**乗っ取られた main でも、こちらの workflow が焼いた image しか動かせない** |
-| 権限の最小化 | CI の bot は PR を立てるだけ。箱は deploy リポジトリを**読み取り専用の deploy key** で引く。箱から GitHub へ書かない |
+| 権限の最小化 | CI の bot は PR を立てるだけ。箱は sukhi-infra を**読み取り専用の deploy key** で引く。箱から GitHub へ書かない |
 | 巻き戻しの攻撃 | 古い(脆弱な)でも署名つきの image を指す commit は、署名検証だけでは弾けない。レビューで見る点として PR に前回との差(sha の新旧)を載せる。機械的に弾く(sha が新しい commit の子孫であること)は将来 |
 | 箱の外の通知 | 適用・拒否・戻しを必ず通知する(見えない失敗を作らない) |
 
@@ -289,16 +325,13 @@ Renovate についての注意(どれも**要確認**):
 - **`loginctl enable-linger sukhi`**: ログアウトしても user の systemd(と timer、コンテナ)が動き続ける。無いと再起動後に何も起きない。
 - user の `systemctl` を ssh 越しに使うときは `XDG_RUNTIME_DIR=/run/user/$(id -u sukhi)` が要る(`su` ではなく直接 ssh で入る。OPS_UPDATE_QUADLET.md の `nounit` と同じ注意)。
 - timer も service も **user unit**(`~sukhi/.config/systemd/user/`)。root の cron や system の timer に逃がさない。
-- Quadlet は `~sukhi/.config/containers/systemd/` を見る。deploy の checkout をそこに**置く**か、**リンクする**かは、
-  Podman の版でシンボリックリンクの扱いが違う可能性があるので実機で確かめる(未確認)。置く場合、リポジトリの `.git` も同じ階層に入るので、
-  Quadlet 用ファイルだけを `quadlet/` 以下に分けて、そこへのリンクで済ませる案を推す。
+- Quadlet は `~sukhi/.config/containers/systemd/` を見る。チェックアウトをそこに置かず、同期スクリプトが **重ねて書き出す**(§1.1)。
+  書き出しは一時のディレクトリに作ってから入れ替える(途中の半端な状態を Quadlet に読ませない)。
 - 古い image の掃除は `podman image prune` でなく、last-good と一つ前のダイジェストを残して消す(戻すため)。
 
 ## 12. 決めてほしいこと(選択肢と推奨)
 
-1. **Quadlet の正本の置き場所。**
-   (a) 新設の `sukhi-deploy`(推奨)。ダイジェストを上げる commit が、アプリの main の履歴を埋めない。権限(書ける人・読める人)をアプリとは別に絞れる。
-   (b) `sukhi-fedi` の `deploy/` に同居。リポジトリは一つで済むが、bot の bump が本体の履歴に混ざり、アプリの main の保護と deploy の保護を分けられない。
+1. ~~Quadlet の正本の置き場所。~~ **決定済み(ひなた, 2026-11-01): `sukhi-infra`(Quadlet)+ `sukhi-setup`(準備と同期スクリプト)。** 理由は §1。
 2. **箱が引く(pull timer)か、CI が箱に入る(push, SSH)か。**
    推奨は pull。CI が箱の鍵を持たない。push は反応が速いが、鍵と箱の入口を CI に渡すことになる(`sukhi release --now` で「待たずに一回」は pull のまま足せる)。
 3. **bump PR の承認。** 推奨は**当面すべて人が承認**(自動マージ無し)。安定して、署名・ヘルス・戻しが信頼できると分かったら、
@@ -308,7 +341,7 @@ Renovate についての注意(どれも**要確認**):
    (b) 管理者の SSH 署名鍵(GitHub に依存しない。マージの手が一つ増える)。
 6. **箱の Podman の版。** Rocky のリリースと `podman --version` を教えてほしい。`Notify=healthy` / `HealthOnFailure=` / ドロップイン / `Secret=` の書式は、
    版で変わる。版が古ければ §4 の案を一部落とす(ヘルス待ちを同期スクリプトの polling に戻す)。
-7. **web-board(natadeco)を同じ箱で動かすか。** 動かすなら unit を足す。別の箱なら、箱ごとに deploy の `hosts/<name>/` を分ける形にする。
+7. **web-board(natadeco)を同じ箱で動かすか。** 動かすなら unit を足す。別の箱なら、箱ごとの overlay(`overlays/<host>/`)に分ける。
 8. **深いヘルスの口。** `/up`(BEAM が答える)で始めてよいか。DB とキューまで見る口(`/up?deep=1` など)を足すなら別の作業にする。
 9. **適用前の告知。** 最初は告知なし(短い断の目安を書く)でよいか。入れるなら bump の承認から適用まで(5 分)に挟むか。
 10. **通知の先。** journald のほかに、どこに出すか(管理画面のお知らせ / Matrix / ntfy など)。
@@ -318,7 +351,7 @@ Renovate についての注意(どれも**要確認**):
 | 段階 | 内容 | 確かめること |
 | --- | --- | --- |
 | 0 | いまの手作業(`sukhi-swap-image.sh`)で Quadlet の箱を一度動かす。**ここで実機の未確認を潰す** | OPS_UPDATE_QUADLET.md §6 の未確認、Podman の版(§12-6) |
-| 1 | `sukhi-deploy` を作り、§2 の unit を置く(compose から `podlet` で下書き → 手で直す)。手で `daemon-reload` して起動 | ヘルス(`wget`)、`Notify=healthy`、`podman secret` の事前作成、`enable-linger` |
+| 1 | `sukhi-infra` に §1.1 の base を置き(`sukhi-setup` に準備の手順)、§2 の unit を置く(compose から `podlet` で下書き → 手で直す)。手で `daemon-reload` して起動 | ヘルス(`wget`)、`Notify=healthy`、`podman secret` の事前作成、`enable-linger` |
 | 2 | 同期スクリプトを **`--check`(計画だけ、変更しない)** で timer に載せる | 差分 → 変わる unit の求め方、署名検証、ログの読みやすさ |
 | 3 | 適用を有効にする(承認はまだ全部人)。失敗の戻しを**わざと壊した PR で**試す | §3.5 の reset とヘルス待ち、`rejected` が効くこと |
 | 4 | CI の bump PR(4 つの image を同じ sha で) | 部分更新が起きないこと |
