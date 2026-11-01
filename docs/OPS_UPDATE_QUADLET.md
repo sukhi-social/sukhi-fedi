@@ -6,6 +6,8 @@
 > [`SERVER_SHELL.md`](SERVER_SHELL.md) §5.1(`sukhi release`)。ここはその最小の手作業版で、
 > `scripts/sukhi-swap-image.sh` が同じ手順を一本にしたもの(`sukhi release` の下地)。
 
+> git を正本にして自動で引く形の設計案は [`OPS_QUADLET_GITOPS.md`](OPS_QUADLET_GITOPS.md)。この文書の手順は、その非常用の道になる。
+
 ## 0. 考え方
 
 - タグ(`:v1`)は動く。**入れる前に、ダイジェストに解決して、以降はダイジェストだけを見る。**
