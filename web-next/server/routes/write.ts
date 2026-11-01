@@ -26,7 +26,10 @@ async function cardFor(ctx: Ctx, me: Account, s: Status, note?: string): Promise
   // reblog / unreblog が、包んだ側を返しても、押したのは元の投稿。
   const shown = s.reblog ?? s;
   const replyAccts = await replyAcctsFor(ctx, [shown]);
-  return statusCard(ctx, shown, { me, replyAccts, note });
+  // ブーストの行のなかで押されたなら、差し替え先はその行の id。
+  // 同じ投稿が単独の行にも居ても、押した行だけが変わる。
+  const m = /#(bst-[\w-]+-inner)\b/.exec(ctx.upTarget ?? '');
+  return statusCard(ctx, shown, { me, replyAccts, note, domId: m ? m[1] : undefined });
 }
 
 route('POST', '/statuses/:id/:verb', async (ctx) => {
@@ -348,7 +351,7 @@ route('GET', '/notifications', async (ctx) => {
         ${arrived.map(
           (n) => html`<article class="notif" id="nf-${n.id}">
             <header class="notif-head">
-              <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span></a>${who(n)}
+              <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span>${n.account.acct.includes('@') ? html`<span class="notif-handle">@${n.account.acct}</span>` : ''}</a>${who(n)}
               <span class="notif-summary">${summary(n)}</span>
               <form class="notif-dismiss" method="post" action="/notifications/${n.id}/dismiss" in-place>
                 <button type="submit" class="chip" aria-label="${t('notif.dismiss')}">×</button>
@@ -370,7 +373,7 @@ route('GET', '/notifications', async (ctx) => {
         ${arrived.map(
           (n) => html`<article class="notif" id="nf-${n.id}">
             <header class="notif-head">
-              <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span></a>${who(n)}
+              <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span>${n.account.acct.includes('@') ? html`<span class="notif-handle">@${n.account.acct}</span>` : ''}</a>${who(n)}
               <span class="notif-summary">${summary(n)}</span>
               <form class="notif-dismiss" method="post" action="/notifications/${n.id}/dismiss" in-place>
                 <button type="submit" class="chip" aria-label="${t('notif.dismiss')}">×</button>

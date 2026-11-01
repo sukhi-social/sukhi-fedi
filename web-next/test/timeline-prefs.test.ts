@@ -69,3 +69,16 @@ test('設定で、ブーストされた人の名前を隠せる(読み上げの�
   assert.match(out, /boosterが、ブースト/);
   assert.ok(out.includes('author.png'));
 });
+
+test('ブーストの行のなかの元の投稿は、単独の行と別の id を持つ(差し替えが混ざらない)', () => {
+  const out = String(statusCard(ctx, boost, { me: me() }));
+  assert.ok(out.includes(`id="bst-${boost.id}-inner"`));
+  assert.ok(!out.includes(`id="st-${boost.reblog!.id}"`));
+  const plain = String(statusCard(ctx, boost.reblog!, { me: me() }));
+  assert.ok(plain.includes(`id="st-${boost.reblog!.id}"`));
+});
+
+test('名前の無いリモートの人は、user@host で呼ぶ', () => {
+  const remote = { ...boost.reblog!, account: { ...boost.reblog!.account, display_name: '', username: 'kuro43_', acct: 'kuro43_@misskey.io' } };
+  assert.match(String(statusCard(ctx, remote as Status, { me: me() })), /kuro43_@misskey\.io/);
+});
