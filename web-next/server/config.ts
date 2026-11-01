@@ -11,6 +11,7 @@
 //   SITE_NAME         ナビ・入口の帯・<title> に出すサイトの名前(既定 sukhi-fedi)
 //   SITE_LOGO         その横に出すロゴの画像。`/…` のパスか `https://…`(既定 /favicon.png)。
 //                     image を焼きなおさずに替えるなら、data/brand/ にファイルを置いて /brand/<ファイル名> を書く
+//                     未設定なら INSTANCE_LOGO_URL(gateway が nodeinfo・instance API・/favicon* に出すものと同じ)
 //   SUKHI_DEV_TOKEN   dev のときだけ。入った状態から始める(mock 用)
 
 import { fileURLToPath } from 'node:url';
@@ -19,15 +20,22 @@ const port = Number(process.env.PORT ?? 5174);
 // URL.pathname は、日本語・韓国語のフォルダー名を %XX にしてしまう。ディスクのパスには fileURLToPath。
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 
+const logoSetting = (process.env.SITE_LOGO || process.env.INSTANCE_LOGO_URL || '').trim();
+
 export const config = {
   port,
   gateway: (process.env.GATEWAY_URL ?? 'http://localhost:4000').replace(/\/$/, ''),
   publicOrigin: (process.env.PUBLIC_ORIGIN ?? `http://localhost:${port}`).replace(/\/$/, ''),
   siteName: (process.env.SITE_NAME ?? '').trim() || 'sukhi-fedi',
   // パス(/…)か http(s) の URL だけ。ほかは既定に戻す。
-  siteLogo: /^(\/(?!\/)|https?:\/\/)/.test((process.env.SITE_LOGO ?? '').trim())
-    ? (process.env.SITE_LOGO ?? '').trim()
+  // SITE_LOGO が無ければ、gateway と同じ INSTANCE_LOGO_URL(連合先に見せるロゴ)を使う ── 画面と連合先で絵がずれないように。
+  siteLogo: /^(\/(?!\/)|https?:\/\/)/.test(logoSetting)
+    ? logoSetting
     : '/favicon.png',
+  // 連合先が決め打ちで取りに来るアイコンの道(/favicon.png など)の回し先。INSTANCE_LOGO_URL が使える値のときだけ。
+  instanceLogo: /^(\/(?!\/)|https:\/\/)/.test((process.env.INSTANCE_LOGO_URL ?? '').trim())
+    ? (process.env.INSTANCE_LOGO_URL ?? '').trim()
+    : '',
   aboutUrl: (process.env.ABOUT_URL ?? 'https://about.sukhi.social').replace(/\/$/, ''),
   secureCookie: process.env.COOKIE_SECURE === '1',
   postDelayMin: Number(process.env.POST_DELAY_MIN ?? 15),

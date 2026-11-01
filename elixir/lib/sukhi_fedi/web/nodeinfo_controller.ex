@@ -79,7 +79,11 @@ defmodule SukhiFedi.Web.NodeinfoController do
       # 招待制サーバ。完全 open になる日が来たら
       # `SukhiFedi.Config` か runtime env でひっくり返せるようにする。
       openRegistrations: false,
-      metadata: %{}
+      # Misskey 系・各種ディレクトリが拾う、サイトの名前とロゴ。
+      metadata: %{
+        nodeName: SukhiFedi.Config.title(),
+        iconUrl: SukhiFedi.Config.logo_url()
+      }
     }
 
     conn

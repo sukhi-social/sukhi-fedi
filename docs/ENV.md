@@ -20,6 +20,7 @@ top — those win.
 |---|---|---|---|
 | **`DOMAIN`** | **yes** (prod) | `localhost:4000` (dev) | Public hostname, no scheme, no port. Stamped into ActivityPub IDs and HTTP-Sig `keyId`. **Changing this after users exist strands their fediverse identity** — set it right before the first signup. |
 | `INSTANCE_TITLE` | no | `sukhi-fedi` | Display name in `/api/v1/instance` and `/.well-known/nodeinfo/2.0`. |
+| `INSTANCE_LOGO_URL` | no | bundled `/favicon.png` (好) | Instance logo. `https://…` or a `/…` path on this domain (e.g. an `/uploads/…` file). Shown to other servers in `/api/v1,v2/instance` (`thumbnail`, `icon`), nodeinfo `metadata.iconUrl`, and by `/favicon.ico`, `/favicon.png`, `/apple-touch-icon.png`, `/icon-512.png`, which redirect to it. web-next uses it as the default `SITE_LOGO`. Set it on the gateway (and web-next); anything else is ignored. |
 
 ## Distributed Erlang (gateway ↔ api)
 
