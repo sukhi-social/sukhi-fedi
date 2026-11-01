@@ -304,3 +304,75 @@ up.compiler("form[data-passkey-add]", (form) => {
     }
   });
 });
+
+// ── 新着の帯 ────────────────────────────────────────────────────
+// タイムラインの上の [data-fresh] は、隠れた帯。新しい投稿が届いていたら、そっと見せる。
+// PWA にはリロードが無い(ふつうのブラウザなら、リロードしてもよい)ので、押せば読みなおす、帯を置く。
+//
+// ・訊くのは「あるか」だけ(数も中身も取らない)。列は、押されるまで動かさない。
+// ・見えているときだけ、ゆっくり訊く。裏に回ったら止め、戻ったときに(間が空いていれば)すぐ一度。
+// ・通信量を減らす設定(Save-Data)では、定期の問い合わせはしない。戻ったときの一度だけ。
+// ・ホーム画面から開いた(display-mode: standalone)ときは、手動の更新が無いぶん、すこし短い間合い。
+const standalone =
+  matchMedia("(display-mode: standalone)").matches ||
+  matchMedia("(display-mode: minimal-ui)").matches ||
+  navigator.standalone === true;
+document.documentElement.dataset.displayMode = standalone ? "standalone" : "browser";
+
+up.compiler("[data-fresh]", (bar) => {
+  const url = bar.dataset.fresh;
+  const every = standalone ? 60_000 : 180_000;
+  const quiet = navigator.connection?.saveData === true;
+  let last = 0;
+  let timer = null;
+  let found = false;
+
+  // 屋根の高さ。帯が、その下に貼りつく。
+  const nav = document.querySelector(".app-nav");
+  if (nav) document.documentElement.style.setProperty("--app-nav-h", `${nav.offsetHeight}px`);
+
+  const ask = async () => {
+    if (found || document.hidden || !navigator.onLine) return;
+    last = Date.now();
+    try {
+      const res = await fetch(url, { credentials: "same-origin", cache: "no-store", headers: { accept: "application/json" } });
+      if (res.status !== 200) return;
+      found = true;
+      bar.hidden = false;
+      stop();
+    } catch {
+      // 届かなかったら、何もしない。次の間合いで、また。
+    }
+  };
+  const start = () => {
+    if (timer || found || quiet) return;
+    timer = setInterval(ask, every);
+  };
+  const stop = () => {
+    clearInterval(timer);
+    timer = null;
+  };
+  const onVisible = () => {
+    if (document.hidden) return stop();
+    start();
+    if (Date.now() - last > 30_000) ask();
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  addEventListener("online", onVisible);
+  start();
+
+  const button = bar.querySelector("button");
+  const press = () => {
+    bar.hidden = true;
+    // いまの頁を取りなおして、いちばん上から。履歴は増やさない。
+    up.reload("main", { cache: false, scroll: "reset" });
+  };
+  button.addEventListener("click", press);
+
+  return () => {
+    stop();
+    document.removeEventListener("visibilitychange", onVisible);
+    removeEventListener("online", onVisible);
+    button.removeEventListener("click", press);
+  };
+});

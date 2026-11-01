@@ -65,7 +65,24 @@ export const jaExtra = {
   'data.done.skipped': '{n}件、読み込みました。{m}件は、読み込めませんでした。',
   'data.err.empty': 'ファイルを選んでください。',
   'data.err.tooLarge': 'ファイルが大きすぎます（256KB まで）。',
-  'data.err.tooMany': '行が多すぎます（1000 行まで）。ふたつに分けてください。'
+  'data.err.tooMany': '行が多すぎます（1000 行まで）。ふたつに分けてください。',
+  'timeline.fresh': 'あたらしい投稿があります',
+  'timeline.freshHint': '押すと、いちばん上から読みなおします。',
+  'timeline.apply': 'この絞りこみで見る',
+  'timeline.makeDefault': 'これをデフォルトにする',
+  'timeline.clearDefault': 'デフォルトを外す',
+  'timeline.isDefault': 'いまの絞りこみが、ホームのデフォルトです。',
+  'timeline.defaultNow': 'ホームのデフォルト: {what}',
+  'timeline.defaultNone': 'なし',
+  'timeline.defaultHint': 'ホームを開いたとき、最初にかかる絞りこみです。',
+  'timeline.defaultSaved': 'ホームのデフォルトを、この絞りこみにしました。',
+  'timeline.defaultCleared': 'ホームのデフォルトを、外しました。',
+  'timeline.filterOn': '絞りこみ中',
+  'settings.timeline': 'タイムラインの見え方',
+  'settings.boostHideName': 'ブーストの行で、ブーストされた人の名前を隠す',
+  'settings.boostHideNameHint': 'ブーストの行は、アイコンだけで並びます。',
+  'status.boostSummary': '{by}が、{who}の投稿をブースト',
+  'status.boostSummaryHidden': '{by}が、ブースト'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -131,5 +148,22 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'data.done.skipped': '{n}건을 가져왔어요. {m}건은 가져오지 못했어요.',
   'data.err.empty': '파일을 골라 주세요.',
   'data.err.tooLarge': '파일이 너무 커요 (256KB까지).',
-  'data.err.tooMany': '줄이 너무 많아요 (1000줄까지). 둘로 나눠 주세요.'
+  'data.err.tooMany': '줄이 너무 많아요 (1000줄까지). 둘로 나눠 주세요.',
+  'timeline.fresh': '새 글이 있어요',
+  'timeline.freshHint': '누르면 맨 위부터 다시 읽어요.',
+  'timeline.apply': '이 필터로 보기',
+  'timeline.makeDefault': '이걸 기본으로 하기',
+  'timeline.clearDefault': '기본 해제',
+  'timeline.isDefault': '지금 필터가 홈의 기본이에요.',
+  'timeline.defaultNow': '홈의 기본: {what}',
+  'timeline.defaultNone': '없음',
+  'timeline.defaultHint': '홈을 열 때 처음에 걸리는 필터예요.',
+  'timeline.defaultSaved': '홈의 기본을 이 필터로 했어요.',
+  'timeline.defaultCleared': '홈의 기본을 해제했어요.',
+  'timeline.filterOn': '필터 사용 중',
+  'settings.timeline': '타임라인 보이는 방식',
+  'settings.boostHideName': '부스트 줄에서 부스트된 사람의 이름 숨기기',
+  'settings.boostHideNameHint': '부스트 줄이 아이콘만으로 이어져요.',
+  'status.boostSummary': '{by}님이 {who}님의 글을 부스트',
+  'status.boostSummaryHidden': '{by}님이 부스트'
 };

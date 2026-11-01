@@ -6,7 +6,7 @@
 
 import { html, raw } from '../html.ts';
 import { gwJson, gwPage, GatewayError } from '../gateway.ts';
-import { ok, route, NotFound, type Ctx } from '../http.ts';
+import { ok, route, NotFound, type Ctx, type Reply } from '../http.ts';
 import type { Account, Context, Relationship, SearchResult, Status, TimelineKind } from '../types.ts';
 import { renderEmojis } from '../emoji.ts';
 import { timeWords } from '../time.ts';
@@ -19,6 +19,49 @@ import { maybeMe, replyAcctsFor, statusList } from './shared.ts';
 
 const KINDS: TimelineKind[] = ['home', 'public', 'bubble', 'tag'];
 
+// 絞りこみの種類。順番は、画面に出す順。ホームの「デフォルト」は、この名前のカンマ区切りで
+// gateway(accounts.home_filter)に置く ── 知らない名前は、ここでも読み捨てる。
+export const FILTERS = ['only_media', 'hide_boosts', 'hide_sensitive'] as const;
+export type FilterName = (typeof FILTERS)[number];
+
+export function savedFilters(me: Account | null): Set<FilterName> {
+  const have = (me?.source?.home_filter ?? '').split(',');
+  return new Set(FILTERS.filter((f) => have.includes(f)));
+}
+
+// 今の絞りこみ。`filtered=1` が付いているときは、フォームから来た値がすべて(外した、も含めて)。
+// 付いていないとき(タブ・ナビから来たとき)、ホームだけは、その人のデフォルトから始める。
+export function activeFilters(me: Account | null, kind: TimelineKind, q: URLSearchParams): Set<FilterName> {
+  const picked =
+    q.get('filtered') === '1' || kind !== 'home'
+      ? new Set(FILTERS.filter((f) => q.get(f) === '1'))
+      : savedFilters(me);
+  // hide_boosts が効くのはホームだけ(public / tag にはブーストが混ざらない)。
+  if (kind !== 'home') picked.delete('hide_boosts');
+  return picked;
+}
+
+// 「新着があるか」の問い合わせと、頁の組み立てが、同じクエリを使うように一か所に。
+export function timelineRequest(kind: TimelineKind, tag: string, on: Set<FilterName>): { path: string; query: Record<string, string | undefined> } {
+  const query: Record<string, string | undefined> = {
+    only_media: on.has('only_media') ? '1' : undefined,
+    hide_boosts: on.has('hide_boosts') ? '1' : undefined,
+    hide_sensitive: on.has('hide_sensitive') ? '1' : undefined
+  };
+  if (kind === 'home') return { path: '/api/v1/timelines/home', query };
+  if (kind === 'tag') return { path: `/api/v1/timelines/tag/${encodeURIComponent(tag)}`, query };
+  query[kind === 'bubble' ? 'bubble' : 'local'] = '1';
+  return { path: '/api/v1/timelines/public', query };
+}
+
+function keepForFresh(kind: TimelineKind, tag: string, on: Set<FilterName>): [string, string][] {
+  const out: [string, string][] = [['kind', kind]];
+  if (kind === 'tag') out.push(['tag', tag]);
+  out.push(['filtered', '1']);
+  for (const f of on) out.push([f, '1']);
+  return out;
+}
+
 // ── タイムライン ────────────────────────────────────────────────
 export async function timeline(ctx: Ctx, tagParam: string | null) {
   const t = ctx.t;
@@ -29,28 +72,16 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
   if (!kind || !KINDS.includes(kind)) kind = me ? 'home' : 'public';
   if (kind === 'home' && !me) kind = 'public';
   const tag = (tagParam ?? q.get('tag') ?? '').trim().replace(/^#/, '');
-  const onlyMedia = q.get('only_media') === '1';
-  const hideBoosts = kind === 'home' && q.get('hide_boosts') === '1';
-  const hideSensitive = q.get('hide_sensitive') === '1';
   const maxId = q.get('max_id') ?? undefined;
-
-  const query: Record<string, string | undefined> = {
-    limit: '20',
-    max_id: maxId,
-    only_media: onlyMedia ? '1' : undefined,
-    hide_boosts: hideBoosts ? '1' : undefined,
-    hide_sensitive: hideSensitive ? '1' : undefined
-  };
-  let path: string;
-  if (kind === 'home') path = '/api/v1/timelines/home';
-  else if (kind === 'tag') path = `/api/v1/timelines/tag/${encodeURIComponent(tag)}`;
-  else {
-    path = '/api/v1/timelines/public';
-    query[kind === 'bubble' ? 'bubble' : 'local'] = '1';
-  }
+  const on = activeFilters(me, kind, q);
+  const req = timelineRequest(kind, tag, on);
+  const path = req.path;
+  const query: Record<string, string | undefined> = { limit: '20', max_id: maxId, ...req.query };
 
   let items: Status[] = [];
   let nextMaxId: string | null = null;
+  // gateway は新しい順で返す。並べなおす前の先頭が、いちばん新しい投稿(新着の目印)。
+  let newestId: string | undefined;
   let problem: string | null = null;
   if (kind === 'tag' && !tag) {
     // タグがまだ決まっていない。取りに行かない。
@@ -58,6 +89,7 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
     try {
       const page = await gwPage<Status>(ctx, path, { query, auth: kind === 'home' ? true : 'optional' });
       // 時間のことばが同じ投稿は、順序が言えない。その中で、同じ人が続かないように並べなおす。
+      newestId = page.items[0]?.id;
       items = spreadWithinMoments(page.items, ctx.locale, ctx.session?.id ?? 'anon');
       nextMaxId = page.nextMaxId;
     } catch (e) {
@@ -70,9 +102,8 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
   const keep = new URLSearchParams();
   keep.set('kind', kind);
   if (kind === 'tag') keep.set('tag', tag);
-  if (onlyMedia) keep.set('only_media', '1');
-  if (hideBoosts) keep.set('hide_boosts', '1');
-  if (hideSensitive) keep.set('hide_sensitive', '1');
+  keep.set('filtered', '1');
+  for (const f of on) keep.set(f, '1');
   const moreHref = nextMaxId ? `/timeline?${keep}&max_id=${encodeURIComponent(nextMaxId)}` : null;
 
   const tab = (k: TimelineKind, label: string) =>
@@ -85,20 +116,52 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
     : kind === 'tag' ? t('timeline.emptyTag', { tag })
     : t('timeline.emptyGeneric');
 
-  const check = (name: string, on: boolean, label: string) =>
-    html`<label class="filter-check"><input type="checkbox" name="${name}" value="1" ${on ? raw('checked') : ''} /> <span>${label}</span></label>`;
+  const filterLabel: Record<FilterName, string> = {
+    only_media: t('timeline.onlyMedia'),
+    hide_boosts: t('timeline.hideBoosts'),
+    hide_sensitive: t('timeline.hideSensitive')
+  };
+  const shown = FILTERS.filter((f) => f !== 'hide_boosts' || kind === 'home');
+  const check = (name: FilterName) =>
+    html`<label class="filter-check"><input type="checkbox" name="${name}" value="1" ${on.has(name) ? raw('checked') : ''} /> <span>${filterLabel[name]}</span></label>`;
+
+  // デフォルトを置けるのは、ホームだけ(入っている人の、自分の設定なので)。
+  const canDefault = kind === 'home' && !!me;
+  const saved = savedFilters(me);
+  const sameAsSaved = saved.size === on.size && [...on].every((f) => saved.has(f));
+  const savedWords = saved.size ? FILTERS.filter((f) => saved.has(f)).map((f) => filterLabel[f]).join('、') : t('timeline.defaultNone');
+
+  // 新着の帯。ふだんは隠れていて、新しい投稿が届いたとき(public/js/fresh.js が確かめて)そっと現れる。
+  // 押すまで、列は動かない。先頭の id は、「ここより新しいもの」を訊くための目印。
+  const newest = !maxId ? newestId : undefined;
+  const freshBar =
+    newest && !problem
+      ? html`<div class="fresh" hidden data-fresh="/timeline/fresh?${new URLSearchParams([...keepForFresh(kind, tag, on), ['since', newest]])}">
+          <button type="button" class="fresh-btn" up-follow="false">
+            <span class="fresh-text">${t('timeline.fresh')}</span>
+            <span class="fresh-hint muted">${t('timeline.freshHint')}</span>
+          </button>
+        </div>`
+      : '';
 
   const body = html`<h1 class="visually-hidden">${kind === 'tag' && tag ? `#${tag}` : t(kind === 'home' ? 'timeline.tabHome' : kind === 'bubble' ? 'timeline.tabBubble' : 'timeline.tabPublic')}</h1>
     <nav class="tabs timeline" aria-label="${t('timeline.tabsLabel')}">
       ${me ? tab('home', t('timeline.tabHome')) : ''}${tab('public', t('timeline.tabPublic'))}${tab('bubble', t('timeline.tabBubble'))}${tab('tag', t('timeline.tabTag'))}
       <details class="timeline-filter">
-        <summary class="chip">${icon('settings')}<span class="filter-label">${t('timeline.filter')}</span></summary>
+        <summary class="chip" ${on.size ? raw('data-on="true"') : ''}>${icon('settings')}<span class="filter-label">${t('timeline.filter')}</span>${on.size ? html`<span class="visually-hidden"> (${t('timeline.filterOn')})</span>` : ''}</summary>
         <form method="get" action="/timeline" class="filter-form">
-          <input type="hidden" name="kind" value="${kind}" />${kind === 'tag' ? html`<input type="hidden" name="tag" value="${tag}" />` : ''}
-          ${check('only_media', onlyMedia, t('timeline.onlyMedia'))}
-          ${kind === 'home' ? check('hide_boosts', hideBoosts, t('timeline.hideBoosts')) : ''}
-          ${check('hide_sensitive', hideSensitive, t('timeline.hideSensitive'))}
-          <button type="submit" class="chip">${t('timeline.filter')}</button>
+          <input type="hidden" name="kind" value="${kind}" /><input type="hidden" name="filtered" value="1" />${kind === 'tag' ? html`<input type="hidden" name="tag" value="${tag}" />` : ''}
+          ${shown.map((f) => check(f))}
+          <div class="filter-actions">
+            <button type="submit" class="chip">${t('timeline.apply')}</button>
+            ${canDefault
+              ? html`<button type="submit" class="chip" formmethod="post" formaction="/timeline/default" up-target="main">${t('timeline.makeDefault')}</button>`
+              : ''}
+          </div>
+          ${canDefault
+            ? html`<p class="muted text-sm filter-default">${sameAsSaved && saved.size ? t('timeline.isDefault') : t('timeline.defaultNow', { what: savedWords })}</p>
+                ${saved.size ? html`<button type="submit" class="filter-clear" name="reset" value="1" formmethod="post" formaction="/timeline/default" up-target="main">${t('timeline.clearDefault')}</button>` : ''}`
+            : ''}
         </form>
       </details>
     </nav>
@@ -111,6 +174,7 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
         </form>`
       : ''}
     <section class="timeline">
+      ${freshBar}
       ${problem ? html`<p class="error">${problem}</p>` : ''}
       ${items.length === 0 && !problem ? html`<p class="prose-small">${empty}</p>` : ''}
       ${await statusList(ctx, items, { me, idPrefix: 'tl', moreHref })}
@@ -123,6 +187,30 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
 
   return ok(layout(ctx, { title: t('nav.home'), me, entrance: !me, legal: !me, body }));
 }
+
+// 「新しい投稿はありますか」── いちばん上の id より新しいものが、一件でもあるかだけを返す。
+// 数は返さない(数を出さない作法)。中身も返さない。押されたら、ふつうに頁を取りなおす。
+// 取れなかったとき(通信の不調・gateway の不調)は、「無い」と同じ ── 帯は出ないだけで、何も壊れない。
+route('GET', '/timeline/fresh', async (ctx) => {
+  const q = ctx.url.searchParams;
+  const me = await maybeMe(ctx);
+  let kind = q.get('kind') as TimelineKind | null;
+  if (!kind || !KINDS.includes(kind)) kind = me ? 'home' : 'public';
+  if (kind === 'home' && !me) kind = 'public';
+  const tag = (q.get('tag') ?? '').trim().replace(/^#/, '');
+  const since = q.get('since') ?? '';
+  const none = (): Reply => ({ status: 204, headers: { 'cache-control': 'no-store' }, body: '' });
+  if (!/^\d+$/.test(since) || (kind === 'tag' && !tag)) return none();
+  const on = activeFilters(me, kind, new URLSearchParams([...q, ['filtered', '1']]));
+  const req = timelineRequest(kind, tag, on);
+  try {
+    const page = await gwPage<Status>(ctx, req.path, { query: { ...req.query, since_id: since, limit: '1' }, auth: kind === 'home' ? true : 'optional' });
+    if (page.items.length === 0) return none();
+    return { status: 200, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }, body: '{"fresh":true}' };
+  } catch {
+    return none();
+  }
+});
 
 route('GET', '/timeline', (ctx) => timeline(ctx, null));
 route('GET', '/tags/:tag', (ctx) => timeline(ctx, ctx.params.tag));
