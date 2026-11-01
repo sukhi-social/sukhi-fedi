@@ -84,14 +84,14 @@ rootless、ユーザー `sukhi`、`~sukhi/.config/containers/systemd/` に置く
 
 | unit(ファイル) | 何か | image | 備考 |
 | --- | --- | --- | --- |
-| `sukhi.network` | 内部ネットワーク | — | 外に出すのは Anubis の 8080 だけ(127.0.0.1) |
+| `sukhi.network` | 内部ネットワーク | — | 外に出すのは Anubis だけ(127.0.0.1:8081。8080 は同じ箱の haloyd が使っている) |
 | `sukhi-data.volume` | Datalevin + 配信キュー(SQLite) | — | `/var/lib/sukhi` に `datalevin/` `queue.db` `delivery_queue.db`。**更新で消さない**。`:Z` を付ける(SELinux) |
 | `sukhi-nats.container` | NATS | `nats:2-alpine`(ダイジェスト固定) | gateway が `Requires=` する(起動しないと動かない依存はこれだけ) |
 | `sukhi-gateway.container` | **combined**(gateway + delivery + api の一つの BEAM) | `ghcr.io/sukhi-social/sukhi-fedi-combined` | `SUKHI_STORE=datalevin`、`WEB_UPSTREAMS=web-next=http://sukhi-web-next:3000,…`。**書き手が一つ**なので、複製・ローリングは不可(再起動の間は短く止まる) |
 | `sukhi-web-next.container` | web-next(いまの主軸のフロント) | `…/sukhi-fedi-web-next` | `/.sukhi/web.json` を返す。gateway が起動時と 30 秒ごとに読む |
 | `sukhi-web-simple.container` | 旧 `web/`(SvelteKit SPA)。維持のみ | `…/sukhi-fedi-web-simple` | 同上。**使わない箱では置かない**(unit を足さなければ動かない) |
 | `sukhi-web-board.container` | natadeco の SSR(旧 natadeco-ssr) | `…/sukhi-fedi-web-board` | 別ドメイン。同じ箱で動かすかは §12-7 |
-| `sukhi-anubis.container` | Anubis | `…/sukhi-fedi-anubis` | `PublishPort=127.0.0.1:8080:8080`。ホストの nginx がここへ向く(RUNTIME.md §9) |
+| `sukhi-anubis.container` | Anubis | `…/sukhi-fedi-anubis` | `PublishPort=127.0.0.1:8081:8080`(ホスト側は 8081)。ホストの nginx がここへ向く(RUNTIME.md §9) |
 | (対象外)Postgres | 旧構成 | — | 維持のみ。Postgres 版の unit は本書では書かない |
 | (対象外)rustfs / S3 | メディア置き場 | — | 使う箱では同じ形の unit を足す |
 
@@ -357,7 +357,7 @@ Cockpit の導入・127.0.0.1 だけで待つ設定・SSH トンネル・ログ�
   書き出しは一時のディレクトリに作ってから入れ替える(途中の半端な状態を Quadlet に読ませない)。
   (root が `/etc/containers/systemd/users/<UID>/` に置く道もあるが、同期を root にしたくないので使わない。)
 - **subuid / subgid**: `useradd` が `/etc/subuid` `/etc/subgid` に範囲を付ける。`grep sukhi /etc/subuid /etc/subgid` で確かめる(setup の準備に入れる)。
-- **ポートは 1024 以上**: Anubis は `PublishPort=127.0.0.1:8080:8080`、ホストの nginx が受ける。rootless のネットワーク(pasta)越しだと、
+- **ポートは 1024 以上**: Anubis は `PublishPort=127.0.0.1:8081:8080`、ホストの nginx が受ける。rootless のネットワーク(pasta)越しだと、
   コンテナから見た送信元は nginx(ホスト)になる。**利用者の IP は nginx が付ける `X-Forwarded-For` で受ける**(おいた枠・レート制限が IP で数えるときの前提。rate-limit の記録と同じ注意)。
 - **ボリュームの持ち主**: コンテナ内の root は、ホストでは `sukhi` に写る。`sukhi-data.volume` + `:Z` なら通る見込みだが、
   非 root で動く image(web-*)に bind mount を足すときは `UserNS=keep-id` などが要るかもしれない。Datalevin の書き込みで確かめる。
