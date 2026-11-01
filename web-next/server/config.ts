@@ -32,6 +32,10 @@ export const config = {
   siteLogo: /^(\/(?!\/)|https?:\/\/)/.test(logoSetting)
     ? logoSetting
     : '/favicon.png',
+  // 連合先が決め打ちで取りに来るアイコンの道(/favicon.png など)の回し先。INSTANCE_LOGO_URL が使える値のときだけ。
+  instanceLogo: /^(\/(?!\/)|https:\/\/)/.test((process.env.INSTANCE_LOGO_URL ?? '').trim())
+    ? (process.env.INSTANCE_LOGO_URL ?? '').trim()
+    : '',
   aboutUrl: (process.env.ABOUT_URL ?? 'https://about.sukhi.social').replace(/\/$/, ''),
   secureCookie: process.env.COOKIE_SECURE === '1',
   postDelayMin: Number(process.env.POST_DELAY_MIN ?? 15),

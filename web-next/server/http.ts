@@ -215,7 +215,16 @@ const ROOT_FILES = new Set([
 // 更新が、最長 4 時間おくれる。scope は / のまま(道が / 直下にあるので)。
 const ROOT_ALIAS: Record<string, string> = { '/sw': 'sw.js' };
 
+// INSTANCE_LOGO_URL があるとき、連合先(Misskey 等)が決め打ちで取りに来る道は、そちらへ 302 で回す。
+// 短い cache にして、ロゴを替えたあとに古い絵が長く残らないようにする。
+const LOGO_PATHS = new Set(['/favicon.png', '/favicon.svg', '/apple-touch-icon.png', '/icon-512.png']);
+
 async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<boolean> {
+  if (config.instanceLogo && LOGO_PATHS.has(pathname)) {
+    res.writeHead(302, { location: config.instanceLogo, 'cache-control': 'public, max-age=3600' });
+    res.end();
+    return true;
+  }
   const at = ROOT_FILES.has(pathname)
     ? locateIn(config.publicDir, pathname.slice(1), false)
     : ROOT_ALIAS[pathname]

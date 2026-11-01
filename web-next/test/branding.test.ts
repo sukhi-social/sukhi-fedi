@@ -80,3 +80,18 @@ test('何も書かなければ sukhi-fedi と /favicon.png。ロゴの指定が�
     assert.doesNotMatch(page, /javascript:/);
   });
 });
+
+test('INSTANCE_LOGO_URL があると、連合先が取りに来る /favicon.png などはそちらへ 302。無ければ配る', async () => {
+  await withServer(5194, { INSTANCE_LOGO_URL: 'https://about.example/logo.svg' }, async (base) => {
+    for (const path of ['/favicon.png', '/favicon.svg', '/apple-touch-icon.png']) {
+      const res = await fetch(`${base}${path}`, { redirect: 'manual' });
+      assert.equal(res.status, 302, path);
+      assert.equal(res.headers.get('location'), 'https://about.example/logo.svg');
+    }
+  });
+  await withServer(5193, { INSTANCE_LOGO_URL: 'http://about.example/logo.svg' }, async (base) => {
+    // https でない指定は無かったことにして、同梱の一枚を配る。
+    const res = await fetch(`${base}/favicon.png`, { redirect: 'manual' });
+    assert.equal(res.status, 200);
+  });
+});
