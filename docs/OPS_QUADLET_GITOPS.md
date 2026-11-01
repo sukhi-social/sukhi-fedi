@@ -320,14 +320,60 @@ Renovate についての注意(どれも**要確認**):
 
 署名の方式は §12-5 で選ぶ(GitHub が付けるマージコミット署名の鍵を箱に固定する / 管理者の SSH 署名鍵)。
 
-## 11. rootless の運用上の前提
+## 11. rootless と Cockpit
+
+Cockpit の導入・127.0.0.1 だけで待つ設定・SSH トンネル・ログインの注意は [`RUNTIME.md`](RUNTIME.md) §12.1 / §12.5 のとおり(決定済み)。
+ここでは、**GitOps の箱として rootless と Cockpit を並べたときに効いてくること**だけを書く。すべて実機では未確認。
+
+### 11.1 rootless の前提
 
 - **`loginctl enable-linger sukhi`**: ログアウトしても user の systemd(と timer、コンテナ)が動き続ける。無いと再起動後に何も起きない。
-- user の `systemctl` を ssh 越しに使うときは `XDG_RUNTIME_DIR=/run/user/$(id -u sukhi)` が要る(`su` ではなく直接 ssh で入る。OPS_UPDATE_QUADLET.md の `nounit` と同じ注意)。
+- user の `systemctl` を ssh 越しに使うときは `XDG_RUNTIME_DIR=/run/user/$(id -u sukhi)` が要る(`su` ではなく直接 ssh、または `machinectl shell sukhi@`。OPS_UPDATE_QUADLET.md の `nounit` と同じ注意)。
 - timer も service も **user unit**(`~sukhi/.config/systemd/user/`)。root の cron や system の timer に逃がさない。
 - Quadlet は `~sukhi/.config/containers/systemd/` を見る。チェックアウトをそこに置かず、同期スクリプトが **重ねて書き出す**(§1.1)。
   書き出しは一時のディレクトリに作ってから入れ替える(途中の半端な状態を Quadlet に読ませない)。
-- 古い image の掃除は `podman image prune` でなく、last-good と一つ前のダイジェストを残して消す(戻すため)。
+  (root が `/etc/containers/systemd/users/<UID>/` に置く道もあるが、同期を root にしたくないので使わない。)
+- **subuid / subgid**: `useradd` が `/etc/subuid` `/etc/subgid` に範囲を付ける。`grep sukhi /etc/subuid /etc/subgid` で確かめる(setup の準備に入れる)。
+- **ポートは 1024 以上**: Anubis は `PublishPort=127.0.0.1:8080:8080`、ホストの nginx が受ける。rootless のネットワーク(pasta)越しだと、
+  コンテナから見た送信元は nginx(ホスト)になる。**利用者の IP は nginx が付ける `X-Forwarded-For` で受ける**(おいた枠・レート制限が IP で数えるときの前提。rate-limit の記録と同じ注意)。
+- **ボリュームの持ち主**: コンテナ内の root は、ホストでは `sukhi` に写る。`sukhi-data.volume` + `:Z` なら通る見込みだが、
+  非 root で動く image(web-*)に bind mount を足すときは `UserNS=keep-id` などが要るかもしれない。Datalevin の書き込みで確かめる。
+- **cgroup の委譲(重要)**: rootless は、systemd が cgroup を `sukhi` に**委譲**した分しか制限できない。Rocky 9 の既定は memory / pids までで、
+  **cpu は既定では委譲されない**ことが多い。`MemoryMax` は効いても `CPUWeight=` / `CPUQuota=` が黙って効かない可能性がある。
+  0.5 OCPU の箱で `cpu.weight` を試す予定(TODO.md)なので、setup に次を入れて確かめる:
+  ```ini
+  # /etc/systemd/system/user@.service.d/delegate.conf (root が置く。setup の準備)
+  [Service]
+  Delegate=cpu cpuset io memory pids
+  ```
+  確かめ方: `cat /sys/fs/cgroup/user.slice/user-$(id -u sukhi).slice/user@$(id -u sukhi).service/cgroup.controllers`(`cpu` が出ること)。
+- **SELinux**: Rocky は有効が既定。bind mount とボリュームに `:Z`。`container-selinux` が入っていること。ラベルの問題は `ausearch -m avc -ts recent` で見る。
+- **`podman secret`(rootless)**: 既定の保管は `~sukhi/.local/share/containers/storage/secrets/` の**平文のファイル**(権限 600)。
+  暗号化されない。ディスクの控えに入れるときの扱いに注意(§6)。
+- **image の置き場**: rootless の image は `~sukhi/.local/share/containers/storage/`。小さな箱ではここがディスクを食う。
+  古い image の掃除は `podman image prune` でなく、last-good と一つ前のダイジェストを残して消す(戻すため)。
+- ヘルスチェックは podman が systemd の一時 timer で回す。user の systemd が生きていること(= linger)が前提。
+- `podman-auto-update.timer`(user)は有効にしない(§14)。
+
+### 11.2 Cockpit と GitOps(「見る」と「変える」を分ける)
+
+- 見る相手は**専用ユーザー `sukhi` でログイン**した Cockpit(rootless のコンテナは、そのユーザーでだけ見える。RUNTIME.md §12.1)。
+  cockpit-podman でコンテナ・image・ログ、Services で user の unit と timer の状態が見える(user の unit の出し方は版で違う。**要確認**)。
+- **Cockpit は「見る」だけに使う方針を推奨する。** 変える道を二つ持つと、git の外の状態ができる:
+  | Cockpit で出来てしまうこと | 起きること | 方針 |
+  | --- | --- | --- |
+  | unit の停止・再起動 | 次の同期は、変わっていない unit を触らないので、**止めたままになる** | 一時の切り分けには使ってよい。戻すのを忘れない(同期は「止まっている unit」を通知する) |
+  | コンテナの削除 | Quadlet の unit が起こし直す(同じ image) | 実害は小さい |
+  | image の pull / 新しいコンテナの作成 | Quadlet の外のコンテナができる(名前・ポートが衝突しうる) | **しない**。image は git のダイジェストだけ |
+  | 画面で環境変数や image を変えた「再作成」 | Quadlet の定義と食い違う | **しない**。変更は `sukhi-infra` の PR |
+- ログ: `LogDriver=journald` なので、Cockpit の Logs / `journalctl --user -u sukhi-gateway` で同じものが見える。
+  user の journal を読めるように、`/var/log/journal` を作って永続化し、`sukhi` が読める権限(`systemd-journal` グループなど)にする(setup の準備)。
+  同期の結果(`sukhi-gitops-sync`)も同じ journal に出る(§3.3)。
+- 同期の状態(last-good / rejected)を Cockpit から読みやすくするため、同期スクリプトは**一行で足りる要約**を journal の最後に出す
+  (例: `sync ok sha-abc1234 (gateway,web-next restarted)` / `sync rejected sha-def5678: healthcheck gateway`)。
+- 9090 番は 127.0.0.1 のまま・SSH トンネル経由(RUNTIME.md §12.5)。**Cockpit の `sukhi` ログインは、箱の中で `sukhi` の権限を丸ごと渡す**
+  (= Quadlet・secret・Datalevin のデータに触れる)ので、強いパスワード + トンネルの中だけ、を崩さない。
+  `sukhi` を ssh の鍵だけで入るユーザーにしている場合、Cockpit 用にパスワードを別に持つかは §12-11。
 
 ## 12. 決めてほしいこと(選択肢と推奨)
 
@@ -345,6 +391,8 @@ Renovate についての注意(どれも**要確認**):
 8. **深いヘルスの口。** `/up`(BEAM が答える)で始めてよいか。DB とキューまで見る口(`/up?deep=1` など)を足すなら別の作業にする。
 9. **適用前の告知。** 最初は告知なし(短い断の目安を書く)でよいか。入れるなら bump の承認から適用まで(5 分)に挟むか。
 10. **通知の先。** journald のほかに、どこに出すか(管理画面のお知らせ / Matrix / ntfy など)。
+11. **Cockpit の使い方。** 推奨は「見る」だけ(§11.2)。`sukhi` ユーザーの Cockpit ログインのパスワードを別に持つか、それとも Cockpit を使うときだけ一時的に設定するか。
+12. **cgroup の委譲。** setup に `Delegate=cpu cpuset io memory pids` を入れてよいか(`cpu.weight` の試験の前提。root での設定が一つ増える)。
 
 ## 13. 段階的な導入(提案)
 
