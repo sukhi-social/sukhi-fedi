@@ -287,9 +287,10 @@ defmodule SukhiFedi.Accounts do
     end
   end
 
-  # How the person likes their notifications paced is theirs alone: it never
-  # shows on the actor, so changing only it must not send peers an Update.
-  @pace_keys [:notification_hold_minutes, :notification_grouping]
+  # How the person likes their notifications paced, and how their own
+  # timeline looks, is theirs alone: it never shows on the actor, so changing
+  # only these must not send peers an Update.
+  @pace_keys [:notification_hold_minutes, :notification_grouping, :home_filter, :boost_hide_name]
 
   defp do_update(%Account{} = account, attrs) do
     cs = account |> Account.changeset_credentials(attrs) |> put_emojis()

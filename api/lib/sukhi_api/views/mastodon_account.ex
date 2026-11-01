@@ -261,7 +261,11 @@ defmodule SukhiApi.Views.MastodonAccount do
         follow_requests_count: 0,
         # sukhi's own: how ambient notifications are paced. nil = never chosen.
         notification_hold_minutes: Map.get(account, :notification_hold_minutes),
-        notification_grouping: Map.get(account, :notification_grouping, false) || false
+        notification_grouping: Map.get(account, :notification_grouping, false) || false,
+        # sukhi's own: the home timeline's starting filter ("" = none) and
+        # whether a boost row hides whose post it is.
+        home_filter: Map.get(account, :home_filter) || "",
+        boost_hide_name: Map.get(account, :boost_hide_name, false) || false
       },
       role:
         if Map.get(account, :is_admin, false) do

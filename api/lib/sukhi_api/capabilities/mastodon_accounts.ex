@@ -226,7 +226,9 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
               "location",
               "birthday",
               "notification_hold_minutes",
-              "notification_grouping"
+              "notification_grouping",
+              "home_filter",
+              "boost_hide_name"
             ])
             |> maybe_put("avatar_url", avatar_url)
             |> maybe_put("banner_url", banner_url)

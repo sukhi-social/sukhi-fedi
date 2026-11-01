@@ -165,6 +165,19 @@ types in `WebPush.direct_types/0`) can be slowed and folded, per account:
 
 The rule lives in `SukhiFedi.Notifications` (`pace/2`, `scope/3`).
 
+### Timeline look (sukhi's own)
+
+Two more private preferences ride `update_credentials` and come back under
+`source` in `verify_credentials`. Neither is sent to peers (no actor `Update`).
+
+- `home_filter` — the filter the home timeline starts with: a comma list of
+  `hide_boosts`, `hide_sensitive`, `only_media`. Unknown tokens are dropped,
+  the rest sorted; empty clears it. Returned as `""` when none. The gateway
+  does not apply it: a client reads it and sends the matching query flags to
+  `/api/v1/timelines/home` itself.
+- `boost_hide_name` — boolean. A boost row leaves out whose post it is.
+  Display only; clients honour it.
+
 ## Lists
 
 | Method | Path | Scope |
