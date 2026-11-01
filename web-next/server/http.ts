@@ -173,7 +173,7 @@ async function makeCtx(req: IncomingMessage, params: Record<string, string>): Pr
 
 // ── ルーター ─────────────────────────────────────────────────────
 type Handler = (ctx: Ctx) => Promise<Reply> | Reply;
-type Route = { method: string; re: RegExp; keys: string[]; handler: Handler };
+type Route = { method: string; pattern: string; re: RegExp; keys: string[]; handler: Handler };
 
 const routes: Route[] = [];
 
@@ -183,7 +183,32 @@ export function route(method: 'GET' | 'POST', pattern: string, handler: Handler)
     keys.push(k);
     return '([^/]+)';
   });
-  routes.push({ method, re: new RegExp(`^${src}/?$`), keys, handler });
+  routes.push({ method, pattern, re: new RegExp(`^${src}/?$`), keys, handler });
+}
+
+// ── gateway への申告書 ───────────────────────────────────────────
+// gateway が前に立つとき、読みに来る。/.sukhi/web.json(ドット始まりなので、外からは取れない)。
+// 受ける道は、ここの route() と静的ファイルの置き場から作る ── 二つ目の一覧は持たない。
+export type WebManifest = {
+  name: string;
+  claims: { methods?: string[]; path: string }[];
+  cookies: string[];
+};
+
+export function webManifest(): WebManifest {
+  const seen = new Set<string>();
+  const claims: WebManifest['claims'] = [];
+  const add = (method: string | undefined, path: string) => {
+    const key = `${method ?? 'GET'} ${path}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    claims.push(method ? { methods: method === 'GET' ? ['GET', 'HEAD'] : [method], path } : { path });
+  };
+  for (const r of routes) add(r.method, r.pattern);
+  for (const p of ROOT_FILES) add(undefined, p);
+  for (const p of Object.keys(ROOT_ALIAS)) add(undefined, p);
+  for (const prefix of ['/assets/', '/twemoji/', '/brand/']) add(undefined, `${prefix}*`);
+  return { name: 'web-next', claims, cookies: ['sukhi_sid'] };
 }
 
 // ── 静的ファイル ─────────────────────────────────────────────────
@@ -347,6 +372,13 @@ export function serve(port: number): ReturnType<typeof createServer> {
     let status = 500;
 
     try {
+      if (pathname === '/.sukhi/web.json' && (req.method === 'GET' || req.method === 'HEAD')) {
+        res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(req.method === 'HEAD' ? undefined : JSON.stringify(webManifest()));
+        status = 200;
+        return;
+      }
+
       if ((req.method === 'GET' || req.method === 'HEAD') && (await serveStatic(req, res, pathname))) {
         status = res.statusCode;
         return;

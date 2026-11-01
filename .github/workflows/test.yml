@@ -10,6 +10,7 @@
 # `push` trigger on main keeps main honest after a merge.
 #
 #   web-next       pnpm test (node --test, a mock gateway; no build step)
+#   web-simple     node --test on its server and manifest (no install needed)
 #   elixir-unit    make test-shared / -elixir / -api / -delivery (no DB)
 #   elixir-pglite  make test-pglite: compile with warnings as errors,
 #                  migrate, and run the DB integration suite on embedded PGlite
@@ -20,6 +21,7 @@ on:
   pull_request:
     paths:
       - "web-next/**"
+      - "web/**"
       - "elixir/**"
       - "api/**"
       - "shared/**"
@@ -35,6 +37,7 @@ on:
       - main
     paths:
       - "web-next/**"
+      - "web/**"
       - "elixir/**"
       - "api/**"
       - "shared/**"
@@ -78,6 +81,23 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm test
+
+  # web-simple's own server and the manifest it hands the gateway. The SPA's
+  # browser tests are web-e2e.yml; this is the part that is now an image.
+  web-simple:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: node --test "serve/*.test.mjs" "scripts/*.test.mjs"
 
   elixir-unit:
     runs-on: ubuntu-24.04
