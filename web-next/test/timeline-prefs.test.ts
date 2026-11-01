@@ -82,3 +82,29 @@ test('名前の無いリモートの人は、user@host で呼ぶ', () => {
   const remote = { ...boost.reblog!, account: { ...boost.reblog!.account, display_name: '', username: 'kuro43_', acct: 'kuro43_@misskey.io' } };
   assert.match(String(statusCard(ctx, remote as Status, { me: me() })), /kuro43_@misskey\.io/);
 });
+
+const withImage = (over: Record<string, unknown>) =>
+  ({
+    ...boost,
+    reblog: { ...boost.reblog, media_attachments: [{ id: 'm', type: 'image', url: 'https://x.example/full.png', preview_url: 'https://x.example/prev.png' }], ...over }
+  }) as unknown as Status;
+
+test('ブーストの行: 画像があれば、された人のアイコンと本文の間にプレビューが入る', () => {
+  const out = String(statusCard(ctx, withImage({}), { me: me() }));
+  const at = (s: string) => out.indexOf(s);
+  const order = ['booster.png', 'boost-row-mark', 'author.png', 'boost-row-thumb', 'boost-compact-preview'].map(at);
+  assert.ok(order.every((n) => n >= 0), String(order));
+  assert.deepEqual(order, [...order].sort((a, b) => a - b));
+  assert.ok(out.includes('prev.png'));
+});
+
+test('ブーストの行: 本文に CW、または画像が sensitive なら、プレビューを出さない', () => {
+  assert.doesNotMatch(String(statusCard(ctx, withImage({ spoiler_text: 'ねこ' }), { me: me() })), /boost-row-thumb/);
+  assert.doesNotMatch(String(statusCard(ctx, withImage({ sensitive: true }), { me: me() })), /boost-row-thumb/);
+  assert.doesNotMatch(String(statusCard(ctx, boost, { me: me() })), /boost-row-thumb/);
+});
+
+test('開いたとき: 「(ブーストした人)さんがブーストしました」で、名前がプロフィールへのリンク', () => {
+  const out = String(statusCard(ctx, boost, { me: me() }));
+  assert.match(out, /<a class="boost-by-name" href="\/@booster">booster<\/a>さんがブーストしました/);
+});

@@ -210,6 +210,13 @@ export function statusCard(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   const said = hideName
     ? ctx.t('status.boostSummaryHidden', { by: nameOf(booster) })
     : ctx.t('status.boostSummary', { by: nameOf(booster), who: nameOf(author) });
+  // 画像があるとき、アイコンと同じ高さの四角いプレビューを添える。
+  // 本文に CW がある、または画像が sensitive のときは、出さない(開くまで隠す)。
+  const firstImage = s.reblog.media_attachments.find((m) => m.type === 'image');
+  const thumb = firstImage && !s.reblog.spoiler_text && !s.reblog.sensitive ? firstImage.preview_url || firstImage.url : '';
+  // 「(ブーストした人)さんがブーストしました」。名前だけがプロフィールへのリンク。
+  const [pre = '', post = ''] = ctx.t('status.boostedLine', { by: '\u0000' }).split('\u0000');
+  const boostedLine = html`${pre}<a class="boost-by-name" href="/@${booster.acct}">${nameHtml(booster)}</a>${post}`;
   return html`<details class="boost" id="bst-${s.id}">
     <summary class="boost-compact" title="${ctx.t('status.expandBoost')}">
       <span class="visually-hidden">${said}</span>
@@ -217,9 +224,10 @@ export function statusCard(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
       ${hideName ? '' : html`<span class="boost-row-who" aria-hidden="true">${nameHtml(author)}</span>`}
       <span class="boost-row-mark" aria-hidden="true">${icon('repeat')}</span>
       <span class="boost-row-art" aria-hidden="true">${avatar(author.avatar, nameOf(author), 'quote-avatar')}</span>
+      ${thumb ? html`<img class="boost-row-thumb" src="${thumb}" alt="" loading="lazy" aria-hidden="true" />` : ''}
       <span class="boost-compact-preview">${raw(renderEmojis(phrase(toPlainText(s.reblog.content)), s.reblog.emojis))}</span>
     </summary>
-    <a class="boost-by" href="/@${booster.acct}">${icon('repeat')} ${ctx.t('status.boostSummary', { by: nameOf(booster), who: nameOf(author) })}</a>
+    <p class="boost-by">${icon('repeat')} ${boostedLine}</p>
     ${inner(ctx, s.reblog, { ...o, domId: boostInnerId(s.id) })}
   </details>`;
 }

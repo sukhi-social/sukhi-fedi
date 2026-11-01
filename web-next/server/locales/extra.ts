@@ -82,7 +82,8 @@ export const jaExtra = {
   'settings.boostHideName': 'ブーストの行で、ブーストされた人の名前を隠す',
   'settings.boostHideNameHint': 'ブーストの行は、アイコンだけで並びます。',
   'status.boostSummary': '{by}が、{who}の投稿をブースト',
-  'status.boostSummaryHidden': '{by}が、ブースト'
+  'status.boostSummaryHidden': '{by}が、ブースト',
+  'status.boostedLine': '{by}さんがブーストしました'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -165,5 +166,6 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'settings.boostHideName': '부스트 줄에서 부스트된 사람의 이름 숨기기',
   'settings.boostHideNameHint': '부스트 줄이 아이콘만으로 이어져요.',
   'status.boostSummary': '{by}님이 {who}님의 글을 부스트',
-  'status.boostSummaryHidden': '{by}님이 부스트'
+  'status.boostSummaryHidden': '{by}님이 부스트',
+  'status.boostedLine': '{by}님이 부스트했어요'
 };
