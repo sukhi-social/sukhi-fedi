@@ -336,7 +336,7 @@ Renovate についての注意(どれも**要確認**):
 | ブランチ保護 | main への直接 push 禁止、PR 必須、**必須レビュー 1 人以上**(PR の作者本人と bot は数えない)、必須チェック(§3.2)、force-push と削除の禁止、管理者にも適用(バイパス無し)、CODEOWNERS で `*.container` を指定 |
 | コミット署名 | **署名つきコミットを必須**にし、箱は `git verify-commit` で検証してから適用する(§3.3-3)。公開鍵(`allowed_signers`)は**箱の上**に置き、リポジトリの中に置かない(リポジトリを書き換えた人が鍵も書き換えられるため) |
 | image の署名 | main が何を指しても、各ダイジェストを cosign で検証する(§3.3-4)。**乗っ取られた main でも、こちらの workflow が焼いた image しか動かせない** |
-| 権限の最小化 | CI の bot は PR を立てるだけ。箱は sukhi-infra を**読み取り専用の deploy key** で引く。箱から GitHub へ書かない |
+| 権限の最小化 | CI の bot は PR を立てるだけ。箱は sukhi-infra を引くだけ。sukhi-infra は**当面 public**(ひなた決定)で、箱は認証なしの https で引く(箱に GitHub の秘密を置かない)。private に戻すなら読み取り専用の deploy key(書き込み権限は付けない。期限がないので年1回入れ替える)。箱から GitHub へ書かない |
 | 巻き戻しの攻撃 | 古い(脆弱な)でも署名つきの image を指す commit は、署名検証だけでは弾けない。レビューで見る点として PR に前回との差(sha の新旧)を載せる。機械的に弾く(sha が新しい commit の子孫であること)は将来 |
 | 箱の外の通知 | 適用・拒否・戻しを必ず通知する(見えない失敗を作らない) |
 
@@ -433,3 +433,4 @@ Cockpit の導入・127.0.0.1 だけで待つ設定・SSH トンネル・ログ�
 - `AutoUpdate=registry` / `podman-auto-update.timer`(署名を見ない)。
 - 複数台・ブルーグリーン(Datalevin の書き手が一つ)。
 - Compose 版の置き換え(Docker を使う人と開発用に残す。RUNTIME.md §13-10)。
+- **TODO** 箱の準備(`prepare-*.sh`)を Ansible の playbook に置き換える案。pull ループは Ruby のまま。Ansible を箱に入れるか手元から流すかは未定(sukhi-setup の README の TODO)。
