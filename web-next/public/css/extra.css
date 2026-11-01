@@ -575,3 +575,13 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
   overflow-wrap: anywhere;
   text-overflow: clip;
 }
+
+/* 通知の名前のとなり ── リモートの人の @user@host。名前が縮んでも、ホストは残す。 */
+.notif-handle {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

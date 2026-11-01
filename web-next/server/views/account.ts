@@ -9,7 +9,8 @@ import { renderEmojis } from '../emoji.ts';
 import { phrase } from '../phrase.ts';
 import { avatar } from './parts.ts';
 
-export const nameOf = (a: Account) => a.display_name || a.username;
+// 名前が無い人は、ハンドルで呼ぶ。リモートの人は user@host まで ── user だけだと、どこの誰か分からない。
+export const nameOf = (a: Account) => a.display_name || a.acct || a.username;
 export const nameHtml = (a: Account) => raw(renderEmojis(phrase(nameOf(a)), a.emojis));
 
 // 押したところだけを差し替える。

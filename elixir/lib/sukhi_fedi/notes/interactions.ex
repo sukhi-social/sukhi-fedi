@@ -497,6 +497,11 @@ defmodule SukhiFedi.Notes.Interactions do
     |> Read.with_refs()
   end
 
+  # The status the caller renders comes straight from `fun`, so it needs
+  # the same associations a timeline row has. Without `:account` the API
+  # view falls back to "unknown @unknown" for the author.
+  defp hydrate(note), do: note |> Repo.preload([:account, :media, :tags]) |> Read.with_refs()
+
   defp with_loaded_note(note_id, fun) do
     case Ids.parse_int(note_id) do
       nil ->
@@ -505,7 +510,7 @@ defmodule SukhiFedi.Notes.Interactions do
       n ->
         case Repo.get(Note, n) do
           nil -> {:error, :not_found}
-          note -> fun.(note)
+          note -> fun.(hydrate(note))
         end
     end
   end
@@ -525,7 +530,9 @@ defmodule SukhiFedi.Notes.Interactions do
             {:error, :not_found}
 
           note ->
-            if Read.visible_to?(note, account_id), do: fun.(note), else: {:error, :not_found}
+            if Read.visible_to?(note, account_id),
+              do: fun.(hydrate(note)),
+              else: {:error, :not_found}
         end
     end
   end

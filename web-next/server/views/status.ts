@@ -25,9 +25,12 @@ export type StatusOpts = {
   replyAccts?: Map<string, string>;
   // 押したあとの、ひとこと(「通報しました」など)。
   note?: string;
+  // 記事の DOM id。ふだんは st-<id>。ブーストの行のなかでは、元の投稿が
+  // 一覧のほかの場所にも並びうるので、重ならない id にする(Unpoly の差し替え先が混ざらないように)。
+  domId?: string;
 };
 
-const nameOf = (a: Account) => a.display_name || a.username;
+const nameOf = (a: Account) => a.display_name || a.acct || a.username;
 const nameHtml = (a: Account) => raw(renderEmojis(phrase(nameOf(a)), a.emojis));
 
 function toPlainText(h: string): string {
@@ -122,7 +125,7 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   const replyAcct = s.in_reply_to_account_id ? o.replyAccts?.get(s.in_reply_to_account_id) : undefined;
   const mediaBlock = s.media_attachments.length > 0 ? media(ctx, s) : '';
 
-  return html`<article class="status" id="st-${s.id}">
+  return html`<article class="status" id="${o.domId ?? `st-${s.id}`}">
     <a href="/@${a.acct}" tabindex="-1" aria-hidden="true">${avatar(a.avatar, nameOf(a))}</a>
     <div class="body">
       ${s.in_reply_to_id
@@ -190,6 +193,10 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   </article>`;
 }
 
+// ブーストの行のなかの元の投稿の id。st-<元の id> とは別にして、
+// 同じ投稿が一覧に単独でも並んでいるとき、どちらを差し替えるかが混ざらないようにする。
+export const boostInnerId = (boostId: string) => `bst-${boostId}-inner`;
+
 export function statusCard(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   if (!s.reblog) return inner(ctx, s, o);
   // ブーストは、ふだん一行に畳む(元の投稿が埋もれないように)。左から:
@@ -213,7 +220,7 @@ export function statusCard(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
       <span class="boost-compact-preview">${raw(renderEmojis(phrase(toPlainText(s.reblog.content)), s.reblog.emojis))}</span>
     </summary>
     <a class="boost-by" href="/@${booster.acct}">${icon('repeat')} ${ctx.t('status.boostSummary', { by: nameOf(booster), who: nameOf(author) })}</a>
-    ${inner(ctx, s.reblog, o)}
+    ${inner(ctx, s.reblog, { ...o, domId: boostInnerId(s.id) })}
   </details>`;
 }
 
