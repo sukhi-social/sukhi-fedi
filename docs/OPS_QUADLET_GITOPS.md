@@ -152,23 +152,28 @@ WantedBy=default.target
 
 ## 3. 更新の流れ(GitOps ループ)
 
+> 実装言語は **Ruby(標準ライブラリだけ)**(ひなた, 2026-11-01)。`sukhi-setup` の `bin/sukhi-render` と `bin/sukhi-gitops-sync`、
+> `sukhi-infra` の `scripts/check.rb` と `scripts/bump-version.rb`。箱に Ruby 3.0 以上が要る(Rocky は `dnf module enable ruby:3.3`)。
+> 検証役が Ruby に依存するので、箱の Ruby の更新も OS の自動更新の対象にする(RUNTIME.md §11 と同じ考え方)。
+> `prepare-root.sh` / `prepare-user.sh` は Ruby を入れる前に動かすので bash のまま。
+
 ### 3.1 CI(sukhi-fedi 側)
 
 1. **prod:** `v*.*.*` のタグで `release.yml` が 5 つの image(combined / web-next / web-simple / web-board / anubis)に**同じ版**(`1.0.0` `1.0` `v1`)を付け、cosign で署名する(いま動く形。タグはまだ無い)。
    **dev:** main への push で `combined-sha.yml` が `sha-<commit>` を出し、署名する。
-2. 追加: リリース(または main)の最後の job が `scripts/bump-version.sh <env> <版>` を回して `sukhi-infra` に PR を立てる(5 つのダイジェストを `skopeo` で解決して `overlays/<env>/sukhi.version` を書き換える)。
+2. 追加: リリース(または main)の最後の job が `scripts/bump-version.rb <env> <版>` を回して `sukhi-infra` に PR を立てる(5 つのダイジェストを `skopeo` で解決して `overlays/<env>/sukhi.version` を書き換える)。
    - 立てるのは **GitHub App のトークン**(`sukhi-infra` への `pull_requests: write` と `contents: write` の一部だけ。main へは直接書けない)。
    - PR の中身は `sukhi.version` の書き換えだけ。本文に前回からの `git log` の件名、マイグレーションの有無
      (Datalevin は無し)、データ形が変わるかの印(§7)を載せる。
-3. 5 つのうち 1 つでも解決できなければ書き換えない(`bump-version.sh` は全部解決してから書く)。
-   **この CI の job はまだ無い。** 当面は手で `scripts/bump-version.sh` を回して PR を出す。
+3. 5 つのうち 1 つでも解決できなければ書き換えない(`bump-version.rb` は全部解決してから書く)。
+   **この CI の job はまだ無い。** 当面は手で `scripts/bump-version.rb` を回して PR を出す。
 
 ### 3.2 sukhi-infra(承認の関所)
 
 - 必須チェック(PR 上で走る):
   - **署名検証**: 埋めたあとの sukhi の image すべてに `cosign verify`(身元は `release.yml@refs/tags/v*` か `combined-sha.yml@refs/heads/main`。`sukhi-swap-image.sh` と同じ正規表現)。
   - **Quadlet の文法検査**: `podman-system-generator --dryrun` 相当(または `quadlet -dryrun`)を CI で回し、unit が生成できることを見る。
-  - `sukhi.version` の形(prod は semver、dev は semver か `sha-<commit>`、digest が 5 つ揃う、`requires-sync` がある)。埋め方は sukhi-setup の `sukhi-render` を使う(`scripts/check.sh`)。
+  - `sukhi.version` の形(prod は semver、dev は semver か `sha-<commit>`、digest が 5 つ揃う、`requires-sync` がある)。埋め方は sukhi-setup の `sukhi-render` を使う(`scripts/check.rb`)。
 - 人が読んで承認する。**PR を立てた bot は承認できない。**
 
 ### 3.3 箱(同期)
@@ -265,7 +270,7 @@ digest.combined: sha256:<64桁>    # web-next / web-simple / web-board / anubis 
   部分的に上がった状態を作らない(1 回の同期が全部の `try-restart` を通し、途中で失敗したら全体を last-good に戻す = §3.5)。
 - 変化の検出は**埋めたあとの `Image=` の差**。`digest.combined` だけ変われば gateway だけ、版を上げれば 5 つの unit が動く(nats は動かない)。
 - **prod は厳密な版 + ダイジェスト**(`1.0.0@sha256:…`)。`v1` / `latest` のような動くタグは書かない。dev は `sha-<commit>` で main に追従。
-- semver なので順序があり、Renovate でも扱える見込みだが、`{{version}}` の形は Renovate の Quadlet マネージャが読めない。当面は `bump-version.sh` で上げ、
+- semver なので順序があり、Renovate でも扱える見込みだが、`{{version}}` の形は Renovate の Quadlet マネージャが読めない。当面は `bump-version.rb` で上げ、
   第三者の image だけ Renovate にする(§9)。
 - 代償: prod に出すたびに `vX.Y.Z` のタグを切る。
 
@@ -317,7 +322,7 @@ Renovate についての注意(どれも**要確認**):
 
 - 文書に**ドロップイン(`*.container.d/*.conf`)の言及が無い**。`Image=` は本体の `.container` に置き、ドロップインに逃がさない。
 - **ダイジェストの固定(`pinDigests`)** は Renovate の docker データソース共通の機能だが、Quadlet マネージャで効くことは文書に書かれていない。試して確かめる。
-- sukhi の image は `{{version}}` の形で Quadlet マネージャには読めない(§5)。`overlays/<env>/sukhi.version` は `bump-version.sh` で上げ、Renovate は第三者の image だけ。
+- sukhi の image は `{{version}}` の形で Quadlet マネージャには読めない(§5)。`overlays/<env>/sukhi.version` は `bump-version.rb` で上げ、Renovate は第三者の image だけ。
 - 向く相手: `nats:2-alpine`、Anubis の土台、その他の第三者 image。PR は sukhi-infra の同じ関所(§3.2)を通り、自動マージはしない。
 - Dependabot は使えない前提で、sukhi-infra には入れない(`sukhi-fedi` 本体の npm / mix / Actions 用には従来どおり)。
 - Renovate は GitHub App(Mend)か自前の実行のどちらか。`renovate.json` を deploy に置くだけで始まるのは App の場合。
@@ -419,7 +424,7 @@ Cockpit の導入・127.0.0.1 だけで待つ設定・SSH トンネル・ログ�
 | 1 | `sukhi-infra` に §1.1 の base を置き(`sukhi-setup` に準備の手順)、§2 の unit を置く(compose から `podlet` で下書き → 手で直す)。手で `daemon-reload` して起動 | ヘルス(`wget`)、`Notify=healthy`、`podman secret` の事前作成、`enable-linger` |
 | 2 | 同期スクリプトを **`--check`(計画だけ、変更しない)** で timer に載せる | 差分 → 変わる unit の求め方、署名検証、ログの読みやすさ |
 | 3 | 適用を有効にする(承認はまだ全部人)。失敗の戻しを**わざと壊した PR で**試す | §3.5 の reset とヘルス待ち、`rejected` が効くこと |
-| 4 | リリース / main の最後に `bump-version.sh` を回して PR を立てる CI | 5 つが同じ版で揃うこと、解決に失敗したら何も書かないこと |
+| 4 | リリース / main の最後に `bump-version.rb` を回して PR を立てる CI | 5 つが同じ版で揃うこと、解決に失敗したら何も書かないこと |
 | 5 | Renovate を第三者 image に(`pinDigests` を確かめる) | §9 の要確認 |
 
 ## 14. 今は決めない・やらないこと
