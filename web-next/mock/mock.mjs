@@ -344,6 +344,8 @@ const ROUTES = [
   })],
   ['/login/email/request', () => ({ ok: true })],
   ['/login/email', () => ({ ok: true })],
+  ['/login/passkey/options', () => ({ ref: 'r1', publicKey: { challenge: 'AAAA', rpId: 'localhost', userVerification: 'required', timeout: 60000 } })],
+  ['/login/passkey', () => ({ ok: true })],
   ['/login', () => ({ ok: true })],
   ['/signup/email/request', () => ({ ok: true })],
   ['/signup/email/confirm', () => ({ email_proof: 'mock-proof' })],
