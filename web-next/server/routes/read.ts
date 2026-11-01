@@ -137,9 +137,8 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
   const freshBar =
     newest && !problem
       ? html`<div class="fresh" hidden data-fresh="/timeline/fresh?${new URLSearchParams([...keepForFresh(kind, tag, on), ['since', newest]])}">
-          <button type="button" class="fresh-btn" up-follow="false">
+          <button type="button" class="fresh-btn" up-follow="false" title="${t('timeline.freshHint')}">
             <span class="fresh-text">${t('timeline.fresh')}</span>
-            <span class="fresh-hint muted">${t('timeline.freshHint')}</span>
           </button>
         </div>`
       : '';
