@@ -442,7 +442,7 @@ defmodule SukhiFedi.Web.Router do
   get "/" do
     cond do
       nodeinfo_monitor_enabled?() -> ViewerController.home(conn, [])
-      true -> serve_spa(conn)
+      true -> via_upstream(conn, fn -> serve_spa(conn) end)
     end
   end
 
@@ -708,6 +708,33 @@ defmodule SukhiFedi.Web.Router do
     at? = String.starts_with?(conn.request_path, "/@")
 
     cond do
+      # A dot-led segment (`/.env`, `/.sukhi/web.json`) is the gateway's
+      # alone — never a page, never forwarded (Upstreams.dot_path?/1).
+      SukhiFedi.Web.Upstreams.dot_path?(path) ->
+        not_found(conn)
+
+      true ->
+        via_upstream(conn, fn -> serve_unclaimed(conn, path, at?) end)
+    end
+  end
+
+  match _ do
+    send_resp(conn, 404, "not found")
+  end
+
+  # The web fronts behind this gateway (WEB_UPSTREAMS, see
+  # SukhiFedi.Web.Upstreams): the one that claims this path answers it.
+  # Nothing claims it — or no upstream is configured — and `fallback`
+  # is exactly what answered before.
+  defp via_upstream(conn, fallback) do
+    case SukhiFedi.Web.Upstreams.lookup(conn.method, path_segments(conn)) do
+      {:ok, upstream} -> SukhiFedi.Web.Proxy.forward(conn, upstream)
+      :none -> fallback.()
+    end
+  end
+
+  defp serve_unclaimed(conn, path, at?) do
+    cond do
       List.last(path) == "__data.json" and SukhiFedi.Web.SSR.enabled?() ->
         SukhiFedi.Web.SSR.render(conn)
 
@@ -720,10 +747,6 @@ defmodule SukhiFedi.Web.Router do
       true ->
         serve_page_or_404(conn, path)
     end
-  end
-
-  match _ do
-    send_resp(conn, 404, "not found")
   end
 
   # A DB pool that is full is "busy", not "a bug": the checkout waited its

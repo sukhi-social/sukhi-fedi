@@ -28,6 +28,9 @@ defmodule SukhiFedi.Application do
        pools: %{
          default: [size: 50, count: 4]
        }},
+      # The web fronts behind this gateway: reads each one's
+      # /.sukhi/web.json. :ignore unless WEB_UPSTREAMS is set. After Finch.
+      SukhiFedi.Web.Upstreams.Registry,
       # Native fedify.*.v1 NATS service (SukhiFedi.Fedi) — replaces the
       # Bun sidecar. It shares the `fedify-workers` queue group with any
       # Bun replica still running, so cutover is "stop the bun container".

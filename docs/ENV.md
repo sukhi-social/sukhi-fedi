@@ -118,6 +118,8 @@ path takes its credentials, region and bucket from the same config.
 | `PUBLIC_PREVIEW` | `off` | Server-rendered preview for logged-out visitors/crawlers: `off`, `meta` (OG / Twitter / JSON-LD head only) or `full` (plus a readable body). Public content only. |
 | `PUBLIC_PREVIEW_ROBOTS` | `noindex, nofollow` | The meta-robots string on preview pages. Set `index, follow` to be crawled. |
 | `SSR_URL` | — | When set (natadeco: `http://natadeco-ssr:3000`), pages that would get the empty SPA shell are forwarded to this SSR server. |
+| `WEB_UPSTREAMS` | — | The web fronts behind this gateway: `name=url,name=url` (e.g. `web-next=http://web-next:3000`). Each serves a static `/.sukhi/web.json` saying which paths (and cookies) it handles; the gateway reads it at boot and every 30 s. Unset = off. See `SukhiFedi.Web.Upstreams`. |
+| `WEB_ROUTES` | — | Who wins when two fronts could answer: `pattern=name,pattern=name`, **first match wins** — write specific rows first (`/home=web-lobby,/**=web-next`). A row only counts if its front also claims the path. Paths with a dot-led segment are never forwarded. |
 | `STATIC_OVERRIDE_ONLY` | — | `true` = `STATIC_OVERRIDE=only` (kept for natadeco). See `docs/static-override.md`. |
 | `WT_TICKET_KEY` | — | Ed25519 seed (raw 32 bytes, base64) that signs WebTransport entry tickets. Unset → `/api/wt` answers 503. |
 | `WT_ENDPOINT` | `https://webtransport.f3liz.casa/wt` | The WebTransport edge a ticket is for. |
