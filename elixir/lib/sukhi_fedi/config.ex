@@ -5,6 +5,18 @@ defmodule SukhiFedi.Config do
   @spec domain!() :: String.t()
   def domain!, do: Application.fetch_env!(:sukhi_fedi, :domain)
 
+  @doc "インスタンスのロゴの絶対 URL(`INSTANCE_LOGO_URL`、未設定なら同梱の favicon)。"
+  @spec logo_url() :: String.t()
+  def logo_url, do: SukhiShared.InstanceLogo.url(domain!(), Application.get_env(:sukhi_fedi, :logo))
+
+  @doc "`INSTANCE_LOGO_URL` が使える値で設定されているか(なら /favicon* はそちらへ回す)。"
+  @spec logo_custom?() :: boolean()
+  def logo_custom?, do: SukhiShared.InstanceLogo.custom?(Application.get_env(:sukhi_fedi, :logo))
+
+  @doc "nodeinfo / instance に出すサイト名(`INSTANCE_TITLE`)。"
+  @spec title() :: String.t()
+  def title, do: Application.get_env(:sukhi_fedi, :title, "sukhi-fedi")
+
   @doc """
   The `Domain=` for the login cookies, so a session minted at
   `natadeco.com` is also sent to `travel.natadeco.com`: the public host

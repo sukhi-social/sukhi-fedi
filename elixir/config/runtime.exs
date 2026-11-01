@@ -10,6 +10,12 @@ else
   config :sukhi_fedi, :domain, System.get_env("DOMAIN", "localhost:4000")
 end
 
+# Instance name and logo, as other servers see them (nodeinfo, /api/v?/instance,
+# /favicon*). INSTANCE_LOGO_URL: `https://…` or a `/…` path; see
+# SukhiShared.InstanceLogo for what is accepted.
+config :sukhi_fedi, :title, System.get_env("INSTANCE_TITLE", "sukhi-fedi")
+config :sukhi_fedi, :logo, System.get_env("INSTANCE_LOGO_URL")
+
 # Bearer for the JSON metrics endpoint (/api/metrics). Unset → the route
 # 404s (feature off); set it to expose the host-resource history/snapshot
 # to offline analysis. Generate with `openssl rand -hex 32`.

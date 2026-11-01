@@ -289,7 +289,12 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
 
       %Account{} = account ->
         actor_uri = local_actor_uri(account)
-        recipients = followers_inboxes(actor_uri) ++ relay_inboxes()
+        # Followers, and the accounts this one follows: both hold a cached
+        # copy of the actor (the followee's server met us through our Follow),
+        # and an avatar / name change is visible there first. Mastodon sends
+        # to followers only; the extra inboxes cost one POST each.
+        recipients =
+          Enum.uniq(followers_inboxes(actor_uri) ++ followed_inboxes(actor_uri) ++ relay_inboxes())
 
         update_json = SukhiDelivery.AP.ActorJson.build_update(account)
         activity_id = update_json["id"]

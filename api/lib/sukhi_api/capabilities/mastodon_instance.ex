@@ -35,6 +35,7 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
     body = %{
       uri: domain,
       title: title,
+      thumbnail: logo_url(),
       short_description: "ActivityPub server (sukhi-fedi)",
       description: "ActivityPub server (sukhi-fedi)",
       email: "",
@@ -62,6 +63,8 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
     domain = SukhiApi.Config.domain!()
     title = Application.get_env(:sukhi_api, :title, "sukhi-fedi")
 
+    logo = logo_url()
+
     body = %{
       domain: domain,
       title: title,
@@ -69,7 +72,10 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
       source_url: "https://github.com/f3liz-casa/sukhi-fedi",
       description: "ActivityPub server (sukhi-fedi)",
       usage: %{users: %{active_month: 0}},
-      thumbnail: %{url: "https://#{domain}/favicon.png"},
+      thumbnail: %{url: logo},
+      # Mastodon 4.3+: the site icon, in the sizes clients ask for. One
+      # image serves every size (the browser scales it).
+      icon: for(size <- ["64x64", "192x192", "512x512"], do: %{src: logo, size: size}),
       languages: ["en", "ja"],
       configuration: %{
         # streaming intentionally omitted — see instance_v1/1.
@@ -117,6 +123,15 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
     }
 
     json(200, body)
+  end
+
+  # The logo the gateway resolved from `INSTANCE_LOGO_URL`. Unreachable
+  # gateway → the bundled favicon, which always exists.
+  defp logo_url do
+    case SukhiApi.GatewayRpc.run(SukhiFedi.Config, :logo_url, []) do
+      {:ok, url} when is_binary(url) -> url
+      _ -> "https://#{SukhiApi.Config.domain!()}/favicon.png"
+    end
   end
 
   # Whether a newcomer needs an invite code. Mastodon has no field for

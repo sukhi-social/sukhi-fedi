@@ -468,21 +468,21 @@ defmodule SukhiFedi.Web.Router do
   end
 
   get "/favicon.ico" do
-    serve_static(conn, ["favicon.ico"])
+    serve_logo_or_static(conn, ["favicon.ico"])
   end
 
   # Site icon — handwritten 好 (くろ lives inside it). Also the
   # /api/v2/instance thumbnail.
   get "/favicon.png" do
-    serve_static(conn, ["favicon.png"])
+    serve_logo_or_static(conn, ["favicon.png"])
   end
 
   get "/apple-touch-icon.png" do
-    serve_static(conn, ["apple-touch-icon.png"])
+    serve_logo_or_static(conn, ["apple-touch-icon.png"])
   end
 
   get "/icon-512.png" do
-    serve_static(conn, ["icon-512.png"])
+    serve_logo_or_static(conn, ["icon-512.png"])
   end
 
   # PWA インストール用のもう一段(192px)と、Android の adaptive icon
@@ -918,6 +918,21 @@ defmodule SukhiFedi.Web.Router do
 
       nil ->
         send_resp(conn, 404, "frontend not built — run `cd web && pnpm run build`")
+    end
+  end
+
+  # `INSTANCE_LOGO_URL` を決めてあるときは、ブラウザや連合先が決め打ちで
+  # 取りに来る入口(/favicon.ico など)をそちらへ回す。連合先は redirect を
+  # 追うし、短い cache にしておけば、ロゴを替えたあとに古い絵が長く残らない。
+  # 決めていなければ、同梱の一枚をそのまま配る。
+  defp serve_logo_or_static(conn, path_segments) do
+    if SukhiFedi.Config.logo_custom?() do
+      conn
+      |> put_resp_header("location", SukhiFedi.Config.logo_url())
+      |> put_resp_header("cache-control", "public, max-age=3600")
+      |> send_resp(302, "")
+    else
+      serve_static(conn, path_segments)
     end
   end
 
