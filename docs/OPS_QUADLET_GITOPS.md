@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Quadlet + GitOps で更新する(設計案)
 
-> 状態: **設計案。合意前。実機では何も通していない。** 実装は §12 の決めごとに合意してから。
+> 状態: **設計は合意済み(ひなた, 2026-11-01「良さそう」)。実装は `sukhi-infra` / `sukhi-setup` に雛形が入った。実機では何も通していない。** 残りの決めごとは §12。
 > 正本の方針は [`RUNTIME.md`](RUNTIME.md) §12.3(Quadlet が主、image はダイジェストで固定)、
 > 更新の流れは [`SERVER_SHELL.md`](SERVER_SHELL.md) §5、今ある最小の手作業版は
 > [`OPS_UPDATE_QUADLET.md`](OPS_UPDATE_QUADLET.md) と `scripts/sukhi-swap-image.sh`。
@@ -214,7 +214,8 @@ WantedBy=default.target
 
 - 通らなかった(`restart` が非 0、`TimeoutStartSec` 内に healthy にならない、保持の再確認で落ちた):
   1. `rejected` に target を記録(以後、この commit は再試行しない)。
-  2. **`git reset --hard <last-good>`**(箱の checkout だけの話。sukhi-infra の main は書き換えない)。
+  2. **チェックアウトは成功するまで進めない**(実装: `git archive <target>` で作業用に展開し、成功したときだけ `git reset --hard <target>`)。
+     失敗時に戻すのは Quadlet のディレクトリ(最後に適用した状態 `applied/` を書き戻す)で、sukhi-infra の main は書き換えない。
   3. `daemon-reload` → 変わっていた unit を `try-restart`。戻した側も通らなければ、止めて通知(これ以上は人)。
   4. 通知: journal、`OnFailure=` の unit、管理画面の「お知らせ」(§8)。
 - 箱の checkout は**デプロイ専用**(人が編集しない・push しない)。reset が安全なのはそのため。
@@ -391,8 +392,8 @@ Cockpit の導入・127.0.0.1 だけで待つ設定・SSH トンネル・ログ�
 8. **深いヘルスの口。** `/up`(BEAM が答える)で始めてよいか。DB とキューまで見る口(`/up?deep=1` など)を足すなら別の作業にする。
 9. **適用前の告知。** 最初は告知なし(短い断の目安を書く)でよいか。入れるなら bump の承認から適用まで(5 分)に挟むか。
 10. **通知の先。** journald のほかに、どこに出すか(管理画面のお知らせ / Matrix / ntfy など)。
-11. **Cockpit の使い方。** 推奨は「見る」だけ(§11.2)。`sukhi` ユーザーの Cockpit ログインのパスワードを別に持つか、それとも Cockpit を使うときだけ一時的に設定するか。
-12. **cgroup の委譲。** setup に `Delegate=cpu cpuset io memory pids` を入れてよいか(`cpu.weight` の試験の前提。root での設定が一つ増える)。
+11. ~~Cockpit の使い方。~~ **決定済み(ひなた, 2026-11-01): `sukhi` ユーザーのパスワードは Cockpit に必須。パスワードマネージャーで生成して設定する。** Cockpit は「見る」だけに使う(§11.2)。
+12. ~~cgroup の委譲。~~ **決定済み(同上): setup に `Delegate=cpu cpuset io memory pids` を入れる**(`sukhi-setup/systemd/system/user@.service.d/delegate.conf`)。
 
 ## 13. 段階的な導入(提案)
 
