@@ -16,6 +16,13 @@
 MISE := $(shell command -v mise 2>/dev/null)
 RUN  := $(if $(MISE),$(MISE) exec --,)
 
+# Runtime configuration is loaded while Mix projects compile. Keep the
+# default inside the checkout so commands run from subdirectories still see
+# the same non-secret test configuration; callers may override it.
+ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+SUKHI_INSTANCE_CONFIG ?= $(ROOT_DIR)/config/instance.json.example
+export SUKHI_INSTANCE_CONFIG
+
 help:  ## list these targets
 	@echo "sukhi-fedi"
 	@echo
