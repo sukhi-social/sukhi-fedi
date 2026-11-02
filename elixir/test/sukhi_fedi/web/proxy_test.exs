@@ -181,9 +181,16 @@ defmodule SukhiFedi.Web.ProxyTest do
     end
 
     test "missing instance config is rejected" do
+      previous = System.get_env("SUKHI_INSTANCE_CONFIG")
       System.put_env("SUKHI_INSTANCE_CONFIG", "/tmp/sukhi-missing-instance-config")
 
-      on_exit(fn -> System.delete_env("SUKHI_INSTANCE_CONFIG") end)
+      on_exit(fn ->
+        if previous do
+          System.put_env("SUKHI_INSTANCE_CONFIG", previous)
+        else
+          System.delete_env("SUKHI_INSTANCE_CONFIG")
+        end
+      end)
 
       assert_raise ArgumentError, ~r/instance config is required/, fn ->
         Registry.init([])
