@@ -3,7 +3,7 @@
   "site_logo": "/favicon.png",
   "site_icon": "/favicon.png",
   "addons": {
-    "nodeinfo_monitor": false
+    "nodeinfo_monitor": true
   },
   "frontends": {
     "web-next": { "url": "http://web-next:3000" }
