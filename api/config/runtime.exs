@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import Config
 
-instance_config = SukhiShared.InstanceConfig.load()
+instance_config = SukhiShared.InstanceConfig.load_or_default()
 
 nodeinfo_monitor_configured =
   SukhiShared.InstanceConfig.addon_enabled?(instance_config, "nodeinfo_monitor")

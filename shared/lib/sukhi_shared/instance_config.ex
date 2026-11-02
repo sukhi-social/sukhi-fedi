@@ -39,6 +39,23 @@ defmodule SukhiShared.InstanceConfig do
     end
   end
 
+  @doc """
+  Load the mounted config when it is available, otherwise return the empty
+  topology used while assembling a release.
+
+  Production entrypoints must call `load/0` before starting the release. This
+  build-time fallback prevents `mix release` from requiring a deployment
+  mount, without weakening the runtime startup gate.
+  """
+  @spec load_or_default() :: t()
+  def load_or_default do
+    if File.exists?(path()) do
+      load()
+    else
+      %{"frontends" => %{}, "routes" => [], "addons" => %{}}
+    end
+  end
+
   @spec frontends(t()) :: %{String.t() => String.t()}
   def frontends(%{"frontends" => frontends}) when is_map(frontends) do
     for {name, %{"url" => url}} <- frontends, into: %{}, do: {name, url}
