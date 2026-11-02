@@ -10,13 +10,23 @@ defmodule SukhiFedi.Web.ProxyTest do
     {:ok, _} = Application.ensure_all_started(:bypass)
     bypass = Bypass.open()
     start_supervised!({Finch, name: SukhiFedi.Finch})
-    up = %{name: "web-x", url: "http://localhost:#{bypass.port}", claims: [], cookies: ["sukhi_sid"]}
+
+    up = %{
+      name: "web-x",
+      url: "http://localhost:#{bypass.port}",
+      claims: [],
+      cookies: ["sukhi_sid"]
+    }
+
     %{bypass: bypass, up: up}
   end
 
   defp get(path), do: conn(:get, path)
 
-  test "GET: the page comes back, Host stays the browser's, forwarded headers are ours", %{bypass: bypass, up: up} do
+  test "GET: the page comes back, Host stays the browser's, forwarded headers are ours", %{
+    bypass: bypass,
+    up: up
+  } do
     Bypass.expect_once(bypass, "GET", "/timeline", fn conn ->
       assert conn.query_string == "a=1"
       assert Plug.Conn.get_req_header(conn, "host") == ["sukhi.example"]
@@ -72,14 +82,22 @@ defmodule SukhiFedi.Web.ProxyTest do
       Plug.Conn.resp(conn, 200, "ok")
     end)
 
-    get("/c") |> put_req_header("cookie", "session_token=secret") |> Proxy.forward(%{up | cookies: []})
+    get("/c")
+    |> put_req_header("cookie", "session_token=secret")
+    |> Proxy.forward(%{up | cookies: []})
   end
 
-  test "POST: the body goes through unread, and so do the status and Location", %{bypass: bypass, up: up} do
+  test "POST: the body goes through unread, and so do the status and Location", %{
+    bypass: bypass,
+    up: up
+  } do
     Bypass.expect_once(bypass, "POST", "/compose", fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
       assert body == "text=hello&x=1"
-      assert Plug.Conn.get_req_header(conn, "content-type") == ["application/x-www-form-urlencoded"]
+
+      assert Plug.Conn.get_req_header(conn, "content-type") == [
+               "application/x-www-form-urlencoded"
+             ]
 
       conn |> Plug.Conn.put_resp_header("location", "/timeline") |> Plug.Conn.resp(303, "")
     end)
@@ -102,7 +120,9 @@ defmodule SukhiFedi.Web.ProxyTest do
       Plug.Conn.resp(conn, 200, "got")
     end)
 
-    conn = conn(:post, "/up", big) |> put_req_header("content-type", "text/csv") |> Proxy.forward(up)
+    conn =
+      conn(:post, "/up", big) |> put_req_header("content-type", "text/csv") |> Proxy.forward(up)
+
     assert conn.status == 200
   end
 
@@ -133,7 +153,9 @@ defmodule SukhiFedi.Web.ProxyTest do
   end
 
   describe "Registry" do
-    test "reads each web's web.json, and keeps the last good one when it stops answering", %{bypass: bypass} do
+    test "reads each web's web.json, and keeps the last good one when it stops answering", %{
+      bypass: bypass
+    } do
       Bypass.expect(bypass, "GET", "/.sukhi/web.json", fn conn ->
         Plug.Conn.resp(conn, 200, ~s({"claims":[{"path":"/home"}],"cookies":["sid"]}))
       end)
@@ -141,13 +163,16 @@ defmodule SukhiFedi.Web.ProxyTest do
       url = "http://localhost:#{bypass.port}"
 
       start_supervised!(
-        {Registry, upstreams: %{"w" => url}, routes: [], refresh_ms: 3_600_000, retry_ms: 3_600_000}
+        {Registry,
+         upstreams: %{"w" => url}, routes: [], refresh_ms: 3_600_000, retry_ms: 3_600_000}
       )
 
       on_exit(&SukhiFedi.Web.Upstreams.clear/0)
       Registry.refresh()
 
-      assert {:ok, %{name: "w", cookies: ["sid"]}} = SukhiFedi.Web.Upstreams.lookup("GET", ["home"])
+      assert {:ok, %{name: "w", cookies: ["sid"]}} =
+               SukhiFedi.Web.Upstreams.lookup("GET", ["home"])
+
       assert :none = SukhiFedi.Web.Upstreams.lookup("GET", ["other"])
 
       Bypass.down(bypass)
@@ -155,9 +180,14 @@ defmodule SukhiFedi.Web.ProxyTest do
       assert {:ok, %{name: "w"}} = SukhiFedi.Web.Upstreams.lookup("GET", ["home"])
     end
 
-    test "unset means off" do
-      System.delete_env("WEB_UPSTREAMS")
-      assert :ignore = Registry.init([])
+    test "missing instance config is rejected" do
+      System.put_env("SUKHI_INSTANCE_CONFIG", "/tmp/sukhi-missing-instance-config")
+
+      on_exit(fn -> System.delete_env("SUKHI_INSTANCE_CONFIG") end)
+
+      assert_raise ArgumentError, ~r/instance config is required/, fn ->
+        Registry.init([])
+      end
     end
   end
 end

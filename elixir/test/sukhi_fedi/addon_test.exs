@@ -18,10 +18,12 @@ defmodule SukhiFedi.AddonTest do
   setup do
     prev_enabled = Application.get_env(:sukhi_fedi, :enabled_addons)
     prev_disabled = Application.get_env(:sukhi_fedi, :disabled_addons)
+    prev_nodeinfo = Application.get_env(:sukhi_fedi, :nodeinfo_monitor_configured)
 
     on_exit(fn ->
       restore(:enabled_addons, prev_enabled)
       restore(:disabled_addons, prev_disabled)
+      restore(:nodeinfo_monitor_configured, prev_nodeinfo)
     end)
 
     :ok
@@ -57,6 +59,7 @@ defmodule SukhiFedi.AddonTest do
 
   test "nodeinfo_monitor addon is discovered when enabled" do
     Code.ensure_loaded(SukhiFedi.Addons.NodeinfoMonitor)
+    Application.put_env(:sukhi_fedi, :nodeinfo_monitor_configured, true)
     Application.put_env(:sukhi_fedi, :enabled_addons, [:nodeinfo_monitor])
     Application.put_env(:sukhi_fedi, :disabled_addons, [])
 
@@ -75,6 +78,7 @@ defmodule SukhiFedi.AddonTest do
 
   test "Registry.migrations_paths includes enabled addons" do
     Code.ensure_loaded(SukhiFedi.Addons.NodeinfoMonitor)
+    Application.put_env(:sukhi_fedi, :nodeinfo_monitor_configured, true)
     Application.put_env(:sukhi_fedi, :enabled_addons, [:nodeinfo_monitor])
     Application.put_env(:sukhi_fedi, :disabled_addons, [])
 

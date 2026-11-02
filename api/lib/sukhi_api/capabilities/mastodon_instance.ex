@@ -69,7 +69,9 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
       source_url: "https://github.com/f3liz-casa/sukhi-fedi",
       description: "ActivityPub server (sukhi-fedi)",
       usage: %{users: %{active_month: 0}},
-      thumbnail: %{url: "https://#{domain}/favicon.png"},
+      thumbnail: %{
+        url: Application.get_env(:sukhi_api, :site_logo) || "https://#{domain}/favicon.png"
+      },
       languages: ["en", "ja"],
       configuration: %{
         # streaming intentionally omitted — see instance_v1/1.

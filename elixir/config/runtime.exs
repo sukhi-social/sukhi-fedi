@@ -1,6 +1,23 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import Config
 
+instance_config = SukhiShared.InstanceConfig.load()
+
+nodeinfo_monitor_configured =
+  SukhiShared.InstanceConfig.addon_enabled?(instance_config, "nodeinfo_monitor")
+
+config :sukhi_fedi, :instance_config, instance_config
+
+config :sukhi_fedi,
+       :frontend_configured,
+       SukhiShared.InstanceConfig.frontend_configured?(instance_config)
+
+config :sukhi_fedi, :nodeinfo_monitor_configured, nodeinfo_monitor_configured
+
+config :sukhi_fedi,
+       :unauthenticated_redirect,
+       SukhiShared.InstanceConfig.unauthenticated_redirect(instance_config)
+
 # Public-facing domain used in nodeinfo/webfinger/ActivityPub URLs.
 # In prod, fetch_env! crashes the release on a missing DOMAIN rather than
 # silently minting localhost:4000 URIs into outbound IDs and keyIds.
@@ -42,7 +59,10 @@ config :sukhi_fedi, :legal_flavor, legal_flavor
 # 署名する Ed25519 の秘密鍵（生 32 バイト seed の base64）。公開鍵は karutte の `:ticket_pubkey`
 # に置く。未設定なら `/api/wt` は 503（発券しない）。
 config :sukhi_fedi, :wt_ticket_key, System.get_env("WT_TICKET_KEY")
-config :sukhi_fedi, :wt_endpoint, System.get_env("WT_ENDPOINT", "https://webtransport.f3liz.casa/wt")
+
+config :sukhi_fedi,
+       :wt_endpoint,
+       System.get_env("WT_ENDPOINT", "https://webtransport.f3liz.casa/wt")
 
 # Server-rendered HTML preview for logged-out visitors and crawlers
 # (SukhiFedi.Web.PublicPreviewController). The SPA is JS-only, so without
@@ -246,6 +266,7 @@ if config_env() == :prod do
       username: System.fetch_env!("DB_USER"),
       password: System.fetch_env!("DB_PASS"),
       hostname: System.get_env("DB_HOST", "localhost"),
+      port: String.to_integer(System.get_env("DB_PORT", "5432")),
       pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
       # DBConnection drops a checkout that has waited longer than
       # queue_target for a whole queue_interval. Defaults 50 / 1000 ms.
@@ -295,10 +316,11 @@ if config_env() == :prod do
   # Comma-separated list of `<name>@<host>` atoms. Nodes not reachable at
   # request time are skipped; if none are reachable, `/api/v1/*` returns
   # 503. Example: `PLUGIN_NODES=api@api,api_admin@api-admin`.
-  config :sukhi_fedi, :plugin_nodes,
-    System.get_env("PLUGIN_NODES", "")
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.to_atom/1)
+  config :sukhi_fedi,
+         :plugin_nodes,
+         System.get_env("PLUGIN_NODES", "")
+         |> String.split(",", trim: true)
+         |> Enum.map(&String.to_atom/1)
 
   # Oban monitor queue concurrency override. NodeInfo polling fans out
   # one job per monitored instance; on a 1 GB box 5 parallel Finch

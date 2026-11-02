@@ -25,7 +25,8 @@ defmodule SukhiFedi.Addon.Registry do
   def all do
     key = {
       Application.get_env(:sukhi_fedi, :enabled_addons, :all),
-      Application.get_env(:sukhi_fedi, :disabled_addons, [])
+      Application.get_env(:sukhi_fedi, :disabled_addons, []),
+      Application.get_env(:sukhi_fedi, :nodeinfo_monitor_configured, false)
     }
 
     case :persistent_term.get(@cache, nil) do
@@ -110,9 +111,16 @@ defmodule SukhiFedi.Addon.Registry do
   end
 
   defp filter_enabled(mods) do
-    case Application.get_env(:sukhi_fedi, :enabled_addons, :all) do
-      :all -> mods
-      list when is_list(list) -> Enum.filter(mods, &(&1.id() in list))
+    enabled =
+      case Application.get_env(:sukhi_fedi, :enabled_addons, :all) do
+        :all -> mods
+        list when is_list(list) -> Enum.filter(mods, &(&1.id() in list))
+      end
+
+    if Application.get_env(:sukhi_fedi, :nodeinfo_monitor_configured, false) do
+      enabled
+    else
+      Enum.reject(enabled, &(&1.id() == :nodeinfo_monitor))
     end
   end
 

@@ -10,8 +10,9 @@ defmodule SukhiFedi.Web.Upstreams do
 
   ## Two inputs, kept apart
 
-    * **`WEB_UPSTREAMS`** (operator): `name=url,name=url`. Who we trust, and
-      where they are. Nothing a web says about itself can add a name here.
+    * **`SUKHI_INSTANCE_CONFIG`** (operator): the required non-secret JSON file
+      names the upstreams and where they are. Nothing a web says about itself
+      can add a name here.
     * **`/.sukhi/web.json`** (each web, a static file): what that web *can*
       answer. We fetch it from the upstream's own URL; browsers never can,
       because a path with a dot-led segment is never forwarded (`dot_path?/1`).
@@ -25,11 +26,12 @@ defmodule SukhiFedi.Web.Upstreams do
       `methods` defaults to `["GET","HEAD"]`. `cookies` names the only
       cookies that cross in either direction; none by default.
 
-    * **`WEB_ROUTES`** (operator): `pattern=name,pattern=name`, **first match
-      wins** (the way an nginx `location` list reads), so write the
-      specific rows first:
+    * **`routes`** in `SUKHI_INSTANCE_CONFIG`: ordered `pattern`/`frontend`
+      objects, **first match wins** (the way an nginx `location` list reads),
+      so write the specific rows first:
 
-          WEB_ROUTES=/home=web-lobby,/**=web-next
+          [{"pattern":"/home","upstream":"web-lobby"},
+           {"pattern":"/**","upstream":"web-next"}]
 
       A row only counts when the upstream it names also claims the path.
       A path no row decides goes to the one upstream that claims it; if
@@ -102,7 +104,9 @@ defmodule SukhiFedi.Web.Upstreams do
   defp claims?(nil, _method, _segments), do: false
 
   defp claims?(%{claims: claims}, method, segments) do
-    Enum.any?(claims, fn %{methods: ms, pattern: pat} -> method in ms and matches?(pat, segments) end)
+    Enum.any?(claims, fn %{methods: ms, pattern: pat} ->
+      method in ms and matches?(pat, segments)
+    end)
   end
 
   @doc false
@@ -193,7 +197,12 @@ defmodule SukhiFedi.Web.Upstreams do
   end
 
   defp dot_pattern?(pattern),
-    do: Enum.any?(pattern, fn {:lit, s} -> String.starts_with?(s, "."); {:param, pre} -> String.starts_with?(pre, "."); _ -> false end)
+    do:
+      Enum.any?(pattern, fn
+        {:lit, s} -> String.starts_with?(s, ".")
+        {:param, pre} -> String.starts_with?(pre, ".")
+        _ -> false
+      end)
 
   defp methods(ms) when is_list(ms) and ms != [] do
     case for(m <- ms, is_binary(m), do: String.upcase(m)) do

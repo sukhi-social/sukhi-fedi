@@ -28,6 +28,36 @@ docker compose \
 - 起動のとき、`entrypoint` が `migrate_all()` を実行する。**Datalevin では何も移行しない**
   (スキーマは `priv/datalevin/catalog.exs` から導かれ、ストアを開くときに入る)。Postgres では移行が走る。
 - `ERLANG_COOKIE` が既定のままだと、**起動を断る**(安全のため)。
+- `DOMAIN` と `SECRET_KEY_BASE` が無い場合も起動を断る。Datalevin 構成では
+  `DATALEVIN_DIR` (既定 `/var/lib/sukhi/datalevin`) を作成でき、書き込めることを
+  起動前に検査する。秘密値そのものは journal に出ない。
+- journal には `migration_start` / `migration_complete` が出る。Postgres の場合は
+  repo 単位の開始・完了も出るので、初回 migration が止まった場所を確認できる。
+- migration/init または NATS の接続確認が失敗した場合、entrypoint は `start` に
+  進まず終了する。`startup_connection_ok service=nats` と
+  `datalevin_init_complete` と `startup_checks_complete` が出るまで、コンテナは
+  起動完了とはみなさない。
+  Postgres migration の失敗時も接続先と `podman logs <postgres-container>`、
+  `nc -vz <host> <port>` の確認方法を journal に残す。
+  NATS の失敗時は journal に接続先と `nc -vz <host> <port>` の確認方法が出る
+  (secret やパスワードは出ない)。
+- `/up` は BEAM が HTTP 応答できるかだけを返す liveness (`200 ok`)。Quadlet の
+  `HealthCmd=wget -q -O /dev/null http://127.0.0.1:4000/up` と同じ責務で、
+  DB や migration の readiness 判定には使わない。
+- 非秘密の site name・logo/icon・frontend・upstream・route は
+  `config/instance.json.example` を `/etc/sukhi/instance.json` として read-only
+  mount し、Quadlet の `SUKHI_INSTANCE_CONFIG` で指定する。ファイルは必須で、
+  `routes` の各行で `frontend` を明示する。選択肢は `relay`（内蔵）、
+  `web-next`、`web-simple`、`web-board`、`web-lobby`（予定）。起動時に解決した
+  path、frontend、active frontend/route 件数と構文不整合を journal に出す。
+  外部 frontend は route で参照されたものだけ接続対象になる。秘密はこのファイルへ
+  入れず、env/Podman secret で渡す。
+- `/etc/sukhi` の Stow 管理、symlink の向き・所有者・実体ファイル・想定 repo
+  revision の検査、および不正時に Quadlet 同期を止める処理は
+  `sukhi-setup`/`sukhi-infra` 側の同期前 preflight の責務とする。`sukhi-fedi`
+  image は同期済みの mount を信頼して起動するのではなく、解決した JSON の
+  構文と upstream/route の整合性を再検査するが、ホスト側 repo や Stow の
+  所有権を推測して検査することはしない。
 - 新しい版を取るのは `.env` の `SUKHI_VERSION`。本番では `sha-<commit>` か、ダイジェストに固定する。
 
 ### 1.3 玄関を向ける
@@ -51,6 +81,126 @@ curl -s https://example.tld/.well-known/webfinger?resource=acct:<ユーザー>@e
 
 最初のアカウントを作り、管理者にする手順は、リポジトリの README / SETUP.md を参照
 (**ここでは未確認**。実機で確かめて追記する)。管理者にはパスキーの登録をすすめる。
+
+### 1.6 初回起動の受け入れ手順(Podman / Quadlet)
+
+以下は rootless の専用ユーザー `sukhi` で実行する。root は一度だけ
+ユーザー・linger・必要なディレクトリを用意し、その後は Quadlet の操作を
+しない。
+
+#### A. Linux 初心者向け(最短)
+
+root で一度だけ:
+
+```bash
+sudo useradd -m -s /bin/bash sukhi          # 既にあれば失敗してよい
+sudo loginctl enable-linger sukhi
+sudo install -d -o sukhi -g sukhi /etc/sukhi /var/lib/sukhi
+```
+
+`sukhi` で:
+
+```bash
+sudo -iu sukhi
+podman secret create erlang_cookie ./secrets/erlang_cookie
+podman secret create secret_key_base ./secrets/secret_key_base
+install -m 0644 ./config/instance.json.example "$HOME/instance.json"
+# Quadlet の /etc/sukhi/instance.json mount は、実際の unit のパスに合わせる
+systemctl --user daemon-reload
+systemctl --user enable --now sukhi-gateway
+systemctl --user status sukhi-gateway --no-pager
+journalctl --user -u sukhi-gateway -n 100 --no-pager
+```
+
+成功の目印は `startup_connection_ok service=nats`,
+`datalevin_init_complete`, `startup_checks_complete`。`/up` は liveness
+だけなので、Quadlet の `HealthCmd` は `wget -q -O /dev/null
+http://127.0.0.1:4000/up` のまま使う。
+
+#### B. 途中まで実行済み・既存ユーザー/secret/volume がある場合
+
+破壊的な `podman volume rm`、`podman system reset`、Datalevin directory の
+削除を先に実行しない。まず `sukhi` で:
+
+```bash
+podman secret ls
+podman volume ls
+systemctl --user list-units --all 'sukhi*'
+systemctl --user status sukhi-gateway --no-pager
+journalctl --user -u sukhi-gateway -n 100 --no-pager
+```
+
+既存 secret は値を表示せず、名前だけを Quadlet の `Secret=` と照合する。
+既存 volume は停止してから mount 先だけ確認する。entrypoint が
+`instance config is missing or unreadable`、`DATALEVIN_DIR is not writable`、
+manifest/catalog mismatch のいずれかを出した場合、既存データは開かず変更
+していないので、ログに示された path/owner/mount を直してから再実行する。
+
+#### C. `sukhi` ユーザーが既に存在する場合
+
+`useradd` を繰り返さず、root では:
+
+```bash
+id sukhi
+sudo loginctl enable-linger sukhi
+sudo -iu sukhi
+```
+
+以降の `podman`、`secret`、`volume`、`systemctl --user`、`journalctl --user`
+はすべて `sukhi` で実行する。
+
+#### D. root で誤って Podman/Quadlet を実行した場合
+
+rootful Podman のコンテナは rootless `sukhi` のコンテナから見えない。root
+側の `podman ps` が空でも、`sukhi` 側のサービスが停止した証拠ではない。
+root で実行した unit を止め、`sukhi` に切り替えて確認する:
+
+```bash
+sudo systemctl disable --now sukhi-gateway 2>/dev/null || true
+sudo -iu sukhi systemctl --user daemon-reload
+sudo -iu sukhi systemctl --user enable --now sukhi-gateway
+sudo -iu sukhi journalctl --user -u sukhi-gateway -n 100 --no-pager
+```
+
+既存の rootful container/volume を削除する前に、`podman inspect` と volume
+名を控える。Datalevin は `sukhi` の volume にコピーできることを確認する
+まで削除しない。
+
+#### E. migration/init が未実行または失敗した場合
+
+`startup_checks_complete` が出ていなければ起動完了ではない。Postgres は
+`migration_start` の後に `migration_complete` が必要で、Datalevin は
+`store_init_start` の後に `datalevin_init_complete` が必要。失敗時は
+entrypoint が `start` に進まない。
+
+```bash
+journalctl --user -u sukhi-gateway -n 150 --no-pager
+nc -vz <db-host> <db-port>       # Postgres の場合
+podman logs <postgres-container>  # Postgres の場合
+```
+
+既存 Datalevin の復元では、停止済み旧 writer から全 persistence unit を
+戻し、`SukhiFedi.Release.check_datalevin_backup_manifest!()` を先に実行する。
+catalog mismatch、queue DB 欠落、graph 欠落は起動前に拒否され、データは変更
+されない。
+
+#### F. NATS/DB/frontend upstream がつながらない場合
+
+NATS は `startup_connection_ok service=nats` が出なければ起動しない。ログの
+endpoint と `nc -vz` の結果を確認する。DB は migration error に endpoint と
+`podman logs <postgres-container>` が出る。どちらも secrets の値は出さない。
+
+frontend upstream は gateway 自体を止めず、該当 route を unavailable として
+扱う。ログには frontend 名、設定 URL、次の確認用 `wget` コマンド、
+`sukhi` ユーザーで実行すること、既存データを変更していないことが出る:
+
+```bash
+podman exec <gateway-container> \
+  wget -S -O - http://web-next:3000/.sukhi/web.json
+```
+
+upstream が戻ると manifest を再取得し、last-known-good の claims を維持する。
+`/up` が 200 でも upstream/readiness の成功を意味しない。
 
 ## 2. 更新する
 
