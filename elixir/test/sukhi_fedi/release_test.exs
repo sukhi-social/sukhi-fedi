@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.ReleaseTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
-  # DB-free assertions, but the app boots a Repo at test start, so this is
-  # picked up by the `--only integration` runner (same as UrlGuardTest).
-  @moduletag :integration
+  @moduletag :dtlv
 
   alias SukhiFedi.Release
 
@@ -89,13 +87,30 @@ defmodule SukhiFedi.ReleaseTest do
   describe "on the Datalevin store" do
     setup do
       prev = Application.get_env(:sukhi_fedi, :store)
+      prev_datalevin = Application.get_env(:sukhi_fedi, :datalevin)
+
+      dir =
+        Path.join(
+          System.tmp_dir!(),
+          "sukhi-datalevin-release-test-#{System.unique_integer([:positive])}"
+        )
+
       Application.put_env(:sukhi_fedi, :store, :datalevin)
+      Application.put_env(:sukhi_fedi, :datalevin, dir: dir)
 
       on_exit(fn ->
         if prev,
           do: Application.put_env(:sukhi_fedi, :store, prev),
           else: Application.delete_env(:sukhi_fedi, :store)
+
+        if prev_datalevin,
+          do: Application.put_env(:sukhi_fedi, :datalevin, prev_datalevin),
+          else: Application.delete_env(:sukhi_fedi, :datalevin)
+
+        File.rm_rf!(dir)
       end)
+
+      %{datalevin_dir: dir}
     end
 
     test "there is nothing to migrate, and the gate has nothing to check" do

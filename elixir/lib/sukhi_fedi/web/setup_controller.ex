@@ -29,7 +29,7 @@ defmodule SukhiFedi.Web.SetupController do
         </style>
       </head>
       <body>
-        <h1>Initial setup required</h1>
+        <h1>Frontend setup required</h1>
         <p>sukhi-fedi is running, but no frontend route is configured yet.</p>
         <h2>1. Configure a frontend</h2>
         <p>Edit <code>#{@config_path}</code> and add at least one frontend route.

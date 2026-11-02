@@ -20,7 +20,7 @@ RUN  := $(if $(MISE),$(MISE) exec --,)
 # default inside the checkout so commands run from subdirectories still see
 # the same non-secret test configuration; callers may override it.
 ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-SUKHI_INSTANCE_CONFIG ?= $(ROOT_DIR)/config/instance.json.example
+SUKHI_INSTANCE_CONFIG ?= $(ROOT_DIR)/config/instance.test.json
 export SUKHI_INSTANCE_CONFIG
 
 help:  ## list these targets

@@ -6,6 +6,11 @@ defmodule SukhiFedi.Web.HealthTest do
 
   alias SukhiFedi.Web.Router
 
+  setup do
+    {:ok, _} = Application.ensure_all_started(:hammer)
+    :ok
+  end
+
   test "GET /up is a liveness check with a stable empty dependency surface" do
     conn = Router.call(conn(:get, "/up"), Router.init([]))
 

@@ -1,0 +1,14 @@
+{
+  "site_name": "sukhi-fedi-test",
+  "site_logo": "/favicon.png",
+  "site_icon": "/favicon.png",
+  "addons": {
+    "nodeinfo_monitor": false
+  },
+  "frontends": {
+    "web-next": { "url": "http://web-next:3000" }
+  },
+  "routes": [
+    { "pattern": "/**", "frontend": "web-next" }
+  ]
+}
