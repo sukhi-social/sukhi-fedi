@@ -6,6 +6,9 @@ defmodule SukhiFedi.Application do
 
   @impl true
   def start(_type, _args) do
+    instance_config = SukhiShared.InstanceConfig.load()
+    Application.put_env(:sukhi_fedi, :instance_config, instance_config)
+
     :ok = SukhiFedi.Addon.Registry.verify_abi!()
 
     core_children =
