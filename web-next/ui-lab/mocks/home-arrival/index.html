@@ -1,0 +1,101 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>ホーム + 到着の帯(案)</title>
+<meta name="lab:desc" content="コミュニティ抜きで、ロビーの「着いたとき」だけをホームの頭に借りる案。あいさつ・前回・次のお届け・便り・公開待ち・きょうはここまで。">
+<meta name="lab:scenes" content="fresh=便りが届いている;waiting=公開待ちの投稿あり;night=夜ふけ">
+<meta name="lab:nav" content="home">
+<style>
+  /* モック専用の見た目。色・字・間は tokens.css から。決まったら components.css に移す。 */
+  .arrival { display: grid; gap: .5rem; padding-block: .25rem .5rem; }
+  .arrival .eyebrow { font-size: .8125rem; color: var(--color-text-muted); }
+  .arrival h2 { margin: 0; font-size: 1.375rem; }
+  .arrival .lead { margin: 0; color: var(--color-text-muted); }
+  .rhythm { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); margin: .5rem 0 0; }
+  .rhythm div { padding: .55rem .75rem; }
+  .rhythm div + div { border-left: 1px solid var(--color-border); }
+  .rhythm dt { font-size: .6875rem; color: var(--color-text-muted); }
+  .rhythm dd { margin: 0; font-weight: 700; }
+  .letters, .waiting { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); padding: .75rem .9rem; display: grid; gap: .4rem; }
+  .letters h3, .waiting h3 { margin: 0; font-size: .9375rem; }
+  .letters ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
+  .letters li a { display: grid; grid-template-columns: auto 1fr; gap: .15rem .6rem; align-items: center; text-decoration: none; color: inherit; padding: .3rem .2rem; border-radius: 10px; }
+  .letters li a:hover { background: var(--color-accent-soft); }
+  .letters em { font-style: normal; font-size: .75rem; color: var(--color-accent-strong); }
+  .waiting blockquote { margin: 0; padding-left: .7rem; border-left: 3px solid var(--color-accent); color: var(--color-text); }
+  .letters > *, .waiting > * { min-width: 0; }
+  .waiting blockquote { overflow-wrap: anywhere; }
+  .waiting .row { display: flex; gap: .5rem; justify-content: flex-end; }
+  .end-of-day { display: flex; width: 100%; gap: .75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; border-top: 1px solid var(--color-border); padding-top: 1rem; color: var(--color-text-muted); }
+  .end-of-day b { color: var(--color-text); display: block; }
+  /* 場面: 立っている旗だけ見せる */
+  html:not([data-s~=fresh]) .only-fresh, html:not([data-s~=waiting]) .only-waiting { display: none; }
+  html[data-s~=fresh] .only-quiet { display: none; }
+</style>
+
+<section class="arrival timeline" aria-labelledby="hello">
+  <p class="eyebrow"><time id="today"></time></p>
+  <h2 id="hello"></h2>
+  <p class="lead only-fresh">前回から、返信とフォローの申請が、あわせて 2 通。ほかは、まとめてあとで。</p>
+  <p class="lead only-quiet">前回から、とくに変わりはありません。ゆっくりどうぞ。</p>
+  <dl class="rhythm">
+    <div><dt>前回のおとずれ</dt><dd id="last"></dd></div>
+    <div><dt>次の反応のお届け</dt><dd id="next"></dd></div>
+    <div><dt>便りが来たまち</dt><dd>9 か所</dd></div>
+  </dl>
+</section>
+
+<section class="letters timeline only-fresh" aria-labelledby="letters-h">
+  <h3 id="letters-h">届いている便り</h3>
+  <ul>
+    <li><a href="/notifications"><span class="avatar" style="background:hsl(20 60% 88%);color:hsl(20 50% 35%)" aria-hidden="true">ひ</span><span><b>ひなた</b> <em>返信</em><br><span class="muted text-sm">チラ見せ、たのしみにしてます</span></span></a></li>
+    <li><a href="/notifications"><span class="avatar" style="background:hsl(200 55% 88%);color:hsl(200 45% 32%)" aria-hidden="true">み</span><span><b>みつば</b> <em>フォローの申請</em><br><span class="muted text-sm">あみもの帖で見かけて、気になりました。</span></span></a></li>
+  </ul>
+  <p class="muted text-sm">返信とフォローの申請だけ、先にお届けしています。お気に入りやブーストは <span class="next-at"></span>、まとめて。</p>
+</section>
+
+<section class="waiting timeline only-waiting" aria-labelledby="wait-h" x-data="{ gone: false }">
+  <h3 id="wait-h" x-text="gone ? 'とりやめました' : 'あと 12 分ほどで上がります'"></h3>
+  <blockquote :class="gone && 'muted'">バジルの花芽、摘むか迷ってる。摘んだほうが葉は長持ちするって聞いたけど、花も見てみたい…</blockquote>
+  <p class="muted text-sm" x-text="gone ? '下書きに戻してあります。' : 'それまでは、見直したり、とりやめたりできます。'"></p>
+  <div class="row"><button class="chip" type="button" x-show="!gone" @click="gone = true">とりやめる</button><button class="chip" type="button" x-show="gone" @click="gone = false">もとにもどす</button></div>
+</section>
+
+<nav class="tabs timeline" aria-label="タイムラインの選び方">
+  <a class="tab" href="/timeline?kind=home" aria-current="true">ホーム</a><a class="tab" href="/timeline?kind=public" aria-current="">みんな</a><a class="tab" href="/timeline?kind=bubble" aria-current="">ご近所</a><a class="tab" href="/timeline?kind=tag" aria-current="">タグ</a>
+</nav>
+
+<section class="timeline">
+  <article class="status">
+    <span class="avatar" style="background:hsl(166 45% 85%);color:hsl(166 40% 35%)" aria-hidden="true">く</span>
+    <div class="body">
+      <header class="meta"><a class="display-name" href="/@kuro">くろ</a> <a class="handle" href="/@kuro">@kuro</a> <span class="sep">·</span> <span class="timestamp">今日の夜ふけ</span></header>
+      <div class="content"><p>ほうじ茶を、はじめて自分で焙じました。台所じゅうがいい匂いです。</p></div>
+    </div>
+  </article>
+  <article class="status">
+    <span class="avatar" style="background:hsl(80 40% 86%);color:hsl(80 35% 32%)" aria-hidden="true">나</span>
+    <div class="body">
+      <header class="meta"><a class="display-name" href="/@nabi">나비</a> <a class="handle" href="/@nabi">@nabi</a> <span class="sep">·</span> <span class="timestamp">今日の宵</span></header>
+      <div class="content" lang="ko"><p>영도에서 커피. 바다가 보이는 자리에 앉았어요.</p></div>
+    </div>
+  </article>
+</section>
+
+<!-- ページ内ナッジ: 読み終わりの、やさしい行き止まり。「もっと読む」の代わりに、読みおえた所で出る。 -->
+<div class="end-of-day timeline">
+  <div><b>きょうの分は、ここまで。</b>次の便りは <span class="next-at"></span>、まとめて届きます。そっと閉じても、大丈夫。</div>
+  <a class="btn secondary" href="/compose">書く</a>
+</div>
+
+<script>
+  (() => {
+    const t = lab.now(), h = t.getHours();
+    const hm = (d) => d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const next = new Date(t); next.setHours(h + 1, 0, 0, 0);
+    document.getElementById('hello').textContent = (h < 4 || h >= 17 ? 'こんばんは' : h < 11 ? 'おはようございます' : 'こんにちは') + '、ひなさん。';
+    document.getElementById('today').textContent = t.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'long' }) + '・' + hm(t);
+    document.getElementById('last').textContent = hm(new Date(t - 160 * 60000));
+    document.getElementById('next').textContent = hm(next) + ' ごろ';
+    document.querySelectorAll('.next-at').forEach((e) => (e.textContent = hm(next) + ' ごろ'));
+  })();
+</script>

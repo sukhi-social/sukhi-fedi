@@ -1,0 +1,72 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>ロビー(案・一画面)</title>
+<meta name="lab:desc" content="ロビー = 静かなあいさつ + 最大3枚のウィジェット。状態が無ければ出ない/玄関であって目的地でない/今日は出さない。登録簿の関門(出す順・最大枚数・夜ふけの減らし)を、小さな script で真似ている。">
+<meta name="lab:scenes" content="firstrun=加入したて(フォロー0);fresh=便りが届いている;waiting=公開待ちがある;notice=お知らせがある;community=部屋に便り(将来);night=夜ふけ(最大2枚)">
+<meta name="lab:nav" content="home">
+<style>
+  .lobby { display: grid; gap: .9rem; max-width: var(--measure); margin-inline: auto; width: 100%; }
+  .lobby .eyebrow { margin: 0; font-size: .8125rem; color: var(--color-text-muted); }
+  .lobby h2 { margin: 0; font-size: 1.375rem; }
+  .lobby .lead { margin: 0; color: var(--color-text-muted); }
+  .wlist { display: grid; gap: .6rem; margin: 0; padding: 0; list-style: none; }
+  .w { position: relative; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); }
+  .w > a { display: grid; gap: .15rem; padding: .7rem 2.4rem 1.9rem .9rem; color: inherit; text-decoration: none; border-radius: 14px; }
+  .w > a:hover { background: var(--color-accent-soft); }
+  .w > a:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+  .w b { font-size: .9375rem; }
+  .w .line { font-size: .875rem; color: var(--color-text-muted); }
+  .w .go { position: absolute; right: .9rem; top: 50%; translate: 0 -50%; color: var(--color-text-muted); pointer-events: none; }
+  .w .quiet { position: absolute; right: .5rem; bottom: .35rem; font-size: .75rem; padding: .1rem .45rem; border: 0; background: none; color: var(--color-text-muted); cursor: pointer; border-radius: 8px; }
+  .w .quiet:hover { background: var(--color-accent-soft); }
+  .w[hidden] { display: none; }
+  .home-door { display: flex; justify-content: space-between; align-items: center; gap: .75rem; border-top: 1px solid var(--color-border); padding-top: .9rem; }
+  .home-door span { font-size: .8125rem; color: var(--color-text-muted); }
+</style>
+
+<section class="lobby" aria-labelledby="hello">
+  <div>
+    <p class="eyebrow"><time id="today"></time></p>
+    <h2 id="hello"></h2>
+    <p class="lead" id="lead"></p>
+  </div>
+
+  <ul class="wlist" id="wlist">
+    <!-- 登録簿の順(固定)。data-when = 出す条件(状態)。条件が無ければ出ない。 -->
+    <li class="w" data-w="first" data-when="firstrun"><a href="/collections"><b>はじめの一覧</b><span class="line">だれをフォローすればいいか、迷ったときに。ひとつずつ、見てみませんか。</span><span class="go" aria-hidden="true">›</span></a><button class="quiet" type="button">今日は出さない</button></li>
+    <li class="w" data-w="letters" data-when="fresh"><a href="/notifications"><b>返信とフォローの申請が届いています</b><span class="line">ひなたさんから返信。ほかは、まとめてあとで。</span><span class="go" aria-hidden="true">›</span></a><button class="quiet" type="button">今日は出さない</button></li>
+    <li class="w" data-w="waiting" data-when="waiting"><a href="/compose"><b>公開を待っている投稿があります</b><span class="line">もうすこしで上がります。それまでは、見直せます。</span><span class="go" aria-hidden="true">›</span></a><button class="quiet" type="button">今日は出さない</button></li>
+    <li class="w" data-w="notice" data-when="notice"><a href="/notices"><b>お知らせがあります</b><span class="line">sukhi.social から、ひとつ。</span><span class="go" aria-hidden="true">›</span></a><button class="quiet" type="button">今日は出さない</button></li>
+    <li class="w" data-w="rooms" data-when="community"><a href="/communities"><b>入っている部屋に、すこし便りがあります</b><span class="line">ベランダ菜園部 ほか。</span><span class="go" aria-hidden="true">›</span></a><button class="quiet" type="button">今日は出さない</button></li>
+  </ul>
+
+  <div class="home-door">
+    <span id="door-note">ゆっくりで大丈夫です。</span>
+    <a class="btn primary" href="/timeline">ホームへ</a>
+  </div>
+</section>
+
+<script>
+  // 関門(ほんとうは server/views/lobby.ts の登録簿一か所)。ここでは、その働きだけを真似る:
+  //   状態が無ければ出さない / 最大枚数(夜ふけは 2) / 数を言わない(あふれた分は「他に N 件」と言わず、ただ出さない)
+  (() => {
+    const t = lab.now(), h = t.getHours();
+    const night = lab.has('night') || h < 5 || h >= 23;
+    const max = night ? 2 : 3;
+    const hm = (d) => d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false });
+    document.getElementById('hello').textContent = (h < 4 || h >= 17 ? 'こんばんは' : h < 11 ? 'おはようございます' : 'こんにちは') + '、ひなさん。';
+    document.getElementById('today').textContent = t.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'long' }) + '・' + hm(t);
+    let shown = 0;
+    for (const li of document.querySelectorAll('#wlist .w')) {
+      const ok = lab.has(li.dataset.when) && shown < max;
+      li.hidden = !ok;
+      if (ok) shown++;
+    }
+    const first = lab.has('firstrun');
+    document.getElementById('lead').textContent = first
+      ? 'ここは、まだしずかです。急がなくて大丈夫です。'
+      : shown ? 'ずっといても、ちょっと顔を出すだけでも、大丈夫。' : '前回から、とくに変わりはありません。ゆっくりどうぞ。';
+    document.getElementById('door-note').textContent = night ? 'きょうは、もう休んでも大丈夫です。' : first ? 'タイムラインは、フォローした人が増えたら、ここに集まります。' : 'ゆっくりで大丈夫です。';
+    document.querySelectorAll('#wlist .quiet').forEach((b) => b.addEventListener('click', () => (b.closest('.w').hidden = true)));
+  })();
+</script>
