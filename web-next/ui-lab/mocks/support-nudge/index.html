@@ -1,0 +1,68 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>応援のナッジ(案)</title>
+<meta name="lab:desc" content="応援すると、使う人にどんないいことがあるか。個人の特典は作らず、全体の特色として伝える。置き場所は『知りたい人が自分で来る所』(設定の応援・about)と、特色が増えたときのお知らせ一文だけ。ロビーには出さない。">
+<meta name="lab:scenes" content="notice=お知らせの一文(全体に向けて);listed=載せてよいと返事をくれた人の頁">
+<meta name="lab:nav" content="none">
+<style>
+  .sup { display: grid; gap: 1rem; max-width: var(--measure); margin-inline: auto; width: 100%; }
+  .sup h2 { margin: 0; font-size: 1.25rem; }
+  .sup h3 { margin: 0; font-size: 1rem; }
+  .sup p { margin: 0; }
+  .sup .muted { color: var(--color-text-muted); }
+  .sup ul { margin: 0; padding-left: 1.2rem; display: grid; gap: .35rem; }
+  .card { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); padding: .85rem 1rem; display: grid; gap: .5rem; }
+  .costs { display: grid; grid-template-columns: 1fr auto; gap: .2rem 1rem; font-size: .9rem; }
+  .costs dt { color: var(--color-text-muted); } .costs dd { margin: 0; text-align: right; }
+  .notice-line { border-left: 3px solid var(--color-accent); padding: .2rem .75rem; }
+  html:not([data-s~=notice]) .only-notice, html:not([data-s~=listed]) .only-listed { display: none; }
+</style>
+
+<section class="sup">
+  <!-- ① お知らせの枠: 特色が増えたときだけ。全員に同じ一文。個人は出さない。ロビーには「お知らせがあります」の一行だけ。 -->
+  <div class="card only-notice" aria-label="お知らせ(例)">
+    <p class="muted" style="font-size:.8125rem">お知らせ ・ 11月4日</p>
+    <p class="notice-line"><b>この一年も、みなさんの応援で、これが続けられます。</b><br>通知をまとめて届けるしくみと、メールの送り出し。ありがとうございます。</p>
+  </div>
+
+  <!-- ② 設定の「応援」: 知りたい人が、自分で開く所。押しつけない。 -->
+  <div>
+    <h2>応援のこと</h2>
+    <p class="muted">sukhi.social は、応援で続いています。ここにいる、みんなの「ゆっくり」を、ながく続けるために使います。</p>
+  </div>
+
+  <div class="card">
+    <h3>応援すると、こうなります</h3>
+    <ul>
+      <li><b>みんなに、特色がひとつずつ増えます。</b> 応援した人だけでなく、ここにいる全員が、同じように使えます。</li>
+      <li><b>一年(長くて三年)は、続けられるものだけ</b>を足します。急に増やしたり、減らしたりしません。</li>
+      <li><b>少額でも、同じように嬉しいです。</b> やめても、何も変わりません。どこにも知らせません。</li>
+    </ul>
+    <p class="muted">応援しなくても、ここは同じように使えます。</p>
+  </div>
+
+  <div class="card">
+    <h3>いま、どこに使っているか</h3>
+    <dl class="costs">
+      <dt>サーバー</dt><dd>—</dd>
+      <dt>メールの送り出し</dt><dd>—</dd>
+      <dt>写真・動画の置き場</dt><dd>—</dd>
+    </dl>
+    <p class="muted" style="font-size:.8125rem">金額や目標の棒は、置きません。何に使っているかだけ。</p>
+  </div>
+
+  <div class="card">
+    <h3>お名前を載せたい方へ</h3>
+    <p>応援をいただくときに、お名前と連絡先を教えてください。ご連絡のうえ、<a href="https://about.sukhi.social">about.sukhi.social</a> に載せます。</p>
+    <p class="muted">教えていただかなくても、応援は同じようにうれしいです。載せるときも、あとから外すときも、理由はうかがいません。</p>
+    <p><a class="btn secondary" href="https://liberapay.com/">Liberapay で応援する</a></p>
+  </div>
+
+  <!-- ③ about の「ありがとう」: 載せてよいと言ってくれた人だけ。金額・期間・順位なし。 -->
+  <div class="card only-listed">
+    <h3>ありがとう</h3>
+    <p>あいうえお順です。</p>
+    <p>あみ ・ きの ・ しそ ・ たけ ・ もり ・ よる</p>
+    <p class="muted">お名前を出さない応援も、同じようにありがとう。</p>
+  </div>
+</section>
