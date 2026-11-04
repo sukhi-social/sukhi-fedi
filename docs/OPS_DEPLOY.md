@@ -49,7 +49,8 @@ curl -s https://example.tld/.well-known/webfinger?resource=acct:<ユーザー>@e
 
 ### 1.5 最初の管理者
 
-最初のアカウントを作り、管理者にする手順は、リポジトリの README / SETUP.md を参照
+最初のアカウントを作り、管理者にする手順は、[`DEVELOPING.md`](DEVELOPING.md) の「手元で動かす」にある
+`SukhiFedi.Release.create_admin/3` を、gateway の `bin/sukhi_fedi rpc`(他の手入れと同じ入口)で呼ぶ
 (**ここでは未確認**。実機で確かめて追記する)。管理者にはパスキーの登録をすすめる。
 
 ## 2. 更新する

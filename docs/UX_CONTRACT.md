@@ -1,7 +1,7 @@
 # UX contract — `web/`
 
 What the web client promises about *behaviour*, per platform. The visual
-side (colour, shape, density) is `tokens.css` and `UI_UX_REVIEW.md`; this
+side (colour, shape, density) is `tokens.css`; this
 page is the other half: what a press, a key, a back gesture does.
 
 Two rules:

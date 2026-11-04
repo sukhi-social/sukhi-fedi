@@ -1,6 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # sukhi-fedi を運用する人へ(はじめに)
 
+> 全体の目次は [`README.md`](README.md)。
+
 > 状態: **運用の手引きの入口。** サーバーの準備、デプロイ、メンテナンスを、順に書く。
 > `sukhi` コマンド([`SERVER_SHELL.md`](SERVER_SHELL.md))はまだ実装がなく、手引きの中で「予定」と書いたものは、
 > 実装されるまでは**いまの手順**(各章に併記)を使う。

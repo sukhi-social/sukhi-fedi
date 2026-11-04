@@ -28,7 +28,7 @@
 | mix タスク | `elixir/lib/mix/tasks/sukhi.*.ex`(migrate, emoji.add/list, datalevin.catalog, graph.bench) | 開発時の入口 | リリースには Mix がない。本番では使えない |
 | メンテナンス・スクリプト | `SukhiFedi.Maintenance.*`(RebuildRemoteNoteIds, RebuildFromArchive, RefetchActors, WipeRemote, RebuildDirectVisibility, ArchiveIntegrity …) | `run(:dry_run \| :execute)` という共通の形。`Progress` が `maintenance_runs` に進み具合を書く | 一覧がない。呼ぶには `eval '…run(:execute)'` を手で打つ。同時実行の制限・タイムアウトがない |
 | 管理ダッシュボード | `Web.Admin.*`(`/admin`)、`Schema.AdminAudit`(追記専用・DB のトリガで更新削除を禁止) | 進捗の表示、モデレーションの監査 | 人がブラウザで見る用。操作の入口としては作られていない |
-| デプロイ | combined-sha.yml が main ごとに sha タグを GHCR へ、haloy が本番へ。Watchtower は自前ホスト向け(SETUP.md「Upgrades」) | 自動で更新される | 「今の版は何か」「更新前に確かめる」「戻す」の入口がない |
+| デプロイ | combined-sha.yml が main ごとに sha タグを GHCR へ、haloy が本番へ。Watchtower は自前ホスト向け(`docker-compose.yml`) | 自動で更新される | 「今の版は何か」「更新前に確かめる」「戻す」の入口がない |
 
 **所見。** 部品はそろっていて、足りないのは「ひとつの登録簿」と「境界での認証・権限・監査」。
 `rpc` をそのまま AI に渡すのは危ない(任意コード実行になる)。だから AI にも人にも、

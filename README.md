@@ -1,230 +1,82 @@
-# sukhi-fedi
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+# sukhi
 
-Federated SNS server. Mastodon/Misskey API compatible.
-Elixir gateway + Elixir delivery node + distributed-Erlang api plugin,
-coordinated by PostgreSQL + NATS. ActivityPub translation
-(JSON-LD, HTTP Signatures) runs natively in Elixir (`SukhiFedi.Fedi`); the
-original Bun/Fedify NATS Micro worker is retired (v0.3.0) — no compose stack
-starts it anymore; it's kept behind a `disabled` profile as a rollback path
-and as the oracle for golden fixtures. A SvelteKit SPA (`web/`)
-ships bundled — built to static files and served by the gateway.
+急がなくていい場所で、ことばを置いて、ときどき顔を出す。
+sukhi は、そのための、連合型(ActivityPub)の SNS サーバーです。
+[sukhi.social](https://sukhi.social) は、このソフトウェアで動いています。
 
-## 📖 Documentation
+*English, briefly:* sukhi is a federated (ActivityPub) social server built to be calm:
+posts wait a few minutes before they go out, reactions arrive in small batches, nothing
+shows counts or unread badges. It speaks the Mastodon client API and federates with
+Mastodon, Misskey and others. The rest of this page is in Japanese; the technical
+documents under [`docs/`](docs/README.md) are mostly English.
 
-**[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) is the canonical reference.**
-A fresh contributor can rebuild the system from scratch using only that
-document and the code. Read it first.
+## 1. どんな場所か
 
-- **API reference** — `/api/docs` on a running instance (and `/api/docs.json`,
-  OpenAPI 3.1). Generated from the routes the API node serves, so it cannot
-  drift; nothing to annotate. Lists endpoints, methods and the OAuth scope
-  each needs — not request/response shapes.
-- [`docs/ADDONS.md`](docs/ADDONS.md) — addon ABI contract (how to pick,
-  write, or distribute feature addons)
-- [`web/README.md`](web/README.md) — the bundled SvelteKit SPA (dev server,
-  build, e2e)
-- [`docs/native-seams.md`](docs/native-seams.md) — the four places a NIF
-  would plug in (behaviour + Elixir default + shadow), and how to add one
-- [`docs/anubis.md`](docs/anubis.md) — the proof-of-work bot gate that sits
-  in front of the gateway
-- [`docs/web-surface.md`](docs/web-surface.md) — which routes face the
-  internet, and the test that makes you say so when you cut a new door
-- [`TODO.md`](TODO.md) — punch list of work deferred from the
-  Mastodon-API MVP push; pick anything off it
-- [`SETUP.md`](SETUP.md) — self-host deployment with docker compose + Watchtower
+長くいても、ちょっと顔を出すだけでも、どちらも「ふつう」にしたい。
+そのために、画面のほうが、いくつかのことを先に引き受けています。
 
-## Quick start — no Docker
+- **投稿は、すぐには出ません。** 書いてから約四半刻(15分)、「お預かり」になります。
+  そのあいだは、読み返して、直して、やめることができます。
+- **反応は、ポツポツと届きます。** お気に入りやブーストの通知は、少し置いて、
+  まとめて出します。返信とフォロー申請だけは、すぐ。
+- **数を出しません。** お気に入り・ブースト・フォロワーの数も、通知の未読の数やバッジも。
+  競わなくていいように。
+- **時間は、うつろいで言います。** 「今日の昼下がり」「昨日の宵」。分や秒は言いません。
+- **列には、終わりがあります。** 最後には「ここまで、です。」と出ます。
+  読み終えたと思っていい場所があります。
 
-```bash
-make dev        # http://localhost:4000
-make dev-web    # http://localhost:5173, in a second terminal
-```
+こう決めていることも、あります(画面は、まだ追いついていないところがあります)。
 
-`make dev` starts an embedded Postgres (PGlite — Postgres compiled to WASM,
-run by bun, persisted in `.pglite-dev/`), runs the migrations, and boots
-gateway + delivery + api as **one BEAM** with an IEx shell. Nothing to
-install beyond the toolchain in `mise.toml` (`mise trust` once) and bun.
+- **静かにする道を、同じ大きさで置く。** 見たくないものを遠ざけるのは、
+  ブロックや通報と同じくらい、見つけやすいところに。
+- **入るのと同じくらい、出るのも易しく。** 理由は聞かない。引き止めない。
 
-NATS carries streaming and the outbound-federation relay; `make dev` starts
-`nats-server` when it's on PATH and says so when it isn't (`brew install
-nats-server nats`). PGlite runs on a single connection on purpose — its
-socket multiplexer breaks Postgrex inside transactions, so a wider pool can
-read but not post. Point `DB_PORT` at a real Postgres for the full thing.
-See `scripts/dev.sh`.
+どれも技術的には、できることを**わざと控えた**ものです。
+控えたぶんの余裕は、サーバーを軽く、長持ちさせるほうに使っています。
+考え方は [`docs/KINDNESS.md`](docs/KINDNESS.md)(画面が相手に負っているもの)にあります。
 
-To get a first account, from the IEx shell `make dev` drops you into:
+つながる先は、Mastodon や Misskey など、ActivityPub を話す世界です。
+Mastodon 用のアプリ(Elk、Phanpy、Ivory、Tusky など)からも使えます。
+画面は日本語・한국어・English。ホーム画面に追加すれば、アプリのようにも開けます。
 
-```elixir
-SukhiFedi.Release.create_admin("you", "a-long-passphrase")
-```
+## 2. 使いはじめる
 
-## Quick start with Docker — the full stack
+- ようすを見るには、[about.sukhi.social](https://about.sukhi.social) から。
+- 入りかた、書きかた、通知のこと、引っ越し、やめたくなったとき ──
+  [`docs/USING.md`](docs/USING.md) に、順に書きました。
+- うまくいかないこと、あったらいいなと思うことは、アプリの「意見を送る」から。
+  返事はできないことがありますが、ちゃんと読みます。
 
-Build the app images from source and run the whole stack on your machine. No
-published images needed — only Postgres and NATS come from upstream bases.
+## 3. 自分のサーバーを立てる
 
-```bash
-# 1. Minimal env — a local domain and two random secrets. The entrypoint
-#    fail-closes on a missing cookie, and the release reads SECRET_KEY_BASE
-#    at boot, so both must be real values.
-cat > .env <<EOF
-DOMAIN=localhost:4000
-ERLANG_COOKIE=$(openssl rand -hex 32)
-SECRET_KEY_BASE=$(openssl rand -hex 64)
-EOF
+sukhi は、だれでも自分の場所に立てられます。ただ、サーバーは**預かりもの**でもあります。
+急がなくて大丈夫です。手が回らなそうなときは、立てない道もあります
+(sukhi.social の中に小さなコミュニティを置く案を、考えています)。
 
-# 2. Build-from-source override: builds gateway/delivery/api,
-#    publishes the gateway port, and skips the prod-only anubis/watchtower.
-#    Both .env and docker-compose.override.yml are gitignored.
-cp docker-compose.override.example.yml docker-compose.override.yml
+- 立てるときの入口は [`docs/OPERATIONS.md`](docs/OPERATIONS.md)。
+  準備 → 最初の起動 → 日々の手入れ、の順に読めます。
+- 守りかたを、こわがらせずに書いたものが [`docs/CARING_FOR_YOUR_SERVER.md`](docs/CARING_FOR_YOUR_SERVER.md)。
+- まず手元で動かしてみたいだけなら、[`docs/DEVELOPING.md`](docs/DEVELOPING.md) の「手元で動かす」へ。
+  `make dev` ひとつで、Docker なしで立ちます。
 
-# 3. Build and bring it up. The first build is slow — the SPA plus four
-#    Elixir prod releases.
-docker-compose up --build
-```
+## 4. つくる人へ
 
-Then open **http://localhost:4000** — the SvelteKit SPA, and the Mastodon API
-underneath (`/api/v1/instance`, …). Migrations and the NATS streams are created
-automatically on boot, and the SPA is baked into the gateway image, so there's
-nothing else to run.
+設計・仕様・環境変数・テストなど、技術の資料は [`docs/README.md`](docs/README.md) に目次があります。
+読む順番は、迷ったらこの三つから。
 
-Federating with other servers needs a public domain + TLS and is out of scope
-for a local trial. For a real self-host deploy — pulling published images, with
-Anubis and Watchtower — see [`SETUP.md`](SETUP.md).
+1. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ── 全体のかたち(正本)
+2. [`docs/CODE_STYLE.md`](docs/CODE_STYLE.md) ── 安全と速さを、構造で守る書きかた
+3. [`docs/DEVELOPING.md`](docs/DEVELOPING.md) ── 動かす・テストする・学んだ相手
 
-For frontend work, run the Vite dev server separately (`make dev-web`
-→ http://localhost:5173, proxies API calls to the gateway).
+## 続けていくために
 
-## Running tests
+sukhi は、ひとりの手と、いただく応援で続いています。
+くわしいことと、何に使っているかは、サーバーの `/support` に書いてあります。
+応援してもしなくても、ここでできることは同じです。
 
-```bash
-make test          # every layer's unit tests (elixir / delivery / api / web)
-make test-pglite   # the DB integration suite, on embedded PGlite — no Docker
-make test-e2e      # cross-browser SPA smoke (Playwright)
-make check         # linters and type checks
-```
+## ライセンス
 
-`make` on its own lists every target. Each layer is also its own target
-(`make test-api`, …) when you want just one.
-
-Two things `make test` does not cover: the retired Bun worker (`cd bun &&
-npm test`, `npm run check`; Node 22+), and the integration tests that need NATS or S3
-rather than only Postgres — those want the Docker stack:
-
-```bash
-docker compose -f docker-compose.test.yml up -d
-cd elixir && MIX_ENV=test mix sukhi.migrate && mix test --only integration
-```
-
-## Architecture at a glance
-
-| Layer      | Responsibility                                                           |
-| ---------- | ------------------------------------------------------------------------ |
-| Gateway    | HTTP ingress (inbox, WebFinger, NodeInfo, OAuth/session), Outbox write side, routes `/api/*` → API |
-| API        | REST plugin node (`:sukhi_api` BEAM app); Mastodon/Misskey client APIs, `:rpc`-invoked from the gateway, capabilities auto-register |
-| Delivery   | Outbox.Relay, Oban delivery & federation queues, outbound inbox POSTs    |
-| Web        | SvelteKit SSG SPA (`web/`); built to static files, served by the gateway from `priv/static` |
-| Web (natadeco) | natadeco.com's own frontend (`web-natadeco/`), for the `deco` board addon. A second site running this server, not a second server — it lives here because it is the addon's only client and the two have to change together. Builds with bun; `make push-natadeco` |
-| Bun        | NATS Micro service (JSON-LD build, HTTP Signature, verify) — **retired** (v0.3.0), now served natively by `SukhiFedi.Fedi`; no compose stack starts it (`disabled` profile), kept for rollback & golden fixtures |
-| PostgreSQL | System of record; shared `outbox` / `delivery_receipts` / `oban_jobs`    |
-| NATS       | Micro service `fedify`; `stream.*` pub/sub. No JetStream                 |
-| Anubis     | Proof-of-work bot gate in front of the gateway; challenges HTML navigation, allow-lists federation/API/static |
-| PromEx     | Prometheus metrics at `/metrics` (gateway :4000, delivery :4001)         |
-
-See §2 of `ARCHITECTURE.md` for the responsibility split rationale.
-
-## Fediverse software we learned from
-
-sukhi-fedi didn't appear from nothing. It was shaped by the servers, clients,
-and tools it sits next to — some we implement an API for, many we special-case
-so federation round-trips cleanly, one we lean on as a library, and one just
-lent us an idea. Listed honestly, by how we actually use them:
-
-**Client API we implement**
-
-- **Mastodon** — the Mastodon REST client API is sukhi-fedi's primary
-  client-facing surface (`api/lib/sukhi_api/capabilities/mastodon_*.ex`,
-  `docs/MASTODON_API.md`). Third-party clients and the bundled SPA both speak it.
-- **Misskey** — federation is live; a native Misskey client API is mapped in
-  `docs/MISSKEY_API.md` but not yet implemented.
-
-**Third-party clients we accommodate**
-
-These speak the Mastodon-compatible API, and the code carries small,
-client-motivated accommodations so each stops erroring after login: permissive
-CORS for the browser clients **Elk** / **Phanpy**, markers and discovery stubs
-for **Ivory** / **Tusky** / **Moshidon**, strict-parser-safe (Gson) JSON for
-**Moshidon**, and an OAuth consent-page CSP fix for **Toot!**. A Misskey client
-API for **MissCat** / **Aria** is mapped in the docs but not yet built.
-
-**Federation peers we tuned against**
-
-Each taught us a wire quirk we now handle so activities survive the round trip:
-
-- **Mastodon** — the baseline shape for outbound AP (LD-signature ordering,
-  Secure Mode signed fetch).
-- **Misskey** — custom-emoji reactions (carried as Like-with-content, which
-  Misskey and Sharkey read), Misskey-Flavored-Markdown side channels, quote
-  aliases (`quoteUrl` / FEP-e232), signed GETs.
-- **hackers.pub** — a Fedify-based peer: long-form Articles, poll tallies it
-  never sends `Update` for, RFC 9421 vs draft-cavage signatures, Ed25519
-  object-integrity proofs (FEP-8b32).
-- **Hollo** — another Fedify-based peer: RFC 9421 signing and object-integrity
-  proofs. (Its `QuoteRequest` / FEP-044f flow is still a TODO — for now we fall
-  back to legacy quote handling.)
-- **Sharkey** / **Firefish** / **Fedibird** — the bare `RE:` / `QT:`
-  quote-reference tail they append for Mastodon's sake, which we lift out when a
-  quote card renders (plus Fedibird's nested `quote` shape).
-- **Iceshrimp** — strict addressing (drops activities lacking `to`/`cc`) and
-  reverse-webfinger from an actor URL.
-- **Pleroma** / **Akkoma** — the cavage-12 signature set, and Pleroma's
-  `EmojiReact` idiom, which we recognise on receive (we emit Like-with-content
-  instead).
-- **GoToSocial** — its JSON-LD namespace is vendored locally for canonicalization.
-
-**Library we built on (now a reference)**
-
-- **Fedify** (`@fedify/fedify`) — the ActivityPub toolkit the Bun worker was
-  built on (its primitive layer: vocab classes, JSON-LD (de)serialization,
-  HTTP-Signature sign/verify — not its framework). Production no longer runs it:
-  the Elixir side (`SukhiFedi.Fedi.*`) serves all `fedify.*.v1` work natively,
-  and the Bun worker is retired (v0.3.0) — kept as a rollback path and as the
-  oracle that mints the byte-exact golden fixtures the native port is tested
-  against. See `docs/FEDIFY.md`.
-
-**An idea we borrowed**
-
-- **Bonfire** — its *Circle* concept inspired sukhi-fedi's Circles (Lists
-  generalized into the middle ground between following and forgetting). No
-  Bonfire code is referenced here — just the shape of the idea.
-
-## Native signature library (ojak-ex)
-
-The gateway links [ojak-ex](https://github.com/sukhi-social/ojak-ex) (Rust
-signatures and JSON-LD, as a NIF), reached only through
-`SukhiFedi.Fedi.Ojak`. Both switches are **off by default**: with neither set,
-ojak is loaded but never called.
-
-- `OJAK_SHADOW=1` — verifiers also ask ojak and log a warning when it
-  disagrees. Our own answer is still the one used.
-- `OJAK_LD_BACKEND=ojak` — RsaSignature2017 sign/verify go through ojak.
-
-Worth knowing before you turn either on:
-
-- **Licence.** ojak-ex is AGPL-3.0-only, this repo is AGPL-3.0-or-later. The
-  combined work is distributed under AGPL-3.0; the "or later" does not extend
-  to it.
-- **Prebuilt library.** On Linux the build downloads the native library from
-  the ojak-ex GitHub release and checks its SHA-256, which is published beside
-  it — that catches a broken download, not a tampered release. Set
-  `OJAK_NIF_BUILD=1` to build from source with Rust instead.
-- **A NIF fault takes the VM down.** A Rust panic is an Elixir exception, but a
-  fault is not, and ojak has not been fuzzed. What reaches it is bounded only by
-  `Plug.Parsers`' default body limit (8 MB), which the router does not set
-  explicitly.
-- **Young.** v0.1.1, pinned by tag; its README says the API may change.
-
-## License
-
-AGPL-3.0-or-later. See `LICENSE` (ojak-ex, a dependency, is AGPL-3.0-only —
-see above).
+AGPL-3.0-or-later です([`LICENSE`](LICENSE))。
+依存している [ojak-ex](https://github.com/sukhi-social/ojak-ex) は AGPL-3.0-only で、
+使うときの注意は [`docs/DEVELOPING.md`](docs/DEVELOPING.md) に書いてあります。

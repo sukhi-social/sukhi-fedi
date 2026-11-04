@@ -1,7 +1,7 @@
 # 親切の基準 — what "kind" means on a sukhi screen
 
 `UX_CONTRACT.md` says what a press, a key and a back gesture *do*.
-`UI_UX_REVIEW.md` says how it *looks*. This page says what a screen owes
+`tokens.css` says how it *looks*. This page says what a screen owes
 the person looking at it. It is a draft: change anything.
 
 Each promise is written so a reviewer can answer yes or no to it, in the
@@ -46,7 +46,7 @@ same way `CODE_STYLE.md` asks of a security or performance property.
 ## 点検のやり方
 
 timeline、compose、通知、設定、signup を、上の約束ごとに見て、表にする。
-足りないところは、小さな PR で順に直す。`UI_UX_REVIEW.md` の「次にやること」も合流させる。
+足りないところは、小さな PR で順に直す。
 
 ## 出どころと、使わないこと
 
