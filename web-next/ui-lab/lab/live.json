@@ -1,0 +1,6 @@
+[
+  { "path": "/", "title": "web-next · ホーム" },
+  { "path": "/notifications", "title": "web-next · 通知" },
+  { "path": "/compose", "title": "web-next · 書く" },
+  { "path": "/settings", "title": "web-next · 設定" }
+]

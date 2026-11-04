@@ -3,7 +3,7 @@
 # One place to start from. `make` on its own lists everything.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev dev-web test test-shared test-elixir test-delivery test-api test-web check-specs \
+.PHONY: help setup dev dev-web ui-lab test test-shared test-elixir test-delivery test-api test-web check-specs \
         test-pglite test-e2e check check-presets env-audit script-tests need-tsubaki up down preflight \
         push-static push-styles clear-static static-status \
         push-natadeco natadeco-images
@@ -37,6 +37,9 @@ setup:  ## fetch every project's dependencies
 
 dev:  ## run the whole thing locally, no Docker (:4000, IEx shell)
 	@bash scripts/dev.sh
+
+ui-lab:  ## web-next UI mocks side by side (:5180) — web-next/ui-lab/README.md
+	cd web-next/ui-lab && $(RUN) node serve.mjs
 
 dev-web:  ## the SPA dev server (:5173), in a second terminal
 	cd web && $(RUN) pnpm run dev
