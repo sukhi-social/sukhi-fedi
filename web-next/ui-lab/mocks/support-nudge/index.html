@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <title>応援のナッジ(案)</title>
 <meta name="lab:desc" content="応援すると、使う人にどんないいことがあるか。個人の特典は作らず、全体の特色として伝える。置き場所は『知りたい人が自分で来る所』(設定の応援・about)と、特色が増えたときのお知らせ一文だけ。ロビーには出さない。">
-<meta name="lab:scenes" content="notice=お知らせの一文(全体に向けて);listed=載せてよいと返事をくれた人の頁">
+<meta name="lab:scenes" content="notice=お知らせの一文(全体に向けて);listed=載せてよいと返事をくれた人の頁;bottom=ページの底の一行(ここから来る);letter=aboutに年に一、二度のたより">
 <meta name="lab:nav" content="none">
 <style>
   .sup { display: grid; gap: 1rem; max-width: var(--measure); margin-inline: auto; width: 100%; }
@@ -15,7 +15,14 @@
   .costs { display: grid; grid-template-columns: 1fr auto; gap: .2rem 1rem; font-size: .9rem; }
   .costs dt { color: var(--color-text-muted); } .costs dd { margin: 0; text-align: right; }
   .notice-line { border-left: 3px solid var(--color-accent); padding: .2rem .75rem; }
-  html:not([data-s~=notice]) .only-notice, html:not([data-s~=listed]) .only-listed { display: none; }
+  html:not([data-s~=notice]) .only-notice, html:not([data-s~=listed]) .only-listed,
+  html:not([data-s~=bottom]) .only-bottom, html:not([data-s~=letter]) .only-letter { display: none; }
+  html[data-s~=bottom] .support-page, html[data-s~=letter] .support-page { display: none; }
+  .support-page { display: contents; }
+  .endline { text-align: center; color: var(--color-text-muted); font-size: .8125rem; padding-top: 1.5rem; }
+  .foot { display: flex; flex-wrap: wrap; justify-content: center; gap: .25rem 1rem; font-size: .8125rem; padding: .5rem 0 1rem; }
+  .foot a { color: var(--color-text-muted); }
+  .letter h3 { font-size: 1.0625rem; }
 </style>
 
 <section class="sup">
@@ -25,9 +32,29 @@
     <p class="notice-line"><b>この一年も、みなさんの応援で、これが続けられます。</b><br>通知をまとめて届けるしくみと、メールの送り出し。ありがとうございます。</p>
   </div>
 
+  <!-- ④ ページの底: どのページも底に着く(無限スクロールをしない)。小さな文字の固定リンク。色・バッジなし。 -->
+  <div class="only-bottom" aria-label="ページの底(例)">
+    <p class="muted" style="text-align:center;font-size:.9rem">…… 今日は、ここまでです。</p>
+    <p class="endline">たとえば、ホームのいちばん下</p>
+    <nav class="foot" aria-label="このサーバーについて">
+      <a href="#">このサーバーのこと</a><a href="#">応援のこと</a><a href="#">つかいかた</a>
+    </nav>
+  </div>
+
+  <!-- ⑤ about の「たより」: 年に一、二度。何に使ったかだけ。応援した人もしない人も同じ便りを読む。個人の名前・金額は出さない。 -->
+  <div class="card letter only-letter" aria-label="たより(例)">
+    <p class="muted" style="font-size:.8125rem">たより ・ 2027年の春</p>
+    <h3>この冬、写真の蔵を少し広げました</h3>
+    <p>みなさんの応援で、写真と動画の置き場を、すこし広げられました。ひとりぶんの枠は、変わりません。ここにいる全員が、同じように使えます。</p>
+    <p>来年は、通知をまとめて届けるしくみを、もう少していねいにします。</p>
+    <p class="muted">応援してくださったみなさん、見守ってくださっているみなさん、ありがとうございます。</p>
+  </div>
+
+  <div class="support-page">
   <!-- ② 設定の「応援」: 知りたい人が、自分で開く所。押しつけない。 -->
   <div>
     <h2>応援のこと</h2>
+    <p>ここにいてくださるだけで、うれしいです。</p>
     <p class="muted">sukhi.social は、応援で続いています。ここにいる、みんなの「ゆっくり」を、ながく続けるために使います。</p>
   </div>
 
@@ -38,6 +65,7 @@
       <li><b>一年(長くて三年)は、続けられるものだけ</b>を足します。急に増やしたり、減らしたりしません。</li>
       <li><b>少額でも、同じように嬉しいです。</b> やめても、何も変わりません。どこにも知らせません。</li>
     </ul>
+    <p>正直に言うと、応援はとても助かります。年に三百円でも、嬉しいです。</p>
     <p class="muted">応援しなくても、ここは同じように使えます。</p>
   </div>
 
@@ -56,6 +84,8 @@
     <p>応援をいただくときに、お名前と連絡先を教えてください。ご連絡のうえ、<a href="https://about.sukhi.social">about.sukhi.social</a> に載せます。</p>
     <p class="muted">教えていただかなくても、応援は同じようにうれしいです。載せるときも、あとから外すときも、理由はうかがいません。</p>
     <p><a class="btn secondary" href="https://liberapay.com/">Liberapay で応援する</a></p>
+  </div>
+
   </div>
 
   <!-- ③ about の「ありがとう」: 載せてよいと言ってくれた人だけ。金額・期間・順位なし。 -->
