@@ -136,7 +136,7 @@ DOMAIN      ?= sukhi.f3liz.casa
 # it rides along in the rsync. So a later deploy (a newer image) supersedes
 # this push, on purpose. To keep a push in place across deploys, set
 # STATIC_OVERRIDE=prefer in the app's env (haloy.yaml). See
-# docs/static-override.md.
+# docs/static-override.ja.md.
 #
 # `--chmod=D755,F644` も要る。ここに置くものは全部 HTTP で配る公開
 # ファイルで、アプリは root ではない uid で動いている ── 手元の umask

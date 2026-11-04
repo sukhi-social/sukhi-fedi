@@ -12,7 +12,7 @@
 > SvelteKit `web/` are **kept running only** — no new features go there.
 > `make dev` below starts on Postgres (PGlite); for Datalevin see `DATALEVIN.md`.
 >
-> To run your own server, start at [`OPERATIONS.md`](OPERATIONS.md) instead. This page
+> To run your own server, start at [`OPERATIONS.ja.md`](OPERATIONS.ja.md) instead. This page
 > is for trying it and changing it. The table of contents is [`README.md`](README.md).
 
 ## Run it locally (no Docker)
@@ -72,7 +72,7 @@ nothing else to run.
 
 Federating with other servers needs a public domain + TLS and is out of scope
 for a local trial. For a real self-host deploy — pulling published images, with
-Anubis and Watchtower — see [`OPERATIONS.md`](OPERATIONS.md).
+Anubis and Watchtower — see [`OPERATIONS.ja.md`](OPERATIONS.ja.md).
 
 For frontend work, run the Vite dev server separately (`make dev-web`
 → http://localhost:5173, proxies API calls to the gateway).

@@ -50,9 +50,10 @@ Anyone can run sukhi. A server is also something you keep **in trust** for other
 people, so there is no hurry. If you don't have the hands for it, there is a path
 without running one (we are thinking about small communities inside sukhi.social).
 
-- The way in is [`docs/OPERATIONS.md`](docs/OPERATIONS.md) (Japanese): prepare, first
-  start, daily care, in that order.
-- [`docs/CARING_FOR_YOUR_SERVER.md`](docs/CARING_FOR_YOUR_SERVER.md) (Japanese) is how
+- The way in is [`docs/OPERATIONS.ja.md`](docs/OPERATIONS.ja.md): prepare, first
+  start, daily care, in that order. **The operator guides are in Japanese only; there
+  is no English version yet.**
+- [`docs/CARING_FOR_YOUR_SERVER.ja.md`](docs/CARING_FOR_YOUR_SERVER.ja.md) (Japanese) is how
   to look after it without being frightened.
 - To just try it on your own machine: "Run it locally" in
   [`docs/DEVELOPING.md`](docs/DEVELOPING.md). `make dev` alone starts it, no Docker.
@@ -69,7 +70,8 @@ Design, specifications, environment variables and tests: the table of contents i
 ## Keeping it going
 
 sukhi is kept going by one person's hands and by the support people give.
-What it costs and what it is spent on is on the server's `/support` page.
+How to support it, and what it is spent on, is at
+[about.sukhi.social/en/support](https://about.sukhi.social/en/support/).
 What you can do here is the same whether or not you support it.
 
 ## License

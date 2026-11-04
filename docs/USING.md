@@ -128,11 +128,12 @@ completion, polls, profile editing, mute, block, and the close-account screen.
 - **"Send feedback"** in the app. Only the screen name, language and version go with it.
   We may not reply, but it is read.
 - Email, ActivityPub, or Matrix (`#sukhi-social:matrix.org`). Contacts are on the
-  server's `/support` page.
+  [support page](https://about.sukhi.social/en/support/).
 
 ## About support
 
 sukhi is kept going by the operator's own hands and by the support people give.
-How to support it, and what it is spent on, is at [`/support`](https://sukhi.social/support).
+How to support it, and what it is spent on, is at
+[about.sukhi.social/en/support](https://about.sukhi.social/en/support/).
 What you can do here is the same whether or not you support it. Support given without
 a name is just as welcome.

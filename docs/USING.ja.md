@@ -121,10 +121,10 @@ Mastodon 用のアプリ(Elk、Phanpy、Ivory、Tusky、Moshidon など)から�
 
 - アプリの **「意見を送る」**。画面の名前・言語・版だけが一緒に届きます。返事はできなくても、読みます。
 - メール、ActivityPub、Matrix(`#sukhi-social:matrix.org`)でも。
-  サーバーの `/support` に、連絡先があります。
+  [応援のページ](https://about.sukhi.social/en/support/)に、連絡先があります。
 
 ## 応援について
 
 sukhi は、運営のひとりの手と、いただく応援で続いています。
-応援の窓口と、何に使っているかは [`/support`](https://sukhi.social/support) に。
+応援の窓口と、何に使っているかは [about.sukhi.social/en/support](https://about.sukhi.social/en/support/) に(英語のページです)。
 応援しても、しなくても、ここでできることは同じです。名前を出さない応援も、同じようにありがたいです。

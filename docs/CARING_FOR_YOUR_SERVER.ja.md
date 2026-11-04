@@ -3,7 +3,7 @@
 
 > 状態: **下書き。** 文中の `sukhi doctor` などは、まだ実装がない
 > ([`SERVER_SHELL.md`](SERVER_SHELL.md) の設計)。文は、技術の言葉を使わずに読める形を目指して書いた。
-> 技術の側の手順は [`OPERATING_OVER_SSH.md`](OPERATING_OVER_SSH.md) と [`RUNTIME.md`](RUNTIME.md)。
+> 技術の側の手順は [`OPERATING_OVER_SSH.ja.md`](OPERATING_OVER_SSH.ja.md) と [`RUNTIME.ja.md`](RUNTIME.ja.md)。
 
 このサーバーには、あなたの友だちや、知らない誰かの、ことばや写真が置かれます。
 ここは、それを預かる家のようなものです。家には、鍵があって、窓があって、

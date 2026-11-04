@@ -2,7 +2,7 @@
 # Quadlet の箱で image を入れ替える(skopeo)
 
 > 状態: **案。実機では未確認。** 「未確認」と書いた箇所は、最初の一回を手で確かめながら進める。
-> 正本の設計は [`RUNTIME.md`](RUNTIME.md) §12.3(Quadlet が主、image はダイジェストで固定)と
+> 正本の設計は [`RUNTIME.ja.md`](RUNTIME.ja.md) §12.3(Quadlet が主、image はダイジェストで固定)と
 > [`SERVER_SHELL.md`](SERVER_SHELL.md) §5.1(`sukhi release`)。ここはその最小の手作業版で、
 > `scripts/sukhi-swap-image.sh` が同じ手順を一本にしたもの(`sukhi release` の下地)。
 
@@ -11,7 +11,7 @@
 - タグ(`:v1`)は動く。**入れる前に、ダイジェストに解決して、以降はダイジェストだけを見る。**
 - 取ってくるのは `skopeo copy`。デーモン不要で、何を取ったかが一つの値(ダイジェスト)で残る。
 - Quadlet の `.container` 本体は触らず、**ドロップインの 1 ファイル**(`Image=` だけ)を書き換える。戻すときもそのファイルだけ。
-- 起動が失敗したら、前の image に戻す。`AutoUpdate=` は使わない(署名の検証をしないため。RUNTIME.md §5.1)。
+- 起動が失敗したら、前の image に戻す。`AutoUpdate=` は使わない(署名の検証をしないため。RUNTIME.ja.md §5.1)。
 
 ## 1. 公開されるタグ
 
@@ -78,7 +78,7 @@ Anubis と web-next(`sukhi-fedi-web-next`、`sha-` タグを `--tag` に)も同�
 
 - `apply` が失敗(`is-active` が保てない、または `SUKHI_HEALTH_URL` が通らない)したら、記録した前の image に自動で戻る。
 - `rollback` は一つ前に戻る。もう一度呼ぶと、元に戻る。記録は `~/.local/state/sukhi-release/<unit>/` の `current` / `previous` / `history`。
-- **データベースの変更を含む版は、image を戻しても戻らないことがある**(SERVER_SHELL.md §5.6)。Datalevin の控え(`dtlv copy`、OPS_MAINTAIN.md §3)を更新の前に取る。
+- **データベースの変更を含む版は、image を戻しても戻らないことがある**(SERVER_SHELL.md §5.6)。Datalevin の控え(`dtlv copy`、OPS_MAINTAIN.ja.md §3)を更新の前に取る。
 - 古い image は残る(戻すため)。容量が気になったら `podman image prune` ではなく、`podman images` で `d-…` の古いタグを選んで消す。
 
 ## 5. 署名

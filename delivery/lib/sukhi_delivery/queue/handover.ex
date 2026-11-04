@@ -2,7 +2,7 @@
 defmodule SukhiDelivery.Queue.Handover do
   @moduledoc """
   Moves the delivery jobs left in Postgres into the SQLite queue, once, at
-  boot of a `DELIVERY_QUEUE=sqlite` node (see docs/DELIVERY_QUEUE_MIGRATION.md).
+  boot of a `DELIVERY_QUEUE=sqlite` node (see docs/DELIVERY_QUEUE_MIGRATION.ja.md).
 
   Runs as a supervisor child that returns `:ignore`, after the SQLite queue
   exists and before the Postgres Oban starts, so nothing else is working the

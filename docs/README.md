@@ -26,25 +26,28 @@
 
 ## 3. Running your own server
 
-Start at [`OPERATIONS.md`](OPERATIONS.md): prepare → first start → daily care.
+Start at [`OPERATIONS.ja.md`](OPERATIONS.ja.md): prepare → first start → daily care.
+
+**These guides exist only in Japanese (`.ja.md`). There is no English version yet.**
+We would rather say so than hand you a machine translation; if you can help, please open an issue.
 
 | To know | Read |
 | --- | --- |
-| Entry point, and who is responsible for what | [`OPERATIONS.md`](OPERATIONS.md) (ja) |
-| Looking after other people's things without fear | [`CARING_FOR_YOUR_SERVER.md`](CARING_FOR_YOUR_SERVER.md) (ja) |
-| ① Preparing the box | [`OPS_PREPARE.md`](OPS_PREPARE.md) (ja) |
-| ② First start, updates, rollback | [`OPS_DEPLOY.md`](OPS_DEPLOY.md) (ja) |
-| ③ Backups, updates, watching, when things go wrong | [`OPS_MAINTAIN.md`](OPS_MAINTAIN.md) (ja) |
-| Getting started with SSH | [`OPERATING_OVER_SSH.md`](OPERATING_OVER_SSH.md) (ja) |
-| Choosing and installing Docker / Podman | [`RUNTIME.md`](RUNTIME.md) (ja) |
-| Swapping images in a Quadlet box | [`OPS_UPDATE_QUADLET.md`](OPS_UPDATE_QUADLET.md) (ja) |
-| One private network for admin access (Tailscale) | [`TAILSCALE.md`](TAILSCALE.md) (ja) |
+| Entry point, and who is responsible for what | [`OPERATIONS.ja.md`](OPERATIONS.ja.md) (ja) |
+| Looking after other people's things without fear | [`CARING_FOR_YOUR_SERVER.ja.md`](CARING_FOR_YOUR_SERVER.ja.md) (ja) |
+| ① Preparing the box | [`OPS_PREPARE.ja.md`](OPS_PREPARE.ja.md) (ja) |
+| ② First start, updates, rollback | [`OPS_DEPLOY.ja.md`](OPS_DEPLOY.ja.md) (ja) |
+| ③ Backups, updates, watching, when things go wrong | [`OPS_MAINTAIN.ja.md`](OPS_MAINTAIN.ja.md) (ja) |
+| Getting started with SSH | [`OPERATING_OVER_SSH.ja.md`](OPERATING_OVER_SSH.ja.md) (ja) |
+| Choosing and installing Docker / Podman | [`RUNTIME.ja.md`](RUNTIME.ja.md) (ja) |
+| Swapping images in a Quadlet box | [`OPS_UPDATE_QUADLET.ja.md`](OPS_UPDATE_QUADLET.ja.md) (ja) |
+| One private network for admin access (Tailscale) | [`TAILSCALE.ja.md`](TAILSCALE.ja.md) (ja) |
 | Every environment variable | [`ENV.md`](ENV.md) |
 | Where Datalevin keeps data, and its settings | [`DATALEVIN.md`](DATALEVIN.md) |
-| Moving the delivery queue to SQLite | [`DELIVERY_QUEUE_MIGRATION.md`](DELIVERY_QUEUE_MIGRATION.md) (ja) |
-| The bot gate (Anubis) | [`anubis.md`](anubis.md) (ja) |
-| Swapping small static fixes without a release | [`static-override.md`](static-override.md) (ja) |
-| Correcting data that went in wrong | [`data-correction.md`](data-correction.md) (ja) |
+| Moving the delivery queue to SQLite | [`DELIVERY_QUEUE_MIGRATION.ja.md`](DELIVERY_QUEUE_MIGRATION.ja.md) (ja) |
+| The bot gate (Anubis) | [`anubis.ja.md`](anubis.ja.md) (ja) |
+| Swapping small static fixes without a release | [`static-override.ja.md`](static-override.ja.md) (ja) |
+| Correcting data that went in wrong | [`data-correction.ja.md`](data-correction.ja.md) (ja) |
 | Backups | [`../infra/backup/README.md`](../infra/backup/README.md) (ja) |
 | Provisioning on OCI (Terraform) | [`../infra/terraform-x64-freetier/README.md`](../infra/terraform-x64-freetier/README.md) (ja) |
 

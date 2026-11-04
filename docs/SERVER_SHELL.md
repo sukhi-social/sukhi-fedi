@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # サーバーシェル(`sukhi`)設計
 
-> 運用の手引き(準備・デプロイ・メンテナンス)は [`OPERATIONS.md`](OPERATIONS.md) から。この文書は、その中で使う `sukhi` の設計。
+> 運用の手引き(準備・デプロイ・メンテナンス)は [`OPERATIONS.ja.md`](OPERATIONS.ja.md) から。この文書は、その中で使う `sukhi` の設計。
 
 > 状態: **設計のみ。実装はまだない。** 運用者が、人でも AI でも、同じ入口から
 > サーバーのバージョンアップと簡易スクリプトの実行をできるようにするための設計書。
@@ -98,7 +98,7 @@ sukhi script run <name> [--execute] [--timeout 30m] [-- 引数]
 sukhi script runs [<id>]      # 実行履歴、進み具合、終了状態
 sukhi script cancel <id>
 sukhi audit [--since 1d]      # 監査ログ
-sukhi doctor                  # 健康診断(やさしい文で、気にかけたい点と次の一手。CARING_FOR_YOUR_SERVER.md)
+sukhi doctor                  # 健康診断(やさしい文で、気にかけたい点と次の一手。CARING_FOR_YOUR_SERVER.ja.md)
 sukhi shell                   # 対話モード(下記)
 sukhi mcp                     # MCP サーバーを stdio で起動(§6)
 sukhi completion bash|zsh|fish
@@ -342,7 +342,7 @@ updater: ① 一次の検証(sigstore)  ② 二次の検証(パスキーの承�
 
 - 認証は SSH(鍵)に任せる。アプリ側にデプロイの認証・権限・画面を作らなくてよい。**作るものが最小で、攻撃面が増えない。**
 - 入ったあと実行するのは、**§5.1 の `sukhi release`(計画 → 版の打ち直し → 実行)**。中身は §5.1〜5.5 のとおり。
-  人が読む案内は [`OPERATING_OVER_SSH.md`](OPERATING_OVER_SSH.md)。
+  人が読む案内は [`OPERATING_OVER_SSH.ja.md`](OPERATING_OVER_SSH.ja.md)。
 - 理解してから使う前提なので、画面より**説明が長く、確認が丁寧**でよい。責任の取り方(§5.2)は同じ。
 - 後から足す画面(§5.8)や MCP(§6)は、**同じスクリプトを呼ぶ別の入口**にとどめる。updater が二つの更新の仕方を持たない。
   SSH 入口が先にあることで、画面が壊れた夜にも更新と戻しができる(最後の砦)。
@@ -356,14 +356,14 @@ updater: ① 一次の検証(sigstore)  ② 二次の検証(パスキーの承�
 
 > 提案(ひなた): haloy ではなく、Docker / Podman(Fedora なら画面つき)/ nerdctl の導入方法と、SSH 経由の再起動での更新方法を正本にする。
 
-[`RUNTIME.md`](RUNTIME.md) に、実行環境ごとの導入と更新の手順を書いた。要点:
+[`RUNTIME.ja.md`](RUNTIME.ja.md) に、実行環境ごとの導入と更新の手順を書いた。要点:
 
 - `sukhi release` の「入れ替える」部分は、haloy に限らず **`<runtime> compose pull && up -d`** でも実現できる。
   実行環境は設定で選ぶ(`docker` / `podman` / `nerdctl`)。updater と §5.1 の流れは変えない。
 - 正本は「Compose + image のダイジェスト + SSH で再起動」。haloy は本番の運用者が使ってよい**任意の入れ替え役**にとどめる。
 - Podman を選んだ人には `podman auto-update`(起動失敗で自動で前の image に戻る)が Watchtower の代わりになるが、
   署名の検証をしないので、検証つきの `sukhi release` とは別物として書く。
-- 食い違い: `combined` を公開 image として出す経路が、いまは arm64・sha タグのみ(RUNTIME.md §6)。
+- 食い違い: `combined` を公開 image として出す経路が、いまは arm64・sha タグのみ(RUNTIME.ja.md §6)。
   正本を素の Compose にするなら、multi-arch と semver での公開が前提になる。
 
 ## 6. AI 向け: MCP
@@ -569,23 +569,23 @@ MCP のツールは level で**別のサーバー設定**に分ける。クラ�
 - 推奨: そうする。作るものが最小で、認証は SSH に任せられ、画面が壊れても更新と戻しができる。
   画面は「SSH に入れない人・端末でも更新したい」という要望が出てから足す。
 
-**Q14. 正本を「素のコンテナ実行環境 + Compose + SSH」にして、haloy を任意に下げるか(§5.11、RUNTIME.md)。**
+**Q14. 正本を「素のコンテナ実行環境 + Compose + SSH」にして、haloy を任意に下げるか(§5.11、RUNTIME.ja.md)。**
 - 推奨: そうする。Docker を基準に CI で通し、Podman は Compose が通ると確かめてから「対応」とする。nerdctl は未検証と明記。
   前提として `combined` の multi-arch / semver 公開と署名を、同じ workflow で出す。
 
 **Q15. 既定の実行環境を Podman(rootless、デーモンレス)にするか。eStargz / zstd:chunked に対応するか。**
-- 推奨: Podman を既定にする(RUNTIME.md §7 の三条件が揃ってから。それまでは推奨)。
-  eStargz / zstd:chunked は、まず取得量を測ってから任意の最適化として足す(RUNTIME.md §8)。
+- 推奨: Podman を既定にする(RUNTIME.ja.md §7 の三条件が揃ってから。それまでは推奨)。
+  eStargz / zstd:chunked は、まず取得量を測ってから任意の最適化として足す(RUNTIME.ja.md §8)。
   本番の箱は移行を強制しない。
 
 **Q16. 玄関をホストの nginx にして、手順書の基準にするか。文体を「利用者向けは和やかに、管理者向けは古い作法を土台に新技術は静かに」で書き分けるか。**
-- 推奨: どちらもそうする(RUNTIME.md §9・§10)。nginx の設定は実機で確かめてから確定する。
+- 推奨: どちらもそうする(RUNTIME.ja.md §9・§10)。nginx の設定は実機で確かめてから確定する。
 
-**Q17. 「はじめての管理者」向けの案内書と `sukhi doctor` を、設計に入れるか(CARING_FOR_YOUR_SERVER.md)。**
+**Q17. 「はじめての管理者」向けの案内書と `sukhi doctor` を、設計に入れるか(CARING_FOR_YOUR_SERVER.ja.md)。**
 - 推奨: 入れる。`doctor` は読み取りだけで副作用がなく、第 0 段(§5.10)の `status` と同時に作れる。
   文体の基準は KINDNESS.md に揃え、画面の文章もこの案内書と同じ調子にする。
 
-**Q18. 「自分でサーバーを持つか、sukhi.social 内の小さな独立コミュニティに迎えてもらうか」の案内を、案内書の冒頭に置くか(CARING_FOR_YOUR_SERVER.md)。**
+**Q18. 「自分でサーバーを持つか、sukhi.social 内の小さな独立コミュニティに迎えてもらうか」の案内を、案内書の冒頭に置くか(CARING_FOR_YOUR_SERVER.ja.md)。**
 - 推奨: 置く。相談先は Matrix `#sukhi-social:matrix.org` とメール。メールの宛先は未入力。
   「小さな独立コミュニティ」の実現方法(権限、データの分け方)は未定で、案内書にも「未定」と明記してある。
   実現できる形が決まるまで、約束の言い方を強めない。
@@ -603,9 +603,9 @@ MCP のツールは level で**別のサーバー設定**に分ける。クラ�
   同意、公開範囲、手当てを持ち込まない、を橋の約束にする。両方向(案 B)は、中継で様子を見たあと。
 
 **Q22. (決定済み・2026-10-30 ひなた)** Rocky(OCI)では、Podman は Quadlet を主、専用のサービスユーザーで rootless、EPEL は使ってよい(最小に)。
-- Cockpit は 127.0.0.1 のみで、届く道は SSH のトンネル、または Tailscale(手順は TAILSCALE.md。最初は公開の 22 番を閉じない)。
+- Cockpit は 127.0.0.1 のみで、届く道は SSH のトンネル、または Tailscale(手順は TAILSCALE.ja.md。最初は公開の 22 番を閉じない)。
 - 秘密は Podman のシークレット(`entrypoint.sh` がすでに `/run/secrets` を読む)。`AutoUpdate=` は検証をしないので既定では使わず、検証つきの `sukhi release` が主。
 
-**Q23. tailnet の持ち主と 2 段階認証(TAILSCALE.md §2)。**
+**Q23. tailnet の持ち主と 2 段階認証(TAILSCALE.ja.md §2)。**
 - 推奨: 持ち主はひなたの個人アカウント(GitHub か Google)で、ハードウェアキーかパスキーの多要素認証。第二の管理者を一人付ける。
   役割のアカウント(B)や自前の OIDC(C)は、費用と手間を見てから。他のコミュニティの実例は見つからなかった。

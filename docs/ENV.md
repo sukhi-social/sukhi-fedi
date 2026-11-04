@@ -120,7 +120,7 @@ path takes its credentials, region and bucket from the same config.
 | `SSR_URL` | — | When set (natadeco: `http://natadeco-ssr:3000`), pages that would get the empty SPA shell are forwarded to this SSR server. |
 | `WEB_UPSTREAMS` | — | The web fronts behind this gateway: `name=url,name=url` (e.g. `web-next=http://web-next:3000`). Each serves a static `/.sukhi/web.json` saying which paths (and cookies) it handles; the gateway reads it at boot and every 30 s. Unset = off. See `SukhiFedi.Web.Upstreams`. |
 | `WEB_ROUTES` | — | Who wins when two fronts could answer: `pattern=name,pattern=name`, **first match wins** — write specific rows first (`/home=web-lobby,/**=web-next`). A row only counts if its front also claims the path. Paths with a dot-led segment are never forwarded. |
-| `STATIC_OVERRIDE_ONLY` | — | `true` = `STATIC_OVERRIDE=only` (kept for natadeco). See `docs/static-override.md`. |
+| `STATIC_OVERRIDE_ONLY` | — | `true` = `STATIC_OVERRIDE=only` (kept for natadeco). See `docs/static-override.ja.md`. |
 | `WT_TICKET_KEY` | — | Ed25519 seed (raw 32 bytes, base64) that signs WebTransport entry tickets. Unset → `/api/wt` answers 503. |
 | `WT_ENDPOINT` | `https://webtransport.f3liz.casa/wt` | The WebTransport edge a ticket is for. |
 
@@ -187,7 +187,7 @@ using Postgres, which the delivery node still drains.
 | `DELIVERY_QUEUE_DB` | `/var/lib/sukhi/delivery_queue.db` | SQLite file (directory must exist) |
 | `DELIVERY_QUEUE_SYNCHRONOUS` | `full` | `full` or `normal` (WAL; `normal` can lose the last commits on power loss) |
 | `DELIVERY_QUEUE_POOL_SIZE` | `5` | SQLite connection pool |
-| `DELIVERY_QUEUE_HANDOVER` | `1` | `0` で起動時の Postgres → SQLite 自動移管を止める (docs/DELIVERY_QUEUE_MIGRATION.md) |
+| `DELIVERY_QUEUE_HANDOVER` | `1` | `0` で起動時の Postgres → SQLite 自動移管を止める (docs/DELIVERY_QUEUE_MIGRATION.ja.md) |
 | `DELIVERY_QUEUE_RETENTION_SECONDS` | `2592000` | Pruner max age for finished jobs |
 
 ## Tuning — Oban concurrency (gateway, delivery)
