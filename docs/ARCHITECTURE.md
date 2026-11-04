@@ -71,7 +71,7 @@ queue group, so the topology above is unchanged — only the responder moved fro
 a sidecar into the BEAM. The worker under `bun/` is retired — and it never
 ran on Bun: it is Node.js 24+ under the old directory name. It is kept as a
 rollback path and as the build-time oracle that mints the golden fixtures the
-native port is checked against (see `bun/README.md`). Read "Bun" below as "the `fedify` service", now native.
+native port is checked against (the code is still under `bun/`). Read "Bun" below as "the `fedify` service", now native.
 
 Rules enforced by this split:
 
@@ -344,7 +344,6 @@ sukhi-fedi/
 ├── TODO.md                                # punch list of deferred work
 └── docs/
     ├── ARCHITECTURE.md                    # ← this file (canonical)
-    ├── ARCHITECTURE.ja.md                 # Japanese mirror; trail the EN
     └── ADDONS.md                          # addon ABI contract
 ```
 

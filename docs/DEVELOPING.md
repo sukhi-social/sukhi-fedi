@@ -1,19 +1,21 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# 動かす・テストする・つくる(DEVELOPING)
+# Developing: run it, test it, build it
 
-> **意図:** sukhi をはじめて手元で動かす人が、迷わず最初の一歩を踏めるように。
-> **読み手の問題(仮説):** 「どれを入れればいい?」「どこが今の主軸で、どこが古い?」
+> **Intent:** someone running sukhi on their own machine for the first time should
+> be able to take the first step without getting lost.
+> **Reader's problem (hypothesis):** "what do I need to install?", "which parts are
+> current and which are old?"
 >
-> **いまの主軸**は、バックエンドが **Datalevin**(`SUKHI_STORE=datalevin`、[`DATALEVIN.md`](DATALEVIN.md))、
-> フロントが **web-next**([`../web-next/README.md`](../web-next/README.md))です。
-> Postgres 版と、SvelteKit の `web/` は、**維持のみ**(新しい機能の対象にしません)。
-> 下の `make dev` は、手元では Postgres(PGlite)で立ちます。Datalevin で立てる手順は [`DATALEVIN.md`](DATALEVIN.md)。
+> **What is current:** the backend is **Datalevin** (`SUKHI_STORE=datalevin`,
+> [`DATALEVIN.md`](DATALEVIN.md)) and the front end is **web-next**
+> ([`../web-next/README.md`](../web-next/README.md)). The Postgres store and the
+> SvelteKit `web/` are **kept running only** — no new features go there.
+> `make dev` below starts on Postgres (PGlite); for Datalevin see `DATALEVIN.md`.
 >
-> 自分のサーバーを立てたい人は、先に [`OPERATIONS.md`](OPERATIONS.md) へ。
-> ここは、手元で動かしてみる・直してみる人のための頁です。
-> 技術の資料の目次は [`README.md`](README.md)。
+> To run your own server, start at [`OPERATIONS.md`](OPERATIONS.md) instead. This page
+> is for trying it and changing it. The table of contents is [`README.md`](README.md).
 
-## 手元で動かす(Docker なし)
+## Run it locally (no Docker)
 
 ```bash
 make dev        # http://localhost:4000
@@ -38,7 +40,7 @@ To get a first account, from the IEx shell `make dev` drops you into:
 SukhiFedi.Release.create_admin("you", "a-long-passphrase")
 ```
 
-## 手元で動かす(Docker で全部)
+## Run it locally (everything, in Docker)
 
 Build the app images from source and run the whole stack on your machine. No
 published images needed — only Postgres and NATS come from upstream bases.
@@ -75,20 +77,21 @@ Anubis and Watchtower — see [`OPERATIONS.md`](OPERATIONS.md).
 For frontend work, run the Vite dev server separately (`make dev-web`
 → http://localhost:5173, proxies API calls to the gateway).
 
-## 画面(web-next)を触る
+## Working on the UI (web-next)
 
-いまの画面は `web-next/` です(Unpoly + Alpine.js、Node 24 と pnpm)。
-gateway がなくても、偽の gateway つきで立ち上がります。
+The current UI is `web-next/` (Unpoly + Alpine.js, Node 24 and pnpm).
+It starts with a fake gateway, so no real gateway is needed.
 
 ```bash
 cd web-next
 pnpm install
-pnpm run dev:mock   # http://localhost:5174 — 入った状態で立つ
+pnpm run dev:mock   # http://localhost:5174 — starts signed in
 pnpm test
 ```
 
-見た目を作りこむ前に並べて比べる作業机は `make ui-lab`(`web-next/ui-lab/README.md`)。
-旧 `web/`(SvelteKit)は、`make dev-web`。維持のみです。
+`make ui-lab` is a bench for comparing looks side by side before building them
+(`web-next/ui-lab/README.md`). The old `web/` (SvelteKit) runs with `make dev-web`;
+it is kept running only.
 
 ## Running tests
 
@@ -111,7 +114,7 @@ docker compose -f docker-compose.test.yml up -d
 cd elixir && MIX_ENV=test mix sukhi.migrate && mix test --only integration
 ```
 
-## 層の一覧(Architecture at a glance)
+## Architecture at a glance
 
 | Layer      | Responsibility                                                           |
 | ---------- | ------------------------------------------------------------------------ |
@@ -128,7 +131,7 @@ cd elixir && MIX_ENV=test mix sukhi.migrate && mix test --only integration
 
 See §2 of [`ARCHITECTURE.md`](ARCHITECTURE.md) for the responsibility split rationale.
 
-## 学んだ相手(Fediverse software we learned from)
+## Fediverse software we learned from
 
 sukhi-fedi didn't appear from nothing. It was shaped by the servers, clients,
 and tools it sits next to — some we implement an API for, many we special-case
@@ -185,7 +188,7 @@ Each taught us a wire quirk we now handle so activities survive the round trip:
   the Elixir side (`SukhiFedi.Fedi.*`) serves all `fedify.*.v1` work natively,
   and the Bun worker is retired (v0.3.0) — kept as a rollback path and as the
   oracle that mints the byte-exact golden fixtures the native port is tested
-  against. See [`FEDIFY.md`](FEDIFY.md).
+  against.
 
 **An idea we borrowed**
 
@@ -193,7 +196,7 @@ Each taught us a wire quirk we now handle so activities survive the round trip:
   generalized into the middle ground between following and forgetting). No
   Bonfire code is referenced here — just the shape of the idea.
 
-## 署名ライブラリ ojak-ex(使う前に)
+## Native signature library (ojak-ex)
 
 The gateway links [ojak-ex](https://github.com/sukhi-social/ojak-ex) (Rust
 signatures and JSON-LD, as a NIF), reached only through

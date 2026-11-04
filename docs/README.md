@@ -1,98 +1,97 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# 資料の目次
+# Documentation
 
-> **意図:** ここにある資料が、「だれの、どんな迷いのためのものか」で並んでいるように。
-> **読み手の問題(仮説):** 「自分が読むべきなのは、どれ?」
+> **Intent:** each document is listed by *whose question it answers*.
+> **Reader's problem (hypothesis):** "which of these is for me?"
 >
-> 並びは、**sukhi のこと → 使う → 立てる → つくる**。技術の資料は、いちばん後ろです。
-> 一つの頁は、一つの問いに答えます。迷ったら、一番上の行から。
+> The order is **what sukhi is → using it → running it → building it**. Technical
+> material comes last. Each page answers one question; if unsure, start at the first
+> row of your section. **(ja)** marks a page written in Japanese.
 
-## 1. sukhi は、どんな場所か
+## 1. What sukhi is
 
-| 知りたいこと | 資料 |
+| To know | Read |
 | --- | --- |
-| ひとことで | [`../README.md`](../README.md) |
-| 画面が、相手に負っているもの(九つの約束) | [`KINDNESS.md`](KINDNESS.md) |
-| お金も物もいらない七つの施しで、見えるところを考えなおす | [`MUZAI_NO_SHICHISE.md`](MUZAI_NO_SHICHISE.md) |
+| In a few lines | [`../README.md`](../README.md) |
+| What a screen owes the person looking at it (nine promises) | [`KINDNESS.md`](KINDNESS.md) |
+| Rethinking what is visible through the seven gifts that cost nothing | [`MUZAI_NO_SHICHISE.md`](MUZAI_NO_SHICHISE.md) (ja) |
 
-## 2. 使う
+## 2. Using it
 
-| 知りたいこと | 資料 |
+| To know | Read |
 | --- | --- |
-| 入りかた、書きかた、通知、引っ越し、やめるとき | [`USING.md`](USING.md) |
-| Mastodon 用のアプリから使うとき、何ができるか | [`MASTODON_API.md`](MASTODON_API.md) |
-| 意見を送ると、どうなるか(運営の側) | [`FEEDBACK.md`](FEEDBACK.md) |
+| Joining, writing, notifications, moving, leaving | [`USING.md`](USING.md) / [`USING.ja.md`](USING.ja.md) |
+| What a Mastodon app can do against sukhi | [`MASTODON_API.md`](MASTODON_API.md) |
+| What happens to feedback (the operator's side) | [`FEEDBACK.md`](FEEDBACK.md) |
 
-## 3. 立てる(自分のサーバー)
+## 3. Running your own server
 
-はじめに [`OPERATIONS.md`](OPERATIONS.md)。準備 → 最初の起動 → 日々の手入れ、の順です。
+Start at [`OPERATIONS.md`](OPERATIONS.md): prepare → first start → daily care.
 
-| 知りたいこと | 資料 |
+| To know | Read |
 | --- | --- |
-| 全体の入口と、責任のわけかた | [`OPERATIONS.md`](OPERATIONS.md) |
-| 預かりものを、こわがらずに守る | [`CARING_FOR_YOUR_SERVER.md`](CARING_FOR_YOUR_SERVER.md) |
-| ① 箱の準備 | [`OPS_PREPARE.md`](OPS_PREPARE.md) |
-| ② 最初の起動、更新、戻し | [`OPS_DEPLOY.md`](OPS_DEPLOY.md) |
-| ③ 控え・更新・見守り・困ったとき | [`OPS_MAINTAIN.md`](OPS_MAINTAIN.md) |
-| SSH のはじめかた | [`OPERATING_OVER_SSH.md`](OPERATING_OVER_SSH.md) |
-| Docker / Podman の選び方と導入 | [`RUNTIME.md`](RUNTIME.md) |
-| Quadlet の箱で image を入れ替える | [`OPS_UPDATE_QUADLET.md`](OPS_UPDATE_QUADLET.md) |
-| Tailscale で管理の道をひとまとめに | [`TAILSCALE.md`](TAILSCALE.md) |
-| 環境変数(全部) | [`ENV.md`](ENV.md) |
-| Datalevin の置き場所と設定 | [`DATALEVIN.md`](DATALEVIN.md) |
-| 配信キューを SQLite に移す | [`DELIVERY_QUEUE_MIGRATION.md`](DELIVERY_QUEUE_MIGRATION.md) |
-| bot よけ(Anubis) | [`anubis.md`](anubis.md) |
-| CSS や画面の小さな修正を、焼かずに差し替える | [`static-override.md`](static-override.md) |
-| 間違って入ったデータを直す | [`data-correction.md`](data-correction.md) |
-| バックアップ | [`../infra/backup/README.md`](../infra/backup/README.md) |
-| OCI に立てる(Terraform) | [`../infra/terraform-x64-freetier/README.md`](../infra/terraform-x64-freetier/README.md) |
+| Entry point, and who is responsible for what | [`OPERATIONS.md`](OPERATIONS.md) (ja) |
+| Looking after other people's things without fear | [`CARING_FOR_YOUR_SERVER.md`](CARING_FOR_YOUR_SERVER.md) (ja) |
+| ① Preparing the box | [`OPS_PREPARE.md`](OPS_PREPARE.md) (ja) |
+| ② First start, updates, rollback | [`OPS_DEPLOY.md`](OPS_DEPLOY.md) (ja) |
+| ③ Backups, updates, watching, when things go wrong | [`OPS_MAINTAIN.md`](OPS_MAINTAIN.md) (ja) |
+| Getting started with SSH | [`OPERATING_OVER_SSH.md`](OPERATING_OVER_SSH.md) (ja) |
+| Choosing and installing Docker / Podman | [`RUNTIME.md`](RUNTIME.md) (ja) |
+| Swapping images in a Quadlet box | [`OPS_UPDATE_QUADLET.md`](OPS_UPDATE_QUADLET.md) (ja) |
+| One private network for admin access (Tailscale) | [`TAILSCALE.md`](TAILSCALE.md) (ja) |
+| Every environment variable | [`ENV.md`](ENV.md) |
+| Where Datalevin keeps data, and its settings | [`DATALEVIN.md`](DATALEVIN.md) |
+| Moving the delivery queue to SQLite | [`DELIVERY_QUEUE_MIGRATION.md`](DELIVERY_QUEUE_MIGRATION.md) (ja) |
+| The bot gate (Anubis) | [`anubis.md`](anubis.md) (ja) |
+| Swapping small static fixes without a release | [`static-override.md`](static-override.md) (ja) |
+| Correcting data that went in wrong | [`data-correction.md`](data-correction.md) (ja) |
+| Backups | [`../infra/backup/README.md`](../infra/backup/README.md) (ja) |
+| Provisioning on OCI (Terraform) | [`../infra/terraform-x64-freetier/README.md`](../infra/terraform-x64-freetier/README.md) (ja) |
 
-## 4. つくる(コードを読む・直す人へ)
+## 4. Building it
 
-はじめに [`DEVELOPING.md`](DEVELOPING.md)、次に [`ARCHITECTURE.md`](ARCHITECTURE.md)。
+Start at [`DEVELOPING.md`](DEVELOPING.md), then [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-| 知りたいこと | 資料 |
+| To know | Read |
 | --- | --- |
-| 手元で動かす・テストする・学んだ相手 | [`DEVELOPING.md`](DEVELOPING.md) |
-| 全体のかたち(正本、英語) / 日本語版 | [`ARCHITECTURE.md`](ARCHITECTURE.md) / [`ARCHITECTURE.ja.md`](ARCHITECTURE.ja.md) |
-| 安全と速さを、構造で守る書きかた | [`CODE_STYLE.md`](CODE_STYLE.md) |
-| アドオンの約束ごと | [`ADDONS.md`](ADDONS.md) |
-| テストの走らせかた | [`TESTING.md`](TESTING.md) |
-| 外に開いている口の一覧 | [`web-surface.md`](web-surface.md) |
-| 押す・キー・戻る、の動き(OS ごと) | [`UX_CONTRACT.md`](UX_CONTRACT.md) |
-| 使う HTML / CSS を絞る | [`CSS_SUBSET.md`](CSS_SUBSET.md) |
-| Datalevin のデータ構造 | [`DATALEVIN_SCHEMA.md`](DATALEVIN_SCHEMA.md) |
-| Web Push の設計と、実際にできたもの | [`WEBPUSH.md`](WEBPUSH.md) |
-| バックエンドを、ゆったりさせる | [`UNHURRIED_BACKEND.md`](UNHURRIED_BACKEND.md) |
-| ネイティブ実装を差し込む四つの継ぎ目 | [`native-seams.md`](native-seams.md) |
-| 画面(web-next) | [`../web-next/README.md`](../web-next/README.md) |
-| 負荷・異常の見張り(Julia) | [`METRICS_REPORT.md`](METRICS_REPORT.md)、[`../analysis/README.md`](../analysis/README.md) |
-| 古い道具: 退役した Bun/Fedify の worker | [`FEDIFY.md`](FEDIFY.md)、[`../bun/README.md`](../bun/README.md) |
-| 古い道具: SvelteKit の `web/`(維持のみ) | [`../web/README.md`](../web/README.md) |
+| Run it locally, test it, who we learned from | [`DEVELOPING.md`](DEVELOPING.md) |
+| The shape of the whole system (canonical) | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Keeping security and speed in the structure | [`CODE_STYLE.md`](CODE_STYLE.md) |
+| The addon contract | [`ADDONS.md`](ADDONS.md) |
+| Running the tests | [`TESTING.md`](TESTING.md) |
+| Which doors face the internet | [`web-surface.md`](web-surface.md) |
+| What a press, key and back gesture do, per OS | [`UX_CONTRACT.md`](UX_CONTRACT.md) |
+| The HTML / CSS subset we use | [`CSS_SUBSET.md`](CSS_SUBSET.md) (ja) |
+| Datalevin data structure | [`DATALEVIN_SCHEMA.md`](DATALEVIN_SCHEMA.md) (ja) |
+| Web Push: design, and what shipped | [`WEBPUSH.md`](WEBPUSH.md) |
+| Making the backend unhurried | [`UNHURRIED_BACKEND.md`](UNHURRIED_BACKEND.md) (ja) |
+| Four seams where native code could plug in | [`native-seams.md`](native-seams.md) |
+| The web UI (web-next) | [`../web-next/README.md`](../web-next/README.md) (ja) |
+| Load and anomaly watching (Julia) | [`METRICS_REPORT.md`](METRICS_REPORT.md), [`../analysis/README.md`](../analysis/README.md) |
 
-## 5. 連合の約束と仕様
+## 5. Federation behaviour and specifications
 
-| 知りたいこと | 資料 |
+| To know | Read |
 | --- | --- |
-| このサーバーが ActivityPub をどう話すか | [`FEDERATION.md`](FEDERATION.md) |
-| 実装している仕様の一覧と、sukhi が書いた仕様 | [`specs/README.md`](specs/README.md)([日本語](specs/README.ja.md)) |
-| Misskey と出会うとき、何をしているか | [`misskey-interop-sukhi.md`](misskey-interop-sukhi.md) |
-| Pull Federation(sukhi 独自のプロトコル) | [`PULL_FEDERATION.md`](PULL_FEDERATION.md) |
-| 実装している仕様を宣言する案 | [`spec-declaration-notes.md`](spec-declaration-notes.md) |
+| How this server speaks ActivityPub | [`FEDERATION.md`](FEDERATION.md) |
+| Specifications implemented, and the ones sukhi wrote | [`specs/README.md`](specs/README.md) ([日本語](specs/README.ja.md)) |
+| How sukhi meets Misskey | [`misskey-interop-sukhi.md`](misskey-interop-sukhi.md) |
+| Pull Federation (sukhi's own protocol) | [`PULL_FEDERATION.md`](PULL_FEDERATION.md) |
+| A proposal for declaring implemented specs | [`spec-declaration-notes.md`](spec-declaration-notes.md) |
 
-## 6. これから(案・設計のみ。実装はまだ)
+## 6. Ahead (proposals; not built yet)
 
-| 案 | 資料 |
+| Proposal | Read |
 | --- | --- |
-| sukhi.social の中の、小さな独立コミュニティ | [`COMMUNITY_SUPPORT.md`](COMMUNITY_SUPPORT.md) |
-| サーバーシェル `sukhi` | [`SERVER_SHELL.md`](SERVER_SHELL.md) |
-| 連合の受け入れを reducer で書く | [`FEDERATION_REDUCER.md`](FEDERATION_REDUCER.md) |
-| フォロー分を、まとめて pull する | [`PULL_FEDERATION_BULK.md`](PULL_FEDERATION_BULK.md) |
-| Misskey の API | [`MISSKEY_API.md`](MISSKEY_API.md) |
-| まだ手をつけていないこと / 決め待ちのこと | [`../TODO.md`](../TODO.md) / [`../OPEN_QUESTIONS.md`](../OPEN_QUESTIONS.md) |
+| Small independent communities inside sukhi.social | [`COMMUNITY_SUPPORT.md`](COMMUNITY_SUPPORT.md) (ja) |
+| A server shell, `sukhi` | [`SERVER_SHELL.md`](SERVER_SHELL.md) (ja) |
+| Writing federation intake as a reducer | [`FEDERATION_REDUCER.md`](FEDERATION_REDUCER.md) (ja) |
+| Pulling everything you follow in bulk | [`PULL_FEDERATION_BULK.md`](PULL_FEDERATION_BULK.md) (ja) |
+| The Misskey API | [`MISSKEY_API.md`](MISSKEY_API.md) |
+| Not started / waiting on a decision | [`../TODO.md`](../TODO.md) / [`../OPEN_QUESTIONS.md`](../OPEN_QUESTIONS.md) (ja) |
 
-## 書くときの約束
+## When you add a page
 
-新しい資料を足すときは、頁の先頭に、先に二行だけ書いてください。
-**意図**(なんのために、だれに、どんな気持ちで帰ってほしいか)と、**読み手の問題**(その人は、いま何に迷っているか)。
-技術は、そのあと。聞いていない問題は「仮説」と書きます。
+Before any technology, write two lines at the top: the **intent** (what it is for,
+who for, how they should feel on leaving) and the **reader's problem** (what they
+are stuck on). Until someone has told us the problem, call it a hypothesis.

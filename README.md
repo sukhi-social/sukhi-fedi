@@ -1,82 +1,79 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # sukhi
 
-急がなくていい場所で、ことばを置いて、ときどき顔を出す。
-sukhi は、そのための、連合型(ActivityPub)の SNS サーバーです。
-[sukhi.social](https://sukhi.social) は、このソフトウェアで動いています。
+A federated (ActivityPub) social server built to be calm: a place where you can
+leave a few words, and drop by now and then, without hurry.
+[sukhi.social](https://sukhi.social) runs on this software.
 
-*English, briefly:* sukhi is a federated (ActivityPub) social server built to be calm:
-posts wait a few minutes before they go out, reactions arrive in small batches, nothing
-shows counts or unread badges. It speaks the Mastodon client API and federates with
-Mastodon, Misskey and others. The rest of this page is in Japanese; the technical
-documents under [`docs/`](docs/README.md) are mostly English.
+*(sukhi is made in Japan. The screens are in Japanese, Korean and English. Some of
+the operator guides under [`docs/`](docs/README.md) are in Japanese; the table of
+contents says which.)*
 
-## 1. どんな場所か
+## 1. What kind of place it is
 
-長くいても、ちょっと顔を出すだけでも、どちらも「ふつう」にしたい。
-そのために、画面のほうが、いくつかのことを先に引き受けています。
+We want staying long and just dropping by to both feel ordinary. So the screen
+takes a few things on itself, ahead of you:
 
-- **投稿は、すぐには出ません。** 書いてから約四半刻(15分)、「お預かり」になります。
-  そのあいだは、読み返して、直して、やめることができます。
-- **反応は、ポツポツと届きます。** お気に入りやブーストの通知は、少し置いて、
-  まとめて出します。返信とフォロー申請だけは、すぐ。
-- **数を出しません。** お気に入り・ブースト・フォロワーの数も、通知の未読の数やバッジも。
-  競わなくていいように。
-- **時間は、うつろいで言います。** 「今日の昼下がり」「昨日の宵」。分や秒は言いません。
-- **列には、終わりがあります。** 最後には「ここまで、です。」と出ます。
-  読み終えたと思っていい場所があります。
+- **Posts don't go out at once.** For about a quarter of an hour (15 minutes) a
+  post is "held". You can reread it, fix it, or take it back.
+- **Reactions arrive in small batches.** Favourite and boost notifications wait a
+  little, and come folded together. Replies and follow requests come right away.
+- **No counts.** No favourite, boost or follower numbers; no unread numbers or
+  badges. Nothing to compete over.
+- **Time is told loosely.** "This afternoon", "last evening". Never minutes or seconds.
+- **Lists end.** The last line says "That's all, for now." You may feel finished.
 
-こう決めていることも、あります(画面は、まだ追いついていないところがあります)。
+And a few promises we have made, which the screens have not fully caught up with yet:
 
-- **静かにする道を、同じ大きさで置く。** 見たくないものを遠ざけるのは、
-  ブロックや通報と同じくらい、見つけやすいところに。
-- **入るのと同じくらい、出るのも易しく。** 理由は聞かない。引き止めない。
+- **Quieting things is as easy to find as blocking or reporting.**
+- **Leaving is as easy as joining.** No reason asked. No attempt to keep you.
 
-どれも技術的には、できることを**わざと控えた**ものです。
-控えたぶんの余裕は、サーバーを軽く、長持ちさせるほうに使っています。
-考え方は [`docs/KINDNESS.md`](docs/KINDNESS.md)(画面が相手に負っているもの)にあります。
+None of this is a technical limit. Every item is something we could do and
+**chose to hold back**; the room it saves goes to keeping the server light and
+long-lived. The thinking is in [`docs/KINDNESS.md`](docs/KINDNESS.md).
 
-つながる先は、Mastodon や Misskey など、ActivityPub を話す世界です。
-Mastodon 用のアプリ(Elk、Phanpy、Ivory、Tusky など)からも使えます。
-画面は日本語・한국어・English。ホーム画面に追加すれば、アプリのようにも開けます。
+sukhi federates with the ActivityPub world: Mastodon, Misskey and others. It
+speaks the Mastodon client API, so apps such as Elk, Phanpy, Ivory and Tusky work.
+Add it to your home screen and it opens like an app.
 
-## 2. 使いはじめる
+## 2. Start using it
 
-- ようすを見るには、[about.sukhi.social](https://about.sukhi.social) から。
-- 入りかた、書きかた、通知のこと、引っ越し、やめたくなったとき ──
-  [`docs/USING.md`](docs/USING.md) に、順に書きました。
-- うまくいかないこと、あったらいいなと思うことは、アプリの「意見を送る」から。
-  返事はできないことがありますが、ちゃんと読みます。
+- To look around: [about.sukhi.social](https://about.sukhi.social).
+- Joining, writing, notifications, moving in and out, leaving:
+  [`docs/USING.md`](docs/USING.md) ([日本語](docs/USING.ja.md)).
+- If something went wrong, or you wish for something, use "Send feedback" in the app.
+  We may not be able to reply, but it is read.
 
-## 3. 自分のサーバーを立てる
+## 3. Run your own server
 
-sukhi は、だれでも自分の場所に立てられます。ただ、サーバーは**預かりもの**でもあります。
-急がなくて大丈夫です。手が回らなそうなときは、立てない道もあります
-(sukhi.social の中に小さなコミュニティを置く案を、考えています)。
+Anyone can run sukhi. A server is also something you keep **in trust** for other
+people, so there is no hurry. If you don't have the hands for it, there is a path
+without running one (we are thinking about small communities inside sukhi.social).
 
-- 立てるときの入口は [`docs/OPERATIONS.md`](docs/OPERATIONS.md)。
-  準備 → 最初の起動 → 日々の手入れ、の順に読めます。
-- 守りかたを、こわがらせずに書いたものが [`docs/CARING_FOR_YOUR_SERVER.md`](docs/CARING_FOR_YOUR_SERVER.md)。
-- まず手元で動かしてみたいだけなら、[`docs/DEVELOPING.md`](docs/DEVELOPING.md) の「手元で動かす」へ。
-  `make dev` ひとつで、Docker なしで立ちます。
+- The way in is [`docs/OPERATIONS.md`](docs/OPERATIONS.md) (Japanese): prepare, first
+  start, daily care, in that order.
+- [`docs/CARING_FOR_YOUR_SERVER.md`](docs/CARING_FOR_YOUR_SERVER.md) (Japanese) is how
+  to look after it without being frightened.
+- To just try it on your own machine: "Run it locally" in
+  [`docs/DEVELOPING.md`](docs/DEVELOPING.md). `make dev` alone starts it, no Docker.
 
-## 4. つくる人へ
+## 4. Building it
 
-設計・仕様・環境変数・テストなど、技術の資料は [`docs/README.md`](docs/README.md) に目次があります。
-読む順番は、迷ったらこの三つから。
+Design, specifications, environment variables and tests: the table of contents is
+[`docs/README.md`](docs/README.md). If you are unsure where to start:
 
-1. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ── 全体のかたち(正本)
-2. [`docs/CODE_STYLE.md`](docs/CODE_STYLE.md) ── 安全と速さを、構造で守る書きかた
-3. [`docs/DEVELOPING.md`](docs/DEVELOPING.md) ── 動かす・テストする・学んだ相手
+1. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the shape of the whole (canonical).
+2. [`docs/CODE_STYLE.md`](docs/CODE_STYLE.md) — keeping security and speed in the structure.
+3. [`docs/DEVELOPING.md`](docs/DEVELOPING.md) — run it, test it, who we learned from.
 
-## 続けていくために
+## Keeping it going
 
-sukhi は、ひとりの手と、いただく応援で続いています。
-くわしいことと、何に使っているかは、サーバーの `/support` に書いてあります。
-応援してもしなくても、ここでできることは同じです。
+sukhi is kept going by one person's hands and by the support people give.
+What it costs and what it is spent on is on the server's `/support` page.
+What you can do here is the same whether or not you support it.
 
-## ライセンス
+## License
 
-AGPL-3.0-or-later です([`LICENSE`](LICENSE))。
-依存している [ojak-ex](https://github.com/sukhi-social/ojak-ex) は AGPL-3.0-only で、
-使うときの注意は [`docs/DEVELOPING.md`](docs/DEVELOPING.md) に書いてあります。
+AGPL-3.0-or-later ([`LICENSE`](LICENSE)). The dependency
+[ojak-ex](https://github.com/sukhi-social/ojak-ex) is AGPL-3.0-only; what to know
+before using it is in [`docs/DEVELOPING.md`](docs/DEVELOPING.md).

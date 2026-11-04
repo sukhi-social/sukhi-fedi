@@ -1,128 +1,138 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# sukhi の使いかた
+# Using sukhi
 
-> **意図:** はじめて sukhi に来た人が、「ここは、こういうふうに使えばいいんだ」と
-> 肩の力を抜けるように。急がなくていいことが、いちばん先に伝わるように。
+日本語: [`USING.ja.md`](USING.ja.md)
+
+> **Intent:** someone who has just arrived should be able to relax and think "so this
+> is how I can use it" — and hear, before anything else, that there is no hurry.
 >
-> **読み手の問題(仮説、まだ聞けていません):**
-> 「何をすればいいか分からない」「遅れている気がする」「間違えたら、どうなる?」
-> 「やめたくなったら?」。答えは、順に、下に書きました。
-> 「ここが分かりにくかった」は、アプリの「意見を送る」から教えてください。
+> **Reader's problem (hypothesis; we haven't been able to ask yet):**
+> "I don't know what to do." "I feel behind." "What happens if I get it wrong?"
+> "What if I want to stop?" The answers are below, in that order. If something was
+> unclear, please tell us with "Send feedback" in the app.
 
-全部を読まなくて大丈夫です。気になったところだけ、どうぞ。
+You don't have to read all of it. Just the part you're wondering about.
 
-## はじめに、知っておいてほしいこと
+## First, what to know
 
-sukhi は、**ゆっくりのほうが、ふつう**の場所です。
+sukhi is a place where **slow is normal**.
 
-- 返事が遅くても、しばらく来なくても、それでいいです。
-- 投稿に、お気に入りやブーストの数は付きません。通知の数も、赤い点もありません。
-- 画面が、あなたを急かすことは、しないつもりです。もし急かされた気がしたら、教えてください。
+- It's fine to answer late, or to stay away for a while.
+- Posts carry no favourite or boost counts. No notification numbers, no red dots.
+- The screen means not to hurry you. If it ever feels like it did, tell us.
 
-## 1. 入る
+## 1. Getting in
 
-### 見るだけ
+### Just looking
 
-アカウントがなくても、入口の「みんなの流れ」(上の「みんな」)をのぞけます。
+Without an account you can peek at the public stream on the front page (the
+"Everyone" tab, below).
 
-### はじめる(アカウントを作る)
+### Joining (making an account)
 
-- **招待コード**が要ります(sukhi.social の場合)。もう住んでいる人にお願いすると、もらえます。
-  サーバーごとに決まりが違います。
-- 決めるのは、ユーザー名(あとから変えられません。小文字の英字・数字・`_`、30字まで)、メールアドレス、
-  利用規約とプライバシーポリシーへの同意。
-- メールに届く確認コードを入れると、できあがります。
-- 途中で、短い計算をする画面(関所)を通ることがあります。人でないものを遠ざけるためのもので、
-  通れば、そのまま進めます。
+- You need an **invite code** (on sukhi.social). Ask someone who already lives here.
+  Other servers set their own rules.
+- You choose a username (it can't be changed later: lowercase letters, digits and `_`,
+  up to 30 characters), an email address, and agree to the terms and privacy policy.
+- Enter the code that arrives by email and you're in.
+- On the way you may pass a short "gate" screen that asks your browser to do a small
+  calculation. It keeps non-humans away; once through, you carry on.
 
-規約は [`/terms`](https://sukhi.social/terms)、預かる情報の扱いは [`/privacy`](https://sukhi.social/privacy) にあります。
+The terms are at [`/terms`](https://sukhi.social/terms) and how your information is
+handled is at [`/privacy`](https://sukhi.social/privacy).
 
-### 入りなおす
+### Coming back
 
-合言葉、メールに届く 6 桁のコード、パスキーのどれかで入れます。二段階認証も、設定でつけられます。
+Sign in with a passphrase, a 6-digit code sent by email, or a passkey. You can add
+two-step verification in settings.
 
-## 2. 読む
+## 2. Reading
 
-上のタブで、流れを選べます。
+Pick a stream with the tabs.
 
-| タブ | 何が流れるか |
+| Tab | What flows |
 | --- | --- |
-| ホーム | フォローしている人の投稿 |
-| みんな | この sukhi にいる人たちの、公開の投稿(ローカルタイムライン) |
-| ご近所 | 運営が「ご近所」と決めた、ほかのサーバーの人たちの公開の投稿 |
-| タグ | `#` でひとまとめにされた投稿 |
+| Home | Posts from people you follow |
+| Everyone | Public posts from people on this sukhi (the local timeline) |
+| Neighbours | Public posts from other servers the operator has named as neighbours |
+| Tags | Posts gathered under a `#` |
 
-- 列には、終わりがあります。最後は「ここまで、です。」。読み終えたと思っていいところです。
-- 新しい投稿が届いたときは、「あたらしい投稿があります」の帯が、そっと出ます。
-  押すまで、列は動きません。
-- 「フィルター」で、画像のみ・ブーストを隠す・センシティブを隠す、を選べます。
-  ホームでは「これをデフォルトにする」で、別の端末でも同じになります。
-- 時間は、「今日の昼下がり」「昨日の宵」のように出ます。
+- A list ends. The last line says "That's all, for now." — you may feel finished.
+- When new posts arrive, a quiet "New posts" bar appears. The list doesn't move until
+  you press it.
+- "Filter" lets you show only images, hide boosts, or hide sensitive posts. On Home,
+  "Make this the default" carries it to your other devices.
+- Time is told loosely: "this afternoon", "last evening".
 
-## 3. 書く
+## 3. Writing
 
-「書く」を開いて、書いて、「送る」。
+Open "Write", write, press "Send".
 
-- **送ったあと、約15分は「お預かり」です。** そのあいだは、見直して、取りやめられます。
-  送ってから気づいた誤字も、まだ間に合います。
-  (この間は、サーバーを運営する人が変えられます。0 にすると、すぐに出ます。)
-- 公開の範囲は、みんなに / みんなに(タイムラインには載せず) / フォロワーだけに / 指名した人だけに。
-- 画像を足せます。先に見せる一言(折りたたみ)も、付けられます。
-- 書きかけは、画面を閉じても残っています。
-- 時間をきめて出す、こともできます(5分より後)。
+- **After you send, a post is "held" for about 15 minutes.** You can reread it and take
+  it back. A typo you spot right after sending can still be fixed.
+  (The server's operator sets this; 0 makes posts go out at once.)
+- Audience: everyone / everyone (but not in timelines) / followers only / only people
+  you name.
+- You can add images, and a short line shown first with the rest folded away.
+- A half-written post is kept even if you close the screen.
+- You can also schedule a post for later (more than 5 minutes ahead).
 
-## 4. 通知
+## 4. Notifications
 
-- **返信とフォロー申請**は、すぐ届きます。
-- **お気に入りやブーストなどの反応**は、約1時間置いてから、同じ投稿へのものを一つにまとめて出ます。
-- 数も、赤い点もありません。「新しい反応があります」とだけ出ます。
-- スマホなどに届く知らせ(Web Push)は、**設定で入れたときだけ**です。
-  鳴るのは、返信とフォロー申請だけ。中身は出さず、見ている窓があるときは鳴りません。
-  切るのも、設定からすぐ。
+- **Replies and follow requests** arrive right away.
+- **Reactions such as favourites and boosts** wait about an hour, and reactions to the
+  same post come folded into one.
+- No numbers, no red dots. It just says "There are new reactions."
+- Push notifications on your phone are **only on if you turn them on in settings**.
+  Only replies and follow requests make a sound, show no content, and stay quiet if
+  you have a window open. Turning them off is quick, in settings.
 
-## 5. 設定
+## 5. Settings
 
-- **プロフィール**
-- **ログインと安全** ── メール、二段階認証、パスキー、入っている端末、合言葉
-- **引っ越し** ── 別のサーバーから来る(別名の登録)、別のサーバーへ行く(移動)
-- **書き出しと読み込み** ── フォロー・ブロック・ミュートの一覧を、CSV で出し入れ
+- **Profile**
+- **Login and safety** — email, two-step verification, passkeys, signed-in devices, passphrase
+- **Moving** — coming from another server (register an alias), going to another (move)
+- **Export and import** — your follows, blocks and mutes as CSV
 
-画面にまだない操作もあります(下の「いまは、ないもの」)。
+Some actions are not on the screen yet (see "Not here yet", below).
 
-## 6. アプリで使う
+## 6. As an app
 
-ホーム画面に追加すると、アプリのように開けます(ストアは通りません)。
-つながっていないときは、置いてある頁を読みかえせます。
+Add it to your home screen and it opens like an app (no app store involved). When you
+are offline you can reread pages that were kept.
 
-Mastodon 用のアプリ(Elk、Phanpy、Ivory、Tusky、Moshidon など)からも、使えます。
-ただし、sukhi だけの決めごと(お預かり、通知のペースなど)は、アプリによっては効きません。
+Mastodon apps (Elk, Phanpy, Ivory, Tusky, Moshidon and others) work too. sukhi's own
+habits (held posts, notification pace) may not apply in every app.
 
-## 7. やめたくなったら
+## 7. If you want to leave
 
-やめたくなったら、やめて大丈夫です。理由は聞きません。
+You may leave. No reason asked.
 
-- アカウントを閉じると、**一日の猶予**のあいだは取り消せます。そのあいだ、外へは配られません。
-  始めるときと終わるときに、メールが届きます。
-- ユーザー名は、そのあと誰にも使われません。
-- アカウントを閉じる画面は、旧い画面(`web/`)にはあって、いまの画面(web-next)には、これからです。
-- フォローの一覧は、先に CSV で書き出せます。
+- When you close your account, you have **one day** to change your mind, and nothing
+  is sent outward in that time. You get an email when it starts and when it is done.
+- Your username is never given to anyone else afterwards.
+- The close-account screen exists in the old UI (`web/`) but is still to come in the
+  current one (web-next).
+- You can export your follows as CSV first.
 
-## いまは、ないもの
+## Not here yet
 
-いまの画面(web-next)に、まだないものです。作っていないだけで、隠しているわけではありません。
+What the current UI (web-next) doesn't have yet. We haven't built it; we aren't hiding it.
 
-リスト、ブックマーク、お気に入りの頁、メッセージ(DM)、絵文字ピッカー、メンションの補完、
-投票、プロフィールの編集、ミュート、ブロック、アカウントを閉じる画面。
-([`web-next/README.md`](../web-next/README.md) の「まだ」が、最新です。)
+Lists, bookmarks, a favourites page, direct messages, an emoji picker, mention
+completion, polls, profile editing, mute, block, and the close-account screen.
+([`web-next/README.md`](../web-next/README.md), "まだ", is the up-to-date list.)
 
-## こまったとき、聞きたいとき
+## If you're stuck, or want to tell us something
 
-- アプリの **「意見を送る」**。画面の名前・言語・版だけが一緒に届きます。返事はできなくても、読みます。
-- メール、ActivityPub、Matrix(`#sukhi-social:matrix.org`)でも。
-  サーバーの `/support` に、連絡先があります。
+- **"Send feedback"** in the app. Only the screen name, language and version go with it.
+  We may not reply, but it is read.
+- Email, ActivityPub, or Matrix (`#sukhi-social:matrix.org`). Contacts are on the
+  server's `/support` page.
 
-## 応援について
+## About support
 
-sukhi は、運営のひとりの手と、いただく応援で続いています。
-応援の窓口と、何に使っているかは [`/support`](https://sukhi.social/support) に。
-応援しても、しなくても、ここでできることは同じです。名前を出さない応援も、同じようにありがたいです。
+sukhi is kept going by the operator's own hands and by the support people give.
+How to support it, and what it is spent on, is at [`/support`](https://sukhi.social/support).
+What you can do here is the same whether or not you support it. Support given without
+a name is just as welcome.
