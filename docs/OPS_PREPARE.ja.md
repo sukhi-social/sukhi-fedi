@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # ① サーバーの準備
 
-> 入口は [`OPERATIONS.md`](OPERATIONS.md)。ここは**箱を用意して、守りの土台を作る**ところまで。
+> 入口は [`OPERATIONS.ja.md`](OPERATIONS.ja.md)。ここは**箱を用意して、守りの土台を作る**ところまで。
 > 手順は一般的な要約で、**実機では試していない**。公式の手順を優先し、名前や住所は読み替える。
 
 急がなくて大丈夫です。各節の終わりに「できたかの確かめ」を置きました。それが通れば、次へ。
@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | **ドメイン名** | `example.tld` | **変えると、連合上の ID が迷子になる**(ENV.md)。最初のサインアップの前に、正しく決める |
 | ストア | Datalevin(主軸)/ Postgres(維持) | 変えるには移行が要る(DATALEVIN.md「Switching an existing instance」) |
-| 実行環境 | Podman(rootless、推奨)/ Docker | 変えられる(RUNTIME.md) |
+| 実行環境 | Podman(rootless、推奨)/ Docker | 変えられる(RUNTIME.ja.md) |
 | 玄関 | ホストの nginx(基準)/ cloudflared / Coolify | 変えられる |
 | メール | SMTP を用意するか | あとからでもよいが、**なければ登録の確認コードがログにしか出ない** |
 | メディアの置き場 | S3 互換(rustfs や R2 など) | 設定しなければ、アップロードは使えない(`not_configured`) |
@@ -23,14 +23,14 @@
   最初は、**メモリ 1 GB 以上、ディスク 20 GB 以上**だと、余裕をもって試せる(目安。実際の必要量は未計測)。
 - OS は、更新が長く続く安定版を。Fedora / RHEL 系(Rocky など)か、Debian / Ubuntu の LTS。
   本番の箱は Rocky(`build-on-box.sh` のユーザー名から)。
-- OCI での用意は Terraform と cloud-init が `infra/terraform*/` にある(SETUP.md「Production Deployment」)。
+- OCI での用意は Terraform と cloud-init が `infra/terraform*/` にある(`infra/terraform-x64-freetier/README.md`)。
 
 **確かめ:** `uname -m`(arm64 か x86_64 か)。使う image がその構成に出ているか、見ておく
-(`combined` は今、arm64 の `sha-` タグのみ。RUNTIME.md §6)。
+(`combined` は今、arm64 の `sha-` タグのみ。RUNTIME.ja.md §6)。
 
 ## 2. 最初の守り(SSH と利用者)
 
-入る方法は [`OPERATING_OVER_SSH.md`](OPERATING_OVER_SSH.md)。サーバーの中では:
+入る方法は [`OPERATING_OVER_SSH.ja.md`](OPERATING_OVER_SSH.ja.md)。サーバーの中では:
 
 ```bash
 # 管理する人ごとに、自分のユーザーID(サーバー内で使う名前)を作って、鍵で入れるようにする(root で直接入らない)
@@ -74,15 +74,15 @@ sudo dnf install -y dnf-automatic          # Debian/Ubuntu: unattended-upgrades
 sudo systemctl enable --now dnf-automatic.timer
 ```
 
-自動更新は**玄関(nginx、sshd)を速く直す**ための土台(RUNTIME.md §11)。
-カーネルの更新は再起動が要るので、月に一度、静かな時間に(OPS_MAINTAIN.md)。
+自動更新は**玄関(nginx、sshd)を速く直す**ための土台(RUNTIME.ja.md §11)。
+カーネルの更新は再起動が要るので、月に一度、静かな時間に(OPS_MAINTAIN.ja.md)。
 
 **確かめ:** `systemctl list-timers | grep dnf`、`sudo firewall-cmd --list-all`。
 
 ## 4. 実行環境と玄関
 
-- 実行環境(Podman か Docker)の導入: [`RUNTIME.md`](RUNTIME.md) §3。 Rocky(OCI)で Podman と Cockpit を使う場合は §12(Cockpit は 127.0.0.1 だけで待ち受けて、SSH のトンネルで見る)。
-- 玄関(nginx と証明書): [`RUNTIME.md`](RUNTIME.md) §9。**`Host` をそのまま渡す**ことが大事(署名に使われる)。
+- 実行環境(Podman か Docker)の導入: [`RUNTIME.ja.md`](RUNTIME.ja.md) §3。 Rocky(OCI)で Podman と Cockpit を使う場合は §12(Cockpit は 127.0.0.1 だけで待ち受けて、SSH のトンネルで見る)。
+- 玄関(nginx と証明書): [`RUNTIME.ja.md`](RUNTIME.ja.md) §9。**`Host` をそのまま渡す**ことが大事(署名に使われる)。
 
 **確かめ:** `podman --version`(または `docker compose version` が 2.24 以上)、`sudo nginx -t`。
 
@@ -91,7 +91,7 @@ sudo systemctl enable --now dnf-automatic.timer
 - `DOMAIN` を箱に向ける(A / AAAA)。変更の反映には時間がかかることがある。
 - WebFinger(`/.well-known/webfinger`)と ActivityPub が通るよう、**同じ名前で https**。リダイレクトで名前を変えない。
 
-**確かめ:** `dig +short example.tld`。証明書は `certbot --nginx -d example.tld`(RUNTIME.md §9.3)。
+**確かめ:** `dig +short example.tld`。証明書は `certbot --nginx -d example.tld`(RUNTIME.ja.md §9.3)。
 
 ## 6. 秘密と設定
 
@@ -102,7 +102,7 @@ DOMAIN=example.tld
 INSTANCE_TITLE="…"
 ERLANG_COOKIE="$(openssl rand -hex 32)"      # 既定のままだと起動しない(安全のため)
 SECRET_KEY_BASE="$(openssl rand -hex 64)"
-SUKHI_VERSION=sha-<commit>                   # 本番は固定して使う(OPS_DEPLOY.md)
+SUKHI_VERSION=sha-<commit>                   # 本番は固定して使う(OPS_DEPLOY.ja.md)
 # Datalevin 構成:
 SUKHI_STORE=datalevin
 # メール(任意だが、なければ確認コードはログにだけ出る)
@@ -119,7 +119,7 @@ SMTP_HOST=…  SMTP_USERNAME=…  SMTP_PASSWORD=…  MAIL_FROM=no-reply@example.
 
 | もの | 場所 | 控えが要るか |
 | --- | --- | --- |
-| Datalevin(本体のデータ) | `DATALEVIN_DIR`(既定 `/var/lib/sukhi/datalevin`) | **要る**(OPS_MAINTAIN.md §3) |
+| Datalevin(本体のデータ) | `DATALEVIN_DIR`(既定 `/var/lib/sukhi/datalevin`) | **要る**(OPS_MAINTAIN.ja.md §3) |
 | 配信キュー(SQLite) | `SUKHI_QUEUE_DB`(既定 `/var/lib/sukhi/queue.db`) | 要る |
 | 原本・メディア | S3 互換(rustfs など) | 要る |
 | ログ | コンテナのログ(`infra/logrotate` で回す) | 任意 |
@@ -136,6 +136,6 @@ SMTP_HOST=…  SMTP_USERNAME=…  SMTP_PASSWORD=…  MAIL_FROM=no-reply@example.
 - [ ] `DOMAIN` が箱を指していて、https が通る
 - [ ] `.env` の秘密が自分で作ったもので、権限が 600
 - [ ] 置き場所の空きに余裕がある
-- [ ] **控えの行き先を決めた**(OPS_MAINTAIN.md §3。まだ動かさなくてよいが、決めておく)
+- [ ] **控えの行き先を決めた**(OPS_MAINTAIN.ja.md §3。まだ動かさなくてよいが、決めておく)
 
-全部に印が付いたら、[`OPS_DEPLOY.md`](OPS_DEPLOY.md) へ。
+全部に印が付いたら、[`OPS_DEPLOY.ja.md`](OPS_DEPLOY.ja.md) へ。

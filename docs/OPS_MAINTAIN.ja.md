@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # ③ 日々の手入れ(メンテナンス)
 
-> 入口は [`OPERATIONS.md`](OPERATIONS.md)。やさしい考え方は [`CARING_FOR_YOUR_SERVER.md`](CARING_FOR_YOUR_SERVER.md)。
+> 入口は [`OPERATIONS.ja.md`](OPERATIONS.ja.md)。やさしい考え方は [`CARING_FOR_YOUR_SERVER.ja.md`](CARING_FOR_YOUR_SERVER.ja.md)。
 > `sukhi doctor` などは**予定**。手順は読み取りの要約で、**実機では通していない**。
 
 全部を一度にしなくて大丈夫です。**最初の一つは、控えが戻せるかを確かめること。**
@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | **毎日(自動)** | 控えが取られる。**失敗したら通知が来る**ようにしておく | 0 分 |
 | **週に一度** | `sukhi doctor`(予定)か、下の「見るところ」を一巡。ログを眺める。ディスクの空き | 10 分 |
-| **更新のとき** | OPS_DEPLOY.md。先に控えの新しさを見る | 随時 |
+| **更新のとき** | OPS_DEPLOY.ja.md。先に控えの新しさを見る | 随時 |
 | **月に一度** | OS の更新を反映(カーネルは再起動)。控えから**戻せるか**の確認。使っていない鍵を外す | 30 分 |
 | **四半期に一度** | 復元の練習(別の箱で)。権限と連絡先の見直し | 1〜2 時間 |
 | **年に一度** | ドメインの更新、証明書の自動更新の確認、手引きの見直し | 1 時間 |
@@ -62,7 +62,7 @@ sudo systemctl list-timers | grep -E 'sukhi|certbot|dnf'   # 自動のものが�
 | **外科的訂正** | 特定の行だけ直す | 「間違って入った」 | なし |
 | **全体の巻き戻し** | 全体を過去の一点へ | ホスト死亡・破損 | その時点以降の良い変更も失う |
 
-普段欲しいのはほぼ外科的訂正([`data-correction.md`](data-correction.md))。
+普段欲しいのはほぼ外科的訂正([`data-correction.ja.md`](data-correction.ja.md))。
 **外部(他サーバー由来)のデータは、復元ではなく捨てて作り直す**のが第一手。内部(自分のサーバーが生んだもの)は取り返せないので、控えで守る。
 
 ### 3.4 控えが「戻せる」と確かめる(いちばん大事)
@@ -76,9 +76,9 @@ sudo systemctl list-timers | grep -E 'sukhi|certbot|dnf'   # 自動のものが�
 
 ## 4. 更新のメンテナンス
 
-- **アプリ:** OPS_DEPLOY.md。
-- **OS の部品:** 自動の安全更新に任せる(OPS_PREPARE.md §3)。月に一度、再起動が必要か見る(`needs-restarting -r`、Debian は `/var/run/reboot-required`)。
-- **コンテナの土台:** アプリの更新を待たずに焼き直す仕組みが要る(RUNTIME.md §11。定期の再ビルド・走査は**未実装**)。
+- **アプリ:** OPS_DEPLOY.ja.md。
+- **OS の部品:** 自動の安全更新に任せる(OPS_PREPARE.ja.md §3)。月に一度、再起動が必要か見る(`needs-restarting -r`、Debian は `/var/run/reboot-required`)。
+- **コンテナの土台:** アプリの更新を待たずに焼き直す仕組みが要る(RUNTIME.ja.md §11。定期の再ビルド・走査は**未実装**)。
   それまでは、**image が焼かれてから 30 日を超えたら、更新を考える**という目安を持つ。
 - **証明書:** certbot のタイマーが更新する。年に一度、`certbot renew --dry-run` で確かめる。
 
@@ -117,7 +117,7 @@ sudo systemctl list-timers | grep -E 'sukhi|certbot|dnf'   # 自動のものが�
 ## 8. 宿題(この手引きで、まだ埋まっていないところ)
 
 1. **Datalevin + SQLite の控えと、復元の手順**を、実機で確かめて書く(§3.2)。最優先。
-2. 最初の管理者の作り方(OPS_DEPLOY.md §1.5)。
-3. 週次の点検を `sukhi doctor` にする(CARING_FOR_YOUR_SERVER.md の案)。
-4. コンテナの土台の定期ビルドと走査(RUNTIME.md §11)。
+2. 最初の管理者の作り方(OPS_DEPLOY.ja.md §1.5)。
+3. 週次の点検を `sukhi doctor` にする(CARING_FOR_YOUR_SERVER.ja.md の案)。
+4. コンテナの土台の定期ビルドと走査(RUNTIME.ja.md §11)。
 5. 連絡先のメールアドレスを入れる。

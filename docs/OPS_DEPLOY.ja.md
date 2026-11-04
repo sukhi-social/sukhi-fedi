@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # ② デプロイ(最初の起動、更新、戻し)
 
-> 入口は [`OPERATIONS.md`](OPERATIONS.md)。準備([`OPS_PREPARE.md`](OPS_PREPARE.md))が済んでいる前提。
+> 入口は [`OPERATIONS.ja.md`](OPERATIONS.ja.md)。準備([`OPS_PREPARE.ja.md`](OPS_PREPARE.ja.md))が済んでいる前提。
 > `sukhi release` などは**予定**([`SERVER_SHELL.md`](SERVER_SHELL.md))。「いまの手順」を併記する。
 > 手順は読み取りの要約で、**実機では通していない**。
 
@@ -14,7 +14,7 @@ git clone https://github.com/sukhi-social/sukhi-fedi && cd sukhi-fedi
 make preflight          # 出す前の点検(infra/preflight.sh。過去の事故の再発を見る)
 ```
 
-`.env` は OPS_PREPARE.md §6 のとおり。
+`.env` は OPS_PREPARE.ja.md §6 のとおり。
 
 ### 1.2 起動(Datalevin 構成)
 
@@ -22,7 +22,7 @@ make preflight          # 出す前の点検(infra/preflight.sh。過去の事�
 docker compose \
   -f docker-compose.yml -f docker-compose.combined.yml -f docker-compose.datalevin.yml \
   up -d
-# Podman なら docker を podman に。Compose の重ね合わせが通るかは未確認(RUNTIME.md §2)
+# Podman なら docker を podman に。Compose の重ね合わせが通るかは未確認(RUNTIME.ja.md §2)
 ```
 
 - 起動のとき、`entrypoint` が `migrate_all()` を実行する。**Datalevin では何も移行しない**
@@ -32,7 +32,7 @@ docker compose \
 
 ### 1.3 玄関を向ける
 
-nginx を Anubis(`127.0.0.1:8080`)に向ける(RUNTIME.md §9)。`nginx -t` のあと `reload`。
+nginx を Anubis(`127.0.0.1:8080`)に向ける(RUNTIME.ja.md §9)。`nginx -t` のあと `reload`。
 
 ### 1.4 確かめ
 
@@ -49,7 +49,8 @@ curl -s https://example.tld/.well-known/webfinger?resource=acct:<ユーザー>@e
 
 ### 1.5 最初の管理者
 
-最初のアカウントを作り、管理者にする手順は、リポジトリの README / SETUP.md を参照
+最初のアカウントを作り、管理者にする手順は、[`DEVELOPING.md`](DEVELOPING.md) の「手元で動かす」にある
+`SukhiFedi.Release.create_admin/3` を、gateway の `bin/sukhi_fedi rpc`(他の手入れと同じ入口)で呼ぶ
 (**ここでは未確認**。実機で確かめて追記する)。管理者にはパスキーの登録をすすめる。
 
 ## 2. 更新する
@@ -63,12 +64,12 @@ curl -s https://example.tld/.well-known/webfinger?resource=acct:<ユーザー>@e
 1. main に push すると、GitHub Actions が `sha-<commit>` で image を GHCR に出す(自動)。
    **四つの image(combined / anubis / natadeco-ssr / web-next)が、同じ sha でそろっている**ことを確かめる。
 2. その sha の build が成功していることを確かめる。
-3. 更新の前に、**控えが新しいか**を見る(OPS_MAINTAIN.md §3)。
+3. 更新の前に、**控えが新しいか**を見る(OPS_MAINTAIN.ja.md §3)。
 
 入れ替え方は、環境に合わせて一つ:
 
 - **Compose(自前ホスト・基準)**: `.env` の `SUKHI_VERSION` を新しい sha に書き換えて、
-  [`RUNTIME.md`](RUNTIME.md) §5 の四拍子(検証 → 取得 → 再作成 → 確認)。
+  [`RUNTIME.ja.md`](RUNTIME.ja.md) §5 の四拍子(検証 → 取得 → 再作成 → 確認)。
 - **haloy(今の本番。任意の一つのやり方)**: sukhi-deploy の `haloy.yaml` の image タグを新しい sha に
   (四つとも同じ sha)書き換え、`haloy deploy -t sukhi-fedi-app`。
 
@@ -118,6 +119,6 @@ sukhi release status
 | --- | --- |
 | 起動しない | `docker compose logs gateway`。`ERLANG_COOKIE` が既定でないか、`DOMAIN` が入っているか |
 | 登録の確認コードが届かない | `SMTP_*` と `MAIL_FROM`。未設定ならログに出ている |
-| 他のサーバーから届かない | nginx が `Host` を渡しているか(RUNTIME.md §9.2)。`DOMAIN` と同じ名前か |
+| 他のサーバーから届かない | nginx が `Host` を渡しているか(RUNTIME.ja.md §9.2)。`DOMAIN` と同じ名前か |
 | 画像が上げられない | `S3_ENDPOINT` と鍵。未設定なら `not_configured` |
 | 重い・メモリが足りない | `DATALEVIN_XMX` と `ERL_FLAGS`、小さな箱の値(DATALEVIN.md) |

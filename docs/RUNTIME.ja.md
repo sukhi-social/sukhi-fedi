@@ -4,14 +4,14 @@
 > 状態: **案。** haloy などの配備ツールに頼らず、**素の Docker / Podman / nerdctl と SSH だけ**で
 > 導入と更新ができる、という正本にする提案。導入コマンドは各公式の手順を優先し、ここの記述は
 > **このセッションでは実機で試していない**(読み替えて使う)。
-> 入り方は [`OPERATING_OVER_SSH.md`](OPERATING_OVER_SSH.md)、更新の設計は [`SERVER_SHELL.md`](SERVER_SHELL.md)。
+> 入り方は [`OPERATING_OVER_SSH.ja.md`](OPERATING_OVER_SSH.ja.md)、更新の設計は [`SERVER_SHELL.md`](SERVER_SHELL.md)。
 
 ## 0. 既定の構成(v1 から)
 
 - **バックエンドは Datalevin**(`SUKHI_STORE=datalevin`、`combined` image、`docker-compose.datalevin.yml` を重ねる)。
 - **フロントは `web-next`**(Unpoly + Alpine.js の郵便局。image は `sukhi-fedi-web-next`)。
 - Postgres 版と、SvelteKit の SPA(`web/`)は**維持のみ**。新機能の対象にしない。
-- 公開 image: `ghcr.io/sukhi-social/sukhi-fedi-combined:v1`(`v1.0.0` のタグで出る)。更新は [`OPS_UPDATE_QUADLET.md`](OPS_UPDATE_QUADLET.md)。
+- 公開 image: `ghcr.io/sukhi-social/sukhi-fedi-combined:v1`(`v1.0.0` のタグで出る)。更新は [`OPS_UPDATE_QUADLET.ja.md`](OPS_UPDATE_QUADLET.ja.md)。
 
 ## 1. 考え方
 
@@ -143,7 +143,7 @@ Watchtower の archive(SERVER_SHELL.md §5.9)の代わりに、Podman を選ん�
   正本を「素の Docker/Podman/nerdctl + Compose」にするなら、**combined を multi-arch で、semver タグで出す**
   ことが前提になる。
 - **対応済み(案):** `release.yml` が `combined` を multi-arch・semver・`sha-` タグで出すようにした。
-  ただし `v1` は `v1.0.0` を打つまで存在しない(VERSION は 0.x)。更新の手作業は [`OPS_UPDATE_QUADLET.md`](OPS_UPDATE_QUADLET.md)。
+  ただし `v1` は `v1.0.0` を打つまで存在しない(VERSION は 0.x)。更新の手作業は [`OPS_UPDATE_QUADLET.ja.md`](OPS_UPDATE_QUADLET.ja.md)。
 - 同じ理由で、`.env.example` の既定(`v1`)が実在するタグを指しているかも確かめる。
 
 ## 7. Podman を既定にする案
@@ -154,7 +154,7 @@ Watchtower の archive(SERVER_SHELL.md §5.9)の代わりに、Podman を選ん�
 - **常駐するデーモンがない。** Docker は root のデーモンが落ちるとすべて巻き込まれ、`docker` グループが実質 root になる。
   Podman は rootless で、コンテナは一般ユーザーの一つのプロセスとして systemd の下に並ぶ。**攻撃面と「落ちたときの影響範囲」が小さい。**
 - **systemd が見張り役になる**(Quadlet)。自動起動、再起動、ログ(journald)が OS の流儀に揃う。`sukhi` はこの状態を読むだけで済む。
-- **Fedora なら Cockpit の画面**がある。SSH 前提の運用(OPERATING_OVER_SSH.md)と合う: 画面は見る・止める用、更新は SSH。
+- **Fedora なら Cockpit の画面**がある。SSH 前提の運用(OPERATING_OVER_SSH.ja.md)と合う: 画面は見る・止める用、更新は SSH。
 - `podman auto-update` が、起動に失敗したら前の image に自動で戻る(署名の検証はしない。§5.1)。
 
 **気をつけること(実際にここで引っかかりそうな点)**
@@ -212,7 +212,7 @@ Podman 側には、似た目的の **zstd:chunked** がある(目次を zstd の
 
 ```
 インターネット ─▶ nginx(ホスト、443)─▶ Anubis(127.0.0.1:8080)─▶ gateway(コンテナ内 :4000)
-                    TLS・Host の維持         /login だけ確認(docs/anubis.md)
+                    TLS・Host の維持         /login だけ確認(docs/anubis.ja.md)
 ```
 
 これは `docker-compose.yml` の Anubis の注記(「edge は Anubis の 8080 に向ける」)と同じ形。
@@ -466,8 +466,8 @@ sudo -iu sukhi                          # 作業するとき。XDG_RUNTIME_DIR �
 | **journald ログ** | `LogDriver=journald`。`journalctl --user -u sukhi-gateway` | ログの回収が OS の仕組みに乗る。`infra/logrotate`(Docker 用)は不要になり、journald の上限設定に置き換わる |
 | **Pod** | 一つの名前空間に複数のコンテナ(`localhost` で話す) | Anubis と gateway を一つの Pod にできる。必須ではない |
 | **ネットワーク** | netavark / aardvark-dns、rootless は pasta | 名前でつながる内部ネットワーク。外には Anubis の 8080 だけ |
-| **画像の管理** | `podman image prune`、`podman system df` | ディスクの掃除(OPS_MAINTAIN.md §5)に使う |
-| **ボリュームの出し入れ** | `podman volume export` / `import` | 設定の控え。**Datalevin の控えは `dtlv copy`(OPS_MAINTAIN.md §3)で取り、ボリュームの丸ごとコピーに頼らない** |
+| **画像の管理** | `podman image prune`、`podman system df` | ディスクの掃除(OPS_MAINTAIN.ja.md §5)に使う |
+| **ボリュームの出し入れ** | `podman volume export` / `import` | 設定の控え。**Datalevin の控えは `dtlv copy`(OPS_MAINTAIN.ja.md §3)で取り、ボリュームの丸ごとコピーに頼らない** |
 | **画像の信頼(policy.json の sigstore)** | 署名つき image だけを取る方針 | GitHub Actions の keyless 署名の身元(workflow の URI)を表せるかは**未確認**。確認できるまでは `cosign verify`(SERVER_SHELL.md §5.8)を使う |
 | **部分取得** | `zstd:chunked`(§8) | 更新時の取得量を減らす。**まず測る** |
 
@@ -515,7 +515,7 @@ EPEL(Extra Packages for Enterprise Linux)は、Fedora プロジェクトが RHEL
 更新の速さは、パッケージごとの保守者しだい。
 - Rocky では `sudo dnf install -y epel-release`(有効化の追加手順は版によって違う。公式の案内を確認)。
 - **Quadlet を主にするので、`podman-compose` のためには要らない。** 必要になる他のパッケージ(`cosign`、監視の道具など)が
-  EPEL にあるかは、その都度 `dnf info` で確かめる。入れたものは、OS の自動更新(OPS_PREPARE.md §3)の対象にも入る。
+  EPEL にあるかは、その都度 `dnf info` で確かめる。入れたものは、OS の自動更新(OPS_PREPARE.ja.md §3)の対象にも入る。
 
 ### 12.5 Cockpit に届く道
 
@@ -532,7 +532,7 @@ EPEL(Extra Packages for Enterprise Linux)は、Fedora プロジェクトが RHEL
 
 **どちらでもよい(一度設定すれば、Tailscale のほうが楽、というのがひなたの見立て)。**
 - すぐ始めるなら SSH のトンネル(部品が増えない)。
-- Tailscale は、手順を [`TAILSCALE.md`](TAILSCALE.md) にまとめた。**最初は公開の 22 番を閉じない**。
+- Tailscale は、手順を [`TAILSCALE.ja.md`](TAILSCALE.ja.md) にまとめた。**最初は公開の 22 番を閉じない**。
   網の中からの SSH と Cockpit が安定してから、閉じるかを決める。
 - 部品が増える(`tailscaled`、§11)ことと、提供元の管理の仕組みにも頼ることは、分かったうえで選ぶ。
 
@@ -551,4 +551,4 @@ EPEL(Extra Packages for Enterprise Linux)は、Fedora プロジェクトが RHEL
 9. **rootless のコンテナを動かすユーザー**: **専用のサービスユーザー `sukhi`(決定: ひなた, 2026-10-30)**。Cockpit で見るときは、そのユーザーで入る。
 10. **常駐の正本**: **Podman 側は Quadlet を主にする(決定: ひなた, 2026-10-30)**。Compose は Docker を使う人と開発用に残す。Compose から Quadlet への変換のしかた(`podlet` など)は未確認。
 11. **EPEL**: **使ってよい(決定: ひなた, 2026-10-30)**。ただし RHEL 本体のサポートの外なので、入れるものは最小に(§12.4)。
-12. **Tailscale / VPN**: 使ってよい(一度設定すれば楽、というひなたの見立て)。手順は TAILSCALE.md。最初は公開の 22 番を閉じない。
+12. **Tailscale / VPN**: 使ってよい(一度設定すれば楽、というひなたの見立て)。手順は TAILSCALE.ja.md。最初は公開の 22 番を閉じない。

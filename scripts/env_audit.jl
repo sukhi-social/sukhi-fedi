@@ -13,7 +13,7 @@
 #           `System.fetch_env("NAME"` under {elixir,api,delivery,combined}/
 #           {lib,config,rel}, in .ex and .exs files. A name built at run time
 #           is not seen.
-#   docs  : README.md, SETUP.md and every .md under docs/ (not docs/attic/) --
+#   docs  : README.md and every .md under docs/ (not docs/attic/) --
 #           a `BACKTICKED_NAME`, or a line that starts `NAME=` (example env
 #           files). "Documented" means named anywhere there, not that the
 #           name is described well.
@@ -108,7 +108,7 @@ for app in APPS
 end
 
 docs = []
-for top in ["README.md", "SETUP.md"]
+for top in ["README.md"]
     if host("fs.exists", ROOT * "/" * top)
         push!(docs, ROOT * "/" * top)
     end
