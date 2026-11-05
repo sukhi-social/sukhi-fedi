@@ -53,6 +53,9 @@ jobs:
           # (`sukhi-fedi-combined:${SUKHI_VERSION:-v1}`) and Quadlet boxes run.
           - { name: combined, context: ., file: combined/Dockerfile }
           - { name: anubis, context: ./config/anubis }
+          # The server's own translator (LibreTranslate with ja/en/ko baked in).
+          # Opt-in in compose (`--profile translate`); see docs/TRANSLATION.md.
+          - { name: translate, context: ./translate }
           # The web fronts that sit behind the gateway (SukhiFedi.Web.Upstreams);
           # each carries its own /.sukhi/web.json. Their context is their own
           # directory — none reads anything outside it.
@@ -107,7 +110,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [gateway, delivery, api, combined, anubis, web-next, web-simple, web-board]
+        image: [gateway, delivery, api, combined, anubis, translate, web-next, web-simple, web-board]
     steps:
       - uses: actions/download-artifact@v4
         with:

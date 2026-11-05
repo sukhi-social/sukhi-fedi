@@ -57,16 +57,26 @@ web-next  →  POST /api/v1/statuses/:id/translate  (api, scope read:statuses)
 
 ## Running LibreTranslate
 
-Run it as its **own container on the private network** (never published), loading only the
-languages sukhi offers (ja, en, ko) so memory stays small:
+It is **opt-in**. The release builds an image, `sukhi-fedi-translate`, from
+[`translate/Dockerfile`](../translate/Dockerfile): upstream LibreTranslate (pinned) with only
+ja, en and ko baked in, so it starts quickly and never fetches models at run time. The
+compose file has it behind a profile:
 
 ```
-LT_LOAD_ONLY=ja,en,ko
+# .env
+LIBRETRANSLATE_URL=http://translate:5000
+
+docker compose --profile translate up -d
 ```
 
-Point the gateway at it with `LIBRETRANSLATE_URL` (see [`ENV.md`](ENV.md)). Without that
-variable, the hosted choice reports `disabled` and the button is not offered unless the
-reader has a DeepL key.
+- It is **not published**; only the gateway talks to it, on the compose network.
+- Two workers (`LT_THREADS=2`), matching `TRANSLATE_MAX_FLIGHT`. No web page, no key database.
+- Expect on the order of 1–2 GB of RAM — a rough guess, **not measured**. Check on the real box
+  before you rely on it. The small free-tier boxes cannot carry it; there, people can still use
+  their own DeepL key.
+- Without `LIBRETRANSLATE_URL`, the hosted choice reports `disabled` and the button is offered
+  only to people who have a DeepL key.
+- Bump the base with `--build-arg LT_VERSION=…` (or the `ARG` in the Dockerfile) on purpose.
 
 The in-flight default of 2 is **provisional**. Before raising it, load-test on the real box:
 translate a long post repeatedly while watching memory and the delivery queue.

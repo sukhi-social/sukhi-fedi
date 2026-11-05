@@ -130,7 +130,7 @@ Off until `LIBRETRANSLATE_URL` is set. What this is for, and what it will not do
 
 | Var | Default | Notes |
 |---|---|---|
-| `LIBRETRANSLATE_URL` | — | The server's own translator: a [LibreTranslate](https://github.com/LibreTranslate/LibreTranslate) instance you run, e.g. `http://libretranslate:5000`. Unset = no server translator (`translation.enabled` is `false`; people with their own DeepL key can still translate public posts). Keep it off the public internet — only the gateway should reach it. Run it with `LT_LOAD_ONLY=ja,en,ko` so it loads only those languages. |
+| `LIBRETRANSLATE_URL` | — | The server's own translator: a [LibreTranslate](https://github.com/LibreTranslate/LibreTranslate) instance you run. The compose file has one ready (`docker compose --profile translate up -d`, image `sukhi-fedi-translate`, built from `translate/Dockerfile`); then set `LIBRETRANSLATE_URL=http://translate:5000`. Unset = no server translator (`translation.enabled` is `false`; people with their own DeepL key can still translate public posts). Keep it off the public internet — only the gateway should reach it. Our image loads only ja, en and ko (`LT_LOAD_ONLY`). |
 | `LIBRETRANSLATE_API_KEY` | — | Sent in the request body when the instance requires a key. Treat as secret. |
 | `TRANSLATE_MAX_FLIGHT` | `2` | How many translations run on that instance at once. More are told to come back in ten seconds. Provisional until a load test sets it. |
 
