@@ -10,13 +10,6 @@ defmodule SukhiShared.InstanceConfig do
   @default_path "/etc/sukhi/instance.json"
   @frontend_names ~w(relay web-next web-simple web-board web-lobby)
   @string_keys ~w(site_name site_logo site_icon unauthenticated_redirect)
-  # Printed into /terms and /privacy, so the shape is checked here, once, at
-  # the boundary: a name, one "@", a host. Nothing that could carry markup
-  # or whitespace gets through. An ActivityPub handle may start with "@".
-  @legal_patterns %{
-    "contact_email" => ~r/\A[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\z/,
-    "contact_activitypub" => ~r/\A@?[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\z/
-  }
 
   @type t :: %{optional(String.t()) => term()}
 
@@ -101,29 +94,15 @@ defmodule SukhiShared.InstanceConfig do
   def unauthenticated_redirect(_config), do: nil
 
   @doc """
-  The operator-specific values printed on `/terms` and `/privacy`
-  (`"legal"` in the instance config), keyed by atom. Only keys that are
-  present come back; the flavor's own defaults fill the rest (see
-  `SukhiFedi.Legal.Values`).
+  The directory holding this instance's own terms and privacy policy
+  (`legal.dir` in the instance config), or `nil` when the instance serves the
+  documents bundled with the release. Absolute; whether it exists and holds
+  documents is checked when the gateway starts
+  (`SukhiFedi.Legal.Documents.install!/1`).
   """
-  @spec legal(t()) :: %{optional(atom()) => String.t()}
-  def legal(%{"legal" => legal}) when is_map(legal) do
-    %{}
-    |> put_legal(:contact_email, legal["contact_email"])
-    |> put_legal(:contact_activitypub, legal["contact_activitypub"])
-  end
-
-  def legal(_config), do: %{}
-
-  defp put_legal(acc, _key, nil), do: acc
-
-  defp put_legal(acc, :contact_activitypub, "@" <> _ = handle),
-    do: Map.put(acc, :contact_activitypub, handle)
-
-  defp put_legal(acc, :contact_activitypub, handle),
-    do: Map.put(acc, :contact_activitypub, "@" <> handle)
-
-  defp put_legal(acc, key, value), do: Map.put(acc, key, value)
+  @spec legal_dir(t()) :: String.t() | nil
+  def legal_dir(%{"legal" => %{"dir" => dir}}) when is_binary(dir), do: dir
+  def legal_dir(_config), do: nil
 
   @spec routes(t()) :: [String.t()] | nil
   def routes(%{"routes" => routes}) when is_list(routes) do
@@ -173,25 +152,19 @@ defmodule SukhiShared.InstanceConfig do
   defp validate_addons!(_),
     do: raise(ArgumentError, "instance config #{path()}: addons must be an object")
 
-  defp validate_legal!(legal) when is_map(legal) do
-    for {key, value} <- legal do
-      case Map.fetch(@legal_patterns, key) do
-        :error ->
-          raise ArgumentError, "instance config #{path()}: unsupported legal key #{key}"
-
-        {:ok, pattern} ->
-          unless is_binary(value) and Regex.match?(pattern, value) do
-            raise ArgumentError,
-                  "instance config #{path()}: legal.#{key} must look like name@host"
-          end
-      end
+  defp validate_legal!(%{"dir" => dir} = legal) when map_size(legal) == 1 do
+    unless is_binary(dir) and Path.type(dir) == :absolute do
+      raise ArgumentError, "instance config #{path()}: legal.dir must be an absolute path"
     end
 
     :ok
   end
 
+  defp validate_legal!(legal) when legal == %{}, do: :ok
+
   defp validate_legal!(_),
-    do: raise(ArgumentError, "instance config #{path()}: legal must be an object")
+    do:
+      raise(ArgumentError, ~s(instance config #{path()}: legal must be {"dir": "/absolute/path"}))
 
   defp validate_redirect!(nil), do: :ok
 

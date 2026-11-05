@@ -52,8 +52,9 @@ docker compose \
   path、frontend、active frontend/route 件数と構文不整合を journal に出す。
   外部 frontend は route で参照されたものだけ接続対象になる。秘密はこのファイルへ
   入れず、env/Podman secret で渡す。
-  `legal.contact_email` / `legal.contact_activitypub` は `/terms` と `/privacy` の連絡先になる
-  (未設定なら `LEGAL_FLAVOR` の既定。起動ログの `legal_contact=` で分かる)。
+  利用規約・プライバシーポリシーは `legal.dir` のディレクトリ(`terms.<lang>.md`、
+  `privacy.<lang>.md`)を同じように read-only mount して指す。未設定ならリリース同梱の文書が出る
+  (起動ログの `legal_documents source=` で分かる)。
 - `/etc/sukhi` の Stow 管理、symlink の向き・所有者・実体ファイル・想定 repo
   revision の検査、および不正時に Quadlet 同期を止める処理は
   `sukhi-setup`/`sukhi-infra` 側の同期前 preflight の責務とする。`sukhi-fedi`

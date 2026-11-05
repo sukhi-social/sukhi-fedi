@@ -56,35 +56,19 @@ defmodule SukhiShared.InstanceConfigTest do
     assert_raise ArgumentError, ~r/declared frontend/, &SukhiShared.InstanceConfig.load/0
   end
 
-  describe "legal" do
-    test "reads the operator's contact and puts the @ on a bare handle" do
-      config =
-        load_with(%{
-          "legal" => %{
-            "contact_email" => "ops@example.org",
-            "contact_activitypub" => "ops@example.org"
-          }
-        })
+  describe "legal.dir" do
+    test "is read when absolute, and nil when absent" do
+      assert SukhiShared.InstanceConfig.legal_dir(
+               load_with(%{"legal" => %{"dir" => "/etc/sukhi/legal"}})
+             ) ==
+               "/etc/sukhi/legal"
 
-      assert SukhiShared.InstanceConfig.legal(config) == %{
-               contact_email: "ops@example.org",
-               contact_activitypub: "@ops@example.org"
-             }
+      assert SukhiShared.InstanceConfig.legal_dir(load_with(%{})) == nil
+      assert SukhiShared.InstanceConfig.legal_dir(load_with(%{"legal" => %{}})) == nil
     end
 
-    test "is empty when the section is absent" do
-      assert SukhiShared.InstanceConfig.legal(load_with(%{})) == %{}
-    end
-
-    test "refuses values that are not an address, an unknown key, or a non-object" do
-      for legal <- [
-            %{"contact_email" => "not an address"},
-            %{"contact_email" => "<b>x</b>@example.org"},
-            %{"contact_activitypub" => "ops"},
-            %{"contact_phone" => "0"},
-            %{"contact_email" => 1},
-            "ops@example.org"
-          ] do
+    test "refuses a relative path, an unknown key, or a non-object" do
+      for legal <- [%{"dir" => "legal"}, %{"dir" => 1}, %{"dir" => "/x", "email" => "a@b"}, "/x"] do
         assert_raise ArgumentError, ~r/legal/, fn -> load_with(%{"legal" => legal}) end
       end
     end

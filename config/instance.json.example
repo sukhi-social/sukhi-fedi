@@ -3,10 +3,6 @@
   "site_logo": "/favicon.png",
   "site_icon": "/favicon.png",
   "unauthenticated_redirect": "https://about.sukhi.social",
-  "legal": {
-    "contact_email": "admin@example.org",
-    "contact_activitypub": "@admin@example.org"
-  },
   "addons": {
     "nodeinfo_monitor": false
   },

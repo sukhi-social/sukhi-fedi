@@ -114,10 +114,14 @@ SMTP_HOST=…  SMTP_USERNAME=…  SMTP_PASSWORD=…  MAIL_FROM=no-reply@example.
 から選ぶ。外部 frontend は URL を持つ定義にし、route で参照されたものだけが
 gateway の接続対象になる。`WEB_UPSTREAMS`、`WEB_ROUTES`、`INSTANCE_TITLE` は使わない。
 
-利用規約・プライバシーポリシーに載せる運営者の連絡先は、同じファイルの `legal`
-(`contact_email`、`contact_activitypub`)で決める。書かなければ `LEGAL_FLAVOR` ごとの
-既定の連絡先が出るので、**自分のサーバーでは必ず自分の連絡先に書き換える**
-(起動ログの `legal_contact=configured` で確かめる)。文面そのものは変わらない。
+利用規約とプライバシーポリシーは**運営ごとに違う文書**なので、自分のファイルを置く。
+ディレクトリ(例 `/etc/sukhi/legal`)に `terms.ja.md`・`privacy.ja.md`(ほかに `ko`、`en`。
+規約とプライバシーで同じ言語をそろえる)を置き、instance config に
+`"legal": { "dir": "/etc/sukhi/legal" }` と書いて read-only で mount する。起動時に一度だけ
+読んで表示するので、差し替えたら再起動する。ディレクトリがない、ファイルが空、言語が
+そろわない、のときは起動しない。`legal` を書かないと、リリースに入っている sukhi / natadeco の
+文書(`LEGAL_FLAVOR`)が出る。**それは他の運営の規約ではない**ので、自分のサーバーでは必ず自分の文書を置く
+(起動ログの `legal_documents source=` で確かめる)。
 
 - `.env` は **権限 600**、リポジトリに入れない、チャットに貼らない。
 - 秘密はファイルで渡す方法もある(`/run/secrets` に 1 変数 1 ファイル。`combined/rel/entrypoint.sh`)。

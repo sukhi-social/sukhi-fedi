@@ -3,11 +3,17 @@ defmodule SukhiFedi.Application do
   @moduledoc false
 
   use Application
+  require Logger
 
   @impl true
   def start(_type, _args) do
     instance_config = SukhiShared.InstanceConfig.load()
     Application.put_env(:sukhi_fedi, :instance_config, instance_config)
+
+    # The operator's own terms and privacy policy, read once, before any
+    # request: a bad directory stops the start here.
+    legal_documents = SukhiFedi.Legal.Documents.install!(instance_config)
+    Logger.info("legal_documents source=#{inspect(legal_documents)}")
 
     :ok = SukhiFedi.Addon.Registry.verify_abi!()
 
