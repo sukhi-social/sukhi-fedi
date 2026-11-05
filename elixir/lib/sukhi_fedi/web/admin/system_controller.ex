@@ -11,7 +11,9 @@ defmodule SukhiFedi.Web.Admin.SystemController do
   a timer, not per request.
   """
 
-  alias SukhiFedi.{SystemMetrics, UpdateStatus, WtRelayTelemetry}
+  import Plug.Conn
+
+  alias SukhiFedi.{SystemMetrics, UpdateApproval, UpdateStatus, WtRelayTelemetry}
   alias SukhiFedi.Web.Admin.Render
 
   def index(conn) do
@@ -28,5 +30,25 @@ defmodule SukhiFedi.Web.Admin.SystemController do
       metrics: SystemMetrics.snapshot(),
       wt_relay: WtRelayTelemetry.snapshot()
     )
+  end
+
+  @approve_errors %{
+    no_update: "いま承認できる更新がありません。画面を開き直してください。",
+    changed: "その間に、来ている版が変わりました。もう一度、内容を確かめてください。",
+    bad_commit: "版の指定が正しくありません。",
+    bad_admin: "承認者の名前を記録できませんでした。",
+    write_failed: "承認を箱に渡せませんでした。(記録は残っています)"
+  }
+
+  def approve(conn) do
+    case UpdateApproval.approve(conn.assigns.admin, conn.body_params["commit"]) do
+      :ok ->
+        Render.put_flash(conn, :info, "承認しました。箱が確かめてから入れます(数分かかります)。")
+
+      {:error, reason} ->
+        Render.put_flash(conn, :error, Map.fetch!(@approve_errors, reason))
+    end
+    |> put_resp_header("location", "/admin/system")
+    |> send_resp(302, "")
   end
 end

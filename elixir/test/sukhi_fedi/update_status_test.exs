@@ -76,4 +76,22 @@ defmodule SukhiFedi.UpdateStatusTest do
     assert html =~ "&lt;script&gt;"
     refute html =~ "<script>"
   end
+
+  test "the approve button shows only when an update is available", %{path: path} do
+    write(path)
+    html = Render.render_template("system/update.html.eex", update: UpdateStatus.read(@now))
+    assert html =~ ~s(action="/admin/system/update/approve")
+    assert html =~ ~s(name="commit" value="b")
+    assert html =~ "github.com/sukhi-social/sukhi-infra/commit/b"
+
+    for state <- ["up_to_date", "rejected", "error"] do
+      write(path, %{"state" => state})
+      html = Render.render_template("system/update.html.eex", update: UpdateStatus.read(@now))
+      refute html =~ "/admin/system/update/approve"
+    end
+
+    write(path, %{"checked_at" => "2026-11-05T04:00:00Z"})
+    html = Render.render_template("system/update.html.eex", update: UpdateStatus.read(@now))
+    refute html =~ "/admin/system/update/approve"
+  end
 end

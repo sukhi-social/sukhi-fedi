@@ -32,6 +32,7 @@ end
 # to offline analysis. Generate with `openssl rand -hex 32`.
 config :sukhi_fedi, :metrics_token, System.get_env("METRICS_TOKEN")
 config :sukhi_fedi, :gitops_status_path, System.get_env("GITOPS_STATUS_PATH")
+config :sukhi_fedi, :gitops_approve_dir, System.get_env("GITOPS_APPROVE_DIR")
 
 # Translating posts for the reader (docs/TRANSLATION.md). The server's own
 # translator is a LibreTranslate instance the operator runs — unset means there

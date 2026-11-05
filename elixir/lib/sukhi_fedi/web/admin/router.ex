@@ -137,6 +137,10 @@ defmodule SukhiFedi.Web.Admin.Router do
     Auth.with_admin(conn, &SystemController.index/1)
   end
 
+  post "/system/update/approve" do
+    Auth.with_admin(conn, &SystemController.approve/1)
+  end
+
   get "/system/sample" do
     Auth.with_admin(conn, &SystemController.sample/1)
   end
