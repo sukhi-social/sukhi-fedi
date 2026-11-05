@@ -21,6 +21,10 @@ mkdir -p "$OUT"
 export PGPASSWORD=postgres
 export MIX_ENV=dev
 export DOMAIN=localhost
+# The head checkout refuses to start without its instance config; the base
+# checkout (main) ignores the variable. Built-in frontend only: nothing else
+# runs beside the server here.
+export SUKHI_INSTANCE_CONFIG="$HERE/instance.json"
 export METRICS_TOKEN=bench-metrics
 export DB_POOL_SIZE="${DB_POOL_SIZE:-10}"
 export LOAD_TOKEN_FILE="$OUT/$LABEL.token"

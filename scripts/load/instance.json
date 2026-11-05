@@ -1,0 +1,9 @@
+{
+  "site_name": "sukhi-load-bench",
+  "frontends": {
+    "relay": { "type": "builtin" }
+  },
+  "routes": [
+    { "pattern": "/**", "frontend": "relay" }
+  ]
+}
