@@ -1,0 +1,183 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>静かな自動翻訳(案)</title>
+<meta name="lab:desc" content="既定はオフ。オンにした人だけ、画面にしばらく留まった母語以外の投稿の下に、淡く訳が足される。原文は動かさない。エンジン名と『自動』はいつも出る。混んでいる・うまくいかないときは黙って『訳を見る』のまま。学んでいることば・内容警告つきの投稿は自動にしない。">
+<meta name="lab:scenes" content="auto=自動訳がオン;learn=ko を学んでいる;quota=DeepL の分を使いきった;settings=設定(自動のスイッチ);consent=設定で自動をオンにしたとき">
+<meta name="lab:nav" content="home">
+<style>
+  /* モック専用。色・字・間は tokens.css から。決まったら components.css に移す(translate のモックと同じ流儀)。 */
+  .tr-lab { display: contents; }
+  .tr-box { margin-top: .5rem; border-left: 3px solid var(--color-border); padding: .1rem 0 .1rem .75rem; display: grid; gap: .3rem; }
+  .tr-label { margin: 0; display: flex; flex-wrap: wrap; gap: .25rem .6rem; align-items: center; font-size: .75rem; color: var(--color-text-muted); }
+  .tr-label button { all: unset; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .tr-body { margin: 0; }
+  .tr-btn { font-size: .8125rem; }
+  .tr-hint { margin: .35rem 0 0; font-size: .75rem; color: var(--color-text-muted); }
+  .tr-note { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); padding: .75rem .9rem; display: grid; gap: .4rem; margin-block: .5rem; }
+  .tr-note h3 { margin: 0; font-size: .9375rem; }
+  .tr-note p { margin: 0; }
+  .tr-note .row { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; }
+  .tr-lang { font-size: .6875rem; border: 1px solid var(--color-border); border-radius: 999px; padding: 0 .45rem; color: var(--color-text-muted); }
+
+  /* 自動で足された訳: 原文より淡く小さい。やわらかく現れる(動きを減らす設定の人には、ただ現れる)。 */
+  .tr-box.auto { border-left-color: transparent; }
+  .tr-box.auto .tr-body { color: var(--color-text-muted); font-size: .875rem; }
+  .tr-box.auto { animation: tr-in .24s ease-out both; }
+  @keyframes tr-in { from { opacity: 0 } to { opacity: 1 } }
+  @media (prefers-reduced-motion: reduce) { .tr-box.auto { animation: none } }
+  /* 学ぶことばは、自動にしない。ボタンも淡く。 */
+  html[data-s~=learn] .learn-on .tr-btn { color: var(--color-text-muted); font-size: .75rem; }
+
+  /* 場面 */
+  html:not([data-s~=auto]) .only-auto, html:not([data-s~=quota]) .only-quota,
+  html:not([data-s~=consent]) .only-consent,
+  html:not([data-s~=settings]):not([data-s~=consent]) .only-settings { display: none; }
+  html[data-s~=auto] .only-manual { display: none; }
+  html:not([data-s~=learn]) .only-learn, html[data-s~=learn] .only-learn-off { display: none; }
+  html[data-s~=consent] .only-off { display: none; }
+  html[data-s~=settings] .timeline-part, html[data-s~=consent] .timeline-part { display: none; }
+  .set { display: grid; gap: 1rem; max-width: var(--measure); margin-inline: auto; width: 100%; }
+  .set h2 { margin: 0; font-size: 1.25rem; }
+  .set h3 { margin: 0; font-size: 1rem; }
+  .set p { margin: 0; }
+  .set .muted { color: var(--color-text-muted); }
+  .set .opts { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .set label.sw { display: flex; gap: .6rem; align-items: flex-start; font-size: .9375rem; }
+  .set label.sw input { margin-top: .3rem; }
+</style>
+
+<div class="tr-lab">
+<section class="timeline timeline-part" aria-label="タイムライン(例)">
+
+  <!-- 注: 実装では .status の中身を使う。ここは並べて比べるための最小の形。 -->
+
+  <!-- ① ko の投稿。ja の人は読めない。自動がオンなら、しばらく画面にあったあと、訳が淡く足される。 -->
+  <article class="status" id="p1">
+    <span class="avatar" style="background:hsl(150 40% 86%);color:hsl(150 40% 28%)" aria-hidden="true">수</span>
+    <div class="body">
+      <header class="meta">
+        <a class="display-name" href="#">수진</a>
+        <span class="handle">@sujin@maru.example</span>
+        <span class="sep">·</span><time>12分前</time>
+        <span class="tr-lang" lang="ja">한국어</span>
+      </header>
+      <div class="content" lang="ko"><p>오늘은 비가 와서 집에서 천천히 뜨개질을 했어요. 따뜻한 차 한 잔이 있으면 충분한 하루예요.</p></div>
+
+      <p class="tr-hint only-manual"><button type="button" class="chip tr-btn">訳を見る</button></p>
+
+      <div class="tr-box auto only-auto" lang="ja" translate="no">
+        <p class="tr-label">
+          <span>訳(機械翻訳・自動)</span><span aria-hidden="true">・</span><span>LibreTranslate</span>
+          <button type="button">とじる</button>
+        </p>
+        <p class="tr-body">今日は雨が降ったので、家でゆっくり編み物をしました。温かいお茶が一杯あれば、それで十分な一日です。</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- ② en の投稿。③ より少し下にあって、まだ画面に留まっていない ── なので、まだ何も足されていない。 -->
+  <article class="status" id="p2">
+    <span class="avatar" style="background:hsl(20 60% 88%);color:hsl(20 50% 35%)" aria-hidden="true">M</span>
+    <div class="body">
+      <header class="meta">
+        <a class="display-name" href="#">Mika</a>
+        <span class="handle">@mika@yarn.example</span>
+        <span class="sep">·</span><time>1時間前</time>
+        <span class="tr-lang" lang="ja">English</span>
+      </header>
+      <div class="content" lang="en"><p>Finally finished the scarf I started in March. It's slightly uneven, and I like it that way.</p></div>
+      <!-- 通りすぎただけの投稿には、何も足さない。ボタンはそのまま、手で押せる。 -->
+      <p class="tr-hint"><button type="button" class="chip tr-btn">訳を見る</button></p>
+    </div>
+  </article>
+
+  <!-- ③ 読めることば(ja)の投稿。何も出さない。 -->
+  <article class="status" id="p3">
+    <span class="avatar" style="background:hsl(200 55% 88%);color:hsl(200 45% 32%)" aria-hidden="true">み</span>
+    <div class="body">
+      <header class="meta">
+        <a class="display-name" href="#">みつば</a>
+        <span class="handle">@mitsuba</span>
+        <span class="sep">·</span><time>3時間前</time>
+      </header>
+      <div class="content" lang="ja"><p>毛糸を買いに行ったら、いい色がありすぎて、結局なにも買えなかった。</p></div>
+    </div>
+  </article>
+
+  <!-- ④ 内容警告つき。たたまれている本文は、自動では送らない(押したときだけ)。 -->
+  <article class="status" id="p4">
+    <span class="avatar" style="background:hsl(280 40% 88%);color:hsl(280 35% 34%)" aria-hidden="true">L</span>
+    <div class="body">
+      <header class="meta">
+        <a class="display-name" href="#">Léa</a>
+        <span class="handle">@lea@atelier.example</span>
+        <span class="sep">·</span><time>昨日</time>
+        <span class="tr-lang" lang="ja">Français</span>
+      </header>
+      <div class="content" lang="fr"><p><strong>仕事のぐち</strong> <button type="button" class="chip">ひらく</button></p></div>
+      <p class="tr-hint"><button type="button" class="chip tr-btn">訳を見る</button></p>
+    </div>
+  </article>
+
+  <!-- ⑤ 学んでいることば(ko)。自動にはしない。まず自分で読む ── 既存の『学ぶ見せ方』のまま。 -->
+  <article class="status learn-on" id="p5">
+    <span class="avatar" style="background:hsl(90 40% 86%);color:hsl(90 40% 28%)" aria-hidden="true">지</span>
+    <div class="body">
+      <header class="meta">
+        <a class="display-name" href="#">지우</a>
+        <span class="handle">@jiwoo@maru.example</span>
+        <span class="sep">·</span><time>昨日</time>
+        <span class="tr-lang" lang="ja">한국어</span>
+      </header>
+      <div class="content" lang="ko"><p>주말에는 시장에 가서 귤을 한 상자 샀어요.</p></div>
+      <p class="tr-hint">
+        <button type="button" class="chip tr-btn"><span class="only-learn-off">訳を見る</span><span class="only-learn">訳をひらく</span></button>
+        <span class="only-learn">韓国語を学んでいます。まず自分で読んでみて、わからなければ。</span>
+      </p>
+    </div>
+  </article>
+
+  <!-- DeepL の分を使いきったとき: 行動できるので、これだけは一度、そっと言う。以後、このページでは自動をお休み。 -->
+  <div class="tr-note only-quota" role="status">
+    <h3>DeepL の今月の分を使いきりました</h3>
+    <p class="muted">自動の翻訳は、いったんお休みします。「訳を見る」を押しても、同じです。来月まで待つか、設定で、この場所の訳し役に変えられます。</p>
+    <div class="row"><a class="chip" href="/settings/translation">設定をひらく</a><button type="button" class="chip">あとで</button></div>
+  </div>
+
+</section>
+
+<!-- 設定: 自動のスイッチ。『本文が訳し役に渡る』話は、ここにだけ置く(タイムラインでは、ラベルのエンジン名と『自動』)。 -->
+<section class="set only-settings" aria-label="翻訳の設定(例)">
+  <div>
+    <h2>翻訳</h2>
+    <p class="muted">訳は、あなたにだけ見えて、保存も配信もされません。</p>
+  </div>
+
+  <div class="tr-note">
+    <h3>静かな自動翻訳</h3>
+    <label class="sw"><input type="checkbox" id="auto-sw" /><span>画面に入った投稿を、自動で訳す</span></label>
+    <p class="muted text-sm only-off">いまは、オフです。オフのあいだは、これまでどおり「訳を見る」を押したときだけ訳します。</p>
+
+    <!-- オンにしたときだけ出る。外に出る話と、使う分の話を、ここで一度。 -->
+    <div class="tr-note only-consent" role="note">
+      <h3>オンにすると</h3>
+      <p>読めることば・学んでいることば以外の投稿が、画面に少し留まったとき、本文が訳し役に渡されます。訳は、原文の下に淡く足されます。</p>
+      <p>DeepL を選んでいるときは、あなたのキーで外の会社に送られ、今月の分を使います。この場所の訳し役なら、本文はこのサーバーの中だけです。</p>
+      <p class="muted text-sm">宛先を絞った投稿は、訳しません。フォロワー限定の投稿は、DeepL には送らず、この場所の訳し役で訳します。内容警告のついた投稿と、学んでいることばの投稿は、押したときだけです。</p>
+      <p class="muted text-sm">混んでいるときや、うまくいかないときは、何も言わず「訳を見る」のままにします。</p>
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+  /* モック: スイッチを押すと consent の場面が開閉する。(本物では、サーバーが返す form。) */
+  addEventListener('DOMContentLoaded', () => {
+    const sw = document.getElementById('auto-sw');
+    if (!sw) return;
+    sw.checked = lab.has('consent');
+    sw.addEventListener('change', () => {
+      document.documentElement.dataset.s = sw.checked ? 'settings consent' : 'settings';
+    });
+  });
+</script>

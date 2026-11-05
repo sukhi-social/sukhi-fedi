@@ -90,3 +90,5 @@ translate a long post repeatedly while watching memory and the delivery queue.
 - Ingest still picks the first `contentMap` key as the language, which can disagree with `content`;
   fixing that (and storing the declared language) is the next small step.
 - No "please don't translate me" flag for authors (decided against, for now).
+- Quiet auto-translation of posts that stay on screen, for people who choose it: a proposal,
+  not built — [`TRANSLATION_AUTO.md`](TRANSLATION_AUTO.md).
