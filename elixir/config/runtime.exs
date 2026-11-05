@@ -32,6 +32,19 @@ end
 # to offline analysis. Generate with `openssl rand -hex 32`.
 config :sukhi_fedi, :metrics_token, System.get_env("METRICS_TOKEN")
 
+# Translating posts for the reader (docs/TRANSLATION.md). The server's own
+# translator is a LibreTranslate instance the operator runs — unset means there
+# is none (people with their own DeepL key can still translate). It is the
+# operator's address, never one a user or a remote server supplies.
+#   TRANSLATE_MAX_FLIGHT — how many translations that instance runs at once;
+#   more are told to come back in a few seconds. Provisional: set it from a load test.
+config :sukhi_fedi, :libretranslate_url, System.get_env("LIBRETRANSLATE_URL")
+config :sukhi_fedi, :libretranslate_api_key, System.get_env("LIBRETRANSLATE_API_KEY")
+
+config :sukhi_fedi,
+       :translate_max_flight,
+       String.to_integer(System.get_env("TRANSLATE_MAX_FLIGHT", "2"))
+
 # Whether signup needs an invite code.
 #   INVITE_REQUIRED=true  (default) — invite-only, as sukhi grew up.
 #   INVITE_REQUIRED=false           — anyone may register.

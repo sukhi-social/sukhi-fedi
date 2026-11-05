@@ -9,6 +9,7 @@ import { ja } from './locales/ja.ts';
 import { ko } from './locales/ko.ts';
 import { en } from './locales/en.ts';
 import { jaExtra, koExtra, enExtra } from './locales/extra.ts';
+import { jaTranslate, koTranslate, enTranslate } from './locales/translate.ts';
 
 export type Locale = 'ja' | 'ko' | 'en';
 export const LOCALES: Locale[] = ['ja', 'ko', 'en'];
@@ -17,12 +18,12 @@ export const LOCALES: Locale[] = ['ja', 'ko', 'en'];
 export const LOCALE_NAMES: Record<Locale, string> = { ja: '日本語', ko: '한국어', en: 'English' };
 
 const dicts: Record<Locale, Record<string, string>> = {
-  ja: { ...ja, ...jaExtra },
-  ko: { ...ko, ...koExtra },
-  en: { ...en, ...enExtra }
+  ja: { ...ja, ...jaExtra, ...jaTranslate },
+  ko: { ...ko, ...koExtra, ...koTranslate },
+  en: { ...en, ...enExtra, ...enTranslate }
 };
 
-export type TranslationKey = keyof typeof ja | keyof typeof jaExtra;
+export type TranslationKey = keyof typeof ja | keyof typeof jaExtra | keyof typeof jaTranslate;
 export type T = (key: TranslationKey, params?: Record<string, string | number>) => string;
 
 export function isLocale(v: unknown): v is Locale {

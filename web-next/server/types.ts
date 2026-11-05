@@ -50,6 +50,12 @@ export type Account = {
     home_filter?: string;
     // ブーストの行で、ブーストした人の名前を隠す。
     boost_hide_name?: boolean;
+    // 翻訳(docs/TRANSLATION.md)。読めることば・学んでいることば(2〜3 字のコード)・訳し役。
+    // キーは書きこみ専用 ── 返ってくるのは末尾 4 文字の印だけ。
+    translate_reads?: string[];
+    translate_learns?: string[];
+    translate_engine?: 'libre' | 'deepl';
+    translate_deepl_key_hint?: string | null;
   };
   // 管理者が渡した公開バッジ（Moderator など）。color は #hex か空。
   // Misskey 式のプロフィール項目。birthday は YYYY-MM-DD。

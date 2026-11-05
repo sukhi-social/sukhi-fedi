@@ -7,6 +7,8 @@ defmodule SukhiFedi.Schema.Account do
   @max_remote_fields 16
   @max_location 128
   @home_filters ~w(hide_boosts hide_sensitive only_media)
+  @translate_engines ~w(libre deepl)
+  @max_langs 8
 
   schema "accounts" do
     field :username, :string
@@ -72,6 +74,19 @@ defmodule SukhiFedi.Schema.Account do
     # `boost_hide_name` hides the booster's name in a boost row.
     field :home_filter, :string
     field :boost_hide_name, :boolean, default: false
+    # Translating posts (SukhiFedi.Translate). `translate_reads` / `translate_learns`
+    # are comma lists of language codes; `translate_engine` is "libre" or "deepl"
+    # (NULL = libre). The DeepL key is sealed and write-only: it is redacted from
+    # inspect, blanked at the RPC door, and only `translate_deepl_key_hint` (the
+    # last four characters) is ever shown. The two virtual fields carry what a
+    # settings form sends; the changeset turns them into the sealed column.
+    field :translate_reads, :string
+    field :translate_learns, :string
+    field :translate_engine, :string
+    field :translate_deepl_key, :binary, redact: true
+    field :translate_deepl_key_hint, :string
+    field :translate_deepl_key_input, :string, virtual: true, redact: true
+    field :translate_deepl_key_clear, :boolean, virtual: true
     field :suspended_at, :utc_datetime
     field :suspended_by_id, :id
     field :suspension_reason, :string
@@ -245,10 +260,20 @@ defmodule SukhiFedi.Schema.Account do
       :notification_hold_minutes,
       :notification_grouping,
       :home_filter,
-      :boost_hide_name
+      :boost_hide_name,
+      :translate_reads,
+      :translate_learns,
+      :translate_engine,
+      :translate_deepl_key_input,
+      :translate_deepl_key_clear
     ])
     |> update_change(:fields, &cast_local_fields/1)
     |> update_change(:home_filter, &normalize_home_filter/1)
+    |> update_change(:translate_reads, &normalize_langs/1)
+    |> update_change(:translate_learns, &normalize_langs/1)
+    |> update_change(:translate_engine, &blank_to_nil/1)
+    |> validate_inclusion(:translate_engine, @translate_engines)
+    |> put_deepl_key()
     |> validate_number(:notification_hold_minutes,
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 1440
@@ -492,6 +517,74 @@ defmodule SukhiFedi.Schema.Account do
     attrs
     |> normalize_alias("note", "summary")
     |> normalize_alias("bot", "is_bot")
+    # The form field is called `translate_deepl_key`, but the column of that name
+    # holds the sealed key. Whatever arrives under it is plaintext to be sealed,
+    # never a value to store, so it is moved aside before `cast/3` sees it.
+    |> normalize_alias("translate_deepl_key", "translate_deepl_key_input")
+  end
+
+  # Language codes only (two or three letters), lower-cased, de-duplicated, in the
+  # order given; at most @max_langs. Nothing left means "none" (NULL).
+  defp normalize_langs(nil), do: nil
+
+  defp normalize_langs(v) when is_binary(v) do
+    case v
+         |> String.split(~r/[,\s]+/, trim: true)
+         |> Enum.map(&(&1 |> String.downcase() |> String.split("-") |> hd()))
+         |> Enum.filter(&Regex.match?(~r/\A[a-z]{2,3}\z/, &1))
+         |> Enum.uniq()
+         |> Enum.take(@max_langs) do
+      [] -> nil
+      langs -> Enum.join(langs, ",")
+    end
+  end
+
+  defp blank_to_nil(v) when is_binary(v), do: if(String.trim(v) == "", do: nil, else: String.trim(v))
+  defp blank_to_nil(v), do: v
+
+  # The DeepL key: sealed here, once, and nowhere else (`Translate.Key`). A key
+  # that does not look like one is refused rather than stored — it is the only
+  # check; the engine adapter trusts what is in the column. Clearing wins over
+  # setting, so a form that sends both ends with no key; and "deepl" cannot be
+  # the engine of an account that has none.
+  defp put_deepl_key(cs) do
+    clear? = get_change(cs, :translate_deepl_key_clear) == true
+    input = get_change(cs, :translate_deepl_key_input)
+
+    cs
+    |> seal_deepl_key(clear?, input)
+    |> require_deepl_key()
+  end
+
+  # Removing the key leaves "deepl" with nothing to use, so the engine goes back
+  # to the server's own (NULL) in the same step.
+  defp seal_deepl_key(cs, true, _input) do
+    cs
+    |> put_change(:translate_deepl_key, nil)
+    |> put_change(:translate_deepl_key_hint, nil)
+    |> then(fn cs ->
+      if get_field(cs, :translate_engine) == "deepl", do: put_change(cs, :translate_engine, nil), else: cs
+    end)
+  end
+
+  defp seal_deepl_key(cs, false, input) when is_binary(input) do
+    case SukhiFedi.Translate.Key.seal(input, cs.data.id) do
+      {:ok, sealed, hint} ->
+        cs |> put_change(:translate_deepl_key, sealed) |> put_change(:translate_deepl_key_hint, hint)
+
+      :error ->
+        add_error(cs, :translate_deepl_key, "is not a DeepL API key")
+    end
+  end
+
+  defp seal_deepl_key(cs, false, nil), do: cs
+
+  defp require_deepl_key(cs) do
+    if get_field(cs, :translate_engine) == "deepl" and get_field(cs, :translate_deepl_key) == nil do
+      add_error(cs, :translate_engine, "needs a DeepL API key")
+    else
+      cs
+    end
   end
 
   defp normalize_alias(attrs, from, to) do

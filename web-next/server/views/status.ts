@@ -16,6 +16,7 @@ import { renderMfm } from '../mfm.ts';
 import { phrase } from '../phrase.ts';
 import { timeWords } from '../time.ts';
 import { avatar, icon } from './parts.ts';
+import { translateSlot, type Slot } from './translate.ts';
 
 export type StatusOpts = {
   me: Account | null;
@@ -28,6 +29,8 @@ export type StatusOpts = {
   // 記事の DOM id。ふだんは st-<id>。ブーストの行のなかでは、元の投稿が
   // 一覧のほかの場所にも並びうるので、重ならない id にする(Unpoly の差し替え先が混ざらないように)。
   domId?: string;
+  // 「訳を見る」を押したあとの、訳(か、うまくいかなかった知らせ)。無ければ、ボタンだけ(出るなら)。
+  translation?: Slot;
 };
 
 const nameOf = (a: Account) => a.display_name || a.acct || a.username;
@@ -124,6 +127,7 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   const isRemote = a.acct.includes('@');
   const replyAcct = s.in_reply_to_account_id ? o.replyAccts?.get(s.in_reply_to_account_id) : undefined;
   const mediaBlock = s.media_attachments.length > 0 ? media(ctx, s) : '';
+  const translation = translateSlot(ctx, s, o.me, o.domId ?? `st-${s.id}`, o.translation);
 
   return html`<article class="status" id="${o.domId ?? `st-${s.id}`}">
     <a href="/@${a.acct}" tabindex="-1" aria-hidden="true">${avatar(a.avatar, nameOf(a))}</a>
@@ -145,6 +149,7 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
         ? html`<details>
             <summary>${s.spoiler_text}</summary>
             <div class="content"${langAttr}>${body}</div>
+            ${translation}
             ${mediaBlock}
           </details>`
         : html`<div x-data="collapsible({ full: ${String(!!o.full)} })">
@@ -154,7 +159,8 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
             ${s.title && !o.full
               ? html`<a class="read-more" href="/@${a.acct}/${s.id}">${t('status.readArticle')}</a>`
               : html`<button type="button" class="read-more" x-show="tall && !expanded" x-cloak @click="expanded = true">${t('status.readMore')}</button>`}
-          </div>`}
+          </div>
+          ${translation}`}
 
       ${s.quote
         ? html`<a class="quote-card" href="/@${s.quote.account.acct}/${s.quote.id}">

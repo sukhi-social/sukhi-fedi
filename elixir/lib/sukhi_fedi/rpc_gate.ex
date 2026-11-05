@@ -26,7 +26,8 @@ defmodule SukhiFedi.RpcGate do
     :ed25519_private_key_jwk,
     :password_hash,
     :totp_secret,
-    :totp_last_used_step
+    :totp_last_used_step,
+    :translate_deepl_key
   ]
 
   @table :rpc_gate
