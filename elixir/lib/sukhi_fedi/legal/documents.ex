@@ -19,10 +19,12 @@ defmodule SukhiFedi.Legal.Documents do
   language the pages cannot lay out: a policy page that quietly shows the wrong
   document is worse than no start.
 
-  With no `legal.dir`, `LegalController` serves the documents bundled with the
-  release (`priv/legal/`), which are the sukhi and natadeco wording and not
-  anyone else's. The files are the operator's own, so their Markdown (raw HTML
-  included) is rendered as written. Changing them takes a restart.
+  With no `legal.dir`, `LegalController` serves the bundled set that
+  `LEGAL_FLAVOR` names (`sukhi` or `natadeco`, from `priv/legal/`). There is no
+  default: an instance with neither refuses to start. Those are the sukhi and
+  natadeco wording, not anyone else's. The files are the operator's own, so
+  their Markdown (raw HTML included) is rendered as written. Changing them takes
+  a restart.
   """
 
   @docs [:terms, :privacy]
@@ -38,14 +40,21 @@ defmodule SukhiFedi.Legal.Documents do
 
   @doc """
   Read the operator's documents named by the instance config and keep them.
-  `:bundled` when the config names no directory (and forgets any kept set).
-  Raises `ArgumentError` with the next step when the directory is not usable.
+  `:bundled` when the config names no directory (and forgets any kept set); then
+  `LEGAL_FLAVOR` must name the bundled set. Raises `ArgumentError` with the next
+  step when the directory is not usable, or when neither is named.
   """
   @spec install!(SukhiShared.InstanceConfig.t()) :: :bundled | {:custom, String.t()}
   def install!(instance_config) do
     case SukhiShared.InstanceConfig.legal_dir(instance_config) do
       nil ->
         :persistent_term.erase(@key)
+
+        if Application.get_env(:sukhi_fedi, :legal_flavor) == nil do
+          raise ArgumentError,
+                "the instance names no legal documents: set legal.dir in the instance config, or LEGAL_FLAVOR=sukhi or natadeco"
+        end
+
         :bundled
 
       dir ->

@@ -68,6 +68,9 @@ services:
       RELEASE_COOKIE: ${ERLANG_COOKIE:?set ERLANG_COOKIE to a random secret — openssl rand -hex 32}
       PLUGIN_NODES: api@api
       DOMAIN: ${DOMAIN:-localhost:4000}
+      # Bundled legal set: sukhi or natadeco. No default — unset refuses to start
+      # unless legal.dir is set. See docs/ENV.md.
+      LEGAL_FLAVOR: ${LEGAL_FLAVOR:-}
       # Addon selection. Comma list of ids, or "all". See docs/ADDONS.md.
       ENABLED_ADDONS: ${ENABLED_ADDONS:-all}
       DISABLE_ADDONS: ${DISABLE_ADDONS:-}

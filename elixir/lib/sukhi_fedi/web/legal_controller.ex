@@ -174,7 +174,7 @@ defmodule SukhiFedi.Web.LegalController do
     en: bake.(@dir, "support.en.md")
   }
 
-  defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor, :sukhi)
+  defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor)
 
   # The operator's own documents when the instance config names a directory
   # (SukhiFedi.Legal.Documents), else the bundled set for the flavor.

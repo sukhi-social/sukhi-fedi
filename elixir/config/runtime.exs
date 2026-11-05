@@ -57,17 +57,23 @@ config :sukhi_fedi,
        :invite_required,
        System.get_env("INVITE_REQUIRED", "true") != "false"
 
-# Which legal documents /terms and /privacy serve.
-#   LEGAL_FLAVOR=sukhi    (default) — the server's own wording in priv/legal/*.md
-#   LEGAL_FLAVOR=natadeco           — the board wording in priv/legal/natadeco/*.md
+# Which bundled /terms and /privacy set to serve, when the instance config
+# names no legal.dir of its own. No default: an instance must name the set
+# (LEGAL_FLAVOR), or the gateway refuses to start.
+#   LEGAL_FLAVOR=sukhi     — the server's own wording in priv/legal/*.md
+#   LEGAL_FLAVOR=natadeco  — the board wording in priv/legal/natadeco/*.md
 # Both sets are baked into the release; this only chooses between them.
 legal_flavor =
-  case System.get_env("LEGAL_FLAVOR", "sukhi") do
+  case System.get_env("LEGAL_FLAVOR", "") do
+    "" -> nil
+    "sukhi" -> :sukhi
     "natadeco" -> :natadeco
-    _ -> :sukhi
+    other -> raise ArgumentError, "LEGAL_FLAVOR must be sukhi or natadeco, got #{inspect(other)}"
   end
 
-config :sukhi_fedi, :legal_flavor, legal_flavor
+if legal_flavor do
+  config :sukhi_fedi, :legal_flavor, legal_flavor
+end
 
 # WebTransport のエッジ（karutte, webtransport.f3liz.casa）。`WT_TICKET_KEY` は入場チケットを
 # 署名する Ed25519 の秘密鍵（生 32 バイト seed の base64）。公開鍵は karutte の `:ticket_pubkey`

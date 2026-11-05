@@ -47,6 +47,16 @@ defmodule SukhiFedi.Legal.DocumentsTest do
     assert Documents.all() == nil
   end
 
+  test "install! refuses to start when the config names neither a directory nor a flavor" do
+    previous = Application.get_env(:sukhi_fedi, :legal_flavor)
+    Application.put_env(:sukhi_fedi, :legal_flavor, nil)
+    on_exit(fn -> Application.put_env(:sukhi_fedi, :legal_flavor, previous) end)
+
+    assert_raise ArgumentError, ~r/names no legal documents/, fn ->
+      Documents.install!(%{})
+    end
+  end
+
   test "refuses to start on anything it cannot serve faithfully", %{dir: dir} do
     assert_raise ArgumentError, ~r/no terms\.<lang>\.md/, fn -> Documents.load!(dir) end
 
