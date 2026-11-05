@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import Config
 
+instance_config = SukhiShared.InstanceConfig.load_or_default()
+
+nodeinfo_monitor_configured =
+  SukhiShared.InstanceConfig.addon_enabled?(instance_config, "nodeinfo_monitor")
+
+config :sukhi_api, :nodeinfo_monitor_configured, nodeinfo_monitor_configured
+
 # Mirror the gateway's addon selection so capability routes disappear
 # in lockstep with their owning addon. ADDON_PRESETS is expanded and
 # unioned with ENABLED_ADDONS; DISABLE_ADDONS is the deny-list.
@@ -50,7 +57,9 @@ else
 end
 
 if config_env() == :prod do
-  config :sukhi_api, :title, System.get_env("INSTANCE_TITLE", "sukhi-fedi")
+  config :sukhi_api, :title, Map.fetch!(instance_config, "site_name")
+
+  config :sukhi_api, :site_logo, Map.get(instance_config, "site_logo")
 
   # GATEWAY_NODE overrides the default gateway@elixir node for
   # `SukhiApi.GatewayRpc`.

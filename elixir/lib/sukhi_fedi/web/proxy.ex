@@ -36,7 +36,9 @@ defmodule SukhiFedi.Web.Proxy do
 
     acc = %{conn: conn, sent?: false, status: nil, headers: []}
 
-    case Finch.stream(req, SukhiFedi.Finch, acc, &on_event(&1, &2, upstream), receive_timeout: 20_000) do
+    case Finch.stream(req, SukhiFedi.Finch, acc, &on_event(&1, &2, upstream),
+           receive_timeout: 20_000
+         ) do
       {:ok, %{conn: conn, sent?: true}} ->
         conn
 
@@ -45,7 +47,11 @@ defmodule SukhiFedi.Web.Proxy do
         acc.conn |> prepare(acc.status, acc.headers, upstream, name) |> send_resp(acc.status, "")
 
       {:error, reason, %{sent?: false, conn: conn}} ->
-        Logger.warning("web upstream #{name} unreachable: #{inspect(reason)}")
+        Logger.warning(
+          "web upstream #{name} unreachable: #{inspect(reason)}; " <>
+            "check its configured URL/container as the sukhi user; existing data is untouched"
+        )
+
         unavailable(conn)
 
       {:error, reason, %{conn: conn}} ->
@@ -87,7 +93,9 @@ defmodule SukhiFedi.Web.Proxy do
 
     conn =
       headers
-      |> Enum.filter(fn {k, v} -> String.downcase(k) == "set-cookie" and allowed_set_cookie?(v, up) end)
+      |> Enum.filter(fn {k, v} ->
+        String.downcase(k) == "set-cookie" and allowed_set_cookie?(v, up)
+      end)
       |> Enum.reduce(conn, fn {_, v}, c -> prepend_resp_headers(c, [{"set-cookie", v}]) end)
 
     put_resp_header(conn, "x-static-source", "upstream:" <> name)
@@ -177,6 +185,9 @@ defmodule SukhiFedi.Web.Proxy do
     conn
     |> put_resp_content_type("text/html; charset=utf-8")
     |> put_resp_header("cache-control", "no-store")
-    |> send_resp(503, ~s|<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>sukhi</title><body style="font-family:sans-serif;padding:3rem 1.5rem;line-height:1.8"><p>いま、頁を描く手が休んでいます。すこししてから、もういちど開いてみてください。</p></body></html>|)
+    |> send_resp(
+      503,
+      ~s|<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>sukhi</title><body style="font-family:sans-serif;padding:3rem 1.5rem;line-height:1.8"><p>いま、頁を描く手が休んでいます。すこししてから、もういちど開いてみてください。</p></body></html>|
+    )
   end
 end

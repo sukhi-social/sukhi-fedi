@@ -5,7 +5,9 @@ defmodule SukhiFedi.Web.Router do
 
   @doc false
   def uncounted?(conn),
-    do: SukhiFedi.Web.SpaRoutes.page_request?(conn) or SukhiFedi.Web.AdmissionQueue.ticket_due?(conn)
+    do:
+      SukhiFedi.Web.SpaRoutes.page_request?(conn) or
+        SukhiFedi.Web.AdmissionQueue.ticket_due?(conn)
 
   alias SukhiFedi.Web.InboxController
   alias SukhiFedi.Web.WebfingerController
@@ -16,6 +18,8 @@ defmodule SukhiFedi.Web.Router do
   alias SukhiFedi.Web.NoteController
   alias SukhiFedi.Web.QuoteAuthorizationController
   alias SukhiFedi.Web.ViewerController
+  alias SukhiFedi.Web.SetupController
+  alias SukhiFedi.Web.Auth.SessionCookie
   alias SukhiFedi.Web.StatsController
   alias SukhiFedi.Web.MetricsController
   alias SukhiFedi.Web.StreamingController
@@ -434,15 +438,35 @@ defmodule SukhiFedi.Web.Router do
   end
 
   # ── Human-facing HTML + JSON proxy for nodeinfo lookup ──────────────────
-  # Gated on the :nodeinfo_monitor addon: this is the watcher UI surface
-  # (dashboard at /, register/list watchers, host stats SSE). A deployment
-  # running sukhi-fedi as a real SNS — not as a watcher app — sets
-  # DISABLE_ADDONS=nodeinfo_monitor and these routes go 404.
+  # Gated on the :nodeinfo_monitor addon: this is the watcher UI fallback.
+  # A configured web frontend gets the request first, so enabling the watcher
+  # cannot steal the SNS frontend's `/` route.
 
   get "/" do
-    cond do
-      nodeinfo_monitor_enabled?() -> ViewerController.home(conn, [])
-      true -> via_upstream(conn, fn -> serve_spa(conn) end)
+    case unauthenticated_redirect_target(conn) do
+      target when is_binary(target) ->
+        conn
+        |> put_resp_header("location", target)
+        |> send_resp(302, "")
+
+      nil ->
+        if frontend_configured?() do
+          via_upstream(conn, fn ->
+            if nodeinfo_monitor_enabled?(),
+              do: ViewerController.home(conn, []),
+              else: serve_spa(conn)
+          end)
+        else
+          SetupController.home(conn, [])
+        end
+    end
+  end
+
+  defp unauthenticated_redirect_target(conn) do
+    case {Application.get_env(:sukhi_fedi, :unauthenticated_redirect),
+          SessionCookie.account(conn)} do
+      {target, nil} when is_binary(target) and target != "" -> target
+      _ -> nil
     end
   end
 
@@ -656,8 +680,11 @@ defmodule SukhiFedi.Web.Router do
       )
 
     case limited do
-      %Plug.Conn{halted: true} -> limited
-      %Plug.Conn{halted: false} -> SukhiFedi.Web.PluginPlug.call(limited, SukhiFedi.Web.PluginPlug.init([]))
+      %Plug.Conn{halted: true} ->
+        limited
+
+      %Plug.Conn{halted: false} ->
+        SukhiFedi.Web.PluginPlug.call(limited, SukhiFedi.Web.PluginPlug.init([]))
     end
   end
 
@@ -979,7 +1006,11 @@ defmodule SukhiFedi.Web.Router do
         put_resp_header(conn, "cache-control", "public, max-age=86400")
 
       String.starts_with?(relative, "emojis/") ->
-        put_resp_header(conn, "cache-control", "public, max-age=2592000, stale-while-revalidate=604800")
+        put_resp_header(
+          conn,
+          "cache-control",
+          "public, max-age=2592000, stale-while-revalidate=604800"
+        )
 
       true ->
         conn
@@ -1120,13 +1151,19 @@ defmodule SukhiFedi.Web.Router do
   # Reads the addon config at request time — set via env vars in
   # config/runtime.exs (ENABLED_ADDONS, DISABLE_ADDONS, ADDON_PRESETS).
   defp nodeinfo_monitor_enabled? do
+    configured? = Application.get_env(:sukhi_fedi, :nodeinfo_monitor_configured, false)
     enabled = Application.get_env(:sukhi_fedi, :enabled_addons, :all)
     disabled = Application.get_env(:sukhi_fedi, :disabled_addons, [])
 
     cond do
+      not configured? -> false
       :nodeinfo_monitor in disabled -> false
       enabled == :all -> true
       true -> :nodeinfo_monitor in enabled
     end
+  end
+
+  defp frontend_configured? do
+    Application.get_env(:sukhi_fedi, :frontend_configured, false)
   end
 end

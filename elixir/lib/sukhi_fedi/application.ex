@@ -6,53 +6,58 @@ defmodule SukhiFedi.Application do
 
   @impl true
   def start(_type, _args) do
+    instance_config = SukhiShared.InstanceConfig.load()
+    Application.put_env(:sukhi_fedi, :instance_config, instance_config)
+
     :ok = SukhiFedi.Addon.Registry.verify_abi!()
 
-    core_children = List.flatten([
-      SukhiFedi.PromEx,
-      SukhiFedi.Repo,
-      # Oban's SQLite file when the store is Datalevin; nothing otherwise.
-      SukhiFedi.Queue.children(),
-      # The graph store beside it (SUKHI_GRAPH=1): its own dtlv and the mirror queue.
-      SukhiFedi.Graph.children(),
-      {Gnat.ConnectionSupervisor, nats_connection_settings()},
-      SukhiFedi.Cache.Ets,
-      # 画像プロキシの AVIF 裏 encode(一枚ずつ)。結果を Cache.Ets の
-      # :media_variants に置くので、その後に。
-      SukhiFedi.Web.MediaTranscode.Worker,
-      # Finch powers outbound HTTP from the federation fetcher and the
-      # nodeinfo-monitor addon. Outbound ActivityPub delivery lives on
-      # the separate delivery node; this pool does not carry that traffic.
-      {Finch,
-       name: SukhiFedi.Finch,
-       pools: %{
-         default: [size: 50, count: 4]
-       }},
-      # The web fronts behind this gateway: reads each one's
-      # /.sukhi/web.json. :ignore unless WEB_UPSTREAMS is set. After Finch.
-      SukhiFedi.Web.Upstreams.Registry,
-      # Native fedify.*.v1 NATS service (SukhiFedi.Fedi) — replaces the
-      # Bun sidecar. It shares the `fedify-workers` queue group with any
-      # Bun replica still running, so cutover is "stop the bun container".
-      # After Cache.Ets (key cache) and Finch (remote fetch).
-      {Gnat.ConsumerSupervisor, fedi_consumer_settings()},
-      {Oban, [name: SukhiFedi.Oban] ++ SukhiFedi.Queue.oban_config()},
-      # Records one host-resource row per interval into metric_samples so
-      # the series accrues for offline analysis. :ignore (no-op) unless
-      # :metrics sample_interval_ms is set — the test env leaves it off.
-      SukhiFedi.Metrics.Sampler,
-      # Pull Federation: counters folded into pull_stats in batches, the
-      # task pool the puller runs pulls in, and the puller itself (:ignore
-      # when :pull_federation tick_ms is nil, as in the test env).
-      {SukhiShared.PullStats, repo: SukhiFedi.Repo},
-      {Task.Supervisor, name: SukhiFedi.PullFederation.TaskSup},
-      SukhiFedi.PullFederation.Puller,
-      # Holds the latest L4 telemetry snapshot the WebTransport edge relay
-      # (wt-relay, x64) publishes over NATS, for the /admin/system page. After
-      # the Gnat connection above; subscribes lazily and retries if NATS isn't
-      # up yet, so it never blocks boot.
-      SukhiFedi.WtRelayTelemetry
-    ])
+    core_children =
+      List.flatten([
+        SukhiFedi.PromEx,
+        SukhiFedi.Repo,
+        # Oban's SQLite file when the store is Datalevin; nothing otherwise.
+        SukhiFedi.Queue.children(),
+        # The graph store beside it (SUKHI_GRAPH=1): its own dtlv and the mirror queue.
+        SukhiFedi.Graph.children(),
+        {Gnat.ConnectionSupervisor, nats_connection_settings()},
+        SukhiFedi.Cache.Ets,
+        # 画像プロキシの AVIF 裏 encode(一枚ずつ)。結果を Cache.Ets の
+        # :media_variants に置くので、その後に。
+        SukhiFedi.Web.MediaTranscode.Worker,
+        # Finch powers outbound HTTP from the federation fetcher and the
+        # nodeinfo-monitor addon. Outbound ActivityPub delivery lives on
+        # the separate delivery node; this pool does not carry that traffic.
+        {Finch,
+         name: SukhiFedi.Finch,
+         pools: %{
+           default: [size: 50, count: 4]
+         }},
+        # The web fronts behind this gateway: reads each one's
+        # /.sukhi/web.json. The required instance config is validated before
+        # this process starts. After Finch.
+        SukhiFedi.Web.Upstreams.Registry,
+        # Native fedify.*.v1 NATS service (SukhiFedi.Fedi) — replaces the
+        # Bun sidecar. It shares the `fedify-workers` queue group with any
+        # Bun replica still running, so cutover is "stop the bun container".
+        # After Cache.Ets (key cache) and Finch (remote fetch).
+        {Gnat.ConsumerSupervisor, fedi_consumer_settings()},
+        {Oban, [name: SukhiFedi.Oban] ++ SukhiFedi.Queue.oban_config()},
+        # Records one host-resource row per interval into metric_samples so
+        # the series accrues for offline analysis. :ignore (no-op) unless
+        # :metrics sample_interval_ms is set — the test env leaves it off.
+        SukhiFedi.Metrics.Sampler,
+        # Pull Federation: counters folded into pull_stats in batches, the
+        # task pool the puller runs pulls in, and the puller itself (:ignore
+        # when :pull_federation tick_ms is nil, as in the test env).
+        {SukhiShared.PullStats, repo: SukhiFedi.Repo},
+        {Task.Supervisor, name: SukhiFedi.PullFederation.TaskSup},
+        SukhiFedi.PullFederation.Puller,
+        # Holds the latest L4 telemetry snapshot the WebTransport edge relay
+        # (wt-relay, x64) publishes over NATS, for the /admin/system page. After
+        # the Gnat connection above; subscribes lazily and retries if NATS isn't
+        # up yet, so it never blocks boot.
+        SukhiFedi.WtRelayTelemetry
+      ])
 
     children = core_children ++ SukhiFedi.Addon.Registry.children() ++ [endpoint()]
 

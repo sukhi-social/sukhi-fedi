@@ -99,7 +99,6 @@ sudo systemctl enable --now dnf-automatic.timer
 
 ```bash
 DOMAIN=example.tld
-INSTANCE_TITLE="…"
 ERLANG_COOKIE="$(openssl rand -hex 32)"      # 既定のままだと起動しない(安全のため)
 SECRET_KEY_BASE="$(openssl rand -hex 64)"
 SUKHI_VERSION=sha-<commit>                   # 本番は固定して使う(OPS_DEPLOY.ja.md)
@@ -108,6 +107,12 @@ SUKHI_STORE=datalevin
 # メール(任意だが、なければ確認コードはログにだけ出る)
 SMTP_HOST=…  SMTP_USERNAME=…  SMTP_PASSWORD=…  MAIL_FROM=no-reply@example.tld
 ```
+
+非秘密の instance config は `/etc/sukhi/instance.json` として mount する。
+`site_name`、`frontends`、`routes` は必須。各 route は `frontend` を明示し、
+`relay`（内蔵）、`web-next`、`web-simple`、`web-board`、`web-lobby`（予定）
+から選ぶ。外部 frontend は URL を持つ定義にし、route で参照されたものだけが
+gateway の接続対象になる。`WEB_UPSTREAMS`、`WEB_ROUTES`、`INSTANCE_TITLE` は使わない。
 
 - `.env` は **権限 600**、リポジトリに入れない、チャットに貼らない。
 - 秘密はファイルで渡す方法もある(`/run/secrets` に 1 変数 1 ファイル。`combined/rel/entrypoint.sh`)。

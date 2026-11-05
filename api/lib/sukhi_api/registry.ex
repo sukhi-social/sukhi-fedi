@@ -38,7 +38,8 @@ defmodule SukhiApi.Registry do
     key = {
       Application.get_env(:sukhi_api, :enabled_capabilities, :all),
       Application.get_env(:sukhi_api, :enabled_addons, :all),
-      Application.get_env(:sukhi_api, :disabled_addons, [])
+      Application.get_env(:sukhi_api, :disabled_addons, []),
+      Application.get_env(:sukhi_api, :nodeinfo_monitor_configured, false)
     }
 
     case :persistent_term.get(@cache, nil) do
@@ -78,10 +79,21 @@ defmodule SukhiApi.Registry do
 
         id ->
           cond do
-            id in disabled -> false
-            enabled == :all -> true
-            is_list(enabled) -> id in enabled
-            true -> true
+            id in disabled ->
+              false
+
+            id == :nodeinfo_monitor and
+                not Application.get_env(:sukhi_api, :nodeinfo_monitor_configured, false) ->
+              false
+
+            enabled == :all ->
+              true
+
+            is_list(enabled) ->
+              id in enabled
+
+            true ->
+              true
           end
       end
     end)

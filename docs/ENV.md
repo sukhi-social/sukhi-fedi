@@ -19,7 +19,7 @@ top — those win.
 | Var | Required | Default | Notes |
 |---|---|---|---|
 | **`DOMAIN`** | **yes** (prod) | `localhost:4000` (dev) | Public hostname, no scheme, no port. Stamped into ActivityPub IDs and HTTP-Sig `keyId`. **Changing this after users exist strands their fediverse identity** — set it right before the first signup. |
-| `INSTANCE_TITLE` | no | `sukhi-fedi` | Display name in `/api/v1/instance` and `/.well-known/nodeinfo/2.0`. |
+| `INSTANCE_TITLE` | no | — | Deprecated; set `site_name` in the required `SUKHI_INSTANCE_CONFIG` file. |
 
 ## Distributed Erlang (gateway ↔ api)
 
@@ -118,8 +118,9 @@ path takes its credentials, region and bucket from the same config.
 | `PUBLIC_PREVIEW` | `off` | Server-rendered preview for logged-out visitors/crawlers: `off`, `meta` (OG / Twitter / JSON-LD head only) or `full` (plus a readable body). Public content only. |
 | `PUBLIC_PREVIEW_ROBOTS` | `noindex, nofollow` | The meta-robots string on preview pages. Set `index, follow` to be crawled. |
 | `SSR_URL` | — | When set (natadeco: `http://natadeco-ssr:3000`), pages that would get the empty SPA shell are forwarded to this SSR server. |
-| `WEB_UPSTREAMS` | — | The web fronts behind this gateway: `name=url,name=url` (e.g. `web-next=http://web-next:3000`). Each serves a static `/.sukhi/web.json` saying which paths (and cookies) it handles; the gateway reads it at boot and every 30 s. Unset = off. See `SukhiFedi.Web.Upstreams`. |
-| `WEB_ROUTES` | — | Who wins when two fronts could answer: `pattern=name,pattern=name`, **first match wins** — write specific rows first (`/home=web-lobby,/**=web-next`). A row only counts if its front also claims the path. Paths with a dot-led segment are never forwarded. |
+| `SUKHI_INSTANCE_CONFIG` | `/etc/sukhi/instance.json` | Required mounted non-secret JSON for site metadata, optional `unauthenticated_redirect`, addon switches, `frontends` (`relay`, `web-next`, `web-simple`, `web-board`, `web-lobby`) and ordered routes. If routes are empty, `/` shows the frontend setup instructions. `nodeinfo_monitor` is disabled unless `addons.nodeinfo_monitor` is explicitly `true`. See `config/instance.json.example`. |
+| `WEB_UPSTREAMS` | — | Removed. Define frontend URLs in `SUKHI_INSTANCE_CONFIG`. |
+| `WEB_ROUTES` | — | Removed. Define route precedence and frontend selection in `SUKHI_INSTANCE_CONFIG`; first match wins. |
 | `STATIC_OVERRIDE_ONLY` | — | `true` = `STATIC_OVERRIDE=only` (kept for natadeco). See `docs/static-override.ja.md`. |
 | `WT_TICKET_KEY` | — | Ed25519 seed (raw 32 bytes, base64) that signs WebTransport entry tickets. Unset → `/api/wt` answers 503. |
 | `WT_ENDPOINT` | `https://webtransport.f3liz.casa/wt` | The WebTransport edge a ticket is for. |
@@ -163,6 +164,11 @@ endpoints, web push, moderation, etc.). See [`docs/ADDONS.md`](ADDONS.md).
 | `OJAK_LD_BACKEND` | no | `native` | `ojak` → RsaSignature2017 sign/verify through ojak-ex. |
 | `OJAK_NIF_BUILD` | no | unset | Build time only: `1` builds ojak-ex's native library with Rust instead of downloading the prebuilt one. |
 | `ENABLED_CAPABILITIES` | no | all | API node only. Restrict which capability modules under `api/lib/sukhi_api/capabilities/` are mounted. Use to run specialised API nodes (e.g. admin-only). |
+
+`nodeinfo_monitor` is intentionally different from the other addons: it is
+disabled unless `addons.nodeinfo_monitor` is explicitly `true` in
+`SUKHI_INSTANCE_CONFIG`. This keeps a normal SNS deployment from exposing or
+starting the watcher just because the generic addon default is `all`.
 
 ## Delivery queue backend (delivery)
 
