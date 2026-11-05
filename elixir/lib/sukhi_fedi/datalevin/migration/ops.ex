@@ -24,7 +24,9 @@ defmodule SukhiFedi.Datalevin.Migration.Ops do
   @doc "Give `attr` the value `value` on every entity that has `anchor` and lacks `attr`. Returns how many it set."
   @spec backfill!(Ctx.t(), anchor :: attr(), attr(), term()) :: non_neg_integer()
   def backfill!(%Ctx{} = ctx, anchor, attr, value) when not is_nil(value) do
-    where = "[?e #{lit(anchor)} _] [(missing? $ ?e #{lit(attr)})]"
+    # `not`, not `missing?`: dtlv's `missing?` also counts a stored `false`
+    # as missing, and a boolean that is `false` is a value (CI showed it).
+    where = "[?e #{lit(anchor)} _] (not [?e #{lit(attr)} _])"
 
     each_match(ctx, "[?e ...]", where, fn eids ->
       eids
