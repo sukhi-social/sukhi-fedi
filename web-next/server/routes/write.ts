@@ -8,7 +8,7 @@ import { config } from '../config.ts';
 import { gw, gwJson, gwPage, GatewayError } from '../gateway.ts';
 import { html, raw, type SafeHtml } from '../html.ts';
 import { ok, redirect, route, type Ctx, type Reply } from '../http.ts';
-import { saveSession } from '../session.ts';
+import { saveSession, setMe } from '../session.ts';
 import { delayWords, timeWords } from '../time.ts';
 import type { Account, Notification, NotificationType, Relationship, Status } from '../types.ts';
 import { layout } from '../views/layout.ts';
@@ -75,9 +75,7 @@ route('POST', '/timeline/default', async (ctx) => {
   fd.set('home_filter', value);
   try {
     const updated = await gwJson<Account>(ctx, 'PATCH', '/api/v1/accounts/update_credentials', { form: fd });
-    const s = ctx.sess();
-    s.me = updated;
-    saveSession(s);
+    setMe(ctx.sess(), updated);
     ctx.flash('notice', t(clear || !value ? 'timeline.defaultCleared' : 'timeline.defaultSaved'));
   } catch (e) {
     if (!(e instanceof GatewayError || e instanceof TypeError)) throw e;

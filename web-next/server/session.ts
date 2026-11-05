@@ -14,8 +14,10 @@ import type { Account, TokenSet } from './types.ts';
 export type Session = {
   id: string;
   token?: TokenSet;
-  // verify_credentials のひかえ。ナビのアバターと「これは自分の投稿か」に使う。
+  // verify_credentials のひかえ。ナビのアバターと「これは自分の投稿か」、翻訳の設定などに使う。
+  // 別の端末・別のタブ(= 別の session)で変えた設定が届くよう、meAt から config.meTtlMs を過ぎたら引きなおす(http.ts の ctx.me)。
   me?: Account;
+  meAt?: number;
   oauthState?: string;
   // anubis の関所(/check)を通ったあとの行き先。ここに無い人が /check に来ても、何も始まらない。
   // メールのコードを送るのも、この関所の後(元の web の「メールは Anubis の後」)。
@@ -74,6 +76,13 @@ export function createSession(): Session {
 export function saveSession(s: Session): void {
   sessions.set(s.id, s);
   persist();
+}
+
+// 手元の「自分」を置きかえる。置く場所はここ一か所 ── 時刻を一緒に覚えるため。
+export function setMe(s: Session, me: Account): void {
+  s.me = me;
+  s.meAt = Date.now();
+  saveSession(s);
 }
 
 export function destroySession(id: string): void {

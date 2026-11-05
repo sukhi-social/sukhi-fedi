@@ -84,7 +84,7 @@ let child: ChildProcess;
 
 before(async () => {
   child = spawn('node', ['mock/dev.mjs'], {
-    env: { ...process.env, SUKHI_DEV_TOKEN: 'mock', QUIET: '1', PORT: String(PORT), MOCK_PORT: '4194', PUBLIC_ORIGIN: BASE },
+    env: { ...process.env, SUKHI_DEV_TOKEN: 'mock', QUIET: '1', PORT: String(PORT), MOCK_PORT: '4194', PUBLIC_ORIGIN: BASE, ME_TTL_MS: '300' },
     stdio: 'ignore'
   });
   for (let i = 0; i < 50; i++) {
@@ -353,4 +353,42 @@ test('自動(オフにしたあと): gateway が auto_off と断る。黙って�
   assert.match(frag, /訳を見る/);
   const home = await (await go('/')).text();
   assert.doesNotMatch(home, /data-tr-auto/); // オフなら、印は付かない
+});
+
+// ── 別の端末・別のタブ(= 別の session)でも、設定は同じ ─────────────
+// session の「自分」のひかえは、その session の中だけで更新されていた ── 別の端末で変えた設定が届かず、
+// 設定の頁も、ホームの「訳を見る」も、古いまま。一定の間(ME_TTL_MS)を過ぎたら引きなおし、設定の頁は毎回引く。
+const otherDevice = async () => {
+  const first = await fetch(`${BASE}/settings/translation`, { redirect: 'manual', headers: { origin: BASE } });
+  const cookie = first.headers.get('set-cookie')?.split(';')[0] ?? '';
+  assert.ok(cookie, '別の session が始まる');
+  const get = (path: string) => fetch(`${BASE}${path}`, { redirect: 'manual', headers: { cookie, origin: BASE } }).then((r) => r.text());
+  return { get };
+};
+
+test('別の端末: 設定の頁は、いつも gateway の今を見せる(待たずに届く)', async () => {
+  const b = await otherDevice();
+  const before = await b.get('/settings/translation');
+  assert.doesNotMatch(before, /name="auto" value="1" x-model="auto" checked/);
+
+  await saveSettings([['reads', 'ja'], ['reads', 'fr'], ['learns', 'ko'], ['engine', 'libre'], ['auto', '1']]); // こちらで変える
+
+  const after = await b.get('/settings/translation');
+  assert.match(after, /name="auto" value="1" x-model="auto" checked/);
+  assert.match(after, /name="reads" value="fr" checked/);
+  assert.match(after, /name="learns" value="ko" checked/);
+});
+
+test('別の端末: ホームの「訳を見る」も、しばらくすると今の設定に揃う', async () => {
+  await saveSettings([['reads', 'ja'], ['reads', 'ko'], ['engine', 'libre']]); // ko は読める
+  const b = await otherDevice();
+  const koCard = (page: string) => page.slice(page.indexOf('id="st-1002"'), page.indexOf('id="st-1003"'));
+  assert.doesNotMatch(koCard(await b.get('/')), /action="\/statuses\/1002\/translate"/); // 読めるので、出ない
+
+  await saveSettings([['reads', 'ja'], ['engine', 'libre']]); // こちらで、ko を読めないことにする
+  await new Promise((r) => setTimeout(r, 400)); // ひかえが古くなるまで
+
+  const later = koCard(await b.get('/'));
+  assert.match(later, /action="\/statuses\/1002\/translate"/);
+  assert.match(later, /訳を見る/);
 });

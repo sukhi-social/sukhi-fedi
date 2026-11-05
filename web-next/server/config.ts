@@ -11,6 +11,8 @@
 //   SITE_NAME         ナビ・入口の帯・<title> に出すサイトの名前(既定 sukhi-fedi)
 //   SITE_LOGO         その横に出すロゴの画像。`/…` のパスか `https://…`(既定 /favicon.png)。
 //                     image を焼きなおさずに替えるなら、data/brand/ にファイルを置いて /brand/<ファイル名> を書く
+//   ME_TTL_MS         手元にひかえた「自分」(設定を含む)を、gateway に引きなおすまでの間(ms、既定 15000)。
+//                     別の端末・別のタブで変えた設定が、この間のうちに届く
 //   SUKHI_DEV_TOKEN   dev のときだけ。入った状態から始める(mock 用)
 
 import { fileURLToPath } from 'node:url';
@@ -32,6 +34,7 @@ export const config = {
   secureCookie: process.env.COOKIE_SECURE === '1',
   postDelayMin: Number(process.env.POST_DELAY_MIN ?? 15),
   notifyHoldMin: Number(process.env.NOTIFY_HOLD_MIN ?? 60),
+  meTtlMs: Number(process.env.ME_TTL_MS ?? 15_000),
   devToken: process.env.NODE_ENV === 'production' ? undefined : process.env.SUKHI_DEV_TOKEN,
   // 書き読みの scope。広げたら、登録しなおしになる(client.ts が比べる)。
   scopes: 'read write follow push',

@@ -20,6 +20,9 @@
   and shown the same way, paler, with `訳(機械翻訳・自動)` and the engine name. Failures stay
   silent; the button is still there. The whole of it, and why it is shaped this way:
   [`TRANSLATION_AUTO.md`](TRANSLATION_AUTO.md).
+- Your settings follow you: change them on one device and every other device or tab sees
+  the same ones within seconds (the settings page, immediately). The postal service keeps a
+  short-lived copy of your account per browser session and re-reads it after `ME_TTL_MS`.
 - Settings (読めることば / 学んでいることば / 訳し役 / DeepL key) live in one place. The languages are small chips: ja / en / ko and whatever you picked are shown, the rest are under 「ほかのことば」. The
   note "your post text goes to a company outside this server" is shown **once, there**, when
   you choose DeepL — not on the timeline.

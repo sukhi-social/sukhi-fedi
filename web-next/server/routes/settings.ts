@@ -11,7 +11,7 @@ import { GatewayError, gwJson } from '../gateway.ts';
 import { html, type SafeHtml } from '../html.ts';
 import { ok, redirect, route, type Ctx, type Reply } from '../http.ts';
 import { LOCALES, LOCALE_NAMES, type TranslationKey } from '../i18n.ts';
-import { saveSession } from '../session.ts';
+import { setMe } from '../session.ts';
 import { delayWords } from '../time.ts';
 import { isAdmin, type Account } from '../types.ts';
 import { layout } from '../views/layout.ts';
@@ -213,7 +213,7 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
 }
 
 route('GET', '/settings', async (ctx) => {
-  const me = await needMe(ctx);
+  const me = await needMe(ctx, { fresh: true });
   return settingsPage(ctx, me, valuesOf(me));
 });
 
@@ -274,9 +274,7 @@ route('POST', '/settings', async (ctx) => {
   try {
     const updated = await gwJson<Account>(ctx, 'PATCH', '/api/v1/accounts/update_credentials', { form: fd });
     // 返ってきた自分を手元にひかえ直す(ナビのアイコンも、これを読む)。
-    const s = ctx.sess();
-    s.me = updated;
-    saveSession(s);
+    setMe(ctx.sess(), updated);
     ctx.flash('notice', t('settings.saved'));
     return redirect('/settings');
   } catch (e) {

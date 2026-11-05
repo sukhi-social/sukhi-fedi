@@ -10,8 +10,9 @@ import { warmTranslation } from '../translate.ts';
 import { statusCard, theEnd } from '../views/status.ts';
 
 // 入っている人。入っていなければ Unauthorized(→ /login へ)。
-export async function needMe(ctx: Ctx): Promise<Account> {
-  const me = await ctx.me();
+// fresh = 設定の頁を開くとき。別の端末で変えた値を、古いまま見せない(ctx.me の fresh)。
+export async function needMe(ctx: Ctx, opts?: { fresh?: boolean }): Promise<Account> {
+  const me = await ctx.me(opts);
   if (!me) throw new Unauthorized();
   return me;
 }
