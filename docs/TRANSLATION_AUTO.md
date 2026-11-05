@@ -20,9 +20,12 @@ a whole stretch of reading, instead of once per post.
 ## What the person sees
 
 - **Off by default.** One switch in `/settings/translation`: 画面に入った投稿を、自動で訳す.
-  Turning it on shows, there and only there, what it means (the same place the DeepL note lives):
-  the post text goes to the translator when a post stays on screen; with DeepL it goes to DeepL
-  on your key and spends your month's allowance.
+  Turning it on shows, there and only there, two short lines — the text goes to the translator
+  when a post stays on screen; and, **only for the engine you chose**, with DeepL "your key, a
+  company outside, this month's allowance" / with the server's own translator "stays on this
+  server". Everything else (which posts are skipped, that failures stay silent) is folded under
+  くわしく. A note read before a switch must be short enough to be read: the facts that change
+  the decision first, the rest one tap away.
 - **Which posts.** A post is translated on its own only if all of these hold, otherwise it keeps
   the plain 訳を見る button (so the button is always the fallback, never a dead end):
   1. it is in a language that is neither in `読めることば` nor in `学んでいることば`;
