@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import Config
 
+# The bundled legal wording the tests serve. Production names its set
+# explicitly (LEGAL_FLAVOR); there is no default there.
+config :sukhi_fedi, :legal_flavor, :sukhi
+
 # Connection is env-overridable so the same test suite runs against the
 # docker-compose Postgres (default) or the PGlite embedded DB (no Docker;
 # `make test-pglite` / `node --import tsx services/test_db.ts`). PGlite serves a
