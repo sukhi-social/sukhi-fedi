@@ -1,8 +1,8 @@
 <!--lab:shell-->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <title>投稿の翻訳(案)</title>
-<meta name="lab:desc" content="原文は動かさず、その下に訳を足す。読む人は『訳を見る』を自分で押す。学んでいることばの投稿だけ、訳は閉じて淡く。自動では訳さない。外に本文が出るときは、押す場所で言う。">
-<meta name="lab:scenes" content="opened=訳をひらいた;learn=学ぶ見せ方(ko を学んでいる);busy=いま混んでいる;consent=はじめての DeepL;settings=設定">
+<meta name="lab:desc" content="原文は動かさず、その下に訳を足す。読む人は『訳を見る』を自分で押す。学んでいることばの投稿だけ、訳は閉じて淡く。自動では訳さない。本文が外に出る話は、DeepL を選ぶ設定のところに一度だけ。タイムラインでは言わず、訳の欄にエンジン名を出す。">
+<meta name="lab:scenes" content="opened=訳をひらいた;learn=学ぶ見せ方(ko を学んでいる);busy=いま混んでいる;settings=設定;consent=設定で DeepL を選んだとき">
 <meta name="lab:nav" content="home">
 <style>
   /* モック専用の見た目。色・字・間は tokens.css から。決まったら components.css に移す。 */
@@ -26,8 +26,8 @@
 
   /* 場面 */
   html:not([data-s~=busy]) .only-busy, html:not([data-s~=consent]) .only-consent,
-  html:not([data-s~=settings]) .only-settings { display: none; }
-  html[data-s~=settings] .timeline-part { display: none; }
+  html:not([data-s~=settings]):not([data-s~=consent]) .only-settings { display: none; }
+  html[data-s~=settings] .timeline-part, html[data-s~=consent] .timeline-part { display: none; }
   .set { display: grid; gap: 1rem; max-width: var(--measure); margin-inline: auto; width: 100%; }
   .set h2 { margin: 0; font-size: 1.25rem; }
   .set h3 { margin: 0; font-size: 1rem; }
@@ -112,13 +112,6 @@
     </div>
   </article>
 
-  <!-- はじめて DeepL を使うとき: 押す場所で、本文がどこへ行くかを言う。 -->
-  <div class="tr-note only-consent" role="dialog" aria-label="DeepL に送る前に">
-    <h3>この投稿の本文を、DeepL に送ります</h3>
-    <p>DeepL は、sukhi の外にある会社です。あなたの DeepL のキーで、この投稿の本文(と、内容警告があればそれ)だけを送ります。ほかには何も送りません。訳は保存せず、あなた以外には見えません。</p>
-    <p class="muted text-sm">フォロワー限定の投稿は、DeepL には送れません(この場所の訳し役だけで訳します)。</p>
-    <div class="row"><button type="button" class="chip">やめておく</button><button type="button" class="chip active">送って訳す</button></div>
-  </div>
 </section>
 
 <!-- 設定: 読めることば・学んでいることば・訳し役。DeepL の案内は、ここにだけ置く。 -->
@@ -142,8 +135,14 @@
 
   <div class="tr-note">
     <h3>訳し役</h3>
-    <div class="opts"><button class="chip active" type="button" aria-pressed="true">この場所の訳し役(LibreTranslate)</button><button class="chip" type="button" aria-pressed="false">DeepL(自分のキー)</button></div>
-    <p class="muted text-sm">この場所の訳し役は、本文をこのサーバーの中でだけ使います。DeepL を選ぶと、本文が DeepL(外の会社)に渡ります。選んだ訳し役が使えないとき、黙って別の訳し役に変わることはありません。</p>
+    <div class="opts"><button class="chip" type="button" aria-pressed="false">この場所の訳し役(LibreTranslate)</button><button class="chip active" type="button" aria-pressed="true">DeepL(自分のキー・外の会社)</button></div>
+    <p class="muted text-sm">この場所の訳し役は、本文をこのサーバーの中でだけ使います。選んだ訳し役が使えないとき、黙って別の訳し役に変わることはありません。</p>
+    <!-- DeepL を選ぶ設定のところに、一度だけ。タイムラインでは言わない(ラベルにエンジン名が出ている)。 -->
+    <div class="tr-note only-consent" role="note">
+      <h3>DeepL を選ぶと</h3>
+      <p>訳すとき、その投稿の本文(と内容警告)が、あなたのキーで DeepL(sukhi の外の会社)に送られます。送るのはそれだけで、訳は保存されず、あなた以外には見えません。</p>
+      <p class="muted text-sm">フォロワー限定の投稿は、DeepL には送らず、この場所の訳し役で訳します(訳の欄に、どちらで訳したかが出ます)。</p>
+    </div>
     <label class="field">DeepL の API キー(使うときだけ)
       <input type="password" placeholder="末尾の4文字だけ表示されます" autocomplete="off" />
     </label>
