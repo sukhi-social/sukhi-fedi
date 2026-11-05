@@ -55,6 +55,10 @@ sudo systemctl list-timers | grep -E 'sukhi|certbot|dnf'   # 自動のものが�
 
 取った写しを、restic で暗号化して off-host(B2 など)に置く、という形は既存の一式に載せられる見込み。
 
+**計画して止めるときの控えは実装済み**: [`OPS_DRAIN_BACKUP.ja.md`](OPS_DRAIN_BACKUP.ja.md)(`scripts/sukhi-drain.sh run`)。
+受付を止め、仕事を静かにしてから、Datalevin(`graph` を含む)を `dtlv copy`、SQLite を `VACUUM INTO` で取り、**開くか読み戻して**から控えと呼ぶ。
+夜の定期の控え(timer)と restic への組み込みは、まだ。実機の `dtlv` では未確認(同文書 §7)。
+
 ### 3.3 二軸のリカバリ(取り違えない)
 
 | | 何をする | いつ | データ損失 |

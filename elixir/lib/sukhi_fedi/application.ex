@@ -7,6 +7,10 @@ defmodule SukhiFedi.Application do
 
   @impl true
   def start(_type, _args) do
+    # A fresh process is always open; this also overwrites a marker left
+    # `closed` by the drain before the shutdown that led to this boot.
+    SukhiShared.Intake.boot()
+
     instance_config = SukhiShared.InstanceConfig.load()
     Application.put_env(:sukhi_fedi, :instance_config, instance_config)
 

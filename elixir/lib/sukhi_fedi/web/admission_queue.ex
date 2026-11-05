@@ -73,6 +73,20 @@ defmodule SukhiFedi.Web.AdmissionQueue do
   def hold_ms, do: Application.get_env(:sukhi_fedi, :admission_hold_ms, @default_hold_ms)
 
   @doc """
+  How many `/api` requests are running right now — by counting the pids that
+  are alive, not the table's size (a request that died without leaving keeps
+  its entry until the next sweep). The drain waits for this to reach 0 after
+  it closes the door (`SukhiFedi.Maintenance.Drain`). `0` before the tables
+  exist. Not for the hot path: it reads the whole table.
+  """
+  @spec running() :: non_neg_integer()
+  def running do
+    @flight |> :ets.tab2list() |> Enum.count(fn {pid} -> Process.alive?(pid) end)
+  rescue
+    ArgumentError -> 0
+  end
+
+  @doc """
   Ask to run this request now. `:ok` means a slot is held — pair it with
   `leave/1`; `:free` means the request is too cheap to count (`heavy?/1`). `{:wait, …}` carries the ticket to hand the client.
 
