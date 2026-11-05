@@ -169,6 +169,14 @@ defmodule SukhiFedi.Web.LegalController do
   defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor, :sukhi)
   defp docs, do: Map.fetch!(@docs, flavor())
 
+  # The terms and privacy pages carry the operator's own contact lines as
+  # `{{placeholders}}` (SukhiFedi.Legal.Values); they are filled here, on the
+  # way out, and nowhere else.
+  defp filled(body) do
+    instance = Application.get_env(:sukhi_fedi, :instance_config, %{})
+    SukhiFedi.Legal.Values.fill(body, SukhiFedi.Legal.Values.resolve(flavor(), instance))
+  end
+
   # Fonts are subset to the glyphs these docs use and embedded as base64 at
   # compile time — no external request (Google Fonts would leak the reader's
   # IP, which is the wrong thing to do on a *privacy* page) and nothing extra
@@ -315,7 +323,7 @@ defmodule SukhiFedi.Web.LegalController do
           conn,
           "ko",
           "개인정보 처리방침",
-          body.privacy_ko,
+          filled(body.privacy_ko),
           "/privacy",
           {"이용약관", "/terms"},
           signup?(conn)
@@ -326,7 +334,7 @@ defmodule SukhiFedi.Web.LegalController do
           conn,
           "ja",
           "個人情報の取り扱いについて",
-          body.privacy_ja,
+          filled(body.privacy_ja),
           "/privacy",
           {"利用規約", "/terms"},
           signup?(conn)
@@ -344,7 +352,7 @@ defmodule SukhiFedi.Web.LegalController do
           conn,
           "ko",
           "이용약관",
-          body.terms_ko,
+          filled(body.terms_ko),
           "/terms",
           {"개인정보 처리방침", "/privacy"},
           signup?(conn)
@@ -355,7 +363,7 @@ defmodule SukhiFedi.Web.LegalController do
           conn,
           "ja",
           "利用規約",
-          body.terms_ja,
+          filled(body.terms_ja),
           "/terms",
           {"プライバシーポリシー", "/privacy"},
           signup?(conn)

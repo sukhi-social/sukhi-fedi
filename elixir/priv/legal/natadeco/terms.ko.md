@@ -98,8 +98,8 @@
 
 불편한 게 있거나 물어보고 싶은 게 있으면 편하게 연락해주세요.
 
-- ActivityPub(운영 계정): [@admin@natadeco.com]
-- Email: [admin@natadeco.com]
+- ActivityPub(운영 계정): [{{contact_activitypub}}]
+- Email: [{{contact_email}}]
 
 보내주신 건 전부 읽어요. 답장이 늦을 것 같으면 중간에 "읽었어요"라고 먼저
 알릴게요.

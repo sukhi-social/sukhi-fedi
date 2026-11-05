@@ -114,6 +114,11 @@ SMTP_HOST=…  SMTP_USERNAME=…  SMTP_PASSWORD=…  MAIL_FROM=no-reply@example.
 から選ぶ。外部 frontend は URL を持つ定義にし、route で参照されたものだけが
 gateway の接続対象になる。`WEB_UPSTREAMS`、`WEB_ROUTES`、`INSTANCE_TITLE` は使わない。
 
+利用規約・プライバシーポリシーに載せる運営者の連絡先は、同じファイルの `legal`
+(`contact_email`、`contact_activitypub`)で決める。書かなければ `LEGAL_FLAVOR` ごとの
+既定の連絡先が出るので、**自分のサーバーでは必ず自分の連絡先に書き換える**
+(起動ログの `legal_contact=configured` で確かめる)。文面そのものは変わらない。
+
 - `.env` は **権限 600**、リポジトリに入れない、チャットに貼らない。
 - 秘密はファイルで渡す方法もある(`/run/secrets` に 1 変数 1 ファイル。`combined/rel/entrypoint.sh`)。
 - 設定の一覧は [`ENV.md`](ENV.md)。小さな箱の Datalevin の値は [`DATALEVIN.md`](DATALEVIN.md)。

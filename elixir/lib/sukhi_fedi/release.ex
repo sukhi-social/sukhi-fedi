@@ -93,7 +93,8 @@ defmodule SukhiFedi.Release do
         "declared_frontends=#{map_size(Map.fetch!(config, "frontends"))} " <>
         "external_frontends=#{map_size(SukhiShared.InstanceConfig.frontends(config))} " <>
         "active_frontends=#{map_size(SukhiShared.InstanceConfig.active_frontends(config))} " <>
-        "routes=#{length(SukhiShared.InstanceConfig.routes(config) || [])}"
+        "routes=#{length(SukhiShared.InstanceConfig.routes(config) || [])} " <>
+        "legal_contact=#{SukhiFedi.Legal.Values.source(config)}"
     )
 
     Logger.info("runtime_connection_check_start service=nats")

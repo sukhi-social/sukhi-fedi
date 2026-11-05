@@ -115,6 +115,7 @@ path takes its credentials, region and bucket from the same config.
 |---|---|---|
 | `INVITE_REQUIRED` | `true` | `false` lets anyone register. A mailbox is still verified either way. |
 | `LEGAL_FLAVOR` | `sukhi` | Which `/terms` and `/privacy` set to serve: `sukhi` or `natadeco`. Both are baked into the release. |
+| `SUKHI_INSTANCE_CONFIG` → `legal` | the flavor's own address | The operator's contact printed on `/terms` and `/privacy`: `legal.contact_email` (`name@host`) and `legal.contact_activitypub` (`@name@host`). Each key falls back to the `LEGAL_FLAVOR`'s built-in address when left out; boot logs `legal_contact=configured` or `flavor_default`. A value that is not an address refuses to boot. Only these two are configurable — the words around them are the policy. |
 | `PUBLIC_PREVIEW` | `off` | Server-rendered preview for logged-out visitors/crawlers: `off`, `meta` (OG / Twitter / JSON-LD head only) or `full` (plus a readable body). Public content only. |
 | `PUBLIC_PREVIEW_ROBOTS` | `noindex, nofollow` | The meta-robots string on preview pages. Set `index, follow` to be crawled. |
 | `SSR_URL` | — | When set (natadeco: `http://natadeco-ssr:3000`), pages that would get the empty SPA shell are forwarded to this SSR server. |
