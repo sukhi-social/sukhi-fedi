@@ -45,6 +45,37 @@ beginning. That is why they must be safe to repeat.
 bin/sukhi_fedi eval 'SukhiFedi.Release.datalevin_migration_status()'
 ```
 
+## Running it by hand (short guide)
+
+The entrypoint already does this on every start. Do it by hand when you want
+to watch it, or to migrate before switching traffic over.
+
+1. **Stop the app.** Datalevin has one writer; nothing else may have the
+   store open.
+2. **Look.** Nothing is changed by this:
+   ```sh
+   podman exec <gateway-container> /app/bin/combined eval \
+     'SukhiFedi.Release.datalevin_migration_status()'
+   ```
+   `state=pending` lists the versions that will run. `state=error` says why
+   it will not (newer data, a missing migration).
+3. **Back up** the whole `DATALEVIN_DIR` (including `graph/`). The migrator
+   copies it too, but a copy you made yourself is the one you chose.
+4. **Run:**
+   ```sh
+   podman exec <gateway-container> /app/bin/combined eval \
+     'SukhiFedi.Release.migrate_all()'
+   ```
+   It prints `datalevin_migration_start` / `_done` for each one, and ends with
+   `store_init_complete`.
+5. **Look again** (step 2). It should say `state=current`.
+6. **Start the app.**
+
+If step 4 fails, read the message, fix the cause, and run step 4 again; a
+migration that stopped midway starts over from its beginning. To go back
+instead, stop the app, put the copy from step 3 (or from
+`datalevin-premigrate/`) back, and start the previous release.
+
 ## Writing a migration
 
 You need one only when the schema loses or changes an attribute, or old rows
