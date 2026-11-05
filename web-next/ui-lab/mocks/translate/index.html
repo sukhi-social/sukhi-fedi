@@ -1,0 +1,154 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>投稿の翻訳(案)</title>
+<meta name="lab:desc" content="原文は動かさず、その下に訳を足す。読む人は『訳を見る』を自分で押す。学んでいることばの投稿だけ、訳は閉じて淡く。自動では訳さない。外に本文が出るときは、押す場所で言う。">
+<meta name="lab:scenes" content="opened=訳をひらいた;learn=学ぶ見せ方(ko を学んでいる);busy=いま混んでいる;consent=はじめての DeepL;settings=設定">
+<meta name="lab:nav" content="home">
+<style>
+  /* モック専用の見た目。色・字・間は tokens.css から。決まったら components.css に移す。 */
+  .tr-lab { display: contents; }
+  .tr-box { margin-top: .5rem; border-left: 3px solid var(--color-border); padding: .1rem 0 .1rem .75rem; display: grid; gap: .3rem; }
+  .tr-label { margin: 0; display: flex; flex-wrap: wrap; gap: .25rem .6rem; align-items: center; font-size: .75rem; color: var(--color-text-muted); }
+  .tr-label button { all: unset; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .tr-body { margin: 0; }
+  .tr-btn { font-size: .8125rem; }
+  .tr-hint { margin: .35rem 0 0; font-size: .75rem; color: var(--color-text-muted); }
+  .tr-note { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); padding: .75rem .9rem; display: grid; gap: .4rem; margin-block: .5rem; }
+  .tr-note h3 { margin: 0; font-size: .9375rem; }
+  .tr-note p { margin: 0; }
+  .tr-note .row { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; }
+  .tr-lang { font-size: .6875rem; border: 1px solid var(--color-border); border-radius: 999px; padding: 0 .45rem; color: var(--color-text-muted); }
+
+  /* 学ぶ見せ方: 訳は閉じて、淡く小さい。開いても原文より淡い。 */
+  html[data-s~=learn] .learn-on .tr-box { border-left-color: transparent; }
+  html[data-s~=learn] .learn-on .tr-body { color: var(--color-text-muted); font-size: .875rem; }
+  html[data-s~=learn] .learn-on .tr-btn { color: var(--color-text-muted); font-size: .75rem; }
+
+  /* 場面 */
+  html:not([data-s~=busy]) .only-busy, html:not([data-s~=consent]) .only-consent,
+  html:not([data-s~=settings]) .only-settings { display: none; }
+  html[data-s~=settings] .timeline-part { display: none; }
+  .set { display: grid; gap: 1rem; max-width: var(--measure); margin-inline: auto; width: 100%; }
+  .set h2 { margin: 0; font-size: 1.25rem; }
+  .set h3 { margin: 0; font-size: 1rem; }
+  .set p { margin: 0; }
+  .set .muted { color: var(--color-text-muted); }
+  .set .opts { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .set label.field { display: grid; gap: .25rem; font-size: .875rem; }
+  .set input[type=password], .set input[type=text] { font: inherit; padding: .5rem .6rem; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); color: var(--color-text); }
+</style>
+
+<div class="tr-lab">
+<section class="timeline timeline-part" aria-label="タイムライン(例)">
+
+  <!-- 注: 実装では .status の中身を使う。ここは並べて比べるための最小の形。 -->
+
+  <!-- ① ko の投稿。読む人は ja。ko は「読めることば」に入っていないので、ボタンが出る。 -->
+  <article class="status" x-data="{ open: lab.has('opened') }" :class="{ 'learn-on': lab.has('learn') }" id="p1">
+    <span class="avatar" style="background:hsl(150 40% 86%);color:hsl(150 40% 28%)" aria-hidden="true">수</span>
+    <div class="body">
+      <header class="meta">
+        <a class="display-name" href="#">수진</a>
+        <span class="handle">@sujin@maru.example</span>
+        <span class="sep">·</span><time>12分前</time>
+        <span class="tr-lang" lang="ja">한국어</span>
+      </header>
+      <div class="content" lang="ko"><p>오늘은 비가 와서 집에서 천천히 뜨개질을 했어요. 따뜻한 차 한 잔이 있으면 충분한 하루예요.</p></div>
+
+      <!-- 訳を見る: 押したときだけ。原文は動かさない。 -->
+      <p class="tr-hint" x-show="!open && !lab.has('busy')">
+        <button type="button" class="chip tr-btn" @click="open = true"><span x-text="lab.has('learn') ? '訳をひらく' : '訳を見る'"></span></button>
+        <span class="only-learn-hint" x-show="lab.has('learn')">韓国語を学んでいます。まず自分で読んでみて、わからなければ。</span>
+      </p>
+
+      <div class="tr-box" x-show="open" x-cloak lang="ja" translate="no">
+        <p class="tr-label">
+          <span>訳(機械翻訳)</span><span>・</span><span>LibreTranslate</span>
+          <button type="button" @click="open = false">とじる</button>
+        </p>
+        <p class="tr-body">今日は雨が降ったので、家でゆっくり編み物をしました。温かいお茶が一杯あれば、それで十分な一日です。</p>
+      </div>
+
+      <!-- いま混んでいる: 責めない・理由・次の一手。自動で再試行しない。 -->
+      <div class="tr-note only-busy" role="status">
+        <h3>いま、訳し役が混んでいます</h3>
+        <p class="muted">少しあとで、もう一度「訳を見る」を押してください。原文は、このまま読めます。</p>
+        <div class="row"><button type="button" class="chip">あとで</button></div>
+      </div>
+    </div>
+  </article>
+
+  <!-- ② en の投稿。読む人の「読めることば」に en が入っているなら、ボタンは出ない(設定で決まる)。ここでは入っていない場合。 -->
+  <article class="status" x-data="{ open: false }" id="p2">
+    <span class="avatar" style="background:hsl(20 60% 88%);color:hsl(20 50% 35%)" aria-hidden="true">M</span>
+    <div class="body">
+      <header class="meta">
+        <a class="display-name" href="#">Mika</a>
+        <span class="handle">@mika@yarn.example</span>
+        <span class="sep">·</span><time>1時間前</time>
+        <span class="tr-lang" lang="ja">English</span>
+      </header>
+      <div class="content" lang="en"><p>Finally finished the scarf I started in March. It's slightly uneven, and I like it that way.</p></div>
+      <p class="tr-hint" x-show="!open">
+        <button type="button" class="chip tr-btn" @click="open = true">訳を見る</button>
+      </p>
+      <div class="tr-box" x-show="open" x-cloak lang="ja" translate="no">
+        <p class="tr-label"><span>訳(機械翻訳)</span><span>・</span><span>LibreTranslate</span><button type="button" @click="open = false">とじる</button></p>
+        <p class="tr-body">3月に編みはじめたマフラーが、やっと編みあがりました。ちょっといびつだけど、それがいいんです。</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- ③ ja の投稿。読める言語なので、何も出さない。 -->
+  <article class="status" id="p3">
+    <span class="avatar" style="background:hsl(200 55% 88%);color:hsl(200 45% 32%)" aria-hidden="true">み</span>
+    <div class="body">
+      <header class="meta">
+        <a class="display-name" href="#">みつば</a>
+        <span class="handle">@mitsuba</span>
+        <span class="sep">·</span><time>3時間前</time>
+      </header>
+      <div class="content" lang="ja"><p>毛糸を買いに行ったら、いい色がありすぎて、結局なにも買えなかった。</p></div>
+    </div>
+  </article>
+
+  <!-- はじめて DeepL を使うとき: 押す場所で、本文がどこへ行くかを言う。 -->
+  <div class="tr-note only-consent" role="dialog" aria-label="DeepL に送る前に">
+    <h3>この投稿の本文を、DeepL に送ります</h3>
+    <p>DeepL は、sukhi の外にある会社です。あなたの DeepL のキーで、この投稿の本文(と、内容警告があればそれ)だけを送ります。ほかには何も送りません。訳は保存せず、あなた以外には見えません。</p>
+    <p class="muted text-sm">フォロワー限定の投稿は、DeepL には送れません(この場所の訳し役だけで訳します)。</p>
+    <div class="row"><button type="button" class="chip">やめておく</button><button type="button" class="chip active">送って訳す</button></div>
+  </div>
+</section>
+
+<!-- 設定: 読めることば・学んでいることば・訳し役。DeepL の案内は、ここにだけ置く。 -->
+<section class="set only-settings" aria-label="翻訳の設定(例)">
+  <div>
+    <h2>翻訳</h2>
+    <p class="muted">訳は、押したときだけ。あなたにだけ見えて、保存も配信もされません。</p>
+  </div>
+
+  <div class="tr-note">
+    <h3>読めることば</h3>
+    <p class="muted text-sm">ここにあることばの投稿には、「訳を見る」を出しません。</p>
+    <div class="opts"><button class="chip active" type="button" aria-pressed="true">日本語</button><button class="chip" type="button" aria-pressed="false">English</button><button class="chip" type="button" aria-pressed="false">한국어</button></div>
+  </div>
+
+  <div class="tr-note">
+    <h3>学んでいることば</h3>
+    <p class="muted text-sm">選んだことばの投稿だけ、訳を閉じて淡くします。選ばなければ、何も変わりません。</p>
+    <div class="opts"><button class="chip" type="button" aria-pressed="false">English</button><button class="chip active" type="button" aria-pressed="true">한국어</button></div>
+  </div>
+
+  <div class="tr-note">
+    <h3>訳し役</h3>
+    <div class="opts"><button class="chip active" type="button" aria-pressed="true">この場所の訳し役(LibreTranslate)</button><button class="chip" type="button" aria-pressed="false">DeepL(自分のキー)</button></div>
+    <p class="muted text-sm">この場所の訳し役は、本文をこのサーバーの中でだけ使います。DeepL を選ぶと、本文が DeepL(外の会社)に渡ります。選んだ訳し役が使えないとき、黙って別の訳し役に変わることはありません。</p>
+    <label class="field">DeepL の API キー(使うときだけ)
+      <input type="password" placeholder="末尾の4文字だけ表示されます" autocomplete="off" />
+    </label>
+    <p class="muted text-sm">キーは、書きこみ専用です。暗号化して置き、画面には末尾の4文字だけ出します。いつでも消せます。</p>
+    <div class="row" style="display:flex;gap:.5rem;justify-content:flex-end"><button class="chip" type="button">キーを消す</button><button class="chip active" type="button">保存</button></div>
+  </div>
+</section>
+</div>
