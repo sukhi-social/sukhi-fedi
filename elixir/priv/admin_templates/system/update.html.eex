@@ -1,0 +1,24 @@
+<section class="update update-<%= update.state %>">
+  <h2>更新</h2>
+  <%= case update.state do %>
+  <% :up_to_date -> %><p>いまの版が最新です。</p>
+  <% :update_available -> %><p><strong>新しい版が来ています。</strong> 署名と image の検証は通っています。適用は箱の同期が行います。</p>
+  <% :rejected -> %><p><strong>この版は適用に失敗して見送り中です。</strong> 動いているのは前の版です。</p>
+  <% :stale -> %><p><strong>しばらく確かめられていません。</strong> 箱の同期 timer が止まっているかもしれません。</p>
+  <% :error -> %><p><strong>確かめる途中で止まりました。</strong></p>
+  <% end %>
+  <dl>
+    <dt>いまの版</dt>
+    <dd><%= h((update.applied && update.applied["version"]) || "—") %></dd>
+    <%= if update.available do %>
+    <dt>来ている版</dt>
+    <dd><%= h(update.available["version"] || "—") %></dd>
+    <% end %>
+    <dt>最後に確かめた</dt>
+    <dd><%= h(update.checked_at || "—") %></dd>
+    <%= if update.last_error do %>
+    <dt>エラー</dt>
+    <dd><code><%= h(update.last_error) %></code></dd>
+    <% end %>
+  </dl>
+</section>

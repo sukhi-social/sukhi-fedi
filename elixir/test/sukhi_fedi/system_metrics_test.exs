@@ -64,7 +64,7 @@ defmodule SukhiFedi.SystemMetricsTest do
   end
 
   test "the index template embeds the live sample and the polling hook" do
-    html = Render.render_template("system/index.html.eex", metrics: @metrics, wt_relay: nil)
+    html = Render.render_template("system/index.html.eex", update: nil, metrics: @metrics, wt_relay: nil)
 
     assert html =~ ~s(hx-get="/admin/system/sample")
     assert html =~ "every 2s"
