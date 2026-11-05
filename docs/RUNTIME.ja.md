@@ -300,6 +300,8 @@ sudo nginx -t && sudo systemctl reload nginx
 
 `reload` は接続を切らずに設定を読み直す。アプリの更新のとき、玄関の nginx は止めなくてよい。
 
+アプリが止まっているあいだ、白紙の 502 ではなく「メンテナンス中です」の頁を返したいときは、設定に二行足す: [`OPS_MAINTENANCE_PAGE.ja.md`](OPS_MAINTENANCE_PAGE.ja.md) §3。
+
 ### 9.3 証明書
 
 ```bash

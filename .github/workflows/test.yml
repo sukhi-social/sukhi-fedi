@@ -11,6 +11,8 @@
 #
 #   web-next       pnpm test (node --test, a mock gateway; no build step)
 #   web-simple     node --test on its server and manifest (no install needed)
+#   maintenance-page  the nginx rules on a real nginx, and the switch script
+#                  (docs/OPS_MAINTENANCE_PAGE.ja.md); web-next's own part is in `web-next`
 #   elixir-unit    make test-shared / -elixir / -api / -delivery (no DB)
 #   elixir-pglite  make test-pglite: compile with warnings as errors,
 #                  migrate, and run the DB integration suite on embedded PGlite
@@ -31,6 +33,8 @@ on:
       - "mise.toml"
       - "Makefile"
       - "scripts/test-pglite.sh"
+      - "scripts/sukhi-maintenance*"
+      - "infra/nginx/**"
       - ".github/workflows/test.yml"
   push:
     branches:
@@ -47,6 +51,8 @@ on:
       - "mise.toml"
       - "Makefile"
       - "scripts/test-pglite.sh"
+      - "scripts/sukhi-maintenance*"
+      - "infra/nginx/**"
       - ".github/workflows/test.yml"
   workflow_dispatch:
 
@@ -98,6 +104,22 @@ jobs:
           node-version: 24
 
       - run: node --test "serve/*.test.mjs" "scripts/*.test.mjs"
+
+  # The page nginx answers with while the app is down. Reads web-next/server as it
+  # is (Node 24 strips the types), so no install; nginx comes from apt.
+  maintenance-page:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: sudo apt-get update && sudo apt-get install -y nginx-light
+
+      - run: make test-nginx test-maintenance
 
   elixir-unit:
     runs-on: ubuntu-24.04

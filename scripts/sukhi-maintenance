@@ -1,0 +1,293 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# メンテナンスの頁の切り替え。nginx が、アプリの代わりに「いま整えています」を返す。
+# 手順と考え方は docs/OPS_MAINTENANCE_PAGE.ja.md。
+#
+#   sukhi-maintenance prepare                       # 頁を用意する(旗は立てない)。初回と、`off` のあと
+#   sukhi-maintenance on  [--why W] [--about MIN] [--no-list] [--yes]
+#                                                   # 止める前の公開投稿を写し、頁を作って、旗を立てる
+#   sukhi-maintenance off                           # 旗を下ろし、写しを消す
+#   sukhi-maintenance status                        # 旗・理由・頁・写しの有無
+#
+#   --why W       update | backup | migration | repair   (頁に、一行の理由が載る。無ければ載らない)
+#   --about MIN   戻る見込み(分)。頁には「半刻ほど」のようにゆるく出る。無ければ「まだ決まっていません」
+#   --no-list     止める前の投稿の写しを載せない(頁だけ)
+#   --yes         確認を省く(端末から呼んだとき、既定は (Y/N)? と訊く)
+#
+# 終了コード: 0 旗を切り替えた(頁を作れなかったときは、警告つきで 0。旗が先、頁は前のものを使う)
+#             1 旗を切り替えられなかった  2 使いかたの誤り
+#
+# 受付を止める・バックアップを取る・コンテナを止める、は別の仕事。この道具が受け持つのは、
+# 「止まっている間、来た人に何を見せるか」だけ。おすすめの順は docs の §4:
+#   (受付を止める) → on → (バックアップ・コンテナを止める・作業) → (コンテナを起こす) → off
+#
+# 頁を作るのは web-next のコンテナの中の server/maintenance-cli.ts(ことばも時間の言い方もそこにある)。
+# 出力は標準出力で受けて、この箱の置き場に書く ── コンテナに置き場を渡さなくてよい。
+# 写しは公開の読みだけ(認証なし)。止まったあとの web-next では作れないので、on は止める前に。
+#
+# 設定(環境、すべて任意):
+#   SUKHI_MAINT_DIR       置き場。nginx の設定と同じ場所      (/srv/sukhi-maintenance)
+#   SUKHI_WEB_CONTAINER   頁を作るコンテナ(.container の ContainerName=)  (sukhi-web-next)
+#   SUKHI_CONTAINER_CLI   podman | docker                     (podman があれば podman)
+#   SUKHI_MAINT_URL       on / off のあと、ここへ問い合わせて確かめる(例 https://sukhi.example/)。無ければ確かめない
+#   SUKHI_LANG            ja | en                             (ja when $LANG starts with ja, else en)
+#
+# 置き場は、一度だけ root が作る(nginx が読めるように):
+#   sudo install -d -o sukhi -g sukhi -m 755 /srv/sukhi-maintenance /srv/sukhi-maintenance/www
+#   (SELinux: sudo semanage fcontext -a -t httpd_sys_content_t '/srv/sukhi-maintenance(/.*)?' && sudo restorecon -R /srv/sukhi-maintenance)
+# Not yet run on a real box.
+
+set -euo pipefail
+umask 022
+
+DIR="${SUKHI_MAINT_DIR:-/srv/sukhi-maintenance}"
+WWW="$DIR/www"
+FLAG="$DIR/on"
+CONTAINER="${SUKHI_WEB_CONTAINER:-sukhi-web-next}"
+URL="${SUKHI_MAINT_URL:-}"
+LANGS=(ja ko en)
+if [ -n "${SUKHI_CONTAINER_CLI:-}" ]; then CLI="$SUKHI_CONTAINER_CLI"
+elif command -v podman >/dev/null 2>&1; then CLI=podman
+else CLI=docker; fi
+
+case "${SUKHI_LANG:-${LANG:-}}" in ja*) LANGX=ja ;; *) LANGX=en ;; esac
+
+# Messages. Japanese follows the MS-DOS (J) manner, as in sukhi-swap-image.sh:
+# one short line saying what happened, then what to do next; questions end in (Y/N)?.
+t() {
+  local k="$1"; shift
+  if [ "$LANGX" = ja ]; then
+    case "$k" in
+      noflag)    printf '旗を立てられません: %s' "$1" ;;
+      confirm)   printf '頁に切り替えます。アプリへは通らなくなります。続行しますか (Y/N)? ' ;;
+      cancelled) printf '中止しました。何も変更していません。' ;;
+      listed)    printf '止める前の投稿を %s 件写しました' "$1" ;;
+      nolist)    printf '投稿の写しは載せません' ;;
+      listfail)  printf '投稿の写しを取れませんでした。一覧なしで続けます (%s)' "$1" ;;
+      renderfail) printf '%s の頁を作れませんでした。前の頁があれば、それを使います (web-next が止まっていませんか: %s)' "$1" "$2" ;;
+      wrote)     printf '頁を置きました: %s' "$1" ;;
+      on)        printf '旗を立てました。nginx は、アプリの代わりに頁を返します。' ;;
+      onnext)    printf '次: 作業のあと、アプリが起きたら sukhi-maintenance off' ;;
+      off)       printf '旗を下ろしました。アプリへ通します。' ;;
+      wasoff)    printf '旗は立っていません。' ;;
+      removed)   printf '投稿の写しを消しました (頁は、一覧なしの基本のものに戻しました)' ;;
+      removedall) printf '頁を作りなおせなかったので、写しの入った頁を消しました。基本の頁は prepare で作れます (コンテナ: %s)' "$1" ;;
+      prepared)  printf '基本の頁を用意しました。旗は立てていません。' ;;
+      checkfail) printf '確認: %s は 503 を返していません (%s)。nginx の設定を確かめてください (docs §3)' "$1" "$2" ;;
+      checkok)   printf '確認: %s は 503 を返しています' "$1" ;;
+      checkoff)  printf '確認: %s は 503 ではなくなりました' "$1" ;;
+      checkstill) printf '確認: %s は まだ 503 です (%s)。アプリが起きているか確かめてください' "$1" "$2" ;;
+      s_on)      printf '旗       立っています(since %s)' "$1" ;;
+      s_off)     printf '旗       立っていません' ;;
+      s_why)     printf '理由     %s' "$1" ;;
+      s_about)   printf '見込み   %s 分' "$1" ;;
+      s_list)    printf '写し     %s 件' "$1" ;;
+      s_pages)   printf '頁       %s' "$1" ;;
+      s_nopages) printf '頁       ありません (prepare で作れます)' ;;
+      usage)     printf '使いかた: sukhi-maintenance prepare | on [--why update|backup|migration|repair] [--about 分] [--no-list] [--yes] | off | status' ;;
+      badwhy)    printf '--why は update, backup, migration, repair のどれかです' ;;
+      badabout)  printf '--about は分の数です (例: --about 30)' ;;
+      nodir)     printf '置き場がありません: %s (docs §2 の install を一度だけ)' "$1" ;;
+      *) printf '%s' "$k" ;;
+    esac
+  else
+    case "$k" in
+      noflag)    printf 'cannot set the flag: %s' "$1" ;;
+      confirm)   printf 'Switch to the maintenance page? The app will no longer be reached. Continue (Y/N)? ' ;;
+      cancelled) printf 'Cancelled. Nothing was changed.' ;;
+      listed)    printf 'copied %s public posts from before the stop' "$1" ;;
+      nolist)    printf 'not including a copy of posts' ;;
+      listfail)  printf 'could not copy the posts; continuing without the list (%s)' "$1" ;;
+      renderfail) printf 'could not build the %s page; the previous page is kept if there is one (is web-next down: %s?)' "$1" "$2" ;;
+      wrote)     printf 'pages written: %s' "$1" ;;
+      on)        printf 'flag set. nginx now answers with the page instead of the app.' ;;
+      onnext)    printf 'next: when the app is back after your work, run sukhi-maintenance off' ;;
+      off)       printf 'flag removed. nginx passes requests to the app again.' ;;
+      wasoff)    printf 'the flag was not set.' ;;
+      removed)   printf 'removed the copy of posts (the page is back to the plain one without a list)' ;;
+      removedall) printf 'could not rebuild the pages, so the pages holding the copy were deleted. Build the plain ones with prepare (container: %s)' "$1" ;;
+      prepared)  printf 'plain pages prepared. The flag is not set.' ;;
+      checkfail) printf 'check: %s is not answering 503 (%s). Check the nginx config (docs §3)' "$1" "$2" ;;
+      checkok)   printf 'check: %s answers 503' "$1" ;;
+      checkoff)  printf 'check: %s no longer answers 503' "$1" ;;
+      checkstill) printf 'check: %s still answers 503 (%s). Is the app up?' "$1" "$2" ;;
+      s_on)      printf 'flag     set (since %s)' "$1" ;;
+      s_off)     printf 'flag     not set' ;;
+      s_why)     printf 'why      %s' "$1" ;;
+      s_about)   printf 'expected %s min' "$1" ;;
+      s_list)    printf 'copy     %s posts' "$1" ;;
+      s_pages)   printf 'pages    %s' "$1" ;;
+      s_nopages) printf 'pages    none (run prepare)' ;;
+      usage)     printf 'usage: sukhi-maintenance prepare | on [--why update|backup|migration|repair] [--about MIN] [--no-list] [--yes] | off | status' ;;
+      badwhy)    printf -- '--why must be update, backup, migration or repair' ;;
+      badabout)  printf -- '--about is a number of minutes (e.g. --about 30)' ;;
+      nodir)     printf 'no such directory: %s (run the install in docs §2 once)' "$1" ;;
+      *) printf '%s' "$k" ;;
+    esac
+  fi
+}
+say()  { printf '%s\n' "$(t "$@")"; }
+warn() { printf 'warning: %s\n' "$(t "$@")" >&2; }
+die()  { local code="$1"; shift; printf 'error: %s\n' "$(t "$@")" >&2; exit "$code"; }
+
+tmp=""
+cleanup() { [ -z "$tmp" ] || rm -rf "$tmp"; }
+trap cleanup EXIT
+
+# コンテナの中で web-next の道具を呼ぶ。標準入力を渡せるときは -i。
+cli_snapshot() { "$CLI" exec "$CONTAINER" node server/maintenance-cli.ts snapshot; }
+cli_render()   { "$CLI" exec -i "$CONTAINER" node server/maintenance-cli.ts render "$@"; }
+
+# render_all ITEMS_JSON [render args…]: 三言語ぶんを、tmp に作り切ってから、まとめて置く。
+# ひとつでも作れなければ、何も置かない(言語ごとに新旧が混ざらない)。
+render_all() {
+  local items="$1"; shift
+  local out="$tmp/pages"; rm -rf "$out"; mkdir -p "$out"
+  local l
+  for l in "${LANGS[@]}"; do
+    if ! cli_render --lang "$l" "$@" < "$items" > "$out/maintenance.$l.html" 2>"$tmp/render.err"; then
+      warn renderfail "$l" "$CONTAINER"
+      sed 's/^/  /' "$tmp/render.err" >&2 || true
+      return 1
+    fi
+    [ -s "$out/maintenance.$l.html" ] || { warn renderfail "$l" "$CONTAINER"; return 1; }
+  done
+  mkdir -p "$WWW"
+  # 同じ場所に一度置いてから rename する。nginx が、書きかけを読まない。
+  for l in "${LANGS[@]}"; do
+    cp "$out/maintenance.$l.html" "$WWW/.maintenance.$l.html.new"
+    mv -f "$WWW/.maintenance.$l.html.new" "$WWW/maintenance.$l.html"
+  done
+  say wrote "$WWW"
+}
+
+check_dir() { [ -d "$DIR" ] || die 1 nodir "$DIR"; }
+
+# 外から見て 503 か。SUKHI_MAINT_URL があるときだけ。人の窓の Accept で問い合わせる。
+probe() {
+  [ -n "$URL" ] || return 0
+  command -v curl >/dev/null 2>&1 || return 0
+  local code
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H 'Accept: text/html' "$URL" || echo 000)"
+  case "$1:$code" in
+    on:503)  say checkok "$URL" ;;
+    on:*)    warn checkfail "$URL" "$code" ;;
+    off:503) warn checkstill "$URL" "$code" ;;
+    off:*)   say checkoff "$URL" ;;
+  esac
+}
+
+cmd_prepare() {
+  check_dir
+  tmp="$(mktemp -d)"
+  printf '{"items":[]}\n' > "$tmp/items.json"
+  render_all "$tmp/items.json" || exit 1
+  say prepared
+}
+
+cmd_on() {
+  local why="" about="" list=1 yes=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --why)     why="${2:-}"; shift 2 || die 2 usage ;;
+      --about)   about="${2:-}"; shift 2 || die 2 usage ;;
+      --no-list) list=0; shift ;;
+      --yes|-y)  yes=1; shift ;;
+      *) die 2 usage ;;
+    esac
+  done
+  case "$why" in ""|update|backup|migration|repair) ;; *) die 2 badwhy ;; esac
+  case "$about" in ""|*[!0-9]*) [ -z "$about" ] || die 2 badabout ;; esac
+  check_dir
+
+  if [ "$yes" = 0 ] && [ -t 0 ] && [ -t 1 ]; then
+    printf '%s' "$(t confirm)"
+    local a; read -r a
+    case "$a" in [Yy]*) ;; *) say cancelled; exit 0 ;; esac
+  fi
+
+  tmp="$(mktemp -d)"
+  printf '{"items":[]}\n' > "$tmp/items.json"
+  local items="$tmp/items.json" n=0
+  if [ "$list" = 1 ]; then
+    # 終了 3 は「gateway から取れなかった(空の一覧は出ている)」。ほかの失敗(コンテナが無い等)も、一覧なしで続ける。
+    local rc=0
+    cli_snapshot > "$tmp/snap.json" 2>"$tmp/snap.err" || rc=$?
+    if [ "$rc" -eq 0 ] && grep -q '"items"' "$tmp/snap.json"; then
+      items="$tmp/snap.json"
+      n="$(grep -o '"acct"' "$items" | wc -l | tr -d ' ')"
+      say listed "$n"
+    else
+      warn listfail "$(head -1 "$tmp/snap.err" 2>/dev/null || true)"
+    fi
+  else
+    say nolist
+  fi
+
+  local args=()
+  [ -z "$why" ] || args+=(--why "$why")
+  [ -z "$about" ] || args+=(--about "$about")
+  # 頁が作れなくても、旗は立てる(止めたい、が先)。前の頁があれば、それが出る。
+  if ! render_all "$items" ${args[@]+"${args[@]}"}; then n=0; fi
+
+  # 旗は一つのファイルで、中身が状態。置くのは、頁のあと(旗が立ったとき、頁はもうある)。
+  {
+    printf 'since=%s\n' "$(date -u +%Y-%m-%dT%H:%MZ)"
+    printf 'why=%s\n' "$why"
+    printf 'about=%s\n' "$about"
+    printf 'list=%s\n' "$n"
+  } > "$DIR/.on.new" || die 1 noflag "$DIR"
+  mv -f "$DIR/.on.new" "$FLAG" || die 1 noflag "$DIR"
+  say on
+  probe on
+  say onnext
+}
+
+cmd_off() {
+  check_dir
+  if [ -f "$FLAG" ]; then
+    rm -f "$FLAG" || die 1 noflag "$DIR"
+    say off
+  else
+    say wasoff
+  fi
+  # 写しは、止めている間だけのもの。消された投稿を、あとまで残さない。
+  # 基本の頁に作りなおす。作りなおせなければ(web-next が起きていない等)、写しの入った頁ごと消す。
+  tmp="$(mktemp -d)"
+  printf '{"items":[]}\n' > "$tmp/items.json"
+  if render_all "$tmp/items.json" >/dev/null; then
+    say removed
+  else
+    rm -f "$WWW"/maintenance.*.html
+    say removedall "$CONTAINER"
+  fi
+  probe off
+}
+
+cmd_status() {
+  check_dir
+  if [ -f "$FLAG" ]; then
+    local since why about list
+    since="$(sed -n 's/^since=//p' "$FLAG")"; why="$(sed -n 's/^why=//p' "$FLAG")"
+    about="$(sed -n 's/^about=//p' "$FLAG")"; list="$(sed -n 's/^list=//p' "$FLAG")"
+    say s_on "${since:-?}"
+    [ -z "$why" ] || say s_why "$why"
+    [ -z "$about" ] || say s_about "$about"
+    say s_list "${list:-0}"
+  else
+    say s_off
+  fi
+  local have=0 l
+  for l in "${LANGS[@]}"; do [ -s "$WWW/maintenance.$l.html" ] && have=$((have + 1)); done
+  if [ "$have" -eq "${#LANGS[@]}" ]; then say s_pages "${LANGS[*]}"; else say s_nopages; fi
+}
+
+sub="${1:-}"; [ $# -eq 0 ] || shift
+case "$sub" in
+  prepare) cmd_prepare ;;
+  on)      cmd_on "$@" ;;
+  off)     cmd_off ;;
+  status)  cmd_status ;;
+  *)       die 2 usage ;;
+esac
