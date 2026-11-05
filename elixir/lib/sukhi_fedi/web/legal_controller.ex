@@ -18,8 +18,9 @@ defmodule SukhiFedi.Web.LegalController do
   the env var only chooses between them at request time.
 
   Languages: the Japanese privacy policy follows Japan's APPI; the Korean
-  follows PIPA. `?lang=ko` switches to Korean; default is Japanese (the
-  instance's default UI language). Update by editing the Markdown and
+  follows PIPA. `?lang=ko` switches to Korean and `?lang=en` to English (a
+  translation; the Japanese text applies if they differ); default is Japanese
+  (the instance's default UI language). Update by editing the Markdown and
   rebuilding.
   """
   import Plug.Conn
@@ -31,8 +32,11 @@ defmodule SukhiFedi.Web.LegalController do
   @dir Path.expand("../../../priv/legal", __DIR__)
   @flavor_dirs %{sukhi: @dir, natadeco: Path.join(@dir, "natadeco")}
   @doc_files ~w(terms.ja.md terms.ko.md privacy.ja.md privacy.ko.md)
+  # English is a translation, and only a flavor that ships one serves it; the
+  # others fall back to Japanese.
+  @en_doc_files ~w(terms.en.md privacy.en.md)
 
-  for {_flavor, dir} <- @flavor_dirs, file <- @doc_files do
+  for {_flavor, dir} <- @flavor_dirs, file <- @doc_files ++ @en_doc_files do
     @external_resource Path.join(dir, file)
   end
 
@@ -50,11 +54,15 @@ defmodule SukhiFedi.Web.LegalController do
   # which of the two they are serving.
   docs =
     for {flavor, dir} <- @flavor_dirs, into: %{} do
-      {flavor,
-       %{
-         terms: %{"ja" => bake.(dir, "terms.ja.md"), "ko" => bake.(dir, "terms.ko.md")},
-         privacy: %{"ja" => bake.(dir, "privacy.ja.md"), "ko" => bake.(dir, "privacy.ko.md")}
-       }}
+      en? = Enum.all?(@en_doc_files, &File.exists?(Path.join(dir, &1)))
+
+      lang_docs = fn doc ->
+        for lang <- ~w(ja ko en), lang != "en" or en?, into: %{} do
+          {lang, bake.(dir, "#{doc}.#{lang}.md")}
+        end
+      end
+
+      {flavor, %{terms: lang_docs.("terms"), privacy: lang_docs.("privacy")}}
     end
 
   @docs docs
@@ -337,10 +345,10 @@ defmodule SukhiFedi.Web.LegalController do
 
   @titles %{
     privacy: %{"ja" => "個人情報の取り扱いについて", "ko" => "개인정보 처리방침", "en" => "Privacy Policy"},
-    terms: %{"ja" => "利用規約", "ko" => "이용약관", "en" => "Terms of Service"}
+    terms: %{"ja" => "利用規約", "ko" => "이용약관", "en" => "Terms"}
   }
   @cross_labels %{
-    terms: %{"ja" => "利用規約", "ko" => "이용약관", "en" => "Terms of Service"},
+    terms: %{"ja" => "利用規約", "ko" => "이용약관", "en" => "Terms"},
     privacy: %{"ja" => "プライバシーポリシー", "ko" => "개인정보 처리방침", "en" => "Privacy Policy"}
   }
 
@@ -603,7 +611,7 @@ defmodule SukhiFedi.Web.LegalController do
   # language link, or a list of them (terms/privacy: every other language the
   # instance has; /credits: the other two).
   defp render(conn, lang, title, body, self_path, {label, path}, signup?, toggle) do
-    lang_q = if lang == "ko", do: "lang=ko", else: nil
+    lang_q = if lang in ["ko", "en"], do: "lang=#{lang}", else: nil
     render(conn, lang, title, body, self_path, {label, path, lang_q}, signup?, toggle)
   end
 
@@ -659,7 +667,13 @@ defmodule SukhiFedi.Web.LegalController do
 
     cta =
       if signup? do
-        label = if lang == "ko", do: "읽었어요", else: "読みました"
+        label =
+          case lang do
+            "ko" -> "읽었어요"
+            "en" -> "I've read it"
+            _ -> "読みました"
+          end
+
         ~s(<div class="cta"><a class="cta-btn" href="/signup">#{label}</a></div>)
       else
         ""

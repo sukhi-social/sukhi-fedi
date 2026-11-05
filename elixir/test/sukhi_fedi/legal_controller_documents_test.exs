@@ -59,7 +59,7 @@ defmodule SukhiFedi.Web.LegalControllerDocumentsTest do
     privacy = page(:privacy)
     refute privacy =~ "日本語"
     refute privacy =~ "한국어"
-    assert privacy =~ ~s(<a href="/terms">Terms of Service</a>)
+    assert privacy =~ ~s(<a href="/terms">Terms</a>)
     # an unknown language is the default, not an error
     assert page(:privacy, "?lang=ko") =~ ~r{<h1>\s*P\s*</h1>}
   end
@@ -77,7 +77,7 @@ defmodule SukhiFedi.Web.LegalControllerDocumentsTest do
 
     en = page(:privacy, "?lang=en")
     assert en =~ ~s(href="/privacy">日本語</a>)
-    assert en =~ ~s(<a href="/terms?lang=en">Terms of Service</a>)
+    assert en =~ ~s(<a href="/terms?lang=en">Terms</a>)
 
     ja = page(:privacy)
     assert ja =~ ~s(href="/privacy?lang=en">English</a>)
