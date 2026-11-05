@@ -187,4 +187,43 @@ defmodule SukhiFedi.Integration.TranslateTest do
 
     assert {:ok, %{content: "<p>ok</p>"}} = Translate.status(reader, note.id, "ja")
   end
+
+  test "auto is refused for an account that has not turned it on, before anything about the post is read" do
+    author = account!("tr_author10")
+    reader = account!("tr_reader10")
+    # Even a post this reader may not see answers `auto_off`, not `not_found`.
+    hidden = note!(author, "秘密 #{System.unique_integer([:positive])}", "followers")
+    open = note!(author, "공개 #{System.unique_integer([:positive])}", "public")
+
+    assert {:error, :auto_off} = Translate.status(reader, open.id, "ja", auto: true)
+    assert {:error, :auto_off} = Translate.status(reader, hidden.id, "ja", auto: true)
+    refute_received {:engine, _, _, _}
+
+    # A press by the same account is unaffected.
+    assert {:ok, _} = Translate.status(reader, open.id, "ja")
+  end
+
+  test "auto works for someone who turned it on, with the same engine rules as a press" do
+    author = account!("tr_author11")
+    reader = account!("tr_reader11", %{translate_auto: true})
+    note = note!(author, "자동 #{System.unique_integer([:positive])}", "public")
+
+    assert {:ok, %{provider: "LibreTranslate"}} = Translate.status(reader, note.id, "ja", auto: true)
+    assert_receive {:engine, "libretranslate", _, _}
+
+    dm = note!(author, "@#{reader.username} 안녕", "direct")
+    assert {:error, :not_translatable} = Translate.status(reader, dm.id, "ja", auto: true)
+  end
+
+  test "a post behind a content warning is not sent by auto, but a press may open it" do
+    author = account!("tr_author12")
+    reader = account!("tr_reader12", %{translate_auto: true})
+    note = note!(author, "본문 #{System.unique_integer([:positive])}", "public", %{"spoiler_text" => "주의"})
+
+    assert {:error, :not_translatable} = Translate.status(reader, note.id, "ja", auto: true)
+    refute_received {:engine, _, _, _}
+
+    assert {:ok, _} = Translate.status(reader, note.id, "ja")
+    assert_receive {:engine, "libretranslate", _, _}
+  end
 end

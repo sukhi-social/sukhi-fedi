@@ -181,17 +181,25 @@ post or federated. Design and limits: [`TRANSLATION.md`](TRANSLATION.md).
   itself. `deepl` (their own key) is used for public and unlisted posts; a
   followers-only post is sent to the server's own translator instead, and
   `provider` says so.
+- `auto=true` (sukhi's own; JSON, form or query) says the page is asking by itself
+  because the person turned on quiet auto-translation. It is refused with `403`
+  `auto_off` unless the account has `translate_auto` on — checked first, before
+  anything about the post is read. An automatic request is also refused
+  (`403` `not_translatable`) for a post behind a content warning, counts against
+  its own hourly allowance (120), and never takes the server translator's last free
+  place, so a person's press always has one. Everything else is as for a press.
 - Refusals: `422` `unsupported_language`, `too_long` (over 3,000 characters),
   `no_key`, `key_rejected`, `quota`; `503` `translation_disabled` (no server
   translator) or `engine_unavailable`; `429` `busy` with `retry-after` — wait
   that long and do not retry on your own.
 - `PATCH update_credentials` takes `translate_reads` and `translate_learns`
   (comma lists of language codes, at most eight), `translate_engine`
-  (`libre` or `deepl`; blank = `libre`), `translate_deepl_key` (write-only; a
+  (`libre` or `deepl`; blank = `libre`), `translate_auto` (boolean, default
+  `false`: turns quiet auto-translation on), `translate_deepl_key` (write-only; a
   string that is not a DeepL key is a `422`) and `translate_deepl_key_clear`
   (`true` removes the key and returns the engine to `libre`).
-  `verify_credentials` returns `translate_reads`, `translate_learns` and
-  `translate_engine` under `source`, plus `translate_deepl_key_hint` — the last
+  `verify_credentials` returns `translate_reads`, `translate_learns`,
+  `translate_engine` and `translate_auto` under `source`, plus `translate_deepl_key_hint` — the last
   four characters of the key, the only part that ever comes back. Changing only
   these sends no actor `Update` to peers.
 

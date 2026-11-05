@@ -85,4 +85,46 @@ defmodule SukhiFedi.Translate.GateTest do
     assert_raise RuntimeError, fn -> Gate.run(id, :libre, fn -> raise "boom" end) end
     assert {:ok, :free} = Gate.run(id + 1, :libre, fn -> {:ok, :free} end)
   end
+
+  test "auto has its own allowance, apart from the presses", %{id: id} do
+    for _ <- 1..120, do: assert({:ok, 1} = Gate.run(id, :deepl, fn -> {:ok, 1} end, auto: true))
+    assert {:error, {:busy, s}} = Gate.run(id, :deepl, fn -> flunk("ran past the auto limit") end, auto: true)
+    assert s >= 1
+
+    # The hand-pressed allowance is untouched by all of that.
+    assert {:ok, :pressed} = Gate.run(id, :deepl, fn -> {:ok, :pressed} end)
+  end
+
+  test "auto leaves one place on the hosted translator for a press", %{id: id} do
+    Application.put_env(:sukhi_fedi, :translate_max_flight, 2)
+    parent = self()
+
+    holder =
+      Task.async(fn ->
+        Gate.run(id, :libre, fn ->
+          send(parent, :holding)
+
+          receive do
+            :release -> {:ok, :held}
+          end
+        end)
+      end)
+
+    assert_receive :holding
+
+    # One place is taken: auto may not take the last one …
+    assert {:error, {:busy, 10}} = Gate.run(id + 1, :libre, fn -> flunk("auto took the last place") end, auto: true)
+    # … but a person's press may.
+    assert {:ok, :pressed} = Gate.run(id + 2, :libre, fn -> {:ok, :pressed} end)
+
+    send(holder.pid, :release)
+    assert {:ok, :held} = Task.await(holder)
+    # With nothing running, auto has the one place it is allowed.
+    assert {:ok, :auto} = Gate.run(id + 3, :libre, fn -> {:ok, :auto} end, auto: true)
+  end
+
+  test "with a single place, auto never runs on the hosted translator", %{id: id} do
+    assert {:error, {:busy, 10}} = Gate.run(id, :libre, fn -> flunk("auto ran with one place") end, auto: true)
+    assert {:ok, :own} = Gate.run(id + 1, :deepl, fn -> {:ok, :own} end, auto: true)
+  end
 end

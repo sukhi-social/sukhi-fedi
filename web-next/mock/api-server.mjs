@@ -40,6 +40,8 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
   let freshArrived = false;
   // 翻訳が失敗するか(画面で試すため)。POST /__mock/translate?fail=busy で立つ。
   let translateFail = null;
+  // 翻訳の呼びが自動だったか、の記録(テストが見る)。GET /__mock/translate-log。
+  const translateAuto = [];
 
   // プロフィールの編集(PATCH update_credentials)も、覚えておく ── 設定の画面を、行って帰って試すため。
   // 形は gateway の verify_credentials に合わせる(source に原文・ひとこと欄・通知のペース)。
@@ -50,7 +52,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     discoverable: false,
     indexable: false,
     source: { note: 'お茶と、古い本。', fields: [], language: null, notification_hold_minutes: null, notification_grouping: false, home_filter: '', boost_hide_name: false,
-      translate_reads: [], translate_learns: [], translate_engine: 'libre', translate_deepl_key_hint: null }
+      translate_reads: [], translate_learns: [], translate_engine: 'libre', translate_auto: false, translate_deepl_key_hint: null }
   };
   const bool = (v) => v === 'true' || v === true;
   async function patchMe(req, chunks) {
@@ -80,6 +82,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     if (f.has('translate_reads')) next.source.translate_reads = langs(f.get('translate_reads'));
     if (f.has('translate_learns')) next.source.translate_learns = langs(f.get('translate_learns'));
     if (f.has('translate_engine')) next.source.translate_engine = f.get('translate_engine') === 'deepl' ? 'deepl' : 'libre';
+    if (f.has('translate_auto')) next.source.translate_auto = bool(f.get('translate_auto'));
     if (f.has('translate_deepl_key')) {
       const key = String(f.get('translate_deepl_key')).trim();
       if (!/^[0-9a-f-]{36}(:fx)?$/i.test(key)) return null;
@@ -204,8 +207,21 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       res.end();
       return;
     }
+    if (pathname === '/__mock/translate-log' && method === 'GET') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(translateAuto));
+      return;
+    }
     const tr = pathname.match(/^\/api\/v1\/statuses\/([^/]+)\/translate$/);
     if (tr && method === 'POST') {
+      // 自動(auto)は、本人がオンにしているときだけ(本物の gateway は auto_off で断る)。
+      const body = json ?? {};
+      if (body.auto === true && !me.source.translate_auto) {
+        res.writeHead(403, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'auto_off' }));
+        return;
+      }
+      translateAuto.push(body.auto === true);
       if (translateFail) {
         const [status, body] = translateFail === 'busy' ? [429, { error: 'busy', retry_after: 10 }] : [422, { error: translateFail }];
         res.writeHead(status, { 'content-type': 'application/json', ...(status === 429 ? { 'retry-after': '10' } : {}) });

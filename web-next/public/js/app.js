@@ -311,6 +311,92 @@ up.compiler("a.load-more", (link) => {
   };
 });
 
+// 静かな自動翻訳(docs/TRANSLATION_AUTO.md)。オンにした人の、母語以外の投稿だけ(サーバーが印を付ける)。
+// 画面に 6 割ほど入って、700ms 留まったときだけ、その投稿の「訳を見る」の form を、自分で押す。
+//   - 通りすぎただけの投稿には何もしない。先読みもしない(取っても読まれないものを、取らない)。
+//   - 一度に一つ。続けて取るときは、少し間を置く。裏のタブ・Save-Data のときは、しない。
+//   - うまくいかないときは、黙ってボタンのまま。混んでいる・応えないときは 60 秒お休み。
+//     鍵・月の分の知らせ(data-tr-rest)や、この場所に訳し役がいないときは、ページを開き直すまでお休み。
+//   - 押すのは form 自身(auto=1 を添えて)。返ってくるのは、手で押したときと同じ「訳の場所」。
+const trAuto = (() => {
+  const DWELL = 700;
+  const GAP = 400;
+  const PAUSE = 60_000;
+  const queue = new Set();
+  let running = false;
+  let restUntil = 0;
+  let rest = false;
+
+  const ready = () => !rest && Date.now() >= restUntil && !document.hidden;
+
+  async function drain() {
+    if (running) return;
+    running = true;
+    try {
+      while (queue.size > 0 && ready()) {
+        const form = queue.values().next().value;
+        queue.delete(form);
+        // 待つあいだに、離れた・差し替わった・もう画面にない、なら、やめる。
+        if (!form.isConnected || !form._trVisible) continue;
+        const flag = form.elements.auto;
+        if (flag) flag.value = "1";
+        try {
+          const result = await up.submit(form);
+          const body = result?.fragments?.[0];
+          if (body?.querySelector("[data-tr-rest]")) rest = true;
+          const why = body?.getAttribute?.("data-tr-quiet");
+          if (why === "busy" || why === "engine_unavailable" || why === "failed") restUntil = Date.now() + PAUSE;
+          if (why === "disabled" || why === "auto_off") rest = true;
+        } catch {
+          restUntil = Date.now() + PAUSE;
+        }
+        await new Promise((r) => setTimeout(r, GAP));
+      }
+    } finally {
+      running = false;
+    }
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) drain();
+  });
+  return {
+    DWELL,
+    add(form) {
+      if (ready()) {
+        queue.add(form);
+        drain();
+      }
+    },
+    drop(form) {
+      queue.delete(form);
+    },
+  };
+})();
+
+up.compiler("form[data-tr-auto]", (form) => {
+  if (navigator.connection?.saveData || !("IntersectionObserver" in window)) return;
+  const card = form.closest(".status") ?? form;
+  let timer = 0;
+  const io = new IntersectionObserver(
+    (entries) => {
+      const e = entries[entries.length - 1];
+      // 背の高い投稿は 6 割に届かない。画面の 6 割を占めていれば、見ているとみなす。
+      const seen = e.isIntersecting && (e.intersectionRatio >= 0.6 || e.intersectionRect.height >= innerHeight * 0.6);
+      form._trVisible = seen;
+      clearTimeout(timer);
+      if (seen) timer = setTimeout(() => trAuto.add(form), trAuto.DWELL);
+      else trAuto.drop(form);
+    },
+    { threshold: [0, 0.25, 0.6, 1] },
+  );
+  io.observe(card);
+  return () => {
+    clearTimeout(timer);
+    io.disconnect();
+    trAuto.drop(form);
+  };
+});
+
 up.compiler("form[data-passkey-add]", (form) => {
   if (!window.PublicKeyCredential) return;
   form.hidden = false;

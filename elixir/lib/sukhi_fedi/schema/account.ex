@@ -85,6 +85,10 @@ defmodule SukhiFedi.Schema.Account do
     field :translate_engine, :string
     field :translate_deepl_key, :binary, redact: true
     field :translate_deepl_key_hint, :string
+    # Whether the page may translate posts by itself as they stay on screen
+    # (docs/TRANSLATION_AUTO.md). Off until the person turns it on; the gateway
+    # refuses an `auto` request from anyone else.
+    field :translate_auto, :boolean, default: false
     field :translate_deepl_key_input, :string, virtual: true, redact: true
     field :translate_deepl_key_clear, :boolean, virtual: true
     field :suspended_at, :utc_datetime
@@ -264,6 +268,7 @@ defmodule SukhiFedi.Schema.Account do
       :translate_reads,
       :translate_learns,
       :translate_engine,
+      :translate_auto,
       :translate_deepl_key_input,
       :translate_deepl_key_clear
     ])

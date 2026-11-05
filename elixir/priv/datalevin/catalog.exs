@@ -947,7 +947,8 @@
       %{default: nil, name: "translate_learns", type: "text", null: true},
       %{default: nil, name: "translate_engine", type: "character varying", null: true},
       %{default: nil, name: "translate_deepl_key", type: "bytea", null: true},
-      %{default: nil, name: "translate_deepl_key_hint", type: "character varying", null: true}
+      %{default: nil, name: "translate_deepl_key_hint", type: "character varying", null: true},
+      %{default: "false", name: "translate_auto", type: "boolean", null: false}
     ],
     unique: [
       %{name: "accounts_actor_uri_index", keys: [col: "actor_uri"], where: [not_null: "actor_uri"]},

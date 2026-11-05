@@ -32,7 +32,7 @@ export const jaTranslate = {
   'translate.err.toSettings': '設定をひらく',
 
   'translate.settings': '翻訳',
-  'translate.set.lead': '訳は、押したときだけ。あなたにだけ見えて、保存も配信もされません。',
+  'translate.set.lead': '訳は、押したとき(か、あなたが自動にしたとき)だけ。あなたにだけ見えて、保存も配信もされません。',
   'translate.set.readsTitle': '読めることば',
   'translate.set.readsHint': 'ここにあることばの投稿には、「訳を見る」を出しません。何も選ばなければ、画面のことばだけです。',
   'translate.set.learnsTitle': '学んでいることば',
@@ -54,7 +54,19 @@ export const jaTranslate = {
   'translate.set.keyCleared': 'キーを消しました。訳し役は、この場所のものに戻っています。',
   'translate.set.needKey': 'DeepL を使うには、キーが要ります。',
   'translate.set.badKey': 'DeepL のキーの形ではありません。もう一度、確かめてください。',
-  'translate.set.back': '設定にもどる'
+  'translate.set.back': '設定にもどる',
+  'translate.set.moreLangs': 'ほかのことば',
+  'translate.labelAuto': '訳(機械翻訳・自動)',
+  'translate.err.autoRest': '自動の翻訳は、このページではお休みします。',
+  'translate.set.autoTitle': '静かな自動翻訳',
+  'translate.set.autoLabel': '画面に入った投稿を、自動で訳す',
+  'translate.set.autoOff': 'いまはオフです。押したときだけ訳します。',
+  'translate.set.autoNote1': '画面に少し留まった投稿の本文が、訳し役に渡されます。',
+  'translate.set.autoNoteDeepl': 'DeepL を選んでいるので、あなたのキーで外の会社に送られ、今月の分を使います。',
+  'translate.set.autoNoteLibre': 'この場所の訳し役で訳すので、本文はこのサーバーの中だけです。',
+  'translate.set.autoMore': 'くわしく',
+  'translate.set.autoMore1': '読めることば・学んでいることば以外の投稿が対象です。宛先を絞った投稿は訳しません。フォロワー限定の投稿は、DeepL ではなく、この場所の訳し役で訳します。内容警告つきの投稿は、押したときだけです。',
+  'translate.set.autoMore2': '混んでいるときや、うまくいかないときは、何も言わず「訳を見る」のままにします。'
 } as const;
 
 export const koTranslate: Record<keyof typeof jaTranslate, string> = {
@@ -88,7 +100,7 @@ export const koTranslate: Record<keyof typeof jaTranslate, string> = {
   'translate.err.toSettings': '설정 열기',
 
   'translate.settings': '번역',
-  'translate.set.lead': '번역은 누를 때만. 나에게만 보이고, 저장도 전달도 되지 않아요.',
+  'translate.set.lead': '번역은 누를 때(또는 내가 자동으로 해 둔 때)만. 나에게만 보이고, 저장도 전달도 되지 않아요.',
   'translate.set.readsTitle': '읽을 수 있는 언어',
   'translate.set.readsHint': '여기 있는 언어의 글에는 「번역 보기」를 내지 않아요. 아무것도 고르지 않으면 화면의 언어만이에요.',
   'translate.set.learnsTitle': '배우고 있는 언어',
@@ -110,7 +122,19 @@ export const koTranslate: Record<keyof typeof jaTranslate, string> = {
   'translate.set.keyCleared': '키를 지웠어요. 번역기는 이 서버의 것으로 돌아왔어요.',
   'translate.set.needKey': 'DeepL을 쓰려면 키가 필요해요.',
   'translate.set.badKey': 'DeepL 키의 형태가 아니에요. 다시 한 번 확인해 주세요.',
-  'translate.set.back': '설정으로 돌아가기'
+  'translate.set.back': '설정으로 돌아가기',
+  'translate.set.moreLangs': '다른 언어',
+  'translate.labelAuto': '번역(기계 번역・자동)',
+  'translate.err.autoRest': '자동 번역은 이 페이지에서는 쉬어요.',
+  'translate.set.autoTitle': '조용한 자동 번역',
+  'translate.set.autoLabel': '화면에 들어온 글을 자동으로 번역하기',
+  'translate.set.autoOff': '지금은 꺼져 있어요. 누를 때만 번역해요.',
+  'translate.set.autoNote1': '화면에 잠시 머문 글의 본문이 번역기에 전달돼요.',
+  'translate.set.autoNoteDeepl': 'DeepL을 골랐으니, 내 키로 바깥 회사에 보내지고 이번 달 몫을 써요.',
+  'translate.set.autoNoteLibre': '이 서버의 번역기로 번역하니, 본문은 이 서버 안에만 있어요.',
+  'translate.set.autoMore': '자세히',
+  'translate.set.autoMore1': '읽을 수 있는 언어와 배우고 있는 언어가 아닌 글이 대상이에요. 받는 사람을 좁힌 글은 번역하지 않아요. 팔로워 한정 글은 DeepL이 아니라 이 서버의 번역기로 번역해요. 내용 경고가 붙은 글은 누를 때만이에요.',
+  'translate.set.autoMore2': '붐비거나 잘 안 될 때는 아무 말 없이 「번역 보기」를 그대로 둬요.'
 };
 
 export const enTranslate: Record<keyof typeof jaTranslate, string> = {
@@ -144,7 +168,7 @@ export const enTranslate: Record<keyof typeof jaTranslate, string> = {
   'translate.err.toSettings': 'Open settings',
 
   'translate.settings': 'Translation',
-  'translate.set.lead': 'Translation happens only when you press the button. Only you see it, and nothing is saved or shared.',
+  'translate.set.lead': 'Translation happens only when you press the button, or when you’ve turned on automatic translation. Only you see it, and nothing is saved or shared.',
   'translate.set.readsTitle': 'Languages you read',
   'translate.set.readsHint': 'Posts in these languages get no “Show translation” button. If you pick none, only the language of the screen counts.',
   'translate.set.learnsTitle': 'Languages you’re learning',
@@ -166,5 +190,17 @@ export const enTranslate: Record<keyof typeof jaTranslate, string> = {
   'translate.set.keyCleared': 'Key removed. Translations are back to this server’s translator.',
   'translate.set.needKey': 'DeepL needs a key.',
   'translate.set.badKey': 'That doesn’t look like a DeepL key. Please check it.',
-  'translate.set.back': 'Back to settings'
+  'translate.set.back': 'Back to settings',
+  'translate.set.moreLangs': 'More languages',
+  'translate.labelAuto': 'Translation (machine, automatic)',
+  'translate.err.autoRest': 'Automatic translation will rest on this page.',
+  'translate.set.autoTitle': 'Quiet automatic translation',
+  'translate.set.autoLabel': 'Translate posts automatically as they stay on screen',
+  'translate.set.autoOff': 'It’s off right now. Posts are translated only when you press the button.',
+  'translate.set.autoNote1': 'The text of a post that stays on screen for a moment is handed to the translator.',
+  'translate.set.autoNoteDeepl': 'You’ve chosen DeepL, so it’s sent to an outside company with your key, and it uses this month’s allowance.',
+  'translate.set.autoNoteLibre': 'This server’s translator does it, so the text stays inside this server.',
+  'translate.set.autoMore': 'More',
+  'translate.set.autoMore1': 'It applies to posts in languages you neither read nor are learning. Posts sent to chosen people are never translated. Followers-only posts go to this server’s translator, not DeepL. Posts behind a content warning are translated only when you press the button.',
+  'translate.set.autoMore2': 'When the translator is busy or something goes wrong, nothing is said; the “Show translation” button just stays.'
 };

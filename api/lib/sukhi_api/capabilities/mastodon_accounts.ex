@@ -232,6 +232,7 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
               "translate_reads",
               "translate_learns",
               "translate_engine",
+              "translate_auto",
               "translate_deepl_key",
               "translate_deepl_key_clear"
             ])

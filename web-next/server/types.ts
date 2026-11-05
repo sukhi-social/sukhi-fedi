@@ -55,6 +55,8 @@ export type Account = {
     translate_reads?: string[];
     translate_learns?: string[];
     translate_engine?: 'libre' | 'deepl';
+    // 画面に留まった投稿を自動で訳す(docs/TRANSLATION_AUTO.md)。既定はオフ。
+    translate_auto?: boolean;
     translate_deepl_key_hint?: string | null;
   };
   // 管理者が渡した公開バッジ（Moderator など）。color は #hex か空。

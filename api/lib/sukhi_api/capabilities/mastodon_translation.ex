@@ -3,7 +3,7 @@ defmodule SukhiApi.Capabilities.MastodonTranslation do
   @moduledoc """
   Mastodon's status translation.
 
-      POST /api/v1/statuses/:id/translate   scope: read:statuses   lang=ja
+      POST /api/v1/statuses/:id/translate   scope: read:statuses   lang=ja [auto=true]
 
   Answers Mastodon's `Translation` entity (`content`, `spoiler_text`,
   `detected_source_language`, `provider`, …), so any Mastodon client can use it.
@@ -37,9 +37,11 @@ defmodule SukhiApi.Capabilities.MastodonTranslation do
 
       %{} = v ->
         id = req[:path_params]["id"]
-        lang = params(req)["lang"]
+        p = params(req)
+        # Strictly `true`, once, here; the gateway checks that the account allows it.
+        auto = p["auto"] in [true, "true"]
 
-        case GatewayRpc.run(SukhiFedi.Translate, :status, [v, id, lang], @rpc_timeout) do
+        case GatewayRpc.run(SukhiFedi.Translate, :status, [v, id, p["lang"], [auto: auto]], @rpc_timeout) do
           {:ok, translation} -> ok(200, translation)
           {:error, reason} -> refuse(reason)
           {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
@@ -49,6 +51,7 @@ defmodule SukhiApi.Capabilities.MastodonTranslation do
 
   defp refuse(:not_found), do: ok(404, %{error: "not_found"})
   defp refuse(:not_translatable), do: ok(403, %{error: "not_translatable"})
+  defp refuse(:auto_off), do: ok(403, %{error: "auto_off"})
   defp refuse(:disabled), do: ok(503, %{error: "translation_disabled"})
   defp refuse(:unsupported_language), do: ok(422, %{error: "unsupported_language"})
   defp refuse(:too_long), do: ok(422, %{error: "too_long"})

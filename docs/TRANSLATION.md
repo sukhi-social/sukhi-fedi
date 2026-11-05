@@ -10,13 +10,17 @@
 ## What the person sees
 
 - A post in a language you did not mark as readable shows one small button, **訳を見る**.
-  Nothing is translated until you press it. There is no "translate everything".
+  Nothing is translated until you press it — unless you turn on auto-translation (below). There is no "translate everything".
 - The original is never moved. The translation is added **directly beneath it**, in a box
   whose header always names the engine (`訳(機械翻訳) · DeepL`) and offers とじる.
 - If you marked a language as one you are **learning**, the button reads **訳をひらく**,
   the box starts closed, and the translation is lighter and smaller than the original even
   when open. That is the whole of "learning" — no word lists, no cloze, no scoring.
-- Settings (読めることば / 学んでいることば / 訳し役 / DeepL key) live in one place. The
+- **Only if you turn it on** (off by default), posts that stay on screen are translated for you
+  and shown the same way, paler, with `訳(機械翻訳・自動)` and the engine name. Failures stay
+  silent; the button is still there. The whole of it, and why it is shaped this way:
+  [`TRANSLATION_AUTO.md`](TRANSLATION_AUTO.md).
+- Settings (読めることば / 学んでいることば / 訳し役 / DeepL key) live in one place. The languages are small chips: ja / en / ko and whatever you picked are shown, the rest are under 「ほかのことば」. The
   note "your post text goes to a company outside this server" is shown **once, there**, when
   you choose DeepL — not on the timeline.
 
@@ -30,6 +34,8 @@
 | The engine never changes silently | If the chosen engine is unavailable you are told; you are not moved to another. |
 | Translations are never stored, federated or shown to anyone else | Only a 10-minute cache of *successful* results, keyed by text + target (+ account for DeepL). |
 | Text over 3000 characters is refused (`too_long`) | A half translation is a worse lie than none. |
+| An automatic request is refused unless the account turned `translate_auto` on; it is never sent for a post behind a content warning | A page asking by itself is held to what the person agreed to. Checked in `SukhiFedi.Translate`, before anything about the post is read. |
+| Automatic requests: 120 / hour / account, apart from the 60 for presses; they never take the hosted translator's last free place | `Translate.Gate`. Reading a feed must not spend what a person asked for by hand. |
 | 60 requests / hour / account; at most `TRANSLATE_MAX_FLIGHT` (default 2) in flight against the hosted translator | Keeps a small box unhurried. A full queue answers `429` with `retry-after`; nothing retries by itself. |
 
 The DeepL key is write-only: sealed with AES-GCM (key derived from `SECRET_KEY_BASE`,
