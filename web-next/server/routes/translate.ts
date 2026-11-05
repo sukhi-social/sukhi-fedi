@@ -56,6 +56,8 @@ route('POST', '/statuses/:id/translate', async (ctx) => {
 // ── 設定 ────────────────────────────────────────────────────────
 // 読める・学べることばの候補。(gateway が受けるのは 2〜3 字のコードなら何でも。画面には、よくあるものを。)
 const COMMON = ['ja', 'en', 'ko', 'zh', 'es', 'fr', 'de', 'pt', 'it', 'ru', 'id', 'th'];
+// そのうち、たたまずに見せるもの(選んでいるものは、どれでも見せる)。
+const FIRST = ['ja', 'en', 'ko'];
 
 type Values = { reads: string[]; learns: string[]; engine: 'libre' | 'deepl'; auto: boolean };
 
@@ -69,10 +71,18 @@ async function translationPage(ctx: Ctx, me: Account, v: Values, error?: string,
   const hint = me.source?.translate_deepl_key_hint ?? null;
   const flash = ctx.takeFlash();
   const choices = [...new Set([...COMMON, ...v.reads, ...v.learns])];
-  const checks = (name: 'reads' | 'learns', on: string[]) =>
-    choices.map(
-      (c) => html`<label class="stack-tight"><input type="checkbox" name="${name}" value="${c}" ${on.includes(c) ? 'checked' : ''} /><span lang="${c}">${endonym(c)}</span></label>`
-    );
+  // ことばは小さなチップにして、よく使う三つ(と、いま選んでいるもの)だけ見せる。ほかは「ほかのことば」にたたむ。
+  // 中身はふつうのチェックボックス(JS なしでも送れる・キーボードでも選べる)。
+  const chip = (name: 'reads' | 'learns', on: string[], c: string) =>
+    html`<label class="chip lang"><input type="checkbox" name="${name}" value="${c}" ${on.includes(c) ? 'checked' : ''} /><span lang="${c}">${endonym(c)}</span></label>`;
+  const checks = (name: 'reads' | 'learns', on: string[]) => {
+    const first = choices.filter((c) => FIRST.includes(c) || on.includes(c));
+    const rest = choices.filter((c) => !first.includes(c));
+    return html`<div class="lang-chips">${first.map((c) => chip(name, on, c))}</div>
+      ${rest.length > 0
+        ? html`<details class="lang-more text-sm muted"><summary>${t('translate.set.moreLangs')}</summary><div class="lang-chips">${rest.map((c) => chip(name, on, c))}</div></details>`
+        : ''}`;
+  };
   const enabled = translationEnabled();
 
   const body: SafeHtml = html`<header class="timeline page-head"><h1>${t('translate.settings')}</h1></header>
@@ -84,13 +94,13 @@ async function translationPage(ctx: Ctx, me: Account, v: Values, error?: string,
         <section class="stack-tight">
           <h2 class="text-base">${t('translate.set.readsTitle')}</h2>
           <p class="muted text-sm">${t('translate.set.readsHint')}</p>
-          <div class="settings-checks">${checks('reads', v.reads)}</div>
+          ${checks('reads', v.reads)}
         </section>
 
         <section class="stack-tight">
           <h2 class="text-base">${t('translate.set.learnsTitle')}</h2>
           <p class="muted text-sm">${t('translate.set.learnsHint')}</p>
-          <div class="settings-checks">${checks('learns', v.learns)}</div>
+          ${checks('learns', v.learns)}
         </section>
 
         <section class="stack-tight">

@@ -562,6 +562,50 @@
     color: var(--color-text);
   }
 
+  /* 読める・学んでいることばの選び: 小さなチップ。選んでいるときは、色だけでなく ✓ でも分かる。
+     中身はチェックボックス(チップ全体を覆って、押せる・キーボードでも選べる)。 */
+  .lang-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .lang-chips .chip {
+    position: relative;
+    cursor: pointer;
+    padding-inline: var(--space-3);
+  }
+  .lang-chips .chip input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .lang-chips .chip:has(input:checked) {
+    color: var(--color-text);
+    background: var(--fill-active);
+    border-color: var(--fill-active-edge);
+    font-weight: 600;
+  }
+  .lang-chips .chip:has(input:checked)::before {
+    content: '✓';
+    margin-inline-end: var(--space-1);
+  }
+  .lang-chips .chip:has(input:focus-visible) {
+    outline: 2px solid var(--color-accent, currentColor);
+    outline-offset: 2px;
+  }
+  .lang-more summary {
+    cursor: pointer;
+    margin-block: var(--space-2);
+  }
+  .lang-more summary::before {
+    content: '＋ ';
+  }
+  .lang-more[open] summary::before {
+    content: '－ ';
+  }
+
   /* 投稿の翻訳(docs/TRANSLATION.md)。原文は動かさず、その下に足す。 */
   .tr-slot {
     margin-block-start: 0.5rem;
