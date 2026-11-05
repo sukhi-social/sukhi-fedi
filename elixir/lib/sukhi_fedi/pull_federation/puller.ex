@@ -35,6 +35,10 @@ defmodule SukhiFedi.PullFederation.Puller do
   @doc "Look for work now rather than at the next tick."
   def wake, do: GenServer.cast(__MODULE__, :wake)
 
+  @doc "Is no pull running right now? (The drain waits for this once intake is closed.)"
+  @spec idle?() :: boolean()
+  def idle?, do: GenServer.call(__MODULE__, :idle?)
+
   @doc "Seconds-scale exponential backoff with full jitter, capped."
   @spec backoff_ms(pos_integer()) :: pos_integer()
   def backoff_ms(failures) do
@@ -57,6 +61,9 @@ defmodule SukhiFedi.PullFederation.Puller do
          %{tick: tick, max: Keyword.get(cfg, :max_concurrent, @default_concurrent), running: %{}}}
     end
   end
+
+  @impl true
+  def handle_call(:idle?, _from, state), do: {:reply, map_size(state.running) == 0, state}
 
   @impl true
   def handle_cast(:wake, state), do: {:noreply, start_due(state)}
@@ -85,7 +92,10 @@ defmodule SukhiFedi.PullFederation.Puller do
   defp start_due(%{running: running, max: max} = state) do
     free = max - map_size(running)
 
-    if free <= 0 or not Capability.advertised?() do
+    # A closed door (SukhiShared.Intake) starts nothing new: a pull writes
+    # what it fetches. The ones already running finish; the rest wait in the
+    # table, exactly as when we are busy.
+    if free <= 0 or SukhiShared.Intake.closed?() or not Capability.advertised?() do
       state
     else
       busy = MapSet.new(Map.values(running))

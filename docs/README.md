@@ -39,6 +39,7 @@ We would rather say so than hand you a machine translation; if you can help, ple
 | ① Preparing the box | [`OPS_PREPARE.ja.md`](OPS_PREPARE.ja.md) (ja) |
 | ② First start, updates, rollback | [`OPS_DEPLOY.ja.md`](OPS_DEPLOY.ja.md) (ja) |
 | ③ Backups, updates, watching, when things go wrong | [`OPS_MAINTAIN.ja.md`](OPS_MAINTAIN.ja.md) (ja) |
+| Closing intake and backing up before a planned shutdown | [`OPS_DRAIN_BACKUP.ja.md`](OPS_DRAIN_BACKUP.ja.md) (ja) |
 | Getting started with SSH | [`OPERATING_OVER_SSH.ja.md`](OPERATING_OVER_SSH.ja.md) (ja) |
 | Choosing and installing Docker / Podman | [`RUNTIME.ja.md`](RUNTIME.ja.md) (ja) |
 | Swapping images in a Quadlet box | [`OPS_UPDATE_QUADLET.ja.md`](OPS_UPDATE_QUADLET.ja.md) (ja) |

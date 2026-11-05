@@ -59,6 +59,8 @@ what to set on a small box.
 |---|---|---|---|
 | `SUKHI_STORE` | no | `postgres` | `datalevin` keeps the business data in Datalevin (`dtlv` on the PATH) and runs Oban on SQLite. The `DB_*` vars are then unused by the gateway. |
 | `SUKHI_QUEUE_DB` | no | `/var/lib/sukhi/queue.db` | datalevin mode: the SQLite file Oban lives in. |
+| `SUKHI_INTAKE_FILE` | no | `/var/lib/sukhi/intake.json` | The marker the gateway writes when intake is closed/opened (JSON: state, since, reason, until, retry_after_s, settled_at, backup). For a static maintenance page to read while the gateway is down. A fresh start writes `open`. docs/OPS_DRAIN_BACKUP.ja.md §5. |
+| `SUKHI_BACKUP_DIR` | no | `/var/lib/sukhi/backups` | datalevin mode: where `Maintenance.Backup` puts `<UTC stamp>/` (dtlv copy of the data and graph, SQLite copies of the queues). The newest 3 complete ones are kept. docs/OPS_DRAIN_BACKUP.ja.md §4. |
 | `SUKHI_QUEUE_SYNCHRONOUS` | no | `full` | datalevin mode: SQLite `synchronous` (`full`, `normal`, `off`). |
 | `SUKHI_QUEUE_POOL_SIZE` | no | `5` | datalevin mode: SQLite pool. |
 | `SUKHI_GRAPH` | no | off | `1`/`true`: run the graph store (`<DATALEVIN_DIR>/graph`, its own `dtlv`) beside the main database and copy each admitted inbound activity into it. Best-effort; never changes what the inbox answers. docs/DATALEVIN_SCHEMA.md. |

@@ -71,6 +71,11 @@ defmodule SukhiFedi.Web.Router do
     ban_ms: 900_000
   )
 
+  # While the server is closed for maintenance (SukhiShared.Intake), every
+  # write — and every federation inbox POST — is answered 503 + Retry-After
+  # here, before the body is read. Reads pass. One gate, by method.
+  plug(SukhiFedi.Web.IntakePlug)
+
   # HEAD を GET として捌く。Plug.Router の `get` は GET しか拾わないので、
   # これが無いと HEAD は一つ残らず 404 になる ── 見張りサービスの多くは
   # HEAD で叩くので、開いているページが「落ちている」と読まれる。
@@ -594,6 +599,18 @@ defmodule SukhiFedi.Web.Router do
 
   get "/up" do
     send_resp(conn, 200, "ok")
+  end
+
+  # Is the door open? For the web fronts and anything that wants to show a
+  # read-only banner instead of letting a post fail (SukhiShared.Intake.public/1:
+  # state, since, reason, until, retry_after_s — no paths, no counts). A dot
+  # path, so no front can claim it; it never touches the store, so it answers
+  # while everything else is stopped.
+  get "/.sukhi/intake.json" do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, JSON.encode!(SukhiShared.Intake.public(SukhiShared.Intake.status())))
   end
 
   # Prometheus scrape. Behind the `:metrics_token` bearer, 404 when

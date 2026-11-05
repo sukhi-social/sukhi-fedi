@@ -18,7 +18,7 @@
 ## 手順 A: 受け入れを止めて、空にしてから切り替える（コード変更なし）
 
 1. 受け入れを止める。プロキシ側で `POST /users/*/inbox`・`/inbox` と書き込み系 `/api/*` を 503 にする。
-   アプリ内に保守モードはまだありません。
+   Datalevin 構成の combined では、アプリ内の受付停止(`scripts/sukhi-drain.sh close`、[`OPS_DRAIN_BACKUP.ja.md`](OPS_DRAIN_BACKUP.ja.md))が使えます。Postgres 構成の分割ではまだないので、プロキシで止めます。
 2. 新しい outbox 行が増えなくなったら、リレーが全部流すのを待つ。
    `SELECT count(*) FROM outbox WHERE status = 'pending';` が 0 になれば完了。
 3. 配信ジョブが終わるのを待つ。

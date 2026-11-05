@@ -144,6 +144,11 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     # counts — a load balancer needs one bit, and one bit is all it gets.
     "get /up",
 
+    # `/.sukhi/intake.json` is the same shape: open or closed since when,
+    # why, and when to come back (SukhiShared.Intake.public/1). No path,
+    # no count, no backup location; it never touches the store.
+    "get /.sukhi/intake.json",
+
     # ── Mastodon/Misskey REST API — dispatched to plugin nodes
     "get /api/v1/streaming",
     "get /api/v1/streaming/user",
