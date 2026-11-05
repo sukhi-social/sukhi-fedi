@@ -125,6 +125,16 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert [%{actor_uri: ^ghost} = item] = Social.list_followers(potato.id)
       refute Map.has_key?(item, :id)
     end
+
+    test "local-only followers resolve with no remote side" do
+      potato = create_account!("potato_lfo")
+      nyanrus = create_account!("nyanrus_lfo")
+      local_uri = "https://#{SukhiFedi.Config.domain!()}/users/nyanrus_lfo"
+      Repo.insert!(%Follow{follower_uri: local_uri, followee_id: potato.id, state: "accepted"})
+
+      assert [%{id: id, username: "nyanrus_lfo", domain: nil}] = Social.list_followers(potato.id)
+      assert id == nyanrus.id
+    end
   end
 
   describe "list_following/1" do
