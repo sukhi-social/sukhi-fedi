@@ -1,4 +1,7 @@
 <h1>System</h1>
+<%= if update do %>
+<%= SukhiFedi.Web.Admin.Render.render_template("system/update.html.eex", update: update) %>
+<% end %>
 <p class="muted">
   Host resource usage from <code>:os_mon</code>
   (<code>:cpu_sup</code> / <code>:memsup</code> / <code>:disksup</code>).

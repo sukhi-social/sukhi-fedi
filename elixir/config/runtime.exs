@@ -31,6 +31,7 @@ end
 # 404s (feature off); set it to expose the host-resource history/snapshot
 # to offline analysis. Generate with `openssl rand -hex 32`.
 config :sukhi_fedi, :metrics_token, System.get_env("METRICS_TOKEN")
+config :sukhi_fedi, :gitops_status_path, System.get_env("GITOPS_STATUS_PATH")
 
 # Translating posts for the reader (docs/TRANSLATION.md). The server's own
 # translator is a LibreTranslate instance the operator runs — unset means there
