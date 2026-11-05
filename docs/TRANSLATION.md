@@ -44,6 +44,10 @@ web-next  →  POST /api/v1/statuses/:id/translate  (api, scope read:statuses)
           →  GatewayRpc  →  SukhiFedi.Translate  →  Translate.Gate  →  LibreTranslate | DeepL
 ```
 
+- web-next: `server/translate.ts` (whether to offer the button — a guess, never a guard),
+  `server/routes/translate.ts` (the press, and `/settings/translation`),
+  `server/views/translate.ts` (the box, the notes), `server/locales/translate.ts` (words).
+  The open translation is `up-keep`, so favouriting a post does not close it.
 - `SukhiFedi.Translate` — visibility, engine choice, text extraction, sanitising the result.
 - `Translate.Gate` — per-account hourly bucket and the in-flight cap.
 - `Translate.LibreTranslate`, `Translate.DeepL` — adapters. Fixed egress hosts; no redirects;
@@ -73,4 +77,6 @@ translate a long post repeatedly while watching memory and the delivery queue.
   from the script (kana → ja, hangul → ko, …) only to decide whether to show the button;
   Han-only or Latin text shows it and lets the engine detect.
 - Further target languages beyond ja / ko / en — follows the English-support work.
+- Ingest still picks the first `contentMap` key as the language, which can disagree with `content`;
+  fixing that (and storing the declared language) is the next small step.
 - No "please don't translate me" flag for authors (decided against, for now).

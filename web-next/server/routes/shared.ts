@@ -6,6 +6,7 @@ import { gwJson, GatewayError } from '../gateway.ts';
 import { redirect, ok, Unauthorized, type Ctx, type Reply } from '../http.ts';
 import { saveSession } from '../session.ts';
 import type { Account, Status } from '../types.ts';
+import { warmTranslation } from '../translate.ts';
 import { statusCard, theEnd } from '../views/status.ts';
 
 // 入っている人。入っていなければ Unauthorized(→ /login へ)。
@@ -37,6 +38,8 @@ const ACCT_TTL = 10 * 60_000;
 const ACCT_MAX = 500;
 
 export async function replyAcctsFor(ctx: Ctx, statuses: Status[]): Promise<Map<string, string>> {
+  // 投稿の札を組む前の支度のついでに、「この場所に訳し役がいるか」も(60 秒に一度)確かめておく。
+  if (ctx.session?.token) await warmTranslation(ctx);
   const out = new Map<string, string>();
   const need = new Set<string>();
   const now = Date.now();

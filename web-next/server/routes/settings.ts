@@ -76,6 +76,7 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
       ${flash ? html`<p class="${flash.kind === 'error' ? 'error' : 'notice'}" role="status">${flash.text}</p>` : ''}
       <nav class="settings-nav" aria-label="${t('settings.title')}">
         <ul>
+          <li><a class="chip" href="/settings/translation">${t('translate.settings')}</a></li>
           <li><a class="chip" href="/settings/security">${t('settings.security')}</a></li>
           <li><a class="chip" href="/settings/migration">${t('settings.migration')}</a></li>
           <li><a class="chip" href="/settings/data">${t('settings.data')}</a></li>
