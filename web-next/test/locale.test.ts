@@ -79,8 +79,8 @@ test('持っていない言語だけなら en(日本語より読める)。印が
   assert.equal(detectLocale(undefined, null, ''), 'ja');
 });
 
-test('規約の頁は、ko 以外には lang を足さない(英語版は、まだ無い)', () => {
+test('規約の頁は、ja 以外に lang を足す', () => {
   assert.equal(legalLang('ko'), 'ko');
-  assert.equal(legalLang('en'), null);
+  assert.equal(legalLang('en'), 'en');
   assert.equal(legalLang('ja'), null);
 });

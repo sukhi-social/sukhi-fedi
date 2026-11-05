@@ -320,7 +320,7 @@ export const en: Dict = {
     'Welcome.<br>This is a small star called sukhi, in a network called the fediverse.<br>Take your time and sit a while.<br>The things that matter most are written in the {link}.<br>If, at a glance, you think you’d like to be here together, we’d be glad.',
   'signup.termsLink': 'Terms',
   'signup.privacyLink': 'Privacy Policy',
-  'signup.agree': 'I agree to the {terms} and the {privacy} (for now, written in Japanese and Korean)',
+  'signup.agree': 'I agree to the {terms} and the {privacy}',
   'signup.create': 'Create account',
   'signup.haveAccountPre': 'Already live here? ',
   'signup.haveAccountLink': 'Log in here',

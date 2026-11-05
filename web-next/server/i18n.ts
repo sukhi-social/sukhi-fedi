@@ -67,8 +67,8 @@ export function makeT(locale: Locale): T {
   };
 }
 
-// 規約・プライバシーの頁は、gateway が ja と ko だけ焼いている(英語版は、まだ無い)。
-// なので、英語の人にも ja の頁を渡す(ko の頁を渡す理由が無い)。`lang=` を足すのは ko だけ。
-export function legalLang(locale: Locale): 'ko' | null {
-  return locale === 'ko' ? 'ko' : null;
+// 規約・プライバシーの頁は、gateway が ja・ko・en を焼いている(英語は下訳で、食いちがうときは日本語)。
+// ja は既定なので `lang=` を足さない。
+export function legalLang(locale: Locale): 'ko' | 'en' | null {
+  return locale === 'ja' ? null : locale;
 }
