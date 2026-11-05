@@ -19,25 +19,27 @@
 ```
 インターネット ─▶ nginx(ホスト)─▶ Anubis ─▶ web-next / gateway
                     │
-                    │ 旗(/srv/sukhi-maintenance/on)がある、または奥が答えない(502/503/504)
+                    │ 頁にする条件(どれか)
+                    │   ① 旗(/srv/sukhi-maintenance/on)がある      … 予定した停止
+                    │   ② nodeinfo が答えない(つながらない・時間切れ・5xx) … アプリが動いていない
+                    │   ③ 奥が 502 / 504
                     ▼
-   人の窓(GET/HEAD で text/html)  → /srv/sukhi-maintenance/www/maintenance.<ja|ko|en>.html(503)
-   ほかのすべて(連合・API・POST・画像)→ 短い JSON の 503(Retry-After: 300)
-   ただし「一番大事な口」(nodeinfo・webfinger・host-meta・instance の GET)は、
-   奥が答えないとき 503 にせず、nginx が置いてある最後の答えで返す(§1)
+   人の窓(GET/HEAD で text/html) → 静的サーバー(127.0.0.1:8083)に頁を取りに行く → 503 で返す
+   ほかのすべて(連合・API・POST・画像)→ 短い JSON の 503(Retry-After: 300)。nodeinfo も同じ
 ```
 
-- **静的なファイルだけ。** アプリが止まっていても、nginx が答える。
+- **頁は、アプリとは別の静的サーバーから取ってくる。** アプリ(Anubis・gateway・web-next)が全部止まっていても答える。
+  同じ nginx の中の小さな server(`127.0.0.1:8083`、頁のファイルだけ)で、別の箱や外の静的ホスティングに替えたければ、`upstream` の一行だけ。
+- **落ちているときは、落ちていると言う。** nodeinfo・webfinger・API は、古い答えを置いておいて返したりせず、503(JSON)で正直に返す。
 - **旗は一つのファイル。** `scripts/sukhi-maintenance on` が立て、`off` が下ろす。nginx の設定は触らない。
-- **旗がなくても、奥が答えなければ同じ頁が出る。** 予定外に落ちたときも、白紙の 502 にならない。
+- **旗がなくても、nodeinfo が答えなければ同じ頁が出る。** 予定外に落ちたときも、白紙の 502 にならない。
 
 ## 1. 来た人に何が見えるか
 
 | だれ | 何が返るか | 理由 |
 | --- | --- | --- |
 | 人の窓(ブラウザで頁を開く) | 頁(HTTP 503)。言語は `?lang=` → cookie(`sukhi_locale`)→ Accept-Language の順。持っていない言語だけを挙げる人は英語、何も挙げない人は日本語 | web-next の決め方と同じ(`ENGLISH_VOICE.md`) |
-| 連合の相手(`Accept: application/activity+json` など)、`/inbox` への POST、API、`/.well-known/`、画像 | 頁ではなく JSON の 503 と `Retry-After: 300` | HTML を連合の相手に返さない。503 は「あとでまた来て」で、相手は送りなおす |
-| **一番大事な口**(`/nodeinfo/2.x`、`/.well-known/{nodeinfo,webfinger,host-meta}`、`/api/v{1,2}/instance` の GET/HEAD) | 奥が 5xx・時間切れ・つながらないとき、**nginx に置いてある最後の答え**(`X-Sukhi-Cache: STALE`)。旗が立っていても止めない。一度も答えたことがない口だけが JSON の 503 | 連合の相手は、これで「このサーバーは生きているか」を見る。落ちている間も、答えを変えずに返す。答えを作り話にはしない(置いてあるのは、本物が最後に言ったこと) |
+| 連合の相手(`Accept: application/activity+json` など)、`/inbox` への POST、API、`/.well-known/`・nodeinfo、画像 | 頁ではなく JSON の 503(`{"error":"unavailable"}`)と `Retry-After: 300` | HTML を連合の相手に返さない。503 は「あとでまた来て」で、相手は送りなおす。**nodeinfo も、落ちているときは落ちていると返す**(置いてあった古い答えは返さない) |
 | certbot の `/.well-known/acme-challenge/` | 止めない(別の location が受ける) | 止めているあいだに証明書の更新が来ても、通る |
 
 頁の中身(三言語とも):
@@ -71,7 +73,7 @@ sukhi-maintenance prepare    # 旗は立てない。頁だけ(予定外に落ち
 
 ## 3. nginx に入れる
 
-`infra/nginx/` の三つを置く:
+`infra/nginx/` の三つを置く(nginx に `http_auth_request_module` が要る。Debian / Ubuntu / RHEL 系の nginx には入っている。`nginx -V 2>&1 | grep auth_request` で確かめる):
 
 ```sh
 sudo install -m 644 infra/nginx/sukhi-maintenance.conf        /etc/nginx/conf.d/
@@ -79,6 +81,7 @@ sudo install -m 644 infra/nginx/sukhi-maintenance-server.inc  /etc/nginx/
 sudo install -m 644 infra/nginx/sukhi-maintenance-gate.inc    /etc/nginx/
 ```
 
+`sukhi-maintenance.conf`(http ブロック)は、頁を配る**静的サーバー**(`127.0.0.1:8083`)と診断の置き場も持っている。
 [`RUNTIME.ja.md`](RUNTIME.ja.md) §9.2 の設定に、二か所だけ足す:
 
 ```nginx
@@ -106,13 +109,15 @@ sudo nginx -t && sudo systemctl reload nginx
 ```
 
 - ② を **location の中**に置くのは、certbot の `/.well-known/acme-challenge/` のような別の location まで止めないため。
-- アプリ自身が返した 503(例: 受付停止の応答)は、そのまま通る(`proxy_intercept_errors` は既定の off のまま)。
-  nginx が作る 502 / 504 と、旗による 503 だけを頁にする。
-- **一番大事な口の写し**(`proxy_cache_path /var/cache/nginx/sukhi-critical`、1 分は新鮮、止まっても 30 日置く)は、
-  アプリへ通した普通のアクセスで貯まる。`sukhi-maintenance on` は、`SUKHI_MAINT_URL` があれば止める前に一度取らせて温めておく。
-  置くのは **JSON で返ったものだけ**(Anubis の確認の頁のような HTML を nodeinfo として置かない)・`Set-Cookie` 付きは置かない・GET/HEAD だけ。
-  `inbox` への POST などは、写しで返さず 503 のまま(相手が送りなおす)。
-- 置き場を変えるなら、三つのファイルの `/srv/sukhi-maintenance` を書き換える(nginx は環境変数を読めない)。
+- **「落ちている」の条件は nodeinfo。** アプリへ通す前に、`/_sukhi/health`(`sukhi-maintenance-server.inc`)が
+  `http://127.0.0.1:8082/nodeinfo/2.0` を一度訊く。**つながらない・3 秒で答えない・5xx** なら落ちている。
+  **2xx も 4xx・3xx も「動いている」**(nodeinfo が 404 でも、アプリは答えている)。
+  診断の答えは 2〜5 秒だけ置くので、アクセスのたびにアプリを叩かない(置くのは診断だけで、nodeinfo 本体の答えは置かない)。
+  **この `proxy_pass` の行き先を、アプリへ通す location と同じにそろえる**(例の Anubis `127.0.0.1:8082`)。そろえ忘れると、いつも「落ちている」になる ─ 最初の `nginx -t` のあと、普通に開けるか確かめる。
+- アプリ自身が返した 4xx / 5xx(例: 受付停止の 503、ある投稿の 500)は、そのまま通る(`proxy_intercept_errors` は既定の off のまま)。
+  「このリクエストだけ失敗した」と「サーバーが落ちている」を混ぜない。頁にするのは、旗・nodeinfo の診断・nginx 自身の 502/504 だけ。
+- 頁を取りに行った静的サーバーが答えない・頁のファイルが無いときは、JSON の 503 に落ちる(白紙にならない)。
+- 置き場・診断の行き先・静的サーバーのポートを変えるなら、三つのファイルの `/srv/sukhi-maintenance`・`127.0.0.1:8082`・`127.0.0.1:8083` を書き換える(nginx は環境変数を読めない)。
 
 ## 4. 止めるとき・戻すとき(順番)
 
@@ -166,7 +171,7 @@ GitOps の同期([`OPS_QUADLET_GITOPS.md`](OPS_QUADLET_GITOPS.md) §3.3)が `try
 ## 7. 確かめ方
 
 ```sh
-make test-nginx          # infra/nginx/test.sh: 本物の nginx に規則を読ませ、偽のアプリを後ろに立てて 四十通りほどを見る(nginx が無ければ skip)
+make test-nginx          # infra/nginx/test.sh: 本物の nginx に規則を読ませ、偽のアプリを後ろに立てて 四十通りほどを見る(診断の置きを待つので 30 秒ほどかかる)(nginx が無ければ skip)
 make test-maintenance    # scripts/sukhi-maintenance_test.sh: 偽のコンテナ道具と偽の gateway で、on / off / 失敗のときを通す
 cd web-next && pnpm test # 頁の中身(文字だけにする・エスケープ・三言語がそろう)は test/maintenance.test.ts
 ```
@@ -174,4 +179,5 @@ cd web-next && pnpm test # 頁の中身(文字だけにする・エスケープ�
 `test-nginx` が見ているもの: 旗があれば奥が動いていても 503 / 奥が止まれば同じ頁 / アプリ自身の 503 は通る /
 言語の決め方(`?lang=` → cookie → Accept-Language)/ ActivityPub の取得・`/inbox` の POST・API・画像には頁でなく JSON /
 certbot の道は止めない / 頁が一枚も無くても JSON の 503 /
-大事な口は、奥が 5xx でも止まっていても、旗があっても、置いてある写しで返る(HTML は置かれない・一度も取っていない口は 503)。
+nodeinfo だけが壊れたとき(= 条件)に頁になる・nodeinfo が 404 なら動いているとみなす・アプリ自身の 5xx は通る・
+nodeinfo も落ちているときは正直な 503(古い答えは返さない)・静的サーバーは頁のファイルしか返さない。
