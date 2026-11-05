@@ -4,7 +4,7 @@
 import { config } from '../config.ts';
 import { html, raw, type SafeHtml } from '../html.ts';
 import { avatarColor, avatarInitial, isDefaultAvatar } from '../avatar.ts';
-import { LOCALES, LOCALE_NAMES, type Locale } from '../i18n.ts';
+import { LOCALES, LOCALE_NAMES, legalLang, type Locale } from '../i18n.ts';
 import type { Ctx } from '../http.ts';
 
 // ── 線画のアイコン(NavIcon.svelte と同じ形。currentColor、色は持たない)────
@@ -61,7 +61,7 @@ export function entranceBar(ctx: Ctx): SafeHtml {
 
 // ── 法的ページへの静かな入り口(gateway が焼いた一枚へ。Unpoly は通さない)──
 export function legalFooter(ctx: Ctx): SafeHtml {
-  const lang = ctx.locale === 'ko' ? '?lang=ko' : '';
+  const lang = legalLang(ctx.locale) ? `?lang=${legalLang(ctx.locale)}` : '';
   return html`<footer class="legal-foot">
     <a href="/terms${lang}" up-follow="false">${ctx.t('signup.termsLink')}</a>
     <span class="sep" aria-hidden="true">·</span>

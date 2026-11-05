@@ -80,11 +80,11 @@ defmodule SukhiFedi.Web.Auth.SignupEmailController do
     end
   end
 
-  # Optional "ja" / "ko": the language picked on the page, so the mail
+  # Optional "ja" / "ko" / "en": the language picked on the page, so the mail
   # reads in it. Missing or unknown → the bilingual mail.
   defp lang_param(conn) do
     case conn.body_params["lang"] do
-      l when l in ["ja", "ko"] -> l
+      l when l in ["ja", "ko", "en"] -> l
       _ -> nil
     end
   end

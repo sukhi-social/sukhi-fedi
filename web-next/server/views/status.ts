@@ -137,7 +137,7 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
         <a class="display-name" href="/@${a.acct}">${nameHtml(a)}</a>
         <a class="handle" href="/@${a.acct}">@${a.acct}</a>
         <span class="sep">·</span>
-        <a class="timestamp" href="/@${a.acct}/${s.id}"><time datetime="${s.created_at}">${timeWords(s.created_at, ctx.locale)}</time></a>
+        <a class="timestamp" href="/@${a.acct}/${s.id}"><time datetime="${s.created_at}">${timeWords(s.created_at, ctx.locale, new Date(), ctx.tz)}</time></a>
         ${isRemote && s.url ? html`<a class="orig" href="${s.url}" target="_blank" rel="noopener noreferrer" title="${t('status.viewOriginal')}" up-follow="false">↗</a>` : ''}
       </header>
 

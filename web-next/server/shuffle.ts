@@ -37,7 +37,7 @@ function spread(run: Status[], seed: string): Status[] {
   return out;
 }
 
-export function spreadWithinMoments(items: Status[], locale: Locale, seed: string, now: Date = new Date()): Status[] {
+export function spreadWithinMoments(items: Status[], locale: Locale, seed: string, now: Date = new Date(), tz?: string): Status[] {
   const out: Status[] = [];
   let run: Status[] = [];
   let key: string | null = null;
@@ -47,7 +47,7 @@ export function spreadWithinMoments(items: Status[], locale: Locale, seed: strin
   };
   for (const s of items) {
     // 混ぜるのは、同じ日付の、同じ時間帯のなかだけ。日付はまたがない。
-    const k = `${dayKey(s.created_at, locale)}|${timeWords(s.created_at, locale, now)}`;
+    const k = `${dayKey(s.created_at, locale, tz)}|${timeWords(s.created_at, locale, now, tz)}`;
     if (k !== key) flush();
     key = k;
     run.push(s);

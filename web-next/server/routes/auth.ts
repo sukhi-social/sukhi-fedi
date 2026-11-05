@@ -20,7 +20,7 @@ import { layout } from "../views/layout.ts";
 import { entranceBar, legalFooter } from "../views/parts.ts";
 import { timeline } from "./read.ts";
 import { json, readJson } from "./shared.ts";
-import { isLocale, type TranslationKey } from "../i18n.ts";
+import { isLocale, legalLang, type TranslationKey } from "../i18n.ts";
 
 // ── OAuth のはじまり ─────────────────────────────────────────────
 async function beginOAuth(ctx: Ctx): Promise<Reply> {
@@ -564,7 +564,7 @@ type SignupView = {
 
 function signupPage(ctx: Ctx, v: SignupView = {}, status = 200): Reply {
   const t = ctx.t;
-  const lang = ctx.locale === "ko" ? "&lang=ko" : "";
+  const lang = legalLang(ctx.locale) ? `&lang=${legalLang(ctx.locale)}` : "";
   const termsAnchor = html`<a
     href="/terms?signup=true${lang}"
     target="_blank"
