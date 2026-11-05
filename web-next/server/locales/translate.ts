@@ -50,6 +50,8 @@ export const jaTranslate = {
   'translate.set.keyNow': '…{hint} で終わるキーが入っています。',
   'translate.set.keyHint': 'キーは、書きこみ専用です。暗号化して置き、画面には末尾の4文字だけ出します。いつでも消せます。',
   'translate.set.keyClear': 'キーを消す',
+  'translate.set.keyClearConfirm': 'DeepL のキーを消して、この場所の訳し役に戻します。よろしいですか?',
+  'translate.set.keyCleared': 'キーを消しました。訳し役は、この場所のものに戻っています。',
   'translate.set.needKey': 'DeepL を使うには、キーが要ります。',
   'translate.set.badKey': 'DeepL のキーの形ではありません。もう一度、確かめてください。',
   'translate.set.back': '設定にもどる'
@@ -104,6 +106,8 @@ export const koTranslate: Record<keyof typeof jaTranslate, string> = {
   'translate.set.keyNow': '…{hint}로 끝나는 키가 들어 있어요.',
   'translate.set.keyHint': '키는 쓰기 전용이에요. 암호화해서 두고, 화면에는 끝 4글자만 보여요. 언제든 지울 수 있어요.',
   'translate.set.keyClear': '키 지우기',
+  'translate.set.keyClearConfirm': 'DeepL 키를 지우고 이 서버의 번역기로 되돌릴게요. 괜찮을까요?',
+  'translate.set.keyCleared': '키를 지웠어요. 번역기는 이 서버의 것으로 돌아왔어요.',
   'translate.set.needKey': 'DeepL을 쓰려면 키가 필요해요.',
   'translate.set.badKey': 'DeepL 키의 형태가 아니에요. 다시 한 번 확인해 주세요.',
   'translate.set.back': '설정으로 돌아가기'
@@ -158,6 +162,8 @@ export const enTranslate: Record<keyof typeof jaTranslate, string> = {
   'translate.set.keyNow': 'A key ending in …{hint} is saved.',
   'translate.set.keyHint': 'The key is write-only. It’s stored encrypted, and only its last 4 characters are ever shown. You can remove it at any time.',
   'translate.set.keyClear': 'Remove the key',
+  'translate.set.keyClearConfirm': 'Remove your DeepL key and go back to this server’s translator. Is that okay?',
+  'translate.set.keyCleared': 'Key removed. Translations are back to this server’s translator.',
   'translate.set.needKey': 'DeepL needs a key.',
   'translate.set.badKey': 'That doesn’t look like a DeepL key. Please check it.',
   'translate.set.back': 'Back to settings'

@@ -188,6 +188,10 @@ test('設定: 開く → DeepL のキーなしで保存は断る → 読める�
   assert.match(after, /name="engine" value="deepl" x-model="engine" checked/);
   assert.match(after, /…4000 で終わるキー/);
   assert.doesNotMatch(after, /123e4567/); // キーそのものは、二度と出ない
+  // 消すボタンは、保存を待たない別の form(確認つき)。チェックボックスではない。
+  assert.match(after, /<button type="submit" form="tr-key-clear" class="chip">キーを消す<\/button>/);
+  assert.match(after, /<form id="tr-key-clear" method="post" action="\/settings\/translation\/key-clear" up-confirm="[^"]+"><\/form>/);
+  assert.doesNotMatch(after, /translate_deepl_key_clear/);
 });
 
 test('設定のあと: 学んでいることばの投稿は「訳をひらく」、en を読めるので en の投稿は出ない', async () => {
@@ -209,20 +213,16 @@ test('押す(DeepL を選んだあと): 訳の欄に DeepL と出る', async () 
   assert.match(frag, /<span>DeepL<\/span>/);
 });
 
-test('キーを消すと、訳し役はこの場所のものに戻る', async () => {
-  const saved = await go('/settings/translation', {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams([
-      ['reads', 'ja'],
-      ['engine', 'libre'],
-      ['translate_deepl_key_clear', '1']
-    ])
-  });
-  assert.equal(saved.status, 303);
+test('キーを消す(ボタン → 確認 → この場所の訳し役に戻る)。読めることばは、そのまま', async () => {
+  const res = await go('/settings/translation/key-clear', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: '' });
+  assert.equal(res.status, 303);
   const page = await (await go('/settings/translation')).text();
+  assert.match(page, /キーを消しました。訳し役は、この場所のものに戻っています/);
   assert.doesNotMatch(page, /で終わるキー/);
+  assert.doesNotMatch(page, /tr-key-clear/); // 消したあとは、ボタンも出ない
   assert.match(page, /name="engine" value="libre" x-model="engine" checked/);
+  assert.match(page, /name="reads" value="en" checked/);
+  assert.match(page, /name="learns" value="ko" checked/);
 });
 
 test('JS なし(Unpoly なし)でも、押せば訳つきの頁が返る', async () => {
