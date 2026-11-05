@@ -165,6 +165,36 @@ types in `WebPush.direct_types/0`) can be slowed and folded, per account:
 
 The rule lives in `SukhiFedi.Notifications` (`pace/2`, `scope/3`).
 
+### Translation
+
+`POST /api/v1/statuses/:id/translate` (scope `read:statuses`, body or query
+`lang=ja|ko|en`) answers Mastodon's `Translation`: `content` (sanitised HTML),
+`spoiler_text`, `detected_source_language`, `provider` (`LibreTranslate` or
+`DeepL`), and an empty `poll` and `media_attachments`. `GET /api/v2/instance`
+says `configuration.translation.enabled` — true when the server has its own
+translator. A translation is for the asker only: it is never stored on the
+post or federated. Design and limits: [`TRANSLATION.md`](TRANSLATION.md).
+
+- The post must be one the caller may read (`404` otherwise). A direct message
+  is `403 not_translatable`, to anyone.
+- The engine is the one the person chose in settings and never changes by
+  itself. `deepl` (their own key) is used for public and unlisted posts; a
+  followers-only post is sent to the server's own translator instead, and
+  `provider` says so.
+- Refusals: `422` `unsupported_language`, `too_long` (over 3,000 characters),
+  `no_key`, `key_rejected`, `quota`; `503` `translation_disabled` (no server
+  translator) or `engine_unavailable`; `429` `busy` with `retry-after` — wait
+  that long and do not retry on your own.
+- `PATCH update_credentials` takes `translate_reads` and `translate_learns`
+  (comma lists of language codes, at most eight), `translate_engine`
+  (`libre` or `deepl`; blank = `libre`), `translate_deepl_key` (write-only; a
+  string that is not a DeepL key is a `422`) and `translate_deepl_key_clear`
+  (`true` removes the key and returns the engine to `libre`).
+  `verify_credentials` returns `translate_reads`, `translate_learns` and
+  `translate_engine` under `source`, plus `translate_deepl_key_hint` — the last
+  four characters of the key, the only part that ever comes back. Changing only
+  these sends no actor `Update` to peers.
+
 ### Timeline look (sukhi's own)
 
 Two more private preferences ride `update_credentials` and come back under

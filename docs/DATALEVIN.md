@@ -189,5 +189,39 @@ What changes for the delivery half:
 
 ## Switching an existing instance
 
-There is no data migration tool yet. Starting with `SUKHI_STORE=datalevin`
-on an existing instance starts from an empty database.
+There is no Postgres-to-Datalevin conversion tool yet. An existing Datalevin
+store can be brought into a matching release by restoring the complete
+`DATALEVIN_DIR` (including `graph/` when enabled), `SUKHI_QUEUE_DB`, and
+`DELIVERY_QUEUE_DB`. If `SUKHI_RAW_BACKEND=sqlite`, raw blobs are in the queue
+SQLite file; if it is `s3`, restore the configured raw bucket/prefix too.
+Restore the mounted `/etc/sukhi/instance.json`, keep `DOMAIN` and signing
+secrets stable, and stop the old writer before copying files.
+
+On first successful open, the release writes
+`DATALEVIN_DIR/.sukhi-store.json` with the catalog fingerprint and release
+version. A catalog fingerprint mismatch refuses startup rather than opening a
+store with an unknown schema. A legacy store without this file is accepted
+once and stamped after the compatibility check; the journal reports this.
+
+Before a planned backup, create a non-secret inventory:
+
+```sh
+podman exec <gateway-container> /app/bin/combined eval \
+  'SukhiFedi.Release.write_datalevin_backup_manifest!()'
+```
+
+The resulting `backup-manifest.json` lists the data directory, graph directory,
+queue files, raw backend, instance config path, and catalog fingerprint. It
+does not contain secrets or copy any data.
+
+After restoring those paths, validate the inventory before starting normal
+traffic:
+
+```sh
+podman exec <gateway-container> /app/bin/combined eval \
+  'SukhiFedi.Release.check_datalevin_backup_manifest!()'
+```
+
+The check refuses a different catalog fingerprint, mismatched data paths, or
+missing queue/graph directories. It does not test S3 credentials or perform a
+Postgres import.

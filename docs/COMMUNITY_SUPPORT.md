@@ -2,7 +2,7 @@
 # 小さな独立コミュニティの見守りかた(案)
 
 > 状態: **案。実装も、データの設計もまだない。** 「自分でサーバーを持たない道」
-> ([`CARING_FOR_YOUR_SERVER.md`](CARING_FOR_YOUR_SERVER.md) の冒頭)として、
+> ([`CARING_FOR_YOUR_SERVER.ja.md`](CARING_FOR_YOUR_SERVER.ja.md) の冒頭)として、
 > sukhi.social の中に小さな独立コミュニティを置くときの、**権限と見守りの形**を考える。
 > 文体の基準は [`KINDNESS.md`](KINDNESS.md)。
 

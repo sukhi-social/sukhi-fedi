@@ -1,0 +1,75 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+  {{head}}
+  <link rel="icon" href="/favicon.png" />
+  <!-- 本物の layout()(server/views/layout.ts)と同じ並び。version つきの URL だけが違う。 -->
+  <link rel="stylesheet" href="/assets/vendor/unpoly/unpoly.min.css" />
+  <link rel="stylesheet" href="/assets/css/app.css" />
+  <link rel="stylesheet" href="/assets/css/components.css" />
+  <link rel="stylesheet" href="/assets/css/extra.css" />
+  <script src="/assets/vendor/unpoly/unpoly.min.js"></script>
+  <script src="/assets/js/app.js"></script>
+  <script src="/_lab/mock.js"></script>
+  <script defer src="/assets/vendor/alpine/cdn.min.js"></script>
+</head>
+<body>
+  <!-- ナビは本物(appNav)の出力を写したもの。リンクは、モックでは押しても動かない(mock.js)。 -->
+  <header class="app-nav">
+    <div class="wrap app-nav-row">
+      <a class="app-nav-name" href="/">
+        <img class="app-nav-mark" src="/favicon.png" alt="" width="64" height="64" />sukhi-fedi
+      </a>
+      <nav class="nav-top" aria-label="メインナビ">
+        <a class="nav-link nav-flow" href="/compose" aria-current="">
+    <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14.5 5.5 18.5 9.5 9 19l-4.2 1.2L6 16Z" /><path d="M13.5 6.5 17.5 10.5" /></svg>
+    <span class="nav-text"><span class="nav-label">書く</span></span>
+  </a><a class="nav-link nav-flow" href="/" aria-current="page">
+    <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 11.5 12 4l8.5 7.5" /><path d="M6 10v9.5h12V10" /></svg>
+    <span class="nav-text"><span class="nav-label">ホーム</span></span>
+  </a><a class="nav-link nav-flow" href="/notifications" aria-current="">
+    <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 17c1.2-1.5 1.5-3.5 1.5-6a4.5 4.5 0 0 1 9 0c0 2.5.3 4.5 1.5 6Z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
+    <span class="nav-text"><span class="nav-label">通知</span></span>
+  </a><a class="nav-link nav-flow" href="/search" aria-current="">
+    <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6.5" /><path d="M16 16 20.5 20.5" /></svg>
+    <span class="nav-text"><span class="nav-label">さがす</span></span>
+  </a>
+        <div class="nav-menu" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false" @closemenus.document="open = false">
+          <button type="button" class="nav-link nav-menu-trigger nav-avatar-trigger" aria-haspopup="menu" :aria-expanded="open" aria-label="アカウント" @click="open = !open">
+            <span class="nav-avatar" data-avatar-fallback style="background: hsl(166 45% 85%); color: hsl(166 40% 35%);" aria-hidden="true">く</span>
+          </button>
+          <div class="nav-menu-panel" role="menu" x-show="open" x-cloak x-transition.opacity.duration.150ms>
+            <a class="nav-menu-item" role="menuitem" href="/@kuro" aria-current=""><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8.5" r="3.5" /><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0" /></svg><span>プロフィール</span></a>
+            <a class="nav-menu-item" role="menuitem" href="/settings" aria-current=""><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 7h8M17 7h2M5 17h2M11 17h8" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></svg><span>設定</span></a>
+            <div class="nav-menu-sep" role="separator"></div>
+            <form onsubmit="return false">
+              <button type="submit" class="nav-menu-item" role="menuitem"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 4H6v16h8" /><path d="M10 12h10M16.5 8.5 20 12l-3.5 3.5" /></svg><span>ログアウト</span></button>
+            </form>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </header>
+  <nav class="nav-bottom" aria-label="下メニュー">
+    <a class="nav-link nav-flow" href="/" aria-current="page">
+    <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 11.5 12 4l8.5 7.5" /><path d="M6 10v9.5h12V10" /></svg>
+    <span class="nav-text"><span class="nav-label">ホーム</span></span>
+  </a><a class="nav-link nav-flow" href="/search" aria-current="">
+    <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6.5" /><path d="M16 16 20.5 20.5" /></svg>
+    <span class="nav-text"><span class="nav-label">さがす</span></span>
+  </a><a class="nav-link nav-flow" href="/compose" aria-current="">
+    <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14.5 5.5 18.5 9.5 9 19l-4.2 1.2L6 16Z" /><path d="M13.5 6.5 17.5 10.5" /></svg>
+    <span class="nav-text"><span class="nav-label">書く</span></span>
+  </a><a class="nav-link nav-flow" href="/notifications" aria-current="">
+    <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 17c1.2-1.5 1.5-3.5 1.5-6a4.5 4.5 0 0 1 9 0c0 2.5.3 4.5 1.5 6Z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
+    <span class="nav-text"><span class="nav-label">通知</span></span>
+  </a>
+  </nav>
+  <main class="wrap stack" up-main>
+{{body}}
+  </main>
+</body>
+</html>

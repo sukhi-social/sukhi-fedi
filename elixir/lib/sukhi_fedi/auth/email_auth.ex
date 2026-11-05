@@ -399,13 +399,14 @@ defmodule SukhiFedi.Auth.EmailAuth do
     |> String.pad_leading(6, "0")
   end
 
-  # The language picked at the top right of the page ("ja" / "ko").
+  # The language picked at the top right of the page ("ja" / "ko" / "en").
   # Anything else — no pick, an unknown tag — keeps the bilingual mail.
-  defp mail_lang(lang) when lang in ["ja", "ko"], do: lang
+  defp mail_lang(lang) when lang in ["ja", "ko", "en"], do: lang
   defp mail_lang(_), do: nil
 
   defp subject("ja"), do: "[#{domain()}] 認証コード"
   defp subject("ko"), do: "[#{domain()}] 인증 코드"
+  defp subject("en"), do: "[#{domain()}] Your code"
   defp subject(nil), do: "[#{domain()}] 認証コード / 인증 코드"
 
   defp body("ja", username, code) do
@@ -433,6 +434,20 @@ defmodule SukhiFedi.Auth.EmailAuth do
     10분 동안 유효합니다.
 
     짚이는 데가 없다면, 이 메일은 그냥 버려 주세요.
+    """
+  end
+
+  defp body("en", username, code) do
+    greeting = if username, do: "Hello @#{username},\n\n", else: ""
+
+    """
+    #{greeting}Here is your code for #{domain()}.
+
+        #{code}
+
+    It works for 10 minutes.
+
+    If you didn't ask for this, you can quietly set this email aside.
     """
   end
 

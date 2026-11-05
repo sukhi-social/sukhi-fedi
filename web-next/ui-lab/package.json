@@ -1,0 +1,20 @@
+{
+  "name": "sukhi-ui-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "UIモックを並べて比べる小さな作業机。serve.mjs / shot.mjs は依存ゼロ。ここの依存は import.mjs(React+Vite のモックを取りこむ)だけが使う。",
+  "scripts": {
+    "serve": "node serve.mjs",
+    "shot": "node shot.mjs",
+    "import": "node import.mjs"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "vite": "^8.0.5"
+  }
+}

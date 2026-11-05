@@ -18,7 +18,7 @@
 # federation か signup が壊れる。
 #
 # シンプルさを保つために `import:` は使わず、必要なルールだけを並べる。
-# 詳しい背景は docs/anubis.md を読む。
+# 詳しい背景は docs/anubis.ja.md を読む。
 
 bots:
   # ── federation は止めない(優先) ────────────────────────────────────

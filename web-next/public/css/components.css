@@ -562,6 +562,90 @@
     color: var(--color-text);
   }
 
+  /* 投稿の翻訳(docs/TRANSLATION.md)。原文は動かさず、その下に足す。 */
+  .tr-slot {
+    margin-block-start: 0.5rem;
+  }
+  .tr-hint {
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.6rem;
+  }
+  .tr-btn {
+    font-size: 0.8125rem;
+  }
+  .tr-box {
+    margin-block-start: 0.5rem;
+    border-inline-start: 3px solid var(--color-border);
+    padding: 0.1rem 0 0.1rem 0.75rem;
+    display: grid;
+    gap: 0.3rem;
+  }
+  .tr-label {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.6rem;
+    align-items: center;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+  .tr-label button {
+    all: unset;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .tr-label button:focus-visible {
+    outline: 2px solid var(--color-accent, currentColor);
+    outline-offset: 2px;
+  }
+  .tr-spoiler {
+    margin: 0;
+    font-weight: 600;
+  }
+  .tr-body {
+    margin: 0;
+  }
+  .tr-note {
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    background: var(--color-surface);
+    padding: 0.75rem 0.9rem;
+    display: grid;
+    gap: 0.4rem;
+    margin-block: 0.5rem;
+  }
+  .tr-note h3 {
+    margin: 0;
+    font-size: 0.9375rem;
+  }
+  .tr-note p {
+    margin: 0;
+  }
+  .tr-note .row {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  /* 学ぶ見せ方: 訳は閉じて、淡く小さい。開いても原文より淡い。 */
+  .tr-slot.learn-on .tr-box {
+    border-inline-start-color: transparent;
+  }
+  .tr-slot.learn-on .tr-body {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+  }
+  .tr-slot.learn-on .tr-btn {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+  }
+
   /* Article の本文には見出し（差し込んだ <h2> や本文中の h2/h3）が来る。
      ブラウザ既定の特大サイズだとタイムラインで浮くので、静かに整える。 */
   .content h2,

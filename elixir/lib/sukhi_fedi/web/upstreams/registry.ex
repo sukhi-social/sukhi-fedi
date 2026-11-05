@@ -30,12 +30,25 @@ defmodule SukhiFedi.Web.Upstreams.Registry do
 
   @impl true
   def init(opts) do
-    urls = Keyword.get_lazy(opts, :upstreams, fn -> Upstreams.parse_upstreams(System.get_env("WEB_UPSTREAMS")) end)
+    config = SukhiShared.InstanceConfig.load()
+
+    urls = Keyword.get(opts, :upstreams, SukhiShared.InstanceConfig.active_frontends(config))
 
     if map_size(urls) == 0 do
       :ignore
     else
-      routes = Keyword.get_lazy(opts, :routes, fn -> Upstreams.parse_routes(System.get_env("WEB_ROUTES")) end)
+      routes =
+        Keyword.get_lazy(opts, :routes, fn ->
+          config
+          |> SukhiShared.InstanceConfig.routes()
+          |> Enum.filter(fn row ->
+            [_, frontend] = String.split(row, "=", parts: 2)
+            Map.has_key?(urls, frontend)
+          end)
+          |> Enum.join(",")
+          |> Upstreams.parse_routes()
+        end)
+
       check_config(urls, routes)
 
       state = %{
@@ -68,7 +81,10 @@ defmodule SukhiFedi.Web.Upstreams.Registry do
         {name, fetch(name, url, state.known[name])}
       end
 
-    Upstreams.put(%{upstreams: known |> Enum.reject(fn {_, v} -> is_nil(v) end) |> Map.new(), routes: state.routes})
+    Upstreams.put(%{
+      upstreams: known |> Enum.reject(fn {_, v} -> is_nil(v) end) |> Map.new(),
+      routes: state.routes
+    })
 
     pending? = Enum.any?(known, fn {_, v} -> is_nil(v) end)
     Process.send_after(self(), :tick, if(pending?, do: state.retry_ms, else: state.refresh_ms))
@@ -85,14 +101,23 @@ defmodule SukhiFedi.Web.Upstreams.Registry do
       Map.merge(%{name: name, url: url}, parsed)
     else
       other ->
-        Logger.warning("web upstream #{name}: no usable web.json (#{inspect(summary(other))})" <>
-                         if(previous, do: "; keeping the last one", else: ""))
+        Logger.warning(
+          "web upstream #{name}: no usable web.json (#{inspect(summary(other))})" <>
+            if(previous, do: "; keeping the last one", else: "") <>
+            "; check the configured URL #{url} and run " <>
+            "`podman exec <gateway-container> wget -S -O - #{url}/.sukhi/web.json` " <>
+            "as the sukhi user; existing data is untouched"
+        )
 
         previous
     end
   rescue
     e ->
-      Logger.warning("web upstream #{name}: #{Exception.message(e)}")
+      Logger.warning(
+        "web upstream #{name}: #{Exception.message(e)}; " <>
+          "check URL #{url} as the sukhi user; existing data is untouched"
+      )
+
       previous
   end
 
@@ -102,11 +127,15 @@ defmodule SukhiFedi.Web.Upstreams.Registry do
 
   defp check_config(urls, routes) do
     for {_pat, name} <- routes, not Map.has_key?(urls, name) do
-      Logger.warning("WEB_ROUTES names #{name}, which is not in WEB_UPSTREAMS; that row is ignored")
+      Logger.warning(
+        "instance config route names #{name}, which is not an active external frontend; that row is ignored"
+      )
     end
 
     for {pat, name} <- Upstreams.shadowed_routes(routes) do
-      Logger.warning("WEB_ROUTES: a row for #{name} comes after a catch-all and is never reached (#{inspect(pat)})")
+      Logger.warning(
+        "instance config route for #{name} comes after a catch-all and is never reached (#{inspect(pat)})"
+      )
     end
   end
 end

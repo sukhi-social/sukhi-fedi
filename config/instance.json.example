@@ -1,0 +1,20 @@
+{
+  "site_name": "sukhi-fedi",
+  "site_logo": "/favicon.png",
+  "site_icon": "/favicon.png",
+  "unauthenticated_redirect": "https://about.sukhi.social",
+  "addons": {
+    "nodeinfo_monitor": false
+  },
+  "frontends": {
+    "relay": { "type": "builtin" },
+    "web-next": { "url": "http://web-next:3000" },
+    "web-simple": { "url": "http://web-simple:3000" },
+    "web-board": { "url": "http://web-board:3000" },
+    "web-lobby": { "url": "http://web-lobby:3000" }
+  },
+  "routes": [
+    { "pattern": "/timeline", "frontend": "web-next" },
+    { "pattern": "/**", "frontend": "relay" }
+  ]
+}

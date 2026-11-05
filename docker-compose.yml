@@ -71,6 +71,9 @@ services:
       # Addon selection. Comma list of ids, or "all". See docs/ADDONS.md.
       ENABLED_ADDONS: ${ENABLED_ADDONS:-all}
       DISABLE_ADDONS: ${DISABLE_ADDONS:-}
+      # The server's own translator. Empty = none (people can still bring a
+      # DeepL key). With `--profile translate`, set it to http://translate:5000.
+      LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-}
     labels:
       com.centurylinklabs.watchtower.enable: "true"
     depends_on:
@@ -78,6 +81,22 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+    restart: unless-stopped
+
+  # ── The server's own translator (opt-in) ─────────────────────────────────
+  # `docker compose --profile translate up -d`, and put
+  #   LIBRETRANSLATE_URL=http://translate:5000
+  # in `.env` so the gateway finds it. Only the languages sukhi offers are
+  # loaded (ja, en, ko). Not published: the gateway is the only caller.
+  # Expect on the order of 1–2 GB of RAM with two workers — measure on your
+  # box before relying on it (docs/TRANSLATION.md); too big for the small
+  # free-tier boxes, where people can use their own DeepL key instead.
+  translate:
+    profiles: ["translate"]
+    image: ghcr.io/${SUKHI_REPO_OWNER:-nyanrus}/sukhi-fedi-translate:${SUKHI_VERSION:-v1}
+    logging: *logging
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     restart: unless-stopped
 
   # Retired in production (v0.3.0). The native SukhiFedi.Fedi service inside
@@ -155,7 +174,7 @@ services:
   # Sits between the edge and the gateway. Only `/login` is challenged —
   # everything else (federation, API, OAuth, static) is ALLOW-listed in
   # config/anubis/botPolicies.yaml so SPA fetches and ActivityPub
-  # delivery keep working. See docs/anubis.md for the rationale.
+  # delivery keep working. See docs/anubis.ja.md for the rationale.
   #
   # The edge (Coolify, nginx, host) should now route HTTP traffic to
   # this service on port 8080 instead of `gateway:4000`. Anubis itself

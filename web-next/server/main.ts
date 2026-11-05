@@ -9,6 +9,7 @@ import { ok, serve, setErrorPage } from './http.ts';
 import { layout } from './views/layout.ts';
 import './routes/auth.ts';
 import './routes/read.ts';
+import './routes/translate.ts'; // write.ts の /statuses/:id/:verb より先に
 import './routes/write.ts';
 import './routes/settings.ts';
 import './routes/security.ts';

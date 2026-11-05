@@ -192,7 +192,7 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
             ${held.map(
               (h) => html`<article class="held-item">
                 <p class="held-text">${h.text}</p>
-                <p class="muted">${t('compose.holdingUntil', { when: timeWords(h.at, ctx.locale) })}</p>
+                <p class="muted">${t('compose.holdingUntil', { when: timeWords(h.at, ctx.locale, new Date(), ctx.tz) })}</p>
                 <form method="post" action="/compose/withdraw">
                   <input type="hidden" name="id" value="${h.id}" />
                   <button type="submit" class="chip">${t('compose.withdraw')}</button>
@@ -328,9 +328,12 @@ route('GET', '/notifications', async (ctx) => {
   const who = (n: Notification) => {
     const rest = (n.group?.accounts ?? []).slice(1);
     if (rest.length === 0) return '';
-    return html`${rest.slice(0, NAMED - 1).map(
-      (a) => html`<span class="notif-also">、<a href="/@${a.acct}">${nameHtml(a)}</a></span>`
-    )}${rest.length > NAMED - 1 ? html`<span class="notif-also">${t('notif.groupOthers')}</span>` : ''}`;
+    const shown = rest.slice(0, NAMED - 1);
+    const more = rest.length > NAMED - 1;
+    // 区切りは言語ごと(「、」/ ", " / 最後だけ " and ")。
+    return html`${shown.map(
+      (a, i) => html`<span class="notif-also">${i === shown.length - 1 && !more ? t('notif.groupLastSep') : t('notif.groupSep')}<a href="/@${a.acct}">${nameHtml(a)}</a></span>`
+    )}${more ? html`<span class="notif-also">${t('notif.groupOthers')}</span>` : ''}`;
   };
 
   const replyAccts = await replyAcctsFor(ctx, arrived.flatMap((n) => (n.status ? [n.status] : [])));

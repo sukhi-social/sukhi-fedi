@@ -942,7 +942,12 @@
       %{default: nil, name: "notification_hold_minutes", type: "integer", null: true},
       %{default: "false", name: "notification_grouping", type: "boolean", null: false},
       %{default: nil, name: "home_filter", type: "character varying", null: true},
-      %{default: "false", name: "boost_hide_name", type: "boolean", null: false}
+      %{default: "false", name: "boost_hide_name", type: "boolean", null: false},
+      %{default: nil, name: "translate_reads", type: "text", null: true},
+      %{default: nil, name: "translate_learns", type: "text", null: true},
+      %{default: nil, name: "translate_engine", type: "character varying", null: true},
+      %{default: nil, name: "translate_deepl_key", type: "bytea", null: true},
+      %{default: nil, name: "translate_deepl_key_hint", type: "character varying", null: true}
     ],
     unique: [
       %{name: "accounts_actor_uri_index", keys: [col: "actor_uri"], where: [not_null: "actor_uri"]},

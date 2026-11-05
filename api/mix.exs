@@ -29,6 +29,6 @@ defmodule SukhiApi.MixProject do
   end
 
   defp deps do
-    []
+    [{:sukhi_shared, path: "../shared"}]
   end
 end

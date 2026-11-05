@@ -38,6 +38,8 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
   const scheduled = [];
   // 新着が「届いた」かどうか(画面で帯を試すため)。POST /__mock/fresh で立つ。
   let freshArrived = false;
+  // 翻訳が失敗するか(画面で試すため)。POST /__mock/translate?fail=busy で立つ。
+  let translateFail = null;
 
   // プロフィールの編集(PATCH update_credentials)も、覚えておく ── 設定の画面を、行って帰って試すため。
   // 形は gateway の verify_credentials に合わせる(source に原文・ひとこと欄・通知のペース)。
@@ -47,7 +49,8 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     birthday: null,
     discoverable: false,
     indexable: false,
-    source: { note: 'お茶と、古い本。', fields: [], language: null, notification_hold_minutes: null, notification_grouping: false, home_filter: '', boost_hide_name: false }
+    source: { note: 'お茶と、古い本。', fields: [], language: null, notification_hold_minutes: null, notification_grouping: false, home_filter: '', boost_hide_name: false,
+      translate_reads: [], translate_learns: [], translate_engine: 'libre', translate_deepl_key_hint: null }
   };
   const bool = (v) => v === 'true' || v === true;
   async function patchMe(req, chunks) {
@@ -72,6 +75,21 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       next.source.home_filter = String(f.get('home_filter')).split(',').filter((x) => ok.includes(x)).sort().join(',');
     }
     if (f.has('boost_hide_name')) next.source.boost_hide_name = bool(f.get('boost_hide_name'));
+    // 翻訳。キーは書きこみ専用: 覚えるのは末尾 4 文字の印だけ(本物は暗号化して置く)。
+    const langs = (v) => [...new Set(String(v).split(',').map((x) => x.trim().toLowerCase().slice(0, 2)).filter((x) => /^[a-z]{2}$/.test(x)))];
+    if (f.has('translate_reads')) next.source.translate_reads = langs(f.get('translate_reads'));
+    if (f.has('translate_learns')) next.source.translate_learns = langs(f.get('translate_learns'));
+    if (f.has('translate_engine')) next.source.translate_engine = f.get('translate_engine') === 'deepl' ? 'deepl' : 'libre';
+    if (f.has('translate_deepl_key')) {
+      const key = String(f.get('translate_deepl_key')).trim();
+      if (!/^[0-9a-f-]{36}(:fx)?$/i.test(key)) return null;
+      next.source.translate_deepl_key_hint = key.replace(/:fx$/, '').slice(-4);
+    }
+    if (bool(f.get('translate_deepl_key_clear'))) {
+      next.source.translate_deepl_key_hint = null;
+      if (next.source.translate_engine === 'deepl') next.source.translate_engine = 'libre';
+    }
+    if (next.source.translate_engine === 'deepl' && !next.source.translate_deepl_key_hint) return null;
     const big = [...f.values()].find((x) => typeof x !== 'string' && x.size > 8 * 1024 * 1024);
     if (big) return null;
     me = next;
@@ -177,6 +195,29 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       scheduled.push(s);
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(s));
+      return;
+    }
+    // 翻訳(POST /api/v1/statuses/:id/translate)。POST /__mock/translate?fail=busy で、次から失敗を返す(画面で試すため)。
+    if (pathname === '/__mock/translate' && method === 'POST') {
+      translateFail = new URL(req.url ?? '/', 'http://localhost').searchParams.get('fail') || null;
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    const tr = pathname.match(/^\/api\/v1\/statuses\/([^/]+)\/translate$/);
+    if (tr && method === 'POST') {
+      if (translateFail) {
+        const [status, body] = translateFail === 'busy' ? [429, { error: 'busy', retry_after: 10 }] : [422, { error: translateFail }];
+        res.writeHead(status, { 'content-type': 'application/json', ...(status === 429 ? { 'retry-after': '10' } : {}) });
+        res.end(JSON.stringify(body));
+        return;
+      }
+      const provider = me.source.translate_engine === 'deepl' ? 'DeepL' : 'LibreTranslate';
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({
+        content: tr[1] === '1002' ? '<p>影島でコーヒー。海が見える席に座りました。</p>' : '<p>(mock) 訳です。</p>',
+        spoiler_text: '', detected_source_language: 'ko', provider, poll: null, media_attachments: []
+      }));
       return;
     }
     if (pathname === '/__mock/fresh' && method === 'POST') {

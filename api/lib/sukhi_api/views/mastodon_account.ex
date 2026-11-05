@@ -235,6 +235,9 @@ defmodule SukhiApi.Views.MastodonAccount do
 
   defp plain(other), do: other
 
+  defp lang_list(csv) when is_binary(csv), do: String.split(csv, ",", trim: true)
+  defp lang_list(_), do: []
+
   defp proxy_image(true, kind, id, url) when is_binary(url) do
     SukhiApi.Views.ProxyUrl.profile_image(kind, id, url)
   end
@@ -265,7 +268,15 @@ defmodule SukhiApi.Views.MastodonAccount do
         # sukhi's own: the home timeline's starting filter ("" = none) and
         # whether a boost row hides whose post it is.
         home_filter: Map.get(account, :home_filter) || "",
-        boost_hide_name: Map.get(account, :boost_hide_name, false) || false
+        boost_hide_name: Map.get(account, :boost_hide_name, false) || false,
+        # sukhi's own: how this person likes posts translated. The lists are the
+        # languages they read / are learning; the engine is "libre" (this server's
+        # translator) or "deepl" (their own key). The key itself is write-only: only
+        # its last four characters come back, so a form can say "a key is set".
+        translate_reads: lang_list(Map.get(account, :translate_reads)),
+        translate_learns: lang_list(Map.get(account, :translate_learns)),
+        translate_engine: Map.get(account, :translate_engine) || "libre",
+        translate_deepl_key_hint: Map.get(account, :translate_deepl_key_hint)
       },
       role:
         if Map.get(account, :is_admin, false) do

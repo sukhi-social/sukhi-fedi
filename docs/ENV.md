@@ -19,7 +19,7 @@ top — those win.
 | Var | Required | Default | Notes |
 |---|---|---|---|
 | **`DOMAIN`** | **yes** (prod) | `localhost:4000` (dev) | Public hostname, no scheme, no port. Stamped into ActivityPub IDs and HTTP-Sig `keyId`. **Changing this after users exist strands their fediverse identity** — set it right before the first signup. |
-| `INSTANCE_TITLE` | no | `sukhi-fedi` | Display name in `/api/v1/instance` and `/.well-known/nodeinfo/2.0`. |
+| `INSTANCE_TITLE` | no | — | Deprecated; set `site_name` in the required `SUKHI_INSTANCE_CONFIG` file. |
 
 ## Distributed Erlang (gateway ↔ api)
 
@@ -114,15 +114,29 @@ path takes its credentials, region and bucket from the same config.
 | Var | Default | Notes |
 |---|---|---|
 | `INVITE_REQUIRED` | `true` | `false` lets anyone register. A mailbox is still verified either way. |
-| `LEGAL_FLAVOR` | `sukhi` | Which `/terms` and `/privacy` set to serve: `sukhi` or `natadeco`. Both are baked into the release. |
+| `LEGAL_FLAVOR` | `sukhi` | Which bundled `/terms` and `/privacy` set to serve when `legal.dir` is unset: `sukhi` or `natadeco`. Both are baked into the release. |
+| `SUKHI_INSTANCE_CONFIG` → `legal.dir` | — (bundled) | Absolute path of a directory holding **this instance's own** `terms.<lang>.md` and `privacy.<lang>.md` (`ja`, `ko`, `en`; the same languages for both). Read and rendered once at boot; changing them takes a restart. A missing directory, an empty/unreadable file, a document missing in a language or an unsupported language refuses to boot. Unset → the sukhi/natadeco documents bundled in the release are served (`LEGAL_FLAVOR`), which are not anyone else's policy. |
 | `PUBLIC_PREVIEW` | `off` | Server-rendered preview for logged-out visitors/crawlers: `off`, `meta` (OG / Twitter / JSON-LD head only) or `full` (plus a readable body). Public content only. |
 | `PUBLIC_PREVIEW_ROBOTS` | `noindex, nofollow` | The meta-robots string on preview pages. Set `index, follow` to be crawled. |
 | `SSR_URL` | — | When set (natadeco: `http://natadeco-ssr:3000`), pages that would get the empty SPA shell are forwarded to this SSR server. |
-| `WEB_UPSTREAMS` | — | The web fronts behind this gateway: `name=url,name=url` (e.g. `web-next=http://web-next:3000`). Each serves a static `/.sukhi/web.json` saying which paths (and cookies) it handles; the gateway reads it at boot and every 30 s. Unset = off. See `SukhiFedi.Web.Upstreams`. |
-| `WEB_ROUTES` | — | Who wins when two fronts could answer: `pattern=name,pattern=name`, **first match wins** — write specific rows first (`/home=web-lobby,/**=web-next`). A row only counts if its front also claims the path. Paths with a dot-led segment are never forwarded. |
-| `STATIC_OVERRIDE_ONLY` | — | `true` = `STATIC_OVERRIDE=only` (kept for natadeco). See `docs/static-override.md`. |
+| `SUKHI_INSTANCE_CONFIG` | `/etc/sukhi/instance.json` | Required mounted non-secret JSON for site metadata, optional `unauthenticated_redirect`, addon switches, `frontends` (`relay`, `web-next`, `web-simple`, `web-board`, `web-lobby`) and ordered routes. If routes are empty, `/` shows the frontend setup instructions. `nodeinfo_monitor` is disabled unless `addons.nodeinfo_monitor` is explicitly `true`. See `config/instance.json.example`. |
+| `WEB_UPSTREAMS` | — | Removed. Define frontend URLs in `SUKHI_INSTANCE_CONFIG`. |
+| `WEB_ROUTES` | — | Removed. Define route precedence and frontend selection in `SUKHI_INSTANCE_CONFIG`; first match wins. |
+| `STATIC_OVERRIDE_ONLY` | — | `true` = `STATIC_OVERRIDE=only` (kept for natadeco). See `docs/static-override.ja.md`. |
 | `WT_TICKET_KEY` | — | Ed25519 seed (raw 32 bytes, base64) that signs WebTransport entry tickets. Unset → `/api/wt` answers 503. |
 | `WT_ENDPOINT` | `https://webtransport.f3liz.casa/wt` | The WebTransport edge a ticket is for. |
+
+## Translating posts (gateway)
+
+Off until `LIBRETRANSLATE_URL` is set. What this is for, and what it will not do: [`TRANSLATION.md`](TRANSLATION.md).
+
+| Var | Default | Notes |
+|---|---|---|
+| `LIBRETRANSLATE_URL` | — | The server's own translator: a [LibreTranslate](https://github.com/LibreTranslate/LibreTranslate) instance you run. The compose file has one ready (`docker compose --profile translate up -d`, image `sukhi-fedi-translate`, built from `translate/Dockerfile`); then set `LIBRETRANSLATE_URL=http://translate:5000`. Unset = no server translator (`translation.enabled` is `false`; people with their own DeepL key can still translate public posts). Keep it off the public internet — only the gateway should reach it. Our image loads only ja, en and ko (`LT_LOAD_ONLY`). |
+| `LIBRETRANSLATE_API_KEY` | — | Sent in the request body when the instance requires a key. Treat as secret. |
+| `TRANSLATE_MAX_FLIGHT` | `2` | How many translations run on that instance at once. More are told to come back in ten seconds. Provisional until a load test sets it. |
+
+A person's own DeepL key is **not** an env var: each person brings theirs in settings; it is sealed with keys derived from `SECRET_KEY_BASE` (so rotating that secret makes every stored DeepL key unreadable — people enter theirs again).
 
 ## Release / test plumbing
 
@@ -164,6 +178,11 @@ endpoints, web push, moderation, etc.). See [`docs/ADDONS.md`](ADDONS.md).
 | `OJAK_NIF_BUILD` | no | unset | Build time only: `1` builds ojak-ex's native library with Rust instead of downloading the prebuilt one. |
 | `ENABLED_CAPABILITIES` | no | all | API node only. Restrict which capability modules under `api/lib/sukhi_api/capabilities/` are mounted. Use to run specialised API nodes (e.g. admin-only). |
 
+`nodeinfo_monitor` is intentionally different from the other addons: it is
+disabled unless `addons.nodeinfo_monitor` is explicitly `true` in
+`SUKHI_INSTANCE_CONFIG`. This keeps a normal SNS deployment from exposing or
+starting the watcher just because the generic addon default is `all`.
+
 ## Delivery queue backend (delivery)
 
 Default is Postgres. `DELIVERY_QUEUE=sqlite` moves the `delivery` and
@@ -187,7 +206,7 @@ using Postgres, which the delivery node still drains.
 | `DELIVERY_QUEUE_DB` | `/var/lib/sukhi/delivery_queue.db` | SQLite file (directory must exist) |
 | `DELIVERY_QUEUE_SYNCHRONOUS` | `full` | `full` or `normal` (WAL; `normal` can lose the last commits on power loss) |
 | `DELIVERY_QUEUE_POOL_SIZE` | `5` | SQLite connection pool |
-| `DELIVERY_QUEUE_HANDOVER` | `1` | `0` で起動時の Postgres → SQLite 自動移管を止める (docs/DELIVERY_QUEUE_MIGRATION.md) |
+| `DELIVERY_QUEUE_HANDOVER` | `1` | `0` で起動時の Postgres → SQLite 自動移管を止める (docs/DELIVERY_QUEUE_MIGRATION.ja.md) |
 | `DELIVERY_QUEUE_RETENTION_SECONDS` | `2592000` | Pruner max age for finished jobs |
 
 ## Tuning — Oban concurrency (gateway, delivery)

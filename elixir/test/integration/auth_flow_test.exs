@@ -207,6 +207,19 @@ defmodule SukhiFedi.Integration.AuthFlowTest do
     refute body =~ "짚이는"
   end
 
+  test "email login mail reads in English when English is picked", %{password: p, email: email, username: u} do
+    cookie = login!(u, p)
+    verify_email!(cookie, email)
+
+    conn = post_json("/login/email/request", %{email: email, lang: "en"})
+    assert conn.status == 200
+    %{subject: subject, body: body} = Mailer.Capture.last_to(email)
+    assert subject =~ "Your code"
+    refute subject =~ "認証コード"
+    refute body =~ "心当たり"
+    refute body =~ "짚이는"
+  end
+
   test "an unknown address gets ok and no mail" do
     ghost = "ghost_#{System.unique_integer([:positive])}@example.test"
     conn = post_json("/login/email/request", %{email: ghost})

@@ -143,7 +143,7 @@ async function securityPage(ctx: Ctx, o: Opts = {}): Promise<Reply> {
     o.error?.where === where ? html`<p class="error" role="alert">${explain(ctx, o.error.code, a.has_password)}</p>` : '';
   const fold = (key: string, label: string, form: SafeHtml) =>
     html`<details ${open === key ? 'open' : ''}><summary class="chip">${label}</summary>${form}</details>`;
-  const when = (iso: string | null) => (iso ? timeWords(iso, ctx.locale) : '—');
+  const when = (iso: string | null) => (iso ? timeWords(iso, ctx.locale, new Date(), ctx.tz) : '—');
 
   // ── メール ──
   const emailLabel = a.email ? (a.email_verified ? t('security.emailChange') : t('security.emailVerify')) : t('security.emailSet');

@@ -325,7 +325,8 @@ const ROUTES = [
     // 鍵は Web Push の仕様書にある見本(本物ではない)。鳴らす種類は gateway が決める(WebPush.direct_types/0)。
     configuration: {
       vapid: { public_key: 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U' },
-      direct_types: ['mention', 'follow_request']
+      direct_types: ['mention', 'follow_request'],
+      translation: { enabled: true }
     },
     registrations: { enabled: true, approval_required: true }
   })],

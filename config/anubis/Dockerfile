@@ -2,7 +2,7 @@
 #
 # Anubis with the policy + imprints baked in. haloy runs this image as
 # the thing standing in front; it gates `/check` and forwards everything
-# else to the app behind it. See docs/anubis.md.
+# else to the app behind it. See docs/anubis.ja.md.
 #
 # **This one image serves sukhi.f3liz.casa, natadeco.com and sukhi.social.** The
 # policy is byte-for-byte the same for both — only the imprint (who to

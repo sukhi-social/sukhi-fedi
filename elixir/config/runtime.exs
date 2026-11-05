@@ -1,6 +1,23 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import Config
 
+instance_config = SukhiShared.InstanceConfig.load_or_default()
+
+nodeinfo_monitor_configured =
+  SukhiShared.InstanceConfig.addon_enabled?(instance_config, "nodeinfo_monitor")
+
+config :sukhi_fedi, :instance_config, instance_config
+
+config :sukhi_fedi,
+       :frontend_configured,
+       SukhiShared.InstanceConfig.frontend_configured?(instance_config)
+
+config :sukhi_fedi, :nodeinfo_monitor_configured, nodeinfo_monitor_configured
+
+config :sukhi_fedi,
+       :unauthenticated_redirect,
+       SukhiShared.InstanceConfig.unauthenticated_redirect(instance_config)
+
 # Public-facing domain used in nodeinfo/webfinger/ActivityPub URLs.
 # In prod, fetch_env! crashes the release on a missing DOMAIN rather than
 # silently minting localhost:4000 URIs into outbound IDs and keyIds.
@@ -14,6 +31,19 @@ end
 # 404s (feature off); set it to expose the host-resource history/snapshot
 # to offline analysis. Generate with `openssl rand -hex 32`.
 config :sukhi_fedi, :metrics_token, System.get_env("METRICS_TOKEN")
+
+# Translating posts for the reader (docs/TRANSLATION.md). The server's own
+# translator is a LibreTranslate instance the operator runs — unset means there
+# is none (people with their own DeepL key can still translate). It is the
+# operator's address, never one a user or a remote server supplies.
+#   TRANSLATE_MAX_FLIGHT — how many translations that instance runs at once;
+#   more are told to come back in a few seconds. Provisional: set it from a load test.
+config :sukhi_fedi, :libretranslate_url, System.get_env("LIBRETRANSLATE_URL")
+config :sukhi_fedi, :libretranslate_api_key, System.get_env("LIBRETRANSLATE_API_KEY")
+
+config :sukhi_fedi,
+       :translate_max_flight,
+       String.to_integer(System.get_env("TRANSLATE_MAX_FLIGHT", "2"))
 
 # Whether signup needs an invite code.
 #   INVITE_REQUIRED=true  (default) — invite-only, as sukhi grew up.
@@ -42,7 +72,10 @@ config :sukhi_fedi, :legal_flavor, legal_flavor
 # 署名する Ed25519 の秘密鍵（生 32 バイト seed の base64）。公開鍵は karutte の `:ticket_pubkey`
 # に置く。未設定なら `/api/wt` は 503（発券しない）。
 config :sukhi_fedi, :wt_ticket_key, System.get_env("WT_TICKET_KEY")
-config :sukhi_fedi, :wt_endpoint, System.get_env("WT_ENDPOINT", "https://webtransport.f3liz.casa/wt")
+
+config :sukhi_fedi,
+       :wt_endpoint,
+       System.get_env("WT_ENDPOINT", "https://webtransport.f3liz.casa/wt")
 
 # Server-rendered HTML preview for logged-out visitors and crawlers
 # (SukhiFedi.Web.PublicPreviewController). The SPA is JS-only, so without
@@ -246,6 +279,7 @@ if config_env() == :prod do
       username: System.fetch_env!("DB_USER"),
       password: System.fetch_env!("DB_PASS"),
       hostname: System.get_env("DB_HOST", "localhost"),
+      port: String.to_integer(System.get_env("DB_PORT", "5432")),
       pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
       # DBConnection drops a checkout that has waited longer than
       # queue_target for a whole queue_interval. Defaults 50 / 1000 ms.
@@ -295,10 +329,11 @@ if config_env() == :prod do
   # Comma-separated list of `<name>@<host>` atoms. Nodes not reachable at
   # request time are skipped; if none are reachable, `/api/v1/*` returns
   # 503. Example: `PLUGIN_NODES=api@api,api_admin@api-admin`.
-  config :sukhi_fedi, :plugin_nodes,
-    System.get_env("PLUGIN_NODES", "")
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.to_atom/1)
+  config :sukhi_fedi,
+         :plugin_nodes,
+         System.get_env("PLUGIN_NODES", "")
+         |> String.split(",", trim: true)
+         |> Enum.map(&String.to_atom/1)
 
   # Oban monitor queue concurrency override. NodeInfo polling fans out
   # one job per monitored instance; on a 1 GB box 5 parallel Finch

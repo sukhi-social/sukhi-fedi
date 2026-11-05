@@ -8,11 +8,13 @@ defmodule SukhiApi.RegistryTest do
     prev_enabled = Application.get_env(:sukhi_api, :enabled_addons)
     prev_disabled = Application.get_env(:sukhi_api, :disabled_addons)
     prev_caps = Application.get_env(:sukhi_api, :enabled_capabilities)
+    prev_nodeinfo = Application.get_env(:sukhi_api, :nodeinfo_monitor_configured)
 
     on_exit(fn ->
       restore(:enabled_addons, prev_enabled)
       restore(:disabled_addons, prev_disabled)
       restore(:enabled_capabilities, prev_caps)
+      restore(:nodeinfo_monitor_configured, prev_nodeinfo)
     end)
 
     :ok
@@ -22,6 +24,7 @@ defmodule SukhiApi.RegistryTest do
     Application.put_env(:sukhi_api, :enabled_addons, :all)
     Application.put_env(:sukhi_api, :disabled_addons, [])
     Application.delete_env(:sukhi_api, :enabled_capabilities)
+    Application.put_env(:sukhi_api, :nodeinfo_monitor_configured, true)
 
     caps = Registry.capabilities()
     assert SukhiApi.Capabilities.MastodonInstance in caps
@@ -48,6 +51,7 @@ defmodule SukhiApi.RegistryTest do
     Application.put_env(:sukhi_api, :enabled_addons, :all)
     Application.put_env(:sukhi_api, :disabled_addons, [:mastodon_api])
     Application.delete_env(:sukhi_api, :enabled_capabilities)
+    Application.put_env(:sukhi_api, :nodeinfo_monitor_configured, true)
 
     caps = Registry.capabilities()
     refute SukhiApi.Capabilities.MastodonInstance in caps

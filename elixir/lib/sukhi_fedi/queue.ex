@@ -8,7 +8,7 @@ defmodule SukhiFedi.Queue do
   plugins run on Oban's Lite engine over `SukhiFedi.QueueRepo` (SQLite, one
   node), because the engine behind `SukhiFedi.Repo` is not a SQL database.
   Jobs are therefore *not* in the same store as the business rows; the
-  at-least-once consequences are the ones docs/DELIVERY_QUEUE_MIGRATION.md
+  at-least-once consequences are the ones docs/DELIVERY_QUEUE_MIGRATION.ja.md
   already describes for the SQLite delivery queue.
   """
 

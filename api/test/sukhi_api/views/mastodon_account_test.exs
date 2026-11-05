@@ -80,4 +80,35 @@ defmodule SukhiApi.Views.MastodonAccountTest do
       assert out.uri == "https://remote.example/users/kuro"
     end
   end
+
+  describe "render_credential/3 translation settings" do
+    test "shows the languages and the engine, and only the last four characters of a key" do
+      out =
+        MastodonAccount.render_credential(
+          account(%{
+            translate_reads: "ja,en",
+            translate_learns: "ko",
+            translate_engine: "deepl",
+            translate_deepl_key_hint: "e4f5"
+          }),
+          %{},
+          ["read"]
+        )
+
+      assert %{translate_reads: ["ja", "en"], translate_learns: ["ko"], translate_engine: "deepl", translate_deepl_key_hint: "e4f5"} = out.source
+      refute Map.has_key?(out.source, :translate_deepl_key)
+    end
+
+    test "an account that never chose is on the server's translator, reads and learns nothing, and has no key" do
+      out = MastodonAccount.render_credential(account(%{}), %{}, ["read"])
+
+      assert %{translate_reads: [], translate_learns: [], translate_engine: "libre", translate_deepl_key_hint: nil} = out.source
+    end
+
+    test "a sealed key that somehow reached the view is not rendered" do
+      out = MastodonAccount.render_credential(account(%{translate_deepl_key: "SEALED-BYTES"}), %{}, ["read"])
+      refute JSON.encode!(out) =~ "SEALED-BYTES"
+    end
+  end
 end
+

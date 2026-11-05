@@ -71,7 +71,7 @@ queue group, so the topology above is unchanged — only the responder moved fro
 a sidecar into the BEAM. The worker under `bun/` is retired — and it never
 ran on Bun: it is Node.js 24+ under the old directory name. It is kept as a
 rollback path and as the build-time oracle that mints the golden fixtures the
-native port is checked against (see `bun/README.md`). Read "Bun" below as "the `fedify` service", now native.
+native port is checked against (the code is still under `bun/`). Read "Bun" below as "the `fedify` service", now native.
 
 Rules enforced by this split:
 
@@ -115,8 +115,10 @@ topology; only the process count differs.
 web-lobby…) are separate processes that sit *behind* the gateway, on a
 private network; the browser reaches only the gateway, so rule 1 holds.
 Each front serves a static `/.sukhi/web.json` listing the paths it can
-answer; the operator lists the fronts' URLs (`WEB_UPSTREAMS`) and, where
-two could answer, who wins (`WEB_ROUTES`, first match wins). Paths with a
+answer; the operator lists the fronts' URLs and, where two could answer,
+who wins in the required `/etc/sukhi/instance.json` (`routes`, first match
+wins). Each route must explicitly select `relay`, `web-next`, `web-simple`,
+`web-board`, or `web-lobby`. Paths with a
 dot-led segment (`/.well-known/…`, `/.sukhi/…`) are the gateway's alone and
 are never forwarded. Everything the gateway itself routes (`/api`,
 `/oauth`, federation, media) is matched first and is not claimable. The one
@@ -344,7 +346,6 @@ sukhi-fedi/
 ├── TODO.md                                # punch list of deferred work
 └── docs/
     ├── ARCHITECTURE.md                    # ← this file (canonical)
-    ├── ARCHITECTURE.ja.md                 # Japanese mirror; trail the EN
     └── ADDONS.md                          # addon ABI contract
 ```
 

@@ -6,7 +6,7 @@
 > the function that backs it; if a row says we do something, there is
 > code at that `file:line` doing it.
 >
-> The Bun/Fedify worker that [`FEDIFY.md`](FEDIFY.md) documents is
+> The Bun/Fedify worker (`bun/`) is
 > **retired in production** (v0.3.0+); it survives only as the dev-stack
 > oracle that mints golden fixtures. This file describes the path that
 > actually runs. Companions: [`ARCHITECTURE.md`](ARCHITECTURE.md) (where
@@ -277,8 +277,7 @@ Grounded in the code's own TODOs and tradeoffs — not aspirational.
   handler builds an `Accept` unconditionally on any resolvable Follow —
   there is no lockable-account / pending-approval state. Adding lockable
   accounts means setting the actor flag *and* gating the Accept enqueue
-  on a `pending_approval` state (`inbox.ex:56-88`; cf. retired-worker
-  note in `FEDIFY.md` §3.5).
+  on a `pending_approval` state (`inbox.ex:56-88`; cf. the retired worker).
 - **Inbound RsaSignature2017 LD-signatures are not verified for trust.**
   Inbound authentication is HTTP-signature + FEP-8b32 only;
   `LdSignature.verify/2` is test-only (`ld_signature.ex:56-60`, §5).
