@@ -319,6 +319,57 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     end
   end
 
+  test "/privacy?lang=en serves the English translation, and says the Japanese applies" do
+    conn = get("/privacy?lang=en") |> LegalController.privacy()
+    assert conn.status == 200
+    assert conn.resp_body =~ ~s(<html lang="en">)
+    assert conn.resp_body =~ "How we handle personal information"
+    assert conn.resp_body =~ "If the two differ, the Japanese text applies"
+    # the cookies the web UI sets for language and time zone are listed
+    assert conn.resp_body =~ "time-zone cookies"
+    # no leftover review notes
+    refute conn.resp_body =~ "NOTES FOR REVIEW"
+    refute conn.resp_body =~ "DRAFT"
+    # the same page links the other two languages and the English terms
+    assert conn.resp_body =~ ~s(href="/privacy">日本語)
+    assert conn.resp_body =~ ~s(href="/privacy?lang=ko">한국어)
+    assert conn.resp_body =~ ~s(href="/terms?lang=en">Terms)
+  end
+
+  test "/terms?lang=en serves the English translation and links the English privacy page" do
+    conn = get("/terms?lang=en") |> LegalController.terms()
+    assert conn.status == 200
+    assert conn.resp_body =~ ~s(<html lang="en">)
+    assert conn.resp_body =~ "Come and sit for a while"
+    assert conn.resp_body =~ ~s(href="/privacy?lang=en")
+    refute conn.resp_body =~ "NOTES FOR REVIEW"
+  end
+
+  test "the English terms keep the way back to sign-up" do
+    conn = get("/terms?lang=en&signup=true") |> LegalController.terms()
+    assert conn.resp_body =~ "I've read it"
+    assert conn.resp_body =~ ~s(href="/signup")
+    assert conn.resp_body =~ ~s(href="/privacy?signup=true&lang=en")
+  end
+
+  test "all three privacy pages list the language and time-zone cookies, and speak to readers elsewhere" do
+    ja = get("/privacy") |> LegalController.privacy() |> Map.get(:resp_body) |> plain()
+    ko = get("/privacy?lang=ko") |> LegalController.privacy() |> Map.get(:resp_body) |> plain()
+    en = get("/privacy?lang=en") |> LegalController.privacy() |> Map.get(:resp_body) |> plain()
+
+    assert ja =~ "ことばと時間帯のCookie"
+    assert ja =~ "ほかの国にお住まいの方へ"
+    assert ko =~ "언어·시간대 쿠키"
+    assert ko =~ "다른 나라에 사시는 분께"
+    assert en =~ "Language and time-zone cookies"
+    assert en =~ "If you live somewhere else"
+  end
+
+  test "an unknown lang still gets the Japanese terms" do
+    conn = get("/terms?lang=fr") |> LegalController.terms()
+    assert conn.resp_body =~ ~s(<html lang="ja">)
+  end
+
   test "/terms?lang=ko serves the Korean version" do
     conn = get("/terms?lang=ko") |> LegalController.terms()
 
