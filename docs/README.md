@@ -43,6 +43,7 @@ We would rather say so than hand you a machine translation; if you can help, ple
 | Getting started with SSH | [`OPERATING_OVER_SSH.ja.md`](OPERATING_OVER_SSH.ja.md) (ja) |
 | Choosing and installing Docker / Podman | [`RUNTIME.ja.md`](RUNTIME.ja.md) (ja) |
 | Swapping images in a Quadlet box | [`OPS_UPDATE_QUADLET.ja.md`](OPS_UPDATE_QUADLET.ja.md) (ja) |
+| What visitors see while the app is stopped (maintenance page, read-only copy) | [`OPS_MAINTENANCE_PAGE.ja.md`](OPS_MAINTENANCE_PAGE.ja.md) (ja) |
 | One private network for admin access (Tailscale) | [`TAILSCALE.ja.md`](TAILSCALE.ja.md) (ja) |
 | Every environment variable | [`ENV.md`](ENV.md) |
 | Where Datalevin keeps data, and its settings | [`DATALEVIN.md`](DATALEVIN.md) |

@@ -80,7 +80,7 @@ sudo systemctl list-timers | grep -E 'sukhi|certbot|dnf'   # 自動のものが�
 
 ## 4. 更新のメンテナンス
 
-- **アプリ:** OPS_DEPLOY.ja.md。
+- **アプリ:** OPS_DEPLOY.ja.md。止めているあいだ来た人に見せる頁は OPS_MAINTENANCE_PAGE.ja.md(`sukhi-maintenance on` / `off`)。
 - **OS の部品:** 自動の安全更新に任せる(OPS_PREPARE.ja.md §3)。月に一度、再起動が必要か見る(`needs-restarting -r`、Debian は `/var/run/reboot-required`)。
 - **コンテナの土台:** アプリの更新を待たずに焼き直す仕組みが要る(RUNTIME.ja.md §11。定期の再ビルド・走査は**未実装**)。
   それまでは、**image が焼かれてから 30 日を超えたら、更新を考える**という目安を持つ。

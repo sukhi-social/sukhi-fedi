@@ -79,6 +79,15 @@ test-api:
 test-web:
 	cd web && $(RUN) pnpm run check
 
+# The maintenance page (docs/OPS_MAINTENANCE_PAGE.ja.md): the nginx rules against a
+# real nginx (skipped, with a message, when there is none), and the switch script
+# against a fake container tool and a fake gateway. Neither needs a database.
+test-nginx:  ## the maintenance-page nginx rules, on a real nginx
+	@bash infra/nginx/test.sh
+
+test-maintenance:  ## scripts/sukhi-maintenance, with a fake container tool (needs Node 22+)
+	@bash scripts/sukhi-maintenance_test.sh
+
 # The DB-backed integration suite, against an embedded PGlite Postgres —
 # no Docker. Extra args pass through to `mix test`:
 #   make test-pglite
