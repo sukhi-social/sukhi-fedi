@@ -86,21 +86,21 @@ defmodule SukhiFedi.Datalevin.ManifestTest do
         "raw_backend" => "sqlite"
       }
 
-      file = Path.join(config.dir, "backup-manifest.json")
-      write = fn inv -> File.write!(file, JSON.encode!(inv)) end
-      %{inventory: inventory, file: file, write: write}
+      inv_path = Path.join(config.dir, "backup-manifest.json")
+      write = fn inv -> File.write!(inv_path, JSON.encode!(inv)) end
+      %{inventory: inventory, inv_path: inv_path, write: write}
     end
 
     test "a store at a version this release knows is accepted", ctx do
       ctx.write.(Map.put(ctx.inventory, "schema_version", 0))
-      assert :ok = Manifest.validate_backup!(ctx.file, ctx.config, %{})
+      assert :ok = Manifest.validate_backup!(ctx.inv_path, ctx.config, %{})
     end
 
     test "a store from a newer release is refused", ctx do
       ctx.write.(Map.put(ctx.inventory, "schema_version", 20_990_101_000_000))
 
       assert_raise ArgumentError, ~r/newer than this release knows/, fn ->
-        Manifest.validate_backup!(ctx.file, ctx.config, %{})
+        Manifest.validate_backup!(ctx.inv_path, ctx.config, %{})
       end
     end
 
@@ -108,12 +108,12 @@ defmodule SukhiFedi.Datalevin.ManifestTest do
       current = Manifest.legacy_sha256(Catalog.dtlv_schema())
 
       ctx.write.(Map.put(ctx.inventory, "catalog_sha256", current))
-      assert :ok = Manifest.validate_backup!(ctx.file, ctx.config, %{})
+      assert :ok = Manifest.validate_backup!(ctx.inv_path, ctx.config, %{})
 
       ctx.write.(Map.put(ctx.inventory, "catalog_sha256", "0000"))
 
       assert_raise ArgumentError, ~r/catalog fingerprint/, fn ->
-        Manifest.validate_backup!(ctx.file, ctx.config, %{})
+        Manifest.validate_backup!(ctx.inv_path, ctx.config, %{})
       end
     end
 
@@ -121,7 +121,7 @@ defmodule SukhiFedi.Datalevin.ManifestTest do
       ctx.write.(ctx.inventory |> Map.put("schema_version", 0) |> Map.put("data_dir", "/elsewhere"))
 
       assert_raise ArgumentError, ~r/data directory path/, fn ->
-        Manifest.validate_backup!(ctx.file, ctx.config, %{})
+        Manifest.validate_backup!(ctx.inv_path, ctx.config, %{})
       end
     end
   end
