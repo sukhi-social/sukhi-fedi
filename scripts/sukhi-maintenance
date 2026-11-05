@@ -67,6 +67,7 @@ t() {
       listfail)  printf '投稿の写しを取れませんでした。一覧なしで続けます (%s)' "$1" ;;
       renderfail) printf '%s の頁を作れませんでした。前の頁があれば、それを使います (web-next が止まっていませんか: %s)' "$1" "$2" ;;
       wrote)     printf '頁を置きました: %s' "$1" ;;
+      warmed)    printf '大事な口 (nodeinfo など) の答えを nginx に置きました' ;;
       on)        printf '旗を立てました。nginx は、アプリの代わりに頁を返します。' ;;
       onnext)    printf '次: 作業のあと、アプリが起きたら sukhi-maintenance off' ;;
       off)       printf '旗を下ろしました。アプリへ通します。' ;;
@@ -101,6 +102,7 @@ t() {
       listfail)  printf 'could not copy the posts; continuing without the list (%s)' "$1" ;;
       renderfail) printf 'could not build the %s page; the previous page is kept if there is one (is web-next down: %s?)' "$1" "$2" ;;
       wrote)     printf 'pages written: %s' "$1" ;;
+      warmed)    printf 'warmed the answers of the critical doors (nodeinfo etc.) in nginx' ;;
       on)        printf 'flag set. nginx now answers with the page instead of the app.' ;;
       onnext)    printf 'next: when the app is back after your work, run sukhi-maintenance off' ;;
       off)       printf 'flag removed. nginx passes requests to the app again.' ;;
@@ -178,6 +180,18 @@ probe() {
   esac
 }
 
+# 大事な口(nodeinfo など)の答えを、nginx に一度取らせておく(infra/nginx/sukhi-maintenance.conf の写し)。
+# アプリが止まる前に。SUKHI_MAINT_URL があるときだけ。取れなくても止めない(旗が先)。
+warm() {
+  [ -n "$URL" ] || return 0
+  command -v curl >/dev/null 2>&1 || return 0
+  local base="${URL%/}" p
+  for p in /.well-known/nodeinfo /nodeinfo/2.0 /nodeinfo/2.1 /api/v1/instance /api/v2/instance /.well-known/host-meta; do
+    curl -s -o /dev/null --max-time 10 "$base$p" || true
+  done
+  say warmed
+}
+
 cmd_prepare() {
   check_dir
   tmp="$(mktemp -d)"
@@ -230,6 +244,8 @@ cmd_on() {
   [ -z "$about" ] || args+=(--about "$about")
   # 頁が作れなくても、旗は立てる(止めたい、が先)。前の頁があれば、それが出る。
   if ! render_all "$items" ${args[@]+"${args[@]}"}; then n=0; fi
+
+  warm
 
   # 旗は一つのファイルで、中身が状態。置くのは、頁のあと(旗が立ったとき、頁はもうある)。
   {

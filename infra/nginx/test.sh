@@ -21,19 +21,27 @@ maint="$root/m"
 app_port=$((20000 + RANDOM % 10000)); ng_port=$((app_port + 1))
 
 # 設定は、置き場だけを差し替えて使う(本物は /srv/sukhi-maintenance)。
+# 写しの「新しい」期間(本物は 1 分)は 1 秒に縮める。そうしないと、古くなった写し(STALE)を見られない。
 for f in sukhi-maintenance-gate.inc sukhi-maintenance-server.inc; do
-  sed "s#/srv/sukhi-maintenance#$maint#g" "$here/$f" > "$root/conf/$f"
+  sed -e "s#/srv/sukhi-maintenance#$maint#g" -e 's#valid      200 1m#valid      200 1s#' "$here/$f" > "$root/conf/$f"
 done
-cp "$here/sukhi-maintenance.conf" "$root/conf/"
+grep -q 'valid      200 1s' "$root/conf/sukhi-maintenance-gate.inc" || { echo "test setup: gate.inc changed shape"; exit 1; }
+sed "s#/var/cache/nginx/sukhi-critical#$root/cache#" "$here/sukhi-maintenance.conf" > "$root/conf/sukhi-maintenance.conf"
 
 # 偽のアプリ。/boom は自分で 503 を返す。
 cat > "$root/app.py" <<PY
-import http.server
+import http.server, os
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         code = 503 if self.path == '/boom' else 200
-        self.send_response(code); self.send_header('content-type','text/plain'); self.end_headers()
-        self.wfile.write(b'app says hi' if code == 200 else b'app says no')
+        ctype, body = 'text/plain', b'app says hi' if code == 200 else b'app says no'
+        if self.path.startswith('/nodeinfo/') or self.path.startswith('/.well-known/webfinger') or self.path == '/api/v1/instance':
+            ctype, body = 'application/json', b'{"from":"app"}'
+        if self.path == '/.well-known/host-meta':   # 確認の頁のような HTML が返ってきたとき
+            ctype, body = 'text/html', b'<html>challenge</html>'
+        if os.path.exists('$root/app-5xx'): code, body = 500, b'{"error":"boom"}'
+        self.send_response(code); self.send_header('content-type', ctype); self.end_headers()
+        self.wfile.write(body)
     do_POST = do_GET
     def log_message(self,*a): pass
 http.server.HTTPServer(('127.0.0.1', $app_port), H).serve_forever()
@@ -87,6 +95,13 @@ echo "# アプリが動いている: そのまま通す"
 check "app up"                200 'app says hi' - "$base/"
 check "app's own 503 passes"  503 'app says no' - -H "$B" "$base/boom"
 
+echo "# 大事な口(nodeinfo など): 動いている間に答えを置く"
+check "nodeinfo live (MISS)"  200 'from' 'x-sukhi-cache: MISS' "$base/nodeinfo/2.0"
+check "webfinger live"        200 'from' - "$base/.well-known/webfinger?resource=acct:a@b"
+check "instance live"         200 'from' - "$base/api/v1/instance"
+check "html answer is passed but never kept" 200 'challenge' - "$base/.well-known/host-meta"
+check "nodeinfo 2nd request is a HIT"  200 'from' 'x-sukhi-cache: HIT' "$base/nodeinfo/2.0"
+
 echo "# 旗が立っている: アプリが動いていても止める"
 touch "$maint/on"
 check "flag: browser gets the page (ja default)" 503 'page-ja' 'retry-after: 300' -H "$B" "$base/timeline"
@@ -104,16 +119,36 @@ check "flag: ActivityPub fetch gets JSON, not the page" 503 'maintenance' 'conte
 check "flag: Accept with json and html -> JSON"  503 'maintenance' 'application/json' -H 'Accept: text/html, application/ld+json' "$base/users/hina"
 check "flag: inbox POST"      503 'maintenance' 'content-type: application/json' -X POST -d '{}' "$base/inbox"
 check "flag: API even for a browser Accept"  503 'maintenance' 'application/json' -H "$B" "$base/api/v1/timelines/public"
-check "flag: webfinger"       503 'maintenance' 'application/json' -H "$B" "$base/.well-known/webfinger?resource=acct:a@b"
+check "flag: other .well-known paths are JSON 503"  503 'maintenance' 'application/json' -H "$B" "$base/.well-known/x-other"
+check "flag: webfinger is a critical door, still answered" 200 'from' - -H "$B" "$base/.well-known/webfinger?resource=acct:a@b"
 check "flag: image request"   503 'maintenance' 'application/json' -H 'Accept: image/avif,image/*' "$base/uploads/a.png"
 check "flag: certbot's path is not stopped" 200 'ok-acme' - "$base/.well-known/acme-challenge/t"
+check "flag: nodeinfo is NOT stopped by the flag (app is up)" 200 'from' - "$base/nodeinfo/2.0"
+check "flag: POST to nodeinfo path is not served from the cache" 503 'maintenance' 'application/json' -X POST -d x "$base/nodeinfo/2.0"
 rm "$maint/on"
 check "flag removed: app again"  200 'app says hi' - "$base/"
+
+echo "# アプリが 5xx を返す: 大事な口は、置いてある写しで返す"
+sleep 2   # 写しの「新しい」期間(1 秒)を過ぎさせる
+touch "$root/app-5xx"
+check "app 500: nodeinfo served stale" 200 'from' 'x-sukhi-cache: STALE' "$base/nodeinfo/2.0"
+check "app 500: instance served stale" 200 'from' 'x-sukhi-cache: STALE' "$base/api/v1/instance"
+check "app 500: a path never answered is the app's own 500" 500 'boom' - "$base/nodeinfo/9.9"
+check "app 500: ordinary path is the app's own 500" 500 'boom' - "$base/timeline"
+rm "$root/app-5xx"
 
 echo "# アプリが止まっている(旗なし): 502 も同じ頁にする"
 kill "$app_pid"; wait "$app_pid" 2>/dev/null || true; app_pid=
 check "down: browser gets the page"  503 'page-ja' 'retry-after: 300' -H "$B" "$base/"
-check "down: machine gets JSON"      503 'maintenance' 'application/json' "$base/api/v1/instance"
+check "down: machine gets JSON"      503 'maintenance' 'application/json' "$base/api/v1/timelines/public"
+check "down: nodeinfo served stale"  200 'from' 'x-sukhi-cache: STALE' "$base/nodeinfo/2.0"
+check "down: webfinger served stale" 200 'from' 'x-sukhi-cache: STALE' "$base/.well-known/webfinger?resource=acct:a@b"
+check "down: nodeinfo never fetched before -> JSON 503" 503 'maintenance' 'application/json' "$base/nodeinfo/2.1"
+check "down: the HTML answer was not kept -> 503" 503 'maintenance' 'application/json' "$base/.well-known/host-meta"
+touch "$maint/on"
+check "down + flag: nodeinfo still served stale" 200 'from' 'x-sukhi-cache: STALE' "$base/nodeinfo/2.0"
+check "down + flag: page for a browser"  503 'page-ja' - -H "$B" "$base/"
+rm "$maint/on"
 
 echo "# 頁を一度も用意していない"
 rm "$maint/www/"*

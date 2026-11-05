@@ -23,6 +23,8 @@
                     ▼
    人の窓(GET/HEAD で text/html)  → /srv/sukhi-maintenance/www/maintenance.<ja|ko|en>.html(503)
    ほかのすべて(連合・API・POST・画像)→ 短い JSON の 503(Retry-After: 300)
+   ただし「一番大事な口」(nodeinfo・webfinger・host-meta・instance の GET)は、
+   奥が答えないとき 503 にせず、nginx が置いてある最後の答えで返す(§1)
 ```
 
 - **静的なファイルだけ。** アプリが止まっていても、nginx が答える。
@@ -35,6 +37,7 @@
 | --- | --- | --- |
 | 人の窓(ブラウザで頁を開く) | 頁(HTTP 503)。言語は `?lang=` → cookie(`sukhi_locale`)→ Accept-Language の順。持っていない言語だけを挙げる人は英語、何も挙げない人は日本語 | web-next の決め方と同じ(`ENGLISH_VOICE.md`) |
 | 連合の相手(`Accept: application/activity+json` など)、`/inbox` への POST、API、`/.well-known/`、画像 | 頁ではなく JSON の 503 と `Retry-After: 300` | HTML を連合の相手に返さない。503 は「あとでまた来て」で、相手は送りなおす |
+| **一番大事な口**(`/nodeinfo/2.x`、`/.well-known/{nodeinfo,webfinger,host-meta}`、`/api/v{1,2}/instance` の GET/HEAD) | 奥が 5xx・時間切れ・つながらないとき、**nginx に置いてある最後の答え**(`X-Sukhi-Cache: STALE`)。旗が立っていても止めない。一度も答えたことがない口だけが JSON の 503 | 連合の相手は、これで「このサーバーは生きているか」を見る。落ちている間も、答えを変えずに返す。答えを作り話にはしない(置いてあるのは、本物が最後に言ったこと) |
 | certbot の `/.well-known/acme-challenge/` | 止めない(別の location が受ける) | 止めているあいだに証明書の更新が来ても、通る |
 
 頁の中身(三言語とも):
@@ -105,6 +108,10 @@ sudo nginx -t && sudo systemctl reload nginx
 - ② を **location の中**に置くのは、certbot の `/.well-known/acme-challenge/` のような別の location まで止めないため。
 - アプリ自身が返した 503(例: 受付停止の応答)は、そのまま通る(`proxy_intercept_errors` は既定の off のまま)。
   nginx が作る 502 / 504 と、旗による 503 だけを頁にする。
+- **一番大事な口の写し**(`proxy_cache_path /var/cache/nginx/sukhi-critical`、1 分は新鮮、止まっても 30 日置く)は、
+  アプリへ通した普通のアクセスで貯まる。`sukhi-maintenance on` は、`SUKHI_MAINT_URL` があれば止める前に一度取らせて温めておく。
+  置くのは **JSON で返ったものだけ**(Anubis の確認の頁のような HTML を nodeinfo として置かない)・`Set-Cookie` 付きは置かない・GET/HEAD だけ。
+  `inbox` への POST などは、写しで返さず 503 のまま(相手が送りなおす)。
 - 置き場を変えるなら、三つのファイルの `/srv/sukhi-maintenance` を書き換える(nginx は環境変数を読めない)。
 
 ## 4. 止めるとき・戻すとき(順番)
@@ -146,7 +153,9 @@ GitOps の同期([`OPS_QUADLET_GITOPS.md`](OPS_QUADLET_GITOPS.md) §3.3)が `try
 ## 6. まだ・決めていないこと
 
 1. **実機では未確認。** 初回は、`prepare` → 外から `Accept: text/html` で 503 を確かめる(旗なしでアプリを止めて 502 → 頁になるか)→ `on` → `off` の順に手で。
-2. **規約・プライバシーに一行。** 「止めている間、公開投稿の写しを、このサーバーに短く置く」は、規約・プライバシー(三言語)に書くかを、人が決める(法的な文)。
+2. **規約・プライバシーには書かない案**(ひなたの問い「書く必要あるかな?」への答え。最終は人)。写しは、すでに公開されているものを、同じサーバーの中に、止めている間だけ置く。
+   プライバシー §3 の「サーバーに保存される情報」と、公開したものを「公開した目的の範囲で扱う」の中に収まり、`off` で消える。
+   使いみちが変わる(広告・解析・外部への提供)わけでもない。広げるときは、そのとき書く。
 3. **GitOps の同期が、更新のたびに `on` / `off` を呼ぶか。** 呼ぶなら `sukhi-setup` の同期スクリプトに二行。
 4. **画像・アイコンは写さない**(文字だけ)。要るかは、使ってから。
 5. **自動で戻る(JS)は入れていない。** 開いたままの頁が勝手に動かないように。「ひらきなおしてください」と言う。
@@ -157,11 +166,12 @@ GitOps の同期([`OPS_QUADLET_GITOPS.md`](OPS_QUADLET_GITOPS.md) §3.3)が `try
 ## 7. 確かめ方
 
 ```sh
-make test-nginx          # infra/nginx/test.sh: 本物の nginx に規則を読ませ、偽のアプリを後ろに立てて 二十数通りを見る(nginx が無ければ skip)
+make test-nginx          # infra/nginx/test.sh: 本物の nginx に規則を読ませ、偽のアプリを後ろに立てて 四十通りほどを見る(nginx が無ければ skip)
 make test-maintenance    # scripts/sukhi-maintenance_test.sh: 偽のコンテナ道具と偽の gateway で、on / off / 失敗のときを通す
 cd web-next && pnpm test # 頁の中身(文字だけにする・エスケープ・三言語がそろう)は test/maintenance.test.ts
 ```
 
 `test-nginx` が見ているもの: 旗があれば奥が動いていても 503 / 奥が止まれば同じ頁 / アプリ自身の 503 は通る /
 言語の決め方(`?lang=` → cookie → Accept-Language)/ ActivityPub の取得・`/inbox` の POST・API・画像には頁でなく JSON /
-certbot の道は止めない / 頁が一枚も無くても JSON の 503。
+certbot の道は止めない / 頁が一枚も無くても JSON の 503 /
+大事な口は、奥が 5xx でも止まっていても、旗があっても、置いてある写しで返る(HTML は置かれない・一度も取っていない口は 503)。
