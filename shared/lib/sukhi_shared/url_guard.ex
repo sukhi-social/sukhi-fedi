@@ -50,10 +50,40 @@ defmodule SukhiShared.UrlGuard do
   rules stay in this one file.
   """
   @spec public_host?(String.t()) :: boolean()
-  def public_host?(host) when is_binary(host) do
+  def public_host?(host) when is_binary(host), do: match?({:ok, _}, only_public(host))
+
+  @doc """
+  The addresses `host` resolves to, **only if every one is public**.
+  `public_host?/1` answers the same question as a boolean; this hands back the
+  answer itself so the caller can connect to exactly these addresses and
+  nowhere else.
+
+  That is the DNS-rebinding defence. Checking a name and then letting the HTTP
+  client resolve it again opens a window in which a hostile resolver answers
+  with a public address for the check and `127.0.0.1` for the connection.
+  Closing it takes one resolution: check these addresses, then connect to
+  them (`SukhiFedi.Fedi.HttpFetch` does).
+
+  With `:disable_url_guard` set (test env only) any resolvable address passes,
+  so a fetch can reach a Bypass server on localhost. `public_host?/1` ignores
+  that switch, as it always has.
+  """
+  @spec public_addrs(String.t()) :: {:ok, [:inet.ip_address()]} | :error
+  def public_addrs(host) when is_binary(host) do
+    if Application.get_env(:sukhi_shared, :disable_url_guard, false) do
+      case resolve(host) do
+        {:ok, [_ | _]} = ok -> ok
+        _ -> :error
+      end
+    else
+      only_public(host)
+    end
+  end
+
+  defp only_public(host) do
     case resolve(host) do
-      {:ok, [_ | _] = addrs} -> Enum.all?(addrs, &public_ip?/1)
-      _ -> false
+      {:ok, [_ | _] = addrs} -> if Enum.all?(addrs, &public_ip?/1), do: {:ok, addrs}, else: :error
+      _ -> :error
     end
   end
 

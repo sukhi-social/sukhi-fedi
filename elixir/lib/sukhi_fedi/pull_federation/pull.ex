@@ -19,7 +19,7 @@ defmodule SukhiFedi.PullFederation.Pull do
   import Ecto.Query
 
   alias SukhiFedi.AP.Ingest
-  alias SukhiFedi.Fedi.Fetcher
+  alias SukhiFedi.Fedi.{Fetcher, HttpFetch}
   alias SukhiFedi.Repo
   alias SukhiShared.{PeerCapabilities, PullStats}
 
@@ -111,7 +111,7 @@ defmodule SukhiFedi.PullFederation.Pull do
 
     case Fetcher.get_raw(url, SukhiFedi.Accounts.signing_identity()) do
       {:ok, %{status: 200, body: body}} when is_binary(body) ->
-        case JSON.decode(body) do
+        case HttpFetch.decode_json(body) do
           {:ok, %{"type" => "PullPage", "items" => items} = page} when is_list(items) ->
             {:ok, page}
 

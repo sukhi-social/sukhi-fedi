@@ -95,15 +95,14 @@ defmodule SukhiFedi.Federation.WebFinger do
   end
 
   defp do_fetch_jrd(url, headers, resource) do
-    # `redirect: false` — a 30x Location could otherwise bounce us from a
-    # public host to an internal one, past the guard above.
+    # `HttpFetch` never follows a redirect — a 30x Location could otherwise
+    # bounce us from a public host to an internal one, past the guard above.
     case SukhiFedi.Fedi.HttpFetch.capped_get(url,
            headers: headers,
-           redirect: false,
            receive_timeout: @timeout_ms
          ) do
       {:ok, %{status: 200, body: body}} when is_binary(body) ->
-        JSON.decode(body)
+        SukhiFedi.Fedi.HttpFetch.decode_json(body)
 
       {:ok, %{status: status}} ->
         Logger.warning("WebFinger #{resource}: HTTP #{status}")

@@ -58,7 +58,7 @@ defmodule SukhiFedi.Federation.MisskeyDecorations do
 
     with true <- UrlGuard.safe?(url) || {:error, :unsafe_url},
          {:ok, %{status: 200, body: body}} when is_binary(body) <- post(url, username),
-         {:ok, json} <- JSON.decode(body),
+         {:ok, json} <- HttpFetch.decode_json(body),
          {:ok, _} <- account |> Account.changeset_decorations(parse(json)) |> Repo.update() do
       :ok
     else
@@ -80,8 +80,6 @@ defmodule SukhiFedi.Federation.MisskeyDecorations do
     HttpFetch.capped_post(url,
       json: %{"username" => username},
       headers: %{"accept" => "application/json"},
-      redirect: false,
-      finch: SukhiFedi.Finch,
       receive_timeout: @receive_timeout
     )
   end

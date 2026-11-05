@@ -134,6 +134,14 @@ Rules for the set:
   fetch, media fetch, inbox POST. New egress path ⇒ new `safe?` call
   before the client call, plus a logged drop on `false`
   (`delivery/worker.ex:51` is the template).
+- A **document** fetch (AP document, WebFinger, NodeInfo, preview HTML)
+  goes through `Fedi.HttpFetch`, which also does what `safe?/1` alone
+  cannot: it connects to the addresses `UrlGuard.public_addrs/1` just
+  checked (a second lookup is the DNS-rebinding window), caps the body
+  at 1 MiB, and `decode_json/1` refuses nesting past 32 levels on the
+  bytes before a decoder runs. No redirect, no hidden retry, no pool.
+  The media proxy and the delivery node still use their own client and
+  do not pin yet.
 - HTTP Signatures are produced only by `fedify.sign.v1` and verified
   only by `fedify.verify.v1`. No hand-rolled signature-base strings
   outside Bun.

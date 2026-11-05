@@ -1,63 +1,268 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Fedi.HttpFetch do
   @moduledoc """
-  Body-size cap for outbound federation document fetches (AP documents,
-  WebFinger JRD, NodeInfo).
+  The one door for outbound federation **document** fetches (AP documents,
+  WebFinger JRD, NodeInfo, link-preview HTML, Misskey's read-only JSON API).
+  Three properties live here and nowhere else (CODE_STYLE §0):
 
-  These documents are tiny, but a hostile or buggy peer can stream a
-  multi-GB response into BEAM memory before we ever decode it. `capped_get/2`
-  wraps `Req.get/2` with a streaming collector that stops downloading past
-  `@max_bytes` and turns an over-limit response into
-  `{:error, :document_too_large}`.
+    * **The address is the one we checked.** The host is resolved once by
+      `SukhiShared.UrlGuard.public_addrs/1`, which refuses a name if any of
+      its addresses is internal, and the connection goes to *those* addresses
+      — not to whatever the name resolves to a moment later. That closes the
+      DNS-rebinding window between "is this host public?" and "connect".
+      TLS still verifies the certificate against the host name (`:hostname`),
+      so connecting to an IP does not weaken it.
+    * **The body is capped** at `@max_bytes` while it streams in, so a hostile
+      peer cannot push gigabytes into BEAM memory before we decode anything.
+    * **JSON is bounded in depth**, checked on the raw bytes before a
+      decoder allocates anything (`decode_json/1`).
 
-  The cap predicate lives here only (CODE_STYLE §0): every document fetch
-  path routes through `capped_get/2` instead of calling `Req.get/2`
-  directly, so the limit can't be forgotten at one call site. The media
-  proxy keeps its own, much larger cap — it streams real media, not
-  documents.
+  A fetch is one HTTP/1.1 request on its own connection: no redirect is
+  followed (the caller re-checks every hop and re-signs), no hidden retry
+  (a `429` / `503` + `Retry-After` is the caller's to act on), and no pool —
+  a pool is keyed by host *name*, which is exactly what pinning must not
+  trust. Documents are cached upstream, so the extra handshake is paid
+  rarely. The media proxy keeps its own transport and its much larger cap:
+  it streams real media, not documents.
 
-  The caller passes its own request options (headers, `redirect: false`,
-  timeouts, finch); this only adds the cap. Because the body is streamed
-  through the collector, the response `body` is always the raw binary
-  (Req does not auto-decode JSON under `into:`), so callers decode it
-  themselves.
+  The caller passes only what a fetch needs (see `t:opts/0`); an option this
+  module does not act on is an `ArgumentError`, not silently ignored.
   """
+
+  alias SukhiShared.UrlGuard
 
   @max_bytes 1024 * 1024
+  # A JSON-LD AP document nests a handful of levels (activity → object →
+  # attachment → …). 32 leaves room for that and for extension vocabularies,
+  # and refuses the `[[[[…` that costs a megabyte of input and a lot of heap.
+  @max_json_depth 32
+  # The per-read timeout is the caller's `receive_timeout`; this bounds the
+  # whole response, so a peer dribbling a byte at a time cannot hold us.
+  @total_timeout_ms 30_000
+  @default_timeout_ms 15_000
+
+  @type opts :: [
+          headers: [{String.t(), String.t()}] | %{optional(String.t()) => String.t()},
+          json: term(),
+          receive_timeout: pos_integer(),
+          connect_timeout: pos_integer()
+        ]
 
   @doc """
-  Like `Req.get/2` but caps the response body at `@max_bytes`. Returns the
-  `Req.Response` on success, `{:error, :document_too_large}` when the peer
-  sent more than the cap, or whatever `Req.get/2` would return otherwise.
+  GET `url`. Returns the `Req.Response` (raw binary body), or
+  `{:error, :document_too_large}`, `{:error, :unsafe_address}` (the host
+  resolves to nothing, or to an internal address), `{:error, :bad_url}`, or
+  `{:error, %Req.TransportError{}}`.
   """
-  @spec capped_get(String.t(), keyword()) :: {:ok, Req.Response.t()} | {:error, term()}
-  def capped_get(url, opts) when is_binary(url) and is_list(opts), do: capped(:get, url, opts)
+  @spec capped_get(String.t(), opts()) :: {:ok, Req.Response.t()} | {:error, term()}
+  def capped_get(url, opts \\ []) when is_binary(url) and is_list(opts),
+    do: request("GET", url, opts)
 
   @doc """
-  Like `capped_get/2` for a POST — for the few read-only JSON APIs that only
-  answer POST (Misskey's `users/show`). Same cap, same return shape.
+  POST (`json:` is encoded as the body) — for the few read-only JSON APIs
+  that only answer POST (Misskey's `users/show`). Same pin, same cap.
   """
-  @spec capped_post(String.t(), keyword()) :: {:ok, Req.Response.t()} | {:error, term()}
-  def capped_post(url, opts) when is_binary(url) and is_list(opts), do: capped(:post, url, opts)
+  @spec capped_post(String.t(), opts()) :: {:ok, Req.Response.t()} | {:error, term()}
+  def capped_post(url, opts \\ []) when is_binary(url) and is_list(opts),
+    do: request("POST", url, opts)
 
-  defp capped(method, url, opts) do
-    opts = Keyword.merge([method: method, url: url, decode_body: false, into: &cap_body/2], opts)
+  @doc """
+  Decode a fetched JSON document. The nesting depth is checked on the bytes
+  first (`json_depth_ok?/1`); only a body that passes reaches the decoder.
+  Returns `{:error, :json_too_deep}` for one that does not.
+  """
+  @spec decode_json(binary()) :: {:ok, term()} | {:error, term()}
+  def decode_json(body) when is_binary(body) do
+    if json_depth_ok?(body), do: JSON.decode(body), else: {:error, :json_too_deep}
+  end
 
-    case Req.request(opts) do
-      {:ok, %Req.Response{body: :too_large}} -> {:error, :document_too_large}
-      other -> other
+  @doc """
+  True when `body` never nests arrays/objects deeper than the limit. A single
+  pass over the bytes that knows about strings and escapes, so a `[` inside a
+  string is not a level. It does not validate JSON — the decoder does that —
+  it only decides whether the decoder may run.
+  """
+  @spec json_depth_ok?(binary()) :: boolean()
+  def json_depth_ok?(body) when is_binary(body), do: depth_ok?(body, 0, false, false)
+
+  defp depth_ok?(<<>>, _depth, _in_string, _escaped), do: true
+
+  # inside a string: an escaped byte is skipped, a bare quote ends it
+  defp depth_ok?(<<_, rest::binary>>, depth, true, true), do: depth_ok?(rest, depth, true, false)
+
+  defp depth_ok?(<<?\\, rest::binary>>, depth, true, false),
+    do: depth_ok?(rest, depth, true, true)
+
+  defp depth_ok?(<<?", rest::binary>>, depth, true, false),
+    do: depth_ok?(rest, depth, false, false)
+
+  defp depth_ok?(<<_, rest::binary>>, depth, true, false), do: depth_ok?(rest, depth, true, false)
+
+  # outside a string
+  defp depth_ok?(<<?", rest::binary>>, depth, false, _), do: depth_ok?(rest, depth, true, false)
+
+  defp depth_ok?(<<open, rest::binary>>, depth, false, _) when open in [?[, ?{] do
+    depth + 1 <= @max_json_depth and depth_ok?(rest, depth + 1, false, false)
+  end
+
+  defp depth_ok?(<<close, rest::binary>>, depth, false, _) when close in [?], ?}],
+    do: depth_ok?(rest, max(depth - 1, 0), false, false)
+
+  defp depth_ok?(<<_, rest::binary>>, depth, false, _), do: depth_ok?(rest, depth, false, false)
+
+  # ── transport ────────────────────────────────────────────────────────────
+
+  defp request(method, url, opts) do
+    opts =
+      Keyword.validate!(opts, [
+        :json,
+        headers: [],
+        receive_timeout: @default_timeout_ms,
+        connect_timeout: @default_timeout_ms
+      ])
+
+    with {:ok, %URI{scheme: scheme, host: host} = uri} when scheme in ["http", "https"] <-
+           parse(url),
+         {:ok, addrs} <- addresses(host) do
+      deadline = System.monotonic_time(:millisecond) + @total_timeout_ms
+      {headers, body} = build(opts)
+
+      connect_and_send(addrs, uri, method, headers, body, opts, deadline)
+    else
+      {:ok, %URI{}} -> {:error, :bad_url}
+      {:error, _} = error -> error
     end
   end
 
-  # @max_bytes を超えたら降ろすのをやめ、body を :too_large に差し替える。
-  # capped_get/2 がそれを {:error, :document_too_large} に翻訳する。
-  defp cap_body({:data, data}, {req, resp}) do
-    body = resp.body <> data
+  defp parse(url) do
+    case URI.parse(url) do
+      %URI{host: host} = uri when is_binary(host) and host != "" -> {:ok, uri}
+      %URI{} -> {:error, :bad_url}
+    end
+  end
+
+  defp addresses(host) do
+    case UrlGuard.public_addrs(host) do
+      {:ok, addrs} -> {:ok, addrs}
+      :error -> {:error, :unsafe_address}
+    end
+  end
+
+  defp build(opts) do
+    headers =
+      opts
+      |> Keyword.fetch!(:headers)
+      |> Enum.map(fn {k, v} -> {String.downcase(to_string(k)), to_string(v)} end)
+
+    case Keyword.fetch(opts, :json) do
+      {:ok, term} ->
+        {[{"content-type", "application/json"} | headers],
+         IO.iodata_to_binary(JSON.encode_to_iodata!(term))}
+
+      :error ->
+        {headers, nil}
+    end
+  end
+
+  # Try each checked address in turn (v4 first, as `UrlGuard` lists them): a
+  # host with a dead AAAA record must not make the document unreachable.
+  defp connect_and_send([addr | rest], uri, method, headers, body, opts, deadline) do
+    case connect(addr, uri, opts) do
+      {:ok, conn} ->
+        exchange(conn, uri, method, headers, body, opts, deadline)
+
+      {:error, reason} when rest == [] ->
+        {:error, %Req.TransportError{reason: transport_reason(reason)}}
+
+      {:error, _} ->
+        connect_and_send(rest, uri, method, headers, body, opts, deadline)
+    end
+  end
+
+  defp connect(addr, %URI{scheme: scheme, host: host} = uri, opts) do
+    scheme = String.to_existing_atom(scheme)
+    port = uri.port || if(scheme == :https, do: 443, else: 80)
+
+    transport_opts =
+      [timeout: Keyword.fetch!(opts, :connect_timeout)] ++
+        if(tuple_size(addr) == 8, do: [inet6: true], else: [])
+
+    Mint.HTTP.connect(scheme, addr |> :inet.ntoa() |> to_string(), port,
+      hostname: host,
+      mode: :passive,
+      protocols: [:http1],
+      transport_opts: transport_opts
+    )
+  end
+
+  defp exchange(conn, uri, method, headers, body, opts, deadline) do
+    target = (uri.path || "/") <> if(uri.query, do: "?" <> uri.query, else: "")
+
+    result =
+      with {:ok, conn, ref} <- Mint.HTTP.request(conn, method, target, headers, body),
+           {:ok, conn, response} <-
+             read(conn, ref, %{status: nil, headers: [], body: ""}, opts, deadline) do
+        _ = Mint.HTTP.close(conn)
+        {:ok, response}
+      else
+        {:error, conn, reason} when is_struct(conn) -> close_with(conn, reason)
+        {:error, reason} -> {:error, reason}
+      end
+
+    case result do
+      {:ok, %{status: status, headers: headers, body: body}} ->
+        {:ok, Req.Response.new(status: status, headers: headers, body: body)}
+
+      {:error, :document_too_large} = too_large ->
+        too_large
+
+      {:error, reason} ->
+        {:error, %Req.TransportError{reason: transport_reason(reason)}}
+    end
+  end
+
+  defp close_with(conn, reason) do
+    _ = Mint.HTTP.close(conn)
+    {:error, reason}
+  end
+
+  defp read(conn, ref, acc, opts, deadline) do
+    remaining = deadline - System.monotonic_time(:millisecond)
+    timeout = min(Keyword.fetch!(opts, :receive_timeout), max(remaining, 0))
+
+    if remaining <= 0 do
+      close_with(conn, :timeout)
+    else
+      case Mint.HTTP.recv(conn, 0, timeout) do
+        {:ok, conn, responses} -> fold(responses, conn, ref, acc, opts, deadline)
+        {:error, conn, reason, _responses} -> close_with(conn, reason)
+      end
+    end
+  end
+
+  defp fold([], conn, ref, acc, opts, deadline), do: read(conn, ref, acc, opts, deadline)
+
+  defp fold([{:status, ref, status} | rest], conn, ref, acc, opts, deadline),
+    do: fold(rest, conn, ref, %{acc | status: status}, opts, deadline)
+
+  defp fold([{:headers, ref, headers} | rest], conn, ref, acc, opts, deadline),
+    do: fold(rest, conn, ref, %{acc | headers: acc.headers ++ headers}, opts, deadline)
+
+  defp fold([{:data, ref, data} | rest], conn, ref, acc, opts, deadline) do
+    body = acc.body <> data
 
     if byte_size(body) > @max_bytes do
-      {:halt, {req, %{resp | body: :too_large}}}
+      close_with(conn, :document_too_large)
     else
-      {:cont, {req, %{resp | body: body}}}
+      fold(rest, conn, ref, %{acc | body: body}, opts, deadline)
     end
   end
+
+  defp fold([{:done, ref} | _], conn, ref, acc, _opts, _deadline), do: {:ok, conn, acc}
+
+  defp fold([{:error, ref, reason} | _], conn, ref, _acc, _opts, _deadline),
+    do: close_with(conn, reason)
+
+  defp transport_reason(%{reason: reason}), do: transport_reason(reason)
+  defp transport_reason(reason), do: reason
 end
