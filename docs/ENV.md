@@ -21,6 +21,7 @@ top — those win.
 | **`DOMAIN`** | **yes** (prod) | `localhost:4000` (dev) | Public hostname, no scheme, no port. Stamped into ActivityPub IDs and HTTP-Sig `keyId`. **Changing this after users exist strands their fediverse identity** — set it right before the first signup. |
 | `INSTANCE_TITLE` | no | — | Deprecated; set `site_name` in the required `SUKHI_INSTANCE_CONFIG` file. |
 | `GITOPS_STATUS_PATH` | no | `/run/sukhi-gitops/status.json` | `sukhi-gitops-sync` が書く状態ファイル。読むだけ。無ければ `/admin/system` に「更新」欄を出さない。 |
+| `GITOPS_APPROVE_DIR` | no | `/run/sukhi-approve` | 管理画面の「いま入れる」が `approve.json` を書く場所(箱の `sukhi-gitops-approve.path` が見る)。書けなければ承認は失敗と表示される。 |
 
 ## Distributed Erlang (gateway ↔ api)
 

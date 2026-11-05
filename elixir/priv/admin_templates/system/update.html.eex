@@ -7,6 +7,15 @@
   <% :stale -> %><p><strong>しばらく確かめられていません。</strong> 箱の同期 timer が止まっているかもしれません。</p>
   <% :error -> %><p><strong>確かめる途中で止まりました。</strong></p>
   <% end %>
+  <%= if update.state == :update_available && update.available && update.available["commit"] do %>
+  <p>
+    <a href="https://github.com/sukhi-social/sukhi-infra/commit/<%= h(update.available["commit"]) %>" target="_blank" rel="noopener">変更の内容を見る</a>
+  </p>
+  <form method="post" action="/admin/system/update/approve" onsubmit="return confirm('この版を、いま入れますか？ 数分、一部のサービスが再起動します。');">
+    <input type="hidden" name="commit" value="<%= h(update.available["commit"]) %>">
+    <button type="submit">いま入れる</button>
+  </form>
+  <% end %>
   <dl>
     <dt>いまの版</dt>
     <dd><%= h((update.applied && update.applied["version"]) || "—") %></dd>
