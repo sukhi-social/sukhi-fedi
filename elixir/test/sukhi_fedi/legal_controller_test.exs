@@ -352,6 +352,19 @@ defmodule SukhiFedi.Web.LegalControllerTest do
     assert conn.resp_body =~ ~s(href="/privacy?signup=true&lang=en")
   end
 
+  test "all three privacy pages list the language and time-zone cookies, and speak to readers elsewhere" do
+    ja = get("/privacy") |> LegalController.privacy() |> Map.get(:resp_body) |> plain()
+    ko = get("/privacy?lang=ko") |> LegalController.privacy() |> Map.get(:resp_body) |> plain()
+    en = get("/privacy?lang=en") |> LegalController.privacy() |> Map.get(:resp_body) |> plain()
+
+    assert ja =~ "ことばと時間帯のCookie"
+    assert ja =~ "ほかの国にお住まいの方へ"
+    assert ko =~ "언어·시간대 쿠키"
+    assert ko =~ "다른 나라에 사시는 분께"
+    assert en =~ "Language and time-zone cookies"
+    assert en =~ "If you live somewhere else"
+  end
+
   test "an unknown lang still gets the Japanese terms" do
     conn = get("/terms?lang=fr") |> LegalController.terms()
     assert conn.resp_body =~ ~s(<html lang="ja">)

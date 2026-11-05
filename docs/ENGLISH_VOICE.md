@@ -63,9 +63,8 @@ evening", "the other morning", "an autumn night", "winter 2023".
 ## Not done yet (on purpose, or waiting for someone)
 
 - **Terms and Privacy Policy are a translation of the Japanese.** Each says the Japanese
-  text applies if the two differ. The English privacy policy also lists the language and
-  time-zone cookies and says plainly that the handling is the same wherever you live;
-  the Japanese and Korean pages haven't been given those two additions yet.
+  text applies if the two differ. All three privacy pages list the language and
+  time-zone cookies and say plainly that the handling is the same wherever you live.
 - **The `ui-lab` mocks and the guest-facing "first steps" / lobby copy** are still Japanese.
   When the lobby is built, write its English first lines with this page open.
 - **Server-authored posts** (the neighbour guide, the official list title in `api/`)
