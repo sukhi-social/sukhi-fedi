@@ -11,7 +11,7 @@
 import { GatewayError, gwJson } from '../gateway.ts';
 import { html, type SafeHtml } from '../html.ts';
 import { ok, redirect, route, type Ctx, type Reply } from '../http.ts';
-import { saveSession } from '../session.ts';
+import { setMe } from '../session.ts';
 import { baseLang, prefsOf, translationEnabled, warmTranslation } from '../translate.ts';
 import type { Account, Status } from '../types.ts';
 import { layout } from '../views/layout.ts';
@@ -166,7 +166,7 @@ async function translationPage(ctx: Ctx, me: Account, v: Values, error?: string,
 }
 
 route('GET', '/settings/translation', async (ctx) => {
-  const me = await needMe(ctx);
+  const me = await needMe(ctx, { fresh: true });
   await warmTranslation(ctx);
   return translationPage(ctx, me, valuesOf(me));
 });
@@ -193,9 +193,7 @@ route('POST', '/settings/translation', async (ctx) => {
 
   try {
     const updated = await gwJson<Account>(ctx, 'PATCH', '/api/v1/accounts/update_credentials', { form: fd });
-    const s = ctx.sess();
-    s.me = updated;
-    saveSession(s);
+    setMe(ctx.sess(), updated);
     ctx.flash('notice', t('settings.saved'));
     return redirect('/settings/translation');
   } catch (e) {
@@ -219,9 +217,7 @@ route('POST', '/settings/translation/key-clear', async (ctx) => {
   fd.set('translate_deepl_key_clear', 'true');
   try {
     const updated = await gwJson<Account>(ctx, 'PATCH', '/api/v1/accounts/update_credentials', { form: fd });
-    const s = ctx.sess();
-    s.me = updated;
-    saveSession(s);
+    setMe(ctx.sess(), updated);
     ctx.flash('notice', t('translate.set.keyCleared'));
     return redirect('/settings/translation');
   } catch (e) {

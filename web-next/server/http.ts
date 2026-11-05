@@ -12,7 +12,7 @@ import { config } from './config.ts';
 import { locate, locateIn } from './assets.ts';
 import { detectLocale, makeT, type Locale, type T } from './i18n.ts';
 import { validTz } from './time.ts';
-import { createSession, getSession, saveSession, type Session } from './session.ts';
+import { createSession, getSession, saveSession, setMe, type Session } from './session.ts';
 import type { Account } from './types.ts';
 import { SafeHtml } from './html.ts';
 
@@ -61,7 +61,7 @@ export type Ctx = {
   // セッションを(なければ作って)返す。ログインや flash のように、状態を置く道で使う。
   sess(): Session;
   // 入っている人。トークンがなければ null。取れたらセッションにひかえる。
-  me(): Promise<Account | null>;
+  me(opts?: { fresh?: boolean }): Promise<Account | null>;
   form(): Promise<FormData>;
   flash(kind: 'notice' | 'error', text: string): void;
   takeFlash(): Session['flash'];
@@ -127,14 +127,23 @@ async function makeCtx(req: IncomingMessage, params: Record<string, string>): Pr
       }
       return ctx.session;
     },
-    async me() {
+    // 手元の「自分」は、設定の変わりうるもの(翻訳・ことば・タイムラインの既定…)を含む。別の端末・別のタブ
+    // (= 別の session)で変えたものが届くよう、meTtlMs を過ぎたら gateway に引きなおす。fresh は、設定の頁を
+    // 開くとき ── 古い値を見せて、その上に保存させない。引きなおせなかったとき(gateway が一瞬いない)は、
+    // 古いひかえのまま続ける。トークンが古いときだけ、Unauthorized。
+    async me(opts) {
       const s = ctx.session;
       if (!s?.token) return null;
-      if (s.me) return s.me;
+      const young = s.meAt !== undefined && Date.now() - s.meAt < config.meTtlMs;
+      if (s.me && young && !opts?.fresh) return s.me;
       const { gwJson } = await import('./gateway.ts');
-      s.me = await gwJson<Account>(ctx, 'GET', '/api/v1/accounts/verify_credentials');
-      saveSession(s);
-      return s.me;
+      try {
+        setMe(s, await gwJson<Account>(ctx, 'GET', '/api/v1/accounts/verify_credentials'));
+      } catch (e) {
+        if (e instanceof Unauthorized || !s.me) throw e;
+        // 古いひかえのまま。次の機会にまた試す。
+      }
+      return s.me ?? null;
     },
     async form() {
       const type = req.headers['content-type'] ?? '';

@@ -30,6 +30,7 @@ pnpm test
 | `ABOUT_URL` | はじめての人の行き先(既定 `https://about.sukhi.social`。空ならここの入口) |
 | `POST_DELAY_MIN` | 投稿が上がるまでの余白(分、既定 15 = 約四半刻。0 ですぐ上がる) |
 | `NOTIFY_HOLD_MIN` | 「反応」の通知を置く時間(分、既定 60)。gateway に `hold_minutes` として毎回添える |
+| `ME_TTL_MS` | 手元にひかえた「自分」(翻訳やタイムラインなどの設定を含む)を gateway に引きなおすまでの間(ms、既定 15000)。別の端末・別のタブで変えた設定が、この間のうちに届く。設定の頁は、開くたびに引く |
 | `SUKHI_DEV_TOKEN` | dev のときだけ。入った状態から始める(mock 用) |
 
 ## つくり
