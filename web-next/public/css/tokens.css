@@ -164,6 +164,12 @@ html[lang='ja'] {
   --tracking: 0.075em;
 }
 
+/* English: Latin letters are already first in --font-body (Nunito), so only the spacing is
+ * stated. No extra tracking, no per-language em (about.sukhi.social has none either). */
+html[lang='en'] {
+  --tracking: 0;
+}
+
 html[lang='ko'] {
   --font-fallback: 'Nanum Gothic', system-ui, var(--font-system-any);
   --tracking: -0.02em;

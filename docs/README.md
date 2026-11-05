@@ -65,6 +65,7 @@ Start at [`DEVELOPING.md`](DEVELOPING.md), then [`ARCHITECTURE.md`](ARCHITECTURE
 | Running the tests | [`TESTING.md`](TESTING.md) |
 | Which doors face the internet | [`web-surface.md`](web-surface.md) |
 | What a press, key and back gesture do, per OS | [`UX_CONTRACT.md`](UX_CONTRACT.md) |
+| How sukhi sounds in English, and why | [`ENGLISH_VOICE.md`](ENGLISH_VOICE.md) |
 | The HTML / CSS subset we use | [`CSS_SUBSET.md`](CSS_SUBSET.md) (ja) |
 | Datalevin data structure | [`DATALEVIN_SCHEMA.md`](DATALEVIN_SCHEMA.md) (ja) |
 | Web Push: design, and what shipped | [`WEBPUSH.md`](WEBPUSH.md) |
