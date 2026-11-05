@@ -4,6 +4,9 @@ Read first:
 
 - `docs/ARCHITECTURE.md` — canonical; where processes run and why.
 - `docs/CODE_STYLE.md` — the separation style; where concerns live.
+- `docs/README.md` — the table of contents, ordered value → use → host → build.
+  A new doc starts with two lines before any technology: its **intent**, and
+  the **reader's problem** (a hypothesis until someone has told us).
 
 The one rule from CODE_STYLE.md: **every security or performance
 property lives in exactly one place, and structure routes all paths

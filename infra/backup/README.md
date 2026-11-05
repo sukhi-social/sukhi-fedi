@@ -12,7 +12,7 @@
 
 | | 何をする | いつ | データ損失 | 道具 |
 |---|---|---|---|---|
-| **外科的訂正** | 特定の行/列だけ直す | 「間違って入った」 | 無し | `docs/data-correction.md` の maintenance 道具 |
+| **外科的訂正** | 特定の行/列だけ直す | 「間違って入った」 | 無し | `docs/data-correction.ja.md` の maintenance 道具 |
 | **全DB巻き戻し** | DB 全体を過去の一点へ | ホスト死亡・DB破損 | その時点以降の良い変更も失う | このバックアップ(restore / PITR) |
 
 「間違って入ったものを直す」のはほぼ **外科的訂正**(`RebuildFromArchive` 等、既に実装済み)。
@@ -107,7 +107,7 @@ kamal accessory restart rustfs
 
 ### 3) 外科的訂正(主目的・restore 不要)
 
-「間違って入った」を直すのはこっち。手順は [`docs/data-correction.md`](../../docs/data-correction.md)。
+「間違って入った」を直すのはこっち。手順は [`docs/data-correction.ja.md`](../../docs/data-correction.ja.md)。
 dry-run を必ず先に:
 
 ```sh

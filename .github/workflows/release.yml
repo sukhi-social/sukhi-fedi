@@ -144,7 +144,7 @@ jobs:
             $(for f in *; do echo "ghcr.io/${{ github.repository_owner }}/sukhi-fedi-${{ matrix.image }}@$(cat $f)"; done)
 
       # Sign the manifest list by digest (never by tag: tags move). The
-      # identity is this workflow at the tag ref; see docs/OPS_UPDATE_QUADLET.md §5.
+      # identity is this workflow at the tag ref; see docs/OPS_UPDATE_QUADLET.ja.md §5.
       - name: Sign
         env:
           IMAGE: ghcr.io/${{ github.repository_owner }}/sukhi-fedi-${{ matrix.image }}

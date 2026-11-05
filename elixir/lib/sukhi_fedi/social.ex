@@ -44,11 +44,8 @@ defmodule SukhiFedi.Social do
 
     local_usernames = Enum.map(local_uris, &String.replace_prefix(&1, local_prefix, ""))
 
-    by_uri =
+    projection =
       from(a in Account,
-        where:
-          (is_nil(a.domain) and a.username in ^local_usernames) or
-            a.actor_uri in ^remote_uris,
         select: %{
           id: a.id,
           username: a.username,
@@ -66,10 +63,33 @@ defmodule SukhiFedi.Social do
           created_at: a.created_at
         }
       )
-      |> Repo.all()
-      |> Map.new(fn a -> {canonical_actor_uri(a, local_prefix), a} end)
+
+    # Two queries, one per side, not one `or`. On the Datalevin store an `or`
+    # with an empty side (no local followers, or no remote ones) cannot be
+    # planned, so the whole condition goes to Eval and every account row is
+    # loaded. An empty side runs no query at all.
+    accounts =
+      local_accounts(local_usernames, projection) ++ remote_accounts(remote_uris, projection)
+
+    by_uri = Map.new(accounts, fn a -> {canonical_actor_uri(a, local_prefix), a} end)
 
     Enum.map(uris, fn uri -> Map.get(by_uri, uri, %{actor_uri: uri}) end)
+  end
+
+  defp local_accounts([], _projection), do: []
+
+  defp local_accounts(usernames, projection) do
+    projection
+    |> where([a], is_nil(a.domain) and a.username in ^usernames)
+    |> Repo.all()
+  end
+
+  defp remote_accounts([], _projection), do: []
+
+  defp remote_accounts(uris, projection) do
+    projection
+    |> where([a], a.actor_uri in ^uris)
+    |> Repo.all()
   end
 
   defp canonical_actor_uri(%{domain: nil, username: username}, local_prefix),

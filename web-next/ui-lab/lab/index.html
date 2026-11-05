@@ -1,0 +1,177 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ui-lab</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f4efe8; --panel:#fffaf3; --ink:#3d3029; --mute:#7a685b; --line:#e3d4c0; --acc:#a34d16; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#171210; --panel:#1f1915; --ink:#f3e9df; --mute:#b9a797; --line:#3d3027; --acc:#f0a56b; } }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; display:grid; grid-template-columns:230px 1fr; min-height:100vh; }
+    body.bare { display:block; }
+    body.bare aside, body.bare .bar { display:none; }
+    aside { border-right:1px solid var(--line); background:var(--panel); padding:12px; overflow:auto; max-height:100vh; position:sticky; top:0; }
+    aside h1 { font-size:13px; margin:0 0 8px; letter-spacing:.04em; }
+    aside h2 { font-size:11px; color:var(--mute); margin:14px 0 4px; font-weight:600; }
+    .item { display:flex; gap:4px; align-items:center; border-radius:8px; padding:5px 6px; }
+    .item:hover { background:color-mix(in srgb, var(--acc) 10%, transparent); }
+    .item .name { flex:1; text-align:left; background:none; border:0; color:inherit; font:inherit; cursor:pointer; padding:0; }
+    .item small { display:block; color:var(--mute); font-size:11px; }
+    .tag { font:inherit; font-size:11px; border:1px solid var(--line); background:none; color:var(--mute); border-radius:6px; padding:0 6px; cursor:pointer; }
+    .tag[aria-pressed=true] { background:var(--acc); color:var(--panel); border-color:var(--acc); }
+    main { min-width:0; padding:12px 16px 28px; }
+    .bar { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; margin-bottom:12px; }
+    .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+    .seg button { font:inherit; border:0; background:none; color:var(--ink); padding:3px 10px; cursor:pointer; }
+    .seg button[aria-pressed=true] { background:var(--acc); color:var(--panel); }
+    .bar label { color:var(--mute); font-size:12px; display:inline-flex; gap:6px; align-items:center; }
+    .bar input[type=time] { font:inherit; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:6px; padding:1px 4px; }
+    .panes { display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+    body.bare .panes { gap:0; flex-wrap:nowrap; }
+    body.bare main { padding:0; }
+    .pane { min-width:0; }
+    .pane-head { display:flex; gap:6px; align-items:center; margin:0 0 6px; font-size:12px; color:var(--mute); flex-wrap:wrap; }
+    .pane-head b { color:var(--ink); font-size:13px; }
+    body.bare .pane-head .tag, body.bare .pane-head .note { display:none; }
+    .frame { position:relative; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:#fff; }
+    body.bare .frame { border-radius:0; border-width:0 1px 0 0; }
+    .frame iframe { border:0; transform-origin:0 0; position:absolute; top:0; left:0; background:#fff; }
+    .empty { color:var(--mute); padding:40px 8px; }
+    .note { font-size:11px; }
+  </style>
+</head>
+<body>
+  <aside>
+    <h1>ui-lab</h1>
+    <p class="note" style="color:var(--mute);margin:0">名前で A に、<b>B</b> で右に並べる。</p>
+    <div id="list"></div>
+  </aside>
+  <main>
+    <div class="bar">
+      <span class="seg" id="dev"></span>
+      <span class="seg" id="theme"></span>
+      <label>時計 <input type="time" id="now" /></label>
+      <button class="tag" id="swap">A⇄B</button>
+      <button class="tag" id="reload">再読みこみ</button>
+      <span class="note" style="color:var(--mute)" id="hint"></span>
+    </div>
+    <div class="panes" id="panes"></div>
+  </main>
+
+  <script>
+    const DEVICES = { phone: [390, 844, 'スマホ'], tablet: [768, 1024, 'タブレット'], desktop: [1100, 820, 'デスク'] };
+    const THEMES = { auto: '端末まかせ', light: '明', dark: '暗' };
+    const $ = (s) => document.querySelector(s);
+    let mocks = [];
+    // 状態は #hash に全部。URL を渡せば、同じ並びが開く(shot.mjs もこれを使う)。
+    const st = { a: '', b: '', d: 'desktop', t: 'auto', now: '', sa: '', sb: '', bare: '' };
+    const read = () => { for (const [k, v] of new URLSearchParams(location.hash.slice(1))) if (k in st) st[k] = v; };
+    const write = () => {
+      const p = new URLSearchParams();
+      for (const [k, v] of Object.entries(st)) if (v) p.set(k, v);
+      history.replaceState(null, '', '#' + p);
+    };
+    const byId = (id) => mocks.find((m) => m.id === id);
+    const set = (k, v) => { st[k] = v; write(); render(); };
+
+    function seg(el, opts, key) {
+      el.replaceChildren(...Object.entries(opts).map(([id, label]) => {
+        const b = document.createElement('button');
+        b.textContent = Array.isArray(label) ? label[2] : label;
+        b.setAttribute('aria-pressed', String(st[key] === id));
+        b.onclick = () => set(key, id);
+        return b;
+      }));
+    }
+
+    function listView() {
+      const groups = { native: 'ここで書いたモック', external: '取りこんだモック', live: '動いている web-next' };
+      const box = $('#list'); box.replaceChildren();
+      for (const [kind, title] of Object.entries(groups)) {
+        const items = mocks.filter((m) => m.kind === kind);
+        if (!items.length) continue;
+        const h = document.createElement('h2'); h.textContent = title; box.append(h);
+        for (const m of items) {
+          const row = document.createElement('div'); row.className = 'item';
+          const name = document.createElement('button'); name.className = 'name'; name.title = m.desc;
+          name.innerHTML = `${m.title.replace(/</g, '&lt;')}<small>${m.id}</small>`;
+          name.onclick = () => set('a', m.id);
+          const b = document.createElement('button'); b.className = 'tag'; b.textContent = 'B'; b.onclick = () => set('b', m.id);
+          row.append(name, b); box.append(row);
+        }
+      }
+    }
+
+    function srcOf(m, scenes) {
+      if (m.kind !== 'native') return m.url;
+      const q = new URLSearchParams();
+      if (scenes) q.set('s', scenes);
+      if (st.now) q.set('now', st.now);
+      if (st.t !== 'auto') q.set('theme', st.t);
+      return m.url + (q.size ? '?' + q : '');
+    }
+
+    function pane(slot) {
+      const id = st[slot], m = byId(id), sk = slot === 'a' ? 'sa' : 'sb';
+      const wrap = document.createElement('div'); wrap.className = 'pane';
+      if (!m) { wrap.innerHTML = `<p class="empty">${slot.toUpperCase()}: 左の一覧から選んでください。</p>`; return wrap; }
+      const head = document.createElement('div'); head.className = 'pane-head';
+      head.innerHTML = `<b>${slot.toUpperCase()}</b> ${m.title.replace(/</g, '&lt;')}`;
+      const on = new Set(st[sk].split(',').filter(Boolean));
+      for (const s of m.scenes) {
+        const t = document.createElement('button'); t.className = 'tag'; t.textContent = s.label;
+        t.setAttribute('aria-pressed', String(on.has(s.id)));
+        t.onclick = () => { on.has(s.id) ? on.delete(s.id) : on.add(s.id); set(sk, [...on].join(',')); };
+        head.append(t);
+      }
+      if (m.kind === 'live') head.insertAdjacentHTML('beforeend', '<span class="note">(明暗・時計は端末まかせ)</span>');
+      if (m.kind === 'external') head.insertAdjacentHTML('beforeend', '<span class="note">(明暗・時計はモックまかせ)</span>');
+      const [w, h] = DEVICES[st.d];
+      const frame = document.createElement('div'); frame.className = 'frame';
+      const f = document.createElement('iframe');
+      f.width = w; f.height = h; f.src = srcOf(m, st[sk]); f.title = m.title;
+      f.onload = () => { try { if (st.t !== 'auto') f.contentDocument.documentElement.dataset.theme = st.t; } catch { /* 別 origin(live) */ } };
+      frame.append(f); wrap.append(head, frame); wrap._frame = frame; wrap._iframe = f;
+      return wrap;
+    }
+
+    function fit(panes) {
+      const [w, h] = DEVICES[st.d];
+      const bare = document.body.classList.contains('bare');
+      const room = $('#panes').clientWidth;
+      const n = panes.length || 1, gap = bare ? 0 : 16;
+      const scale = Math.min(1, (room - gap * (n - 1)) / (w * n));
+      for (const p of panes) {
+        if (!p._frame) continue;
+        p._frame.style.width = w * scale + 'px'; p._frame.style.height = h * scale + 'px';
+        p._iframe.style.transform = `scale(${scale})`;
+      }
+    }
+
+    let shown = [];
+    function render() {
+      document.body.classList.toggle('bare', !!st.bare);
+      seg($('#dev'), DEVICES, 'd'); seg($('#theme'), THEMES, 't');
+      $('#now').value = st.now;
+      $('#hint').textContent = st.t !== 'auto' || st.now ? '' : '';
+      const box = $('#panes'); box.replaceChildren();
+      shown = [pane('a'), ...(st.b ? [pane('b')] : [])];
+      box.append(...shown); fit(shown);
+    }
+
+    $('#now').onchange = (e) => set('now', e.target.value);
+    $('#swap').onclick = () => { [st.a, st.b] = [st.b, st.a]; [st.sa, st.sb] = [st.sb, st.sa]; write(); render(); };
+    $('#reload').onclick = render;
+    addEventListener('resize', () => fit(shown));
+
+    (async () => {
+      read();
+      mocks = await (await fetch('/_lab/mocks.json')).json();
+      if (!st.a && mocks[0]) st.a = mocks[0].id;
+      listView(); render();
+    })();
+  </script>
+</body>
+</html>

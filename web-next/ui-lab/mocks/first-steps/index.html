@@ -1,0 +1,82 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>はじめの一覧の頁(案)</title>
+<meta name="lab:desc" content="ロビーの「はじめの一覧」(玄関)から来る先の頁。名前・説明・話題つきの一覧を開いて、ひとりずつフォローする。旧案(空のホームの中で直接)も兼ねる。">
+<meta name="lab:scenes" content="open=一覧をひらいた;followed=ひとりフォロー済み;nocol=一覧がまだ無い">
+<meta name="lab:nav" content="home">
+<style>
+  .first { display: grid; gap: .9rem; }
+  .first h2 { margin: 0; font-size: 1.25rem; }
+  .first .lead { margin: 0; color: var(--color-text-muted); }
+  .cols { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+  .col { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); }
+  .col > button { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; padding: .75rem .9rem; display: grid; gap: .2rem; border-radius: 14px; }
+  .col > button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+  .col b { font-size: 1rem; }
+  .col .by { font-size: .75rem; color: var(--color-text-muted); }
+  .col .topic { justify-self: start; font-size: .75rem; color: var(--color-accent-strong); background: var(--color-accent-soft); border-radius: 999px; padding: 0 .55rem; }
+  .col[data-open] { border-color: var(--color-accent-strong); }
+  .who { list-style: none; margin: 0; padding: 0 .9rem .75rem; display: grid; gap: .1rem; }
+  .who li { display: grid; grid-template-columns: auto 1fr auto; gap: .6rem; align-items: center; padding: .45rem 0; border-top: 1px solid var(--color-border); }
+  .who .nm b { display: block; }
+  .who .nm span { font-size: .8125rem; color: var(--color-text-muted); }
+  .hint { font-size: .8125rem; color: var(--color-text-muted); margin: 0; }
+  .other { display: flex; flex-wrap: wrap; gap: .5rem; }
+  html[data-s~=nocol] .has-col { display: none; }
+  html:not([data-s~=nocol]) .no-col { display: none; }
+</style>
+
+<nav class="tabs timeline" aria-label="タイムラインの選び方">
+  <a class="tab" href="/timeline?kind=home" aria-current="true">ホーム</a><a class="tab" href="/timeline?kind=public" aria-current="">みんな</a><a class="tab" href="/timeline?kind=bubble" aria-current="">ご近所</a><a class="tab" href="/timeline?kind=tag" aria-current="">タグ</a>
+</nav>
+
+<section class="first timeline"
+  x-data="{ open: lab.has('open') || lab.has('followed') ? 0 : -1, f: lab.has('followed') ? [0] : [] }">
+  <div>
+    <h2>ここは、まだしずかです。</h2>
+    <p class="lead">はじめに、だれかを迎えにいきませんか。急がなくて大丈夫です。</p>
+  </div>
+
+  <ul class="cols has-col" aria-label="はじめの一覧">
+    <template x-for="(c, i) in [
+      { n: 'しずかな日記を書く人たち', d: '一日のおわりに、ひとことだけ書く人。返信は急がない人が多めです。', by: 'sukhi 運営', t: '日記',
+        p: [['ゆ','ゆうな','@yuuna','夜に、ほうじ茶の話をします。'],['朝','朝のひと','@asa','窓の外のことを、ひとこと。'],['ま','まる','@maru','猫と本。']] },
+      { n: 'はじめての Fediverse', d: '仕組みを、やさしく教えてくれる人たち。質問しても大丈夫です。', by: 'sukhi 運営', t: '案内',
+        p: [['案','あんない','@guide@atfedi.de','Fediverse のはじめてのガイド。'],['し','しろ','@shiro','sukhi の中のひと。']] },
+      { n: '한국어로 천천히', d: '韓国語で、ゆっくり話す人たち。日本語も読めます。', by: 'sukhi 運営', t: '한국어',
+        p: [['나','나비','@nabi','영도에서 커피.'],['별','별모래','@star@planet.moe','밤하늘 이야기.']] }
+    ]" :key="i">
+      <li class="col" :data-open="open === i ? '' : null">
+        <button type="button" :aria-expanded="open === i" @click="open = open === i ? -1 : i">
+          <b x-text="c.n"></b>
+          <span class="lead" x-text="c.d"></span>
+          <span class="by">つくった人: <span x-text="c.by"></span></span>
+          <span class="topic" x-text="'#' + c.t"></span>
+        </button>
+        <ul class="who" x-show="open === i" x-cloak>
+          <template x-for="(p, j) in c.p" :key="j">
+            <li>
+              <span class="avatar" aria-hidden="true" x-text="p[0]" style="background:hsl(30 55% 88%);color:hsl(25 45% 32%)"></span>
+              <span class="nm"><b x-text="p[1]"></b><span x-text="p[2] + ' ・ ' + p[3]"></span></span>
+              <button type="button" class="chip" :aria-pressed="f.includes(i * 10 + j)"
+                @click="f.includes(i * 10 + j) ? f.splice(f.indexOf(i * 10 + j), 1) : f.push(i * 10 + j)"
+                x-text="f.includes(i * 10 + j) ? 'フォロー中' : 'フォローする'"></button>
+            </li>
+          </template>
+        </ul>
+      </li>
+    </template>
+  </ul>
+
+  <div class="no-col">
+    <p class="lead">まだ、はじめの一覧がありません。ご近所の人から、さがしてみましょう。</p>
+    <a class="btn secondary" href="/timeline?kind=bubble">ご近所を見る</a>
+  </div>
+
+  <p class="hint has-col">ひとりずつで大丈夫です。フォローは、あとからいつでも外せます。承認が要る人には、申請になります。</p>
+
+  <div class="other">
+    <a class="chip" href="/settings/data">ほかのサーバーから、フォローを読み込む</a>
+    <a class="chip" href="/search">さがす</a>
+  </div>
+</section>

@@ -123,6 +123,19 @@ document.addEventListener("alpine:init", () => {
   document.documentElement.dataset.platform = platform;
 }
 
+// ── いまいる土地の時刻 ───────────────────────────────────────────
+// 「今日の昼下がり」を決めるには、読む人の tz が要る。サーバには届かないので、cookie に置く。
+// 置くのは tz の名前(Asia/Tokyo など)だけ。次の頁から効く。
+try {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (tz && !document.cookie.split("; ").includes("sukhi_tz=" + encodeURIComponent(tz))) {
+    document.cookie =
+      "sukhi_tz=" + encodeURIComponent(tz) + "; Path=/; Max-Age=31536000; SameSite=Lax";
+  }
+} catch {
+  // tz が読めない端末は、言語の既定のまま。
+}
+
 // ── 字を、ゆっくり着替える ──────────────────────────────────────
 // Web フォントは、届くまで代わりの字で出て、届いたときに差し替わる。そのとき折り返しが変わると、
 // 読んでいる段落が一行ずれる。だから、間に合ったときはすぐ、間に合わなかったときは、

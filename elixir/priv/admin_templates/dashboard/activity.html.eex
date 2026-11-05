@@ -19,7 +19,7 @@
 <h2>メンテナンス</h2>
 <%= if m.running == [] and m.ended == [] do %>
   <div class="panel muted">動いているものも、この1日に終わったものもありません。
-    スクリプトは <code>docs/data-correction.md</code> にまとめています。</div>
+    スクリプトは <code>docs/data-correction.ja.md</code> にまとめています。</div>
 <% end %>
 
 <%= for r <- m.running do %>

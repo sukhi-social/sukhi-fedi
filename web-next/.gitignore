@@ -3,3 +3,5 @@ data/*.json
 .env
 .env.local
 public/sw.js
+ui-lab/external/
+ui-lab/shots/

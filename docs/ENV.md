@@ -121,7 +121,7 @@ path takes its credentials, region and bucket from the same config.
 | `SUKHI_INSTANCE_CONFIG` | `/etc/sukhi/instance.json` | Required mounted non-secret JSON for site metadata, optional `unauthenticated_redirect`, addon switches, `frontends` (`relay`, `web-next`, `web-simple`, `web-board`, `web-lobby`) and ordered routes. If routes are empty, `/` shows the frontend setup instructions. `nodeinfo_monitor` is disabled unless `addons.nodeinfo_monitor` is explicitly `true`. See `config/instance.json.example`. |
 | `WEB_UPSTREAMS` | — | Removed. Define frontend URLs in `SUKHI_INSTANCE_CONFIG`. |
 | `WEB_ROUTES` | — | Removed. Define route precedence and frontend selection in `SUKHI_INSTANCE_CONFIG`; first match wins. |
-| `STATIC_OVERRIDE_ONLY` | — | `true` = `STATIC_OVERRIDE=only` (kept for natadeco). See `docs/static-override.md`. |
+| `STATIC_OVERRIDE_ONLY` | — | `true` = `STATIC_OVERRIDE=only` (kept for natadeco). See `docs/static-override.ja.md`. |
 | `WT_TICKET_KEY` | — | Ed25519 seed (raw 32 bytes, base64) that signs WebTransport entry tickets. Unset → `/api/wt` answers 503. |
 | `WT_ENDPOINT` | `https://webtransport.f3liz.casa/wt` | The WebTransport edge a ticket is for. |
 
@@ -193,7 +193,7 @@ using Postgres, which the delivery node still drains.
 | `DELIVERY_QUEUE_DB` | `/var/lib/sukhi/delivery_queue.db` | SQLite file (directory must exist) |
 | `DELIVERY_QUEUE_SYNCHRONOUS` | `full` | `full` or `normal` (WAL; `normal` can lose the last commits on power loss) |
 | `DELIVERY_QUEUE_POOL_SIZE` | `5` | SQLite connection pool |
-| `DELIVERY_QUEUE_HANDOVER` | `1` | `0` で起動時の Postgres → SQLite 自動移管を止める (docs/DELIVERY_QUEUE_MIGRATION.md) |
+| `DELIVERY_QUEUE_HANDOVER` | `1` | `0` で起動時の Postgres → SQLite 自動移管を止める (docs/DELIVERY_QUEUE_MIGRATION.ja.md) |
 | `DELIVERY_QUEUE_RETENTION_SECONDS` | `2592000` | Pruner max age for finished jobs |
 
 ## Tuning — Oban concurrency (gateway, delivery)

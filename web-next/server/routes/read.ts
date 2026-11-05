@@ -90,7 +90,7 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
       const page = await gwPage<Status>(ctx, path, { query, auth: kind === 'home' ? true : 'optional' });
       // 時間のことばが同じ投稿は、順序が言えない。その中で、同じ人が続かないように並べなおす。
       newestId = page.items[0]?.id;
-      items = spreadWithinMoments(page.items, ctx.locale, ctx.session?.id ?? 'anon');
+      items = spreadWithinMoments(page.items, ctx.locale, ctx.session?.id ?? 'anon', new Date(), ctx.tz);
       nextMaxId = page.nextMaxId;
     } catch (e) {
       if (e instanceof GatewayError || e instanceof TypeError) {
@@ -339,7 +339,7 @@ route('GET', '/@:acct', async (ctx) => {
         ? html`<dl class="profile-fields">
             ${account.location ? html`<div class="profile-field"><dt>${t('profile.location')}</dt><dd>${account.location}</dd></div>` : ''}
             ${account.birthday ? html`<div class="profile-field"><dt>${t('profile.birthday')}</dt><dd>${account.birthday}</dd></div>` : ''}
-            ${account.created_at ? html`<div class="profile-field"><dt>${t('profile.joined')}</dt><dd>${timeWords(account.created_at, ctx.locale)}</dd></div>` : ''}
+            ${account.created_at ? html`<div class="profile-field"><dt>${t('profile.joined')}</dt><dd>${timeWords(account.created_at, ctx.locale, new Date(), ctx.tz)}</dd></div>` : ''}
           </dl>`
         : ''}
       <p class="profile-links">

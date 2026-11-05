@@ -155,7 +155,7 @@ services:
   # Sits between the edge and the gateway. Only `/login` is challenged —
   # everything else (federation, API, OAuth, static) is ALLOW-listed in
   # config/anubis/botPolicies.yaml so SPA fetches and ActivityPub
-  # delivery keep working. See docs/anubis.md for the rationale.
+  # delivery keep working. See docs/anubis.ja.md for the rationale.
   #
   # The edge (Coolify, nginx, host) should now route HTTP traffic to
   # this service on port 8080 instead of `gateway:4000`. Anubis itself

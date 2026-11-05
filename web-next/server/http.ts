@@ -11,6 +11,7 @@ import { extname } from 'node:path';
 import { config } from './config.ts';
 import { locate, locateIn } from './assets.ts';
 import { detectLocale, makeT, type Locale, type T } from './i18n.ts';
+import { validTz } from './time.ts';
 import { createSession, getSession, saveSession, type Session } from './session.ts';
 import type { Account } from './types.ts';
 import { SafeHtml } from './html.ts';
@@ -45,6 +46,8 @@ export type Ctx = {
   method: string;
   params: Record<string, string>;
   locale: Locale;
+  // 閲覧者の tz(ブラウザが cookie sukhi_tz に置いたもの)。無ければ undefined で、言語の既定にもどる。
+  tz?: string;
   t: T;
   // Unpoly からの要求か。一部の頁だけ(断片)を返してよいかの目安。
   isUp: boolean;
@@ -110,6 +113,7 @@ async function makeCtx(req: IncomingMessage, params: Record<string, string>): Pr
     method: req.method ?? 'GET',
     params,
     locale,
+    tz: validTz(cookies.sukhi_tz),
     t: makeT(locale),
     isUp: 'x-up-version' in req.headers,
     upTarget: typeof req.headers['x-up-target'] === 'string' ? req.headers['x-up-target'] : undefined,

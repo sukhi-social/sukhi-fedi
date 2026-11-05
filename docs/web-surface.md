@@ -66,7 +66,7 @@ reads the source. Slightly crude; honest about being so.
 
 ## Belt and braces
 
-In front of `sukhi.f3liz.casa` sits [Anubis](anubis.md), whose policy
+In front of `sukhi.f3liz.casa` sits [Anubis](anubis.ja.md), whose policy
 also denies `/metrics` at the edge. That is a second layer, not the
 first one. The app is the layer that knows what it is serving, so the
 app is where the decision lives — and it is the layer that travels with

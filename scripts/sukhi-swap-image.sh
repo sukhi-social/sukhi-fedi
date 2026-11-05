@@ -3,7 +3,7 @@
 #
 # Swap one Quadlet-run image for a new one, by digest, and go back if the unit
 # does not come up. A seed for `sukhi release` (SERVER_SHELL.md §5.1); the
-# human-readable steps live in docs/OPS_UPDATE_QUADLET.md.
+# human-readable steps live in docs/OPS_UPDATE_QUADLET.ja.md.
 #
 #   sukhi-swap-image.sh plan     [--tag REF]   # resolve and show; change nothing
 #   sukhi-swap-image.sh apply    [--tag REF] [--yes]   # copy, switch, check, roll back on failure
