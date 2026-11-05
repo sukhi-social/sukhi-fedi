@@ -298,6 +298,7 @@ defmodule SukhiFedi.Accounts do
     :translate_reads,
     :translate_learns,
     :translate_engine,
+    :translate_auto,
     :translate_deepl_key,
     :translate_deepl_key_hint,
     :translate_deepl_key_input,

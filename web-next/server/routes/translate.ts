@@ -15,7 +15,7 @@ import { saveSession } from '../session.ts';
 import { baseLang, prefsOf, translationEnabled, warmTranslation } from '../translate.ts';
 import type { Account, Status } from '../types.ts';
 import { layout } from '../views/layout.ts';
-import { endonym, type Slot, type Translation } from '../views/translate.ts';
+import { autoSlot, endonym, type Slot, type Translation } from '../views/translate.ts';
 import { statusCard } from '../views/status.ts';
 import { failText, needMe, replyAcctsFor } from './shared.ts';
 
@@ -25,16 +25,24 @@ route('POST', '/statuses/:id/translate', async (ctx) => {
   const id = encodeURIComponent(ctx.params.id);
   const f = await ctx.form();
   const dom = /^[\w-]{1,80}$/.test(String(f.get('dom') ?? '')) ? String(f.get('dom')) : `st-${ctx.params.id}`;
-  const lang = prefsOf(me, ctx.locale).target;
+  const prefs = prefsOf(me, ctx.locale);
+  const lang = prefs.target;
+  // 自動(画面に留まったので、ページが自分で押した)か。ボタンを押したときは、空。
+  // 本当にオンかは gateway が確かめる(オフなら auto_off)。ここは、言い分を伝えるだけ。
+  const auto = f.get('auto') === '1';
 
   let slot: Slot;
   try {
-    const result = await gwJson<Translation>(ctx, 'POST', `/api/v1/statuses/${id}/translate`, { json: { lang } });
-    slot = { result };
+    const result = await gwJson<Translation>(ctx, 'POST', `/api/v1/statuses/${id}/translate`, { json: auto ? { lang, auto: true } : { lang } });
+    // 自動で訳したら、読めることばだった(見当ちがい)── 何も出さない。
+    const seen = baseLang(result.detected_source_language);
+    slot = auto && seen && (prefs.reads.includes(seen) || seen === lang) ? { gone: true } : { result, auto };
   } catch (e) {
     // 理由は gateway の error ことばで来る。知らないことば・届かなかったときは「訳せませんでした」。
     if (!(e instanceof GatewayError || e instanceof TypeError)) throw e;
-    slot = { problem: e instanceof GatewayError ? e.message : 'engine_unavailable' };
+    const code = e instanceof GatewayError ? e.message : 'engine_unavailable';
+    // 自動のときは、黙ってボタンに戻す。声に出すのは、鍵・月の分だけ(views/translate.ts)。
+    slot = auto ? autoSlot(code) : { problem: code };
   }
 
   // Unpoly なら、訳の場所だけを返す。そうでなければ(JS なし)、投稿ごとの頁を返す。
@@ -49,11 +57,11 @@ route('POST', '/statuses/:id/translate', async (ctx) => {
 // 読める・学べることばの候補。(gateway が受けるのは 2〜3 字のコードなら何でも。画面には、よくあるものを。)
 const COMMON = ['ja', 'en', 'ko', 'zh', 'es', 'fr', 'de', 'pt', 'it', 'ru', 'id', 'th'];
 
-type Values = { reads: string[]; learns: string[]; engine: 'libre' | 'deepl' };
+type Values = { reads: string[]; learns: string[]; engine: 'libre' | 'deepl'; auto: boolean };
 
 function valuesOf(me: Account): Values {
   const list = (a: string[] | undefined) => (a ?? []).map((x) => baseLang(x)).filter((x): x is string => !!x);
-  return { reads: list(me.source?.translate_reads), learns: list(me.source?.translate_learns), engine: me.source?.translate_engine === 'deepl' ? 'deepl' : 'libre' };
+  return { reads: list(me.source?.translate_reads), learns: list(me.source?.translate_learns), engine: me.source?.translate_engine === 'deepl' ? 'deepl' : 'libre', auto: me.source?.translate_auto === true };
 }
 
 async function translationPage(ctx: Ctx, me: Account, v: Values, error?: string, status = 200): Promise<Reply> {
@@ -70,7 +78,7 @@ async function translationPage(ctx: Ctx, me: Account, v: Values, error?: string,
   const body: SafeHtml = html`<header class="timeline page-head"><h1>${t('translate.settings')}</h1></header>
     <div class="timeline stack">
       ${flash ? html`<p class="${flash.kind === 'error' ? 'error' : 'notice'}" role="status">${flash.text}</p>` : ''}
-      <form class="settings-form" method="post" action="/settings/translation" x-data="{ engine: '${v.engine}' }">
+      <form class="settings-form" method="post" action="/settings/translation" x-data="{ engine: '${v.engine}', auto: ${String(v.auto)} }">
         <p class="muted">${t('translate.set.lead')}</p>
 
         <section class="stack-tight">
@@ -83,6 +91,25 @@ async function translationPage(ctx: Ctx, me: Account, v: Values, error?: string,
           <h2 class="text-base">${t('translate.set.learnsTitle')}</h2>
           <p class="muted text-sm">${t('translate.set.learnsHint')}</p>
           <div class="settings-checks">${checks('learns', v.learns)}</div>
+        </section>
+
+        <section class="stack-tight">
+          <h2 class="text-base">${t('translate.set.autoTitle')}</h2>
+          <div class="settings-checks">
+            <label class="stack-tight"><input type="checkbox" name="auto" value="1" x-model="auto" ${v.auto ? 'checked' : ''} /><span>${t('translate.set.autoLabel')}</span></label>
+          </div>
+          <p class="muted text-sm" x-show="!auto">${t('translate.set.autoOff')}</p>
+          <!-- オンにしたときだけ。決める人に要る事実だけを二行で(エンジンのぶんだけ)。残りは「くわしく」。 -->
+          <div class="tr-note" role="note" x-show="auto" x-cloak>
+            <p>${t('translate.set.autoNote1')}</p>
+            <p x-show="engine === 'deepl'"><strong>${t('translate.set.autoNoteDeepl')}</strong></p>
+            <p x-show="engine !== 'deepl'"><strong>${t('translate.set.autoNoteLibre')}</strong></p>
+            <details class="text-sm muted">
+              <summary>${t('translate.set.autoMore')}</summary>
+              <p>${t('translate.set.autoMore1')}</p>
+              <p>${t('translate.set.autoMore2')}</p>
+            </details>
+          </div>
         </section>
 
         <section class="stack">
@@ -139,7 +166,7 @@ route('POST', '/settings/translation', async (ctx) => {
   const me = await needMe(ctx);
   const f = await ctx.form();
   const codes = (k: string) => [...new Set(f.getAll(k).map((x) => baseLang(String(x))).filter((x): x is string => !!x))];
-  const v: Values = { reads: codes('reads'), learns: codes('learns'), engine: f.get('engine') === 'deepl' ? 'deepl' : 'libre' };
+  const v: Values = { reads: codes('reads'), learns: codes('learns'), engine: f.get('engine') === 'deepl' ? 'deepl' : 'libre', auto: f.get('auto') === '1' };
   const key = String(f.get('translate_deepl_key') ?? '').trim();
 
   const hasKey = !!me.source?.translate_deepl_key_hint;
@@ -149,6 +176,8 @@ route('POST', '/settings/translation', async (ctx) => {
   fd.set('translate_reads', v.reads.join(','));
   fd.set('translate_learns', v.learns.join(','));
   fd.set('translate_engine', v.engine);
+  // 外したときも送る(送らないと、オフにできない)。
+  fd.set('translate_auto', String(v.auto));
   // 書きこみ専用: 入っているときだけ送る(空のままなら、いまのキーのまま)。
   if (key) fd.set('translate_deepl_key', key);
 

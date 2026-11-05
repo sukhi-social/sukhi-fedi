@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Translate do
   @moduledoc """
-  Translating a post for the person reading it. The one window: `status/3`.
+  Translating a post for the person reading it. The one window: `status/4`.
 
   What this is for (docs/TRANSLATION.md): a post is a person's voice, and a
   translation is a hand held out to hear it — never a film laid over it. So a
@@ -25,6 +25,13 @@ defmodule SukhiFedi.Translate do
     * **what comes back** — passed through `HTML.sanitize/1`, because what an
       engine returns is text from outside, however friendly.
 
+  A request may say `auto: true` — the page asking by itself because the person turned
+  on quiet auto-translation (docs/TRANSLATION_AUTO.md). That is a different kind of ask,
+  so it is checked here too, before anything else: the account must have `translate_auto`
+  on (whatever a client believes), a post behind a content warning is not sent (its body
+  has not been shown), and `Translate.Gate` holds it to its own allowance and leaves the
+  server's translator a place for a person's press.
+
   The answer is Mastodon's `Translation` entity (`content`, `spoiler_text`,
   `detected_source_language`, `provider`, plus the empty `poll` and
   `media_attachments`), so any Mastodon client can read it.
@@ -41,6 +48,7 @@ defmodule SukhiFedi.Translate do
           :not_found
           | :not_translatable
           | :disabled
+          | :auto_off
           | :unsupported_language
           | :too_long
           | :no_key
@@ -58,14 +66,21 @@ defmodule SukhiFedi.Translate do
   @spec targets() :: [String.t()]
   def targets, do: @targets
 
-  @spec status(Account.t() | map(), integer() | binary(), String.t() | nil) ::
+  @spec status(Account.t() | map(), integer() | binary(), String.t() | nil, keyword()) ::
           {:ok, map()} | {:error, reason()}
-  def status(%{id: viewer_id}, note_id, target) when is_integer(viewer_id) do
+  def status(viewer, note_id, target, opts \\ [])
+
+  def status(%{id: viewer_id}, note_id, target, opts) when is_integer(viewer_id) do
+    auto? = Keyword.get(opts, :auto, false) == true
+    account = Repo.get(Account, viewer_id)
+
     with {:ok, target} <- target(target),
+         :ok <- consent(account, auto?),
          {:ok, note} <- Notes.get_note(note_id, viewer_id),
-         {:ok, engine} <- engine(Repo.get(Account, viewer_id), note),
+         :ok <- shown(note, auto?),
+         {:ok, engine} <- engine(account, note),
          {:ok, texts} <- texts(note) do
-      run(viewer_id, engine, note, texts, target)
+      run(viewer_id, engine, note, texts, target, auto?)
     end
   end
 
@@ -73,6 +88,17 @@ defmodule SukhiFedi.Translate do
 
   defp target(nil), do: {:error, :unsupported_language}
   defp target(t) when is_binary(t), do: if(t in @targets, do: {:ok, t}, else: {:error, :unsupported_language})
+
+  # Auto asks only of a person who turned it on. Asked first, so an account that did
+  # not opt in learns nothing about the post.
+  defp consent(%Account{translate_auto: true}, true), do: :ok
+  defp consent(%Account{}, true), do: {:error, :auto_off}
+  defp consent(_account, false), do: :ok
+
+  # A post behind a content warning has its body folded; nothing is sent on the page's
+  # own initiative. (A press is the person opening it on purpose.)
+  defp shown(%{cw: cw}, true) when is_binary(cw) and cw != "", do: {:error, :not_translatable}
+  defp shown(_note, _auto?), do: :ok
 
   # A direct message was written for named people; it is not sent to any engine.
   defp engine(_account, %{visibility: "direct"}), do: {:error, :not_translatable}
@@ -117,7 +143,7 @@ defmodule SukhiFedi.Translate do
 
   # ── the call ──────────────────────────────────────────────────────────────
 
-  defp run(viewer_id, engine, note, texts, target) do
+  defp run(viewer_id, engine, note, texts, target, auto?) do
     {kind, scope} = scope(engine, viewer_id)
     digest = :crypto.hash(:sha256, texts) |> Base.encode16(case: :lower)
 
@@ -125,7 +151,7 @@ defmodule SukhiFedi.Translate do
     # people ask for is translated once, and one person's quota is never spent
     # by another. Only successes are kept.
     HotCache.fetch_ok({:translate, scope, digest, target}, HotCache.ttl(:translate), fn ->
-      Gate.run(viewer_id, kind, fn -> call(engine, texts, target) end)
+      Gate.run(viewer_id, kind, fn -> call(engine, texts, target) end, auto: auto?)
     end)
     |> render(kind, note)
   end

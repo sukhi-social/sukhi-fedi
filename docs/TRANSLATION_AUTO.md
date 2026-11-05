@@ -1,8 +1,9 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Quiet auto-translation — design note
 
-> **Status: proposal.** Nothing here is built. The mock is `web-next/ui-lab/mocks/translate-auto`
-> (`make ui-lab`). Build only after ひなた has looked at it.
+> **Status: built** (PR #150), **off for everyone until they turn it on.** The mock is
+> `web-next/ui-lab/mocks/translate-auto` (`make ui-lab`). Choices that were open when this was
+> a proposal were settled the recommended way (see the end); change them here if ひなた decides otherwise.
 >
 > **Intent:** for someone who chose it, a post in a language they cannot read gets a pale
 > translation under it by the time they have read the original — without a press, without a
@@ -77,30 +78,33 @@ Not stored, not federated, not shown to anyone else — as before. A 10-minute c
 memory, so reloading after 10 minutes translates again; with DeepL that is the reader's own
 quota. See open question 3.
 
-## How it would be built (small, reuses the press)
+## How it is built (small, reuses the press)
 
 1. **Account field** `translate_auto` (boolean, default false) beside `translate_reads` /
-   `translate_learns`: Postgres migration, `priv/datalevin/catalog.exs` + `docs/DATALEVIN_SCHEMA.md`,
-   `Account.changeset`, `update_credentials`, `source.translate_auto` in the account view.
-2. **Gateway**: `Translate.status/4` takes `opts` (`auto: true`); consent check first, then the
-   existing `with` chain; `Gate.run/4` gets the `mode: :auto` rule above. New reason `:auto_off`
-   (403 `auto_off`). Specs: `Gate` allowance and the last-place rule, and that an account with
-   auto off is refused whatever else is true.
+   `translate_learns`: Postgres migration `20261105000002`, `priv/datalevin/catalog.exs`,
+   `Account.changeset_credentials`, `update_credentials`, `source.translate_auto` in the account view.
+2. **Gateway**: `Translate.status/4` takes `auto: true`; the consent check is first, then
+   the content-warning check, then the existing `with` chain; `Gate.run/4` takes `auto: true`
+   (own 120/h bucket; at most `max_flight - 1` places on the hosted translator). New reason
+   `:auto_off` → `403 auto_off`. Tests: `gate_test` (allowance, last-place rule),
+   `integration/translate_test` (refused when off, before the post is read; works when on;
+   content warning), `mastodon_translation_test` (`auto` only for the literal `true`).
 3. **web-next**
-   - `offerFor` returns `'auto'` when the post passes rules 1–4 above and `prefs.auto` is on and
-     the dwell can apply; `translateSlot` marks the slot's form with `data-tr-auto`.
-   - `public/js/app.js`: one `up.compiler('[data-tr-auto]')` — an `IntersectionObserver`
-     (threshold .6, 700 ms dwell, `document.visibilityState`, `saveData`) and **one shared queue
-     of one at a time**; it submits the slot's own form with `auto=1` through Unpoly, so the
-     reply is the same fragment the press gets. The queue also carries the back-off and the
-     "rest after quota" state.
-   - `routes/translate.ts`: with `auto=1`, a quiet problem returns the button state; a loud one
-     (`no_key`, `key_rejected`, `quota`) returns the single note.
-   - Settings: the switch and its note, in `/settings/translation`.
-   - A server-rendered page with JS off simply never auto-translates; the button is there.
-4. **Docs and words**: ja/ko/en strings (en per `ENGLISH_VOICE.md`), `TRANSLATION.md` (a pointer, and
-   the rules table row), `MASTODON_API.md` (`auto` param, `auto_off`, `translate_auto`),
-   `ENV.md` only if the allowance becomes configurable.
+   - `offerFor` returns `'auto'` (a guess) for posts that pass rules 1–4 when `prefs.auto` is on;
+     `translateSlot` puts `data-tr-auto` and an empty `auto` field on the slot's form.
+   - `public/js/app.js`, `form[data-tr-auto]`: an `IntersectionObserver` (60 % of the post, or
+     60 % of the screen for a tall one; 700 ms dwell; visible tab; no `Save-Data`) and **one shared
+     queue, one at a time**, 400 ms apart. It sets `auto=1` and submits the slot's own form through
+     Unpoly, so the reply is the same fragment a press gets.
+   - `routes/translate.ts`: with `auto=1`, quiet problems return the plain button (marked
+     `data-tr-quiet=<code>`); `no_key` / `key_rejected` / `quota` return the one note
+     (`data-tr-rest`). A result whose detected language is one you read returns nothing.
+   - The page backs off 60 s after `busy` / `engine_unavailable` / `failed`, and rests until reload
+     after `data-tr-rest`, `disabled` or `auto_off`.
+   - Settings: the switch and its short note in `/settings/translation`; the note names only the
+     engine you chose.
+   - A server-rendered page with JS off never auto-translates; the button is there.
+4. **Docs and words**: ja / ko / en strings, `TRANSLATION.md`, `MASTODON_API.md`.
 
 Not needed: a batch endpoint. The gateway, the cache and the engine adapters already serve one
 post at a time, and the one-at-a-time queue is what keeps a small box unhurried. A batch would
@@ -116,18 +120,16 @@ save HTTP round trips but hold a translator worker longer, which is the scarce t
   of what it translated.
 - No per-author "do not translate me" flag (still decided against; see `TRANSLATION.md`).
 
-## Open questions (for ひなた)
+## Settled the recommended way, and what is still a guess
 
-1. **One switch or per language?** Proposed: one switch for everything that is not read/learned.
-   A per-language list is possible later (`translate_auto_langs`); I'd wait until someone asks.
-2. **Is "followers-only goes to the server's own translator even in auto" right?** It matches
-   the press today and the label names the engine. The alternative — followers-only never auto —
-   is safer but means a friend-only post in Korean is the one that always needs a press.
-3. **Cache time.** 10 minutes is the press's number. Auto reloads the same posts more often;
-   raising `HotCache.ttl(:translate)` to 1 hour for the hosted scope only would cost memory,
-   not privacy. Measure first.
-4. **The auto allowance (120/h) and "leave one place" are guesses** — same as the 60/h and
-   `TRANSLATE_MAX_FLIGHT=2` they sit beside; they need the same real-box load test before anyone relies on them.
-5. **Cost visibility for DeepL.** The note says "spends your month's allowance" but there is no
-   meter. A small "about N characters this month" in settings would need DeepL's usage endpoint;
-   skipped here, worth it if people burn the free tier.
+1. **One switch, not per language.** A per-language list (`translate_auto_langs`) can come when someone asks.
+2. **Followers-only goes to the server's own translator in auto too**, exactly as a press does, and
+   the label names the engine. (Alternative, safer and less useful: followers-only never auto.)
+3. **Cache time stays 10 minutes**, the press's number. Raising it for the hosted scope only would
+   cost memory, not privacy; measure first.
+4. **120 an hour and "leave one place" are guesses**, like the 60 an hour and `TRANSLATE_MAX_FLIGHT=2`
+   beside them. They need the same real-box load test before anyone relies on them.
+5. **No DeepL usage meter.** The note says it spends your month's allowance; a "about N characters
+   this month" would need DeepL's usage endpoint. Worth it if people burn the free tier.
+6. **Not verified in a real browser on Safari/iOS** (the no-jump rule relies on translating only
+   what is already on screen); Chromium was checked.

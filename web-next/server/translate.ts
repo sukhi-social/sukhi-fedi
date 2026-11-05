@@ -9,6 +9,9 @@
 // 漢字だけは決められない(中国語かもしれない短い日本語かもしれない)ので null ── ボタンは出して、
 // 訳し役に見分けてもらう。ラテン文字は en とみなす(フランス語を読む人の en は、見当違いになりうる)。
 // 投稿が自分のことばを名乗っているとき(Status.language)は、そちらを先に信じる。
+//
+// 静かな自動翻訳(docs/TRANSLATION_AUTO.md)も、ここは「試してよいか」の見当だけ。オンかどうか・内容警告・
+// 回数の守りは、gateway の SukhiFedi.Translate / Translate.Gate の一か所。
 
 import { gwJson } from './gateway.ts';
 import type { Ctx } from './http.ts';
@@ -89,6 +92,8 @@ export type Prefs = {
   reads: string[];
   learns: string[];
   engine: 'libre' | 'deepl';
+  // 画面に留まった投稿を、自動で訳すか(docs/TRANSLATION_AUTO.md)。既定はオフ。
+  auto: boolean;
   hasKey: boolean;
   keyHint: string | null;
   // 訳の行き先。読めることばの先頭(訳せることば)、無ければ画面のことば。
@@ -108,6 +113,7 @@ export function prefsOf(me: Account | null, locale: string): Prefs {
     reads,
     learns: list(src?.translate_learns),
     engine: src?.translate_engine === 'deepl' ? 'deepl' : 'libre',
+    auto: src?.translate_auto === true,
     hasKey: !!src?.translate_deepl_key_hint,
     keyHint: src?.translate_deepl_key_hint ?? null,
     target
@@ -115,7 +121,8 @@ export function prefsOf(me: Account | null, locale: string): Prefs {
 }
 
 // ── ボタンを出すか ───────────────────────────────────────────────
-export type Offer = 'none' | 'ask' | 'learn';
+// ask = 押せるボタン。learn = 学ぶ見せ方。auto = ボタンに加えて、画面に留まったら自動で(オンの人だけ)。
+export type Offer = 'none' | 'ask' | 'learn' | 'auto';
 
 export function offerFor(s: Status, me: Account | null, prefs: Prefs, enabled: boolean): Offer {
   if (!me) return 'none';
@@ -127,7 +134,12 @@ export function offerFor(s: Status, me: Account | null, prefs: Prefs, enabled: b
   if (g.letters < 3) return 'none';
   const lang = baseLang(s.language) ?? g.lang;
   if (lang && prefs.reads.includes(lang)) return 'none';
-  return lang && prefs.learns.includes(lang) ? 'learn' : 'ask';
+  if (lang && prefs.learns.includes(lang)) return 'learn';
+  // 自動は、ことばが決まっていて、内容警告でたたまれていない投稿だけ。漢字だけ(lang が null)は、
+  // 短い日本語かもしれない ── 訳し役に送って無駄にするより、ボタンのまま。
+  // (内容警告は gateway も断る。ここは、無駄な往復をしないための見当。)
+  if (prefs.auto && lang && !s.spoiler_text) return 'auto';
+  return 'ask';
 }
 
 // ── この場所に訳し役があるか(手元に 60 秒) ────────────────────────

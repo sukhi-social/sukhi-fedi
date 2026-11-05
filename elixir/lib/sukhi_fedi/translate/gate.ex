@@ -17,6 +17,12 @@ defmodule SukhiFedi.Translate.Gate do
       at a button, not a spinner they must sit through), and the client does not
       retry on its own.
 
+    * **Auto-translation** (docs/TRANSLATION_AUTO.md) is a request the page makes on its
+      own, so it is held to less. It has its own hourly allowance (`@auto_per_hour`), apart
+      from the one for presses — reading a feed must not spend the translations a person
+      asked for by hand — and on the server's own translator it may use at most
+      `max_flight/0 - 1` places, so a person pressing the button always finds one free.
+
   The in-flight set holds one row per running request, `{pid}` in
   `:translate_flight` (owned by `Cache.Ets`), so a request that dies without
   cleaning up frees its place on the next count — the same shape as
@@ -28,6 +34,7 @@ defmodule SukhiFedi.Translate.Gate do
 
   @table :translate_flight
   @per_hour 60
+  @auto_per_hour 120
   @window_ms 3_600_000
   @default_flight 2
   @retry_after_s 10
@@ -37,22 +44,30 @@ defmodule SukhiFedi.Translate.Gate do
   @doc """
   Run `fun` if `account_id` is under their hourly allowance and, for the hosted
   translator (`engine: :libre`), the translator has a free place. `fun`'s own
-  answer is returned unchanged.
+  answer is returned unchanged. `auto: true` (the page asking by itself) counts
+  against the separate auto allowance and leaves one hosted place free.
   """
-  @spec run(integer(), :libre | :deepl, (-> result)) :: result | {:error, refusal()} when result: term()
-  def run(account_id, engine, fun) when is_integer(account_id) and engine in [:libre, :deepl] do
-    case Hammer.check_rate("translate:#{account_id}", @window_ms, @per_hour) do
-      {:allow, _} -> in_flight(engine, fun)
+  @spec run(integer(), :libre | :deepl, (-> result), keyword()) :: result | {:error, refusal()} when result: term()
+  def run(account_id, engine, fun, opts \\ []) when is_integer(account_id) and engine in [:libre, :deepl] do
+    auto? = Keyword.get(opts, :auto, false) == true
+    {bucket, limit} = if auto?, do: {"translate_auto:#{account_id}", @auto_per_hour}, else: {"translate:#{account_id}", @per_hour}
+
+    case Hammer.check_rate(bucket, @window_ms, limit) do
+      {:allow, _} -> in_flight(engine, places(auto?), fun)
       {:deny, ms} -> {:error, {:busy, max(div(ms, 1_000), 1)}}
     end
   end
 
-  defp in_flight(:deepl, fun), do: fun.()
+  # How many hosted places this kind of request may use. Auto leaves one for a press.
+  defp places(true), do: max(max_flight() - 1, 0)
+  defp places(false), do: max_flight()
 
-  defp in_flight(:libre, fun) do
+  defp in_flight(:deepl, _places, fun), do: fun.()
+
+  defp in_flight(:libre, places, fun) do
     :ets.insert(@table, {self()})
 
-    if flight() > max_flight() do
+    if flight(places) > places do
       release()
       {:error, {:busy, @retry_after_s}}
     else
@@ -68,10 +83,10 @@ defmodule SukhiFedi.Translate.Gate do
   @spec max_flight() :: pos_integer()
   def max_flight, do: Application.get_env(:sukhi_fedi, :translate_max_flight, @default_flight)
 
-  defp flight do
+  defp flight(places) do
     n = :ets.info(@table, :size)
 
-    if n > max_flight() do
+    if n > places do
       sweep_dead()
       :ets.info(@table, :size)
     else

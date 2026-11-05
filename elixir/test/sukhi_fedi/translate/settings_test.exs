@@ -23,6 +23,13 @@ defmodule SukhiFedi.Translate.SettingsTest do
     assert Ecto.Changeset.get_change(c, :translate_learns) == nil
   end
 
+  test "auto-translation is off until a person turns it on, and casts a form string" do
+    assert %Account{}.translate_auto == false
+    assert Ecto.Changeset.get_change(cs(%{"translate_auto" => "true"}), :translate_auto) == true
+    c = cs(%{"translate_auto" => "false"}, %Account{id: 7, translate_auto: true})
+    assert Ecto.Changeset.get_change(c, :translate_auto) == false
+  end
+
   test "the engine is libre or deepl; blank means the server's own" do
     refute cs(%{"translate_engine" => "google"}).valid?
     assert cs(%{"translate_engine" => "libre"}).valid?

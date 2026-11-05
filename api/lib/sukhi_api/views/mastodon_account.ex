@@ -276,6 +276,8 @@ defmodule SukhiApi.Views.MastodonAccount do
         translate_reads: lang_list(Map.get(account, :translate_reads)),
         translate_learns: lang_list(Map.get(account, :translate_learns)),
         translate_engine: Map.get(account, :translate_engine) || "libre",
+        # sukhi's own: the page may translate posts by itself as they stay on screen.
+        translate_auto: Map.get(account, :translate_auto, false) || false,
         translate_deepl_key_hint: Map.get(account, :translate_deepl_key_hint)
       },
       role:

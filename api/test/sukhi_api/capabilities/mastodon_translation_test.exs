@@ -66,22 +66,38 @@ defmodule SukhiApi.Capabilities.MastodonTranslationTest do
 
     assert {:ok, %{status: 200, body: body}} = post("lang=ja", @form, "")
     assert %{"content" => "<p>hi</p>", "provider" => "LibreTranslate"} = JSON.decode!(body)
-    assert_receive {:translate, [%{id: 5}, "123", "ja"], 30_000}
+    assert_receive {:translate, [%{id: 5}, "123", "ja", [auto: false]], 30_000}
   end
 
   test "`lang` may come from JSON or the query string as well" do
     Application.put_env(:sukhi_api, :fake_translate, {:ok, %{content: "x"}})
 
     post(JSON.encode!(%{lang: "ko"}), "application/json", "")
-    assert_receive {:translate, [_, "123", "ko"], _}
+    assert_receive {:translate, [_, "123", "ko", _], _}
 
     post("", "application/json", "lang=en")
-    assert_receive {:translate, [_, "123", "en"], _}
+    assert_receive {:translate, [_, "123", "en", _], _}
+  end
+
+  test "`auto` is true only for the literal true, and is handed on for the gateway to judge" do
+    Application.put_env(:sukhi_api, :fake_translate, {:ok, %{content: "x"}})
+
+    post("lang=ja&auto=true", @form, "")
+    assert_receive {:translate, [_, "123", "ja", [auto: true]], _}
+
+    post(JSON.encode!(%{lang: "ja", auto: true}), "application/json", "")
+    assert_receive {:translate, [_, "123", "ja", [auto: true]], _}
+
+    for odd <- ["1", "yes", "TRUE", ""] do
+      post("lang=ja&auto=#{odd}", @form, "")
+      assert_receive {:translate, [_, "123", "ja", [auto: false]], _}
+    end
   end
 
   test "a refusal says what happened, in the status a client can act on" do
     assert {404, %{"error" => "not_found"}, _} = reply({:error, :not_found})
     assert {403, %{"error" => "not_translatable"}, _} = reply({:error, :not_translatable})
+    assert {403, %{"error" => "auto_off"}, _} = reply({:error, :auto_off})
     assert {503, %{"error" => "translation_disabled"}, _} = reply({:error, :disabled})
     assert {422, %{"error" => "unsupported_language"}, _} = reply({:error, :unsupported_language})
     assert {422, %{"error" => "too_long"}, _} = reply({:error, :too_long})
