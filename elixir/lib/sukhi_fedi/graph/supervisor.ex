@@ -4,7 +4,7 @@ defmodule SukhiFedi.Graph.Supervisor do
 
   use Supervisor
 
-  alias SukhiFedi.Datalevin.{Client, Config, SchemaFile}
+  alias SukhiFedi.Datalevin.{Client, Config, Migrator, SchemaFile}
 
   def start_link(opts), do: Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
 
@@ -12,13 +12,14 @@ defmodule SukhiFedi.Graph.Supervisor do
   def init(opts) do
     config = Keyword.get_lazy(opts, :config, &Config.current/0)
     config = %{config | dir: Keyword.get(opts, :dir, Path.join(config.dir, "graph"))}
+    schema = SchemaFile.to_dtlv(SchemaFile.read())
+
+    # As for the main store: migrations first (`Release.migrate_all/0`).
+    :ok = Migrator.check_current!(Migrator.spec(:graph, config, schema, ""))
 
     Supervisor.init(
       [
-        {Client,
-         name: SukhiFedi.Graph.client(),
-         config: config,
-         schema: SchemaFile.to_dtlv(SchemaFile.read())}
+        {Client, name: SukhiFedi.Graph.client(), config: config, schema: schema}
       ],
       strategy: :one_for_one,
       max_restarts: 5,

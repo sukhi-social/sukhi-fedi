@@ -174,8 +174,10 @@ What changes for the delivery half:
 - **Pull Federation** (`pull_log`, `pull_heads`, `pull_peers`) uses plain
   statements (`SukhiDelivery.PullFederation.Peers`, `Log`), the same on both
   stores.
-- **Migrations.** `migrate_all` does nothing; the schema is the catalog
-  (`priv/datalevin/catalog.exs`).
+- **Migrations.** The schema is derived (`priv/datalevin/catalog.exs`,
+  `schema.edn`) and a new attribute needs nothing. `migrate_all` runs the
+  versioned Datalevin migrations for what that does not cover
+  ([DATALEVIN_MIGRATIONS.md](DATALEVIN_MIGRATIONS.md)).
 - **Image.** `dtlv` is only published as a glibc build and the runtime image is
   Alpine. `combined/Dockerfile` therefore gives `dtlv` its own glibc (loader and
   libm/libmvec/libgomp, copied from an Ubuntu stage) and `/usr/local/bin/dtlv`
@@ -198,10 +200,13 @@ Restore the mounted `/etc/sukhi/instance.json`, keep `DOMAIN` and signing
 secrets stable, and stop the old writer before copying files.
 
 On first successful open, the release writes
-`DATALEVIN_DIR/.sukhi-store.json` with the catalog fingerprint and release
-version. A catalog fingerprint mismatch refuses startup rather than opening a
-store with an unknown schema. A legacy store without this file is accepted
-once and stamped after the compatibility check; the journal reports this.
+`DATALEVIN_DIR/.sukhi-store.json` (and `graph/.sukhi-store.json`) with the
+migrations the data has been through and the schema it was last opened with.
+A schema that only gained attributes opens as it is; a removed or changed
+attribute needs a migration, and without one startup is refused rather than
+opening a store the code cannot read. A store without this file is accepted
+once and stamped; the journal reports this
+([DATALEVIN_MIGRATIONS.md](DATALEVIN_MIGRATIONS.md)).
 
 Before a planned backup, create a non-secret inventory:
 
@@ -211,7 +216,8 @@ podman exec <gateway-container> /app/bin/combined eval \
 ```
 
 The resulting `backup-manifest.json` lists the data directory, graph directory,
-queue files, raw backend, instance config path, and catalog fingerprint. It
+queue files, raw backend, instance config path, catalog fingerprint and
+migration version. It
 does not contain secrets or copy any data.
 
 After restoring those paths, validate the inventory before starting normal
@@ -222,6 +228,7 @@ podman exec <gateway-container> /app/bin/combined eval \
   'SukhiFedi.Release.check_datalevin_backup_manifest!()'
 ```
 
-The check refuses a different catalog fingerprint, mismatched data paths, or
-missing queue/graph directories. It does not test S3 credentials or perform a
+The check refuses data from a newer release than this one (an older one is
+migrated forward when it starts), mismatched data paths, or missing
+queue/graph directories. It does not test S3 credentials or perform a
 Postgres import.
