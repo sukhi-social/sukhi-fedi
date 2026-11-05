@@ -2,12 +2,15 @@
 defmodule SukhiFedi.Datalevin.MigratorTest do
   @moduledoc """
   The migrator on a real `dtlv`. Tagged `:dtlv`; `test_helper.exs` leaves
-  these out when no `dtlv` binary is found.
+  these out when no `dtlv` binary is found. Also `:integration`, because CI
+  runs the dtlv-equipped suite as `--only integration` (`make test-pglite`)
+  and the unit job has no `dtlv`.
   """
 
   use ExUnit.Case, async: false
 
   @moduletag :dtlv
+  @moduletag :integration
 
   alias SukhiFedi.Datalevin.{Client, Config, Manifest, Migrator}
   alias SukhiFedi.Datalevin.Migration.{Ctx, Ops}
