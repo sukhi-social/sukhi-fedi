@@ -57,8 +57,8 @@ web-next  →  POST /api/v1/statuses/:id/translate  (api, scope read:statuses)
 
 ## Running LibreTranslate
 
-It is **opt-in**. The release builds an image, `sukhi-fedi-translate`, from
-[`translate/Dockerfile`](../translate/Dockerfile): upstream LibreTranslate (pinned) with only
+It is **opt-in**. The release and every `main` sha (`combined-sha`) build an image,
+`sukhi-fedi-translate`, from [`translate/Dockerfile`](../translate/Dockerfile): upstream LibreTranslate (pinned) with only
 ja, en and ko baked in, so it starts quickly and never fetches models at run time. The
 compose file has it behind a profile:
 
