@@ -5,7 +5,7 @@ A federated (ActivityPub) social server built to be calm: a place where you can
 leave a few words, and drop by now and then, without hurry.
 [sukhi.social](https://sukhi.social) runs on this software.
 
-*(sukhi is made in Japan. The screens are in Japanese, Korean and English. Some of
+*(sukhi is made for Japan mainly. The screens are in Japanese, Korean and English. Some of
 the operator guides under [`docs/`](docs/README.md) are in Japanese; the table of
 contents says which.)*
 
