@@ -86,6 +86,8 @@ what to set on a small box.
 | `DATALEVIN_CACHE_LIMIT` | no | dtlv's | Datalevin's own cache bound. |
 | `DATALEVIN_BATCH` | no | `500` | Rows per request when writing in bulk (max 5000). |
 | `DATALEVIN_TIMEOUT_MS` | no | `30000` | One request to `dtlv`. |
+| `DATALEVIN_PREMIGRATE_BACKUP` | no | `1` | Copy the store's files before the first Datalevin migration of a run. `0` skips it. Needs room for a second copy ([DATALEVIN_MIGRATIONS.md](DATALEVIN_MIGRATIONS.md)). |
+| `DATALEVIN_PREMIGRATE_DIR` | no | `datalevin-premigrate/` beside `DATALEVIN_DIR` | Where those copies go. Nothing deletes them. |
 
 ## NATS (gateway, delivery, bun)
 

@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Sukhi.Datalevin.Catalog do
   @moduledoc """
   Regenerate `priv/datalevin/catalog.exs` from a migrated Postgres.
 
-  The Datalevin store has no migrations. What it needs from the SQL schema —
+  The Datalevin store's schema is derived, not migrated. What it needs from the SQL schema —
   column types, defaults, unique indexes, foreign keys and their `ON DELETE`
   — is read once from a database the real migrations have been run on, and
   committed as data. The migrations stay the one place the schema is
@@ -12,7 +12,9 @@ defmodule Mix.Tasks.Sukhi.Datalevin.Catalog do
       mix sukhi.migrate && mix sukhi.datalevin.catalog
 
   `test/sukhi_fedi/datalevin/catalog_test.exs` fails when the snapshot and
-  the migrations disagree on the set of tables.
+  the migrations disagree on the set of tables. Then run
+  `mix sukhi.datalevin.lock`: a column that goes away or changes type needs a
+  Datalevin migration (docs/DATALEVIN_MIGRATIONS.md).
   """
 
   use Mix.Task

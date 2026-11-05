@@ -40,7 +40,9 @@ defmodule SukhiFedi.Datalevin.Config do
           write_batch_size: pos_integer() | nil,
           cache_limit: non_neg_integer() | nil,
           batch: pos_integer(),
-          timeout_ms: pos_integer()
+          timeout_ms: pos_integer(),
+          premigrate_backup: boolean(),
+          premigrate_dir: String.t() | nil
         }
 
   defstruct dir: "/var/lib/sukhi/datalevin",
@@ -57,7 +59,9 @@ defmodule SukhiFedi.Datalevin.Config do
             write_batch_size: nil,
             cache_limit: nil,
             batch: 500,
-            timeout_ms: 30_000
+            timeout_ms: 30_000,
+            premigrate_backup: true,
+            premigrate_dir: nil
 
   @durabilities ~w(strict relaxed extra lmdb nosync)
 
@@ -95,7 +99,9 @@ defmodule SukhiFedi.Datalevin.Config do
       write_batch_size: opt_int(env, "DATALEVIN_WRITE_BATCH_SIZE", 1),
       cache_limit: opt_int(env, "DATALEVIN_CACHE_LIMIT", 0),
       batch: int(env, "DATALEVIN_BATCH", d.batch, 1, 5_000),
-      timeout_ms: int(env, "DATALEVIN_TIMEOUT_MS", d.timeout_ms, 100)
+      timeout_ms: int(env, "DATALEVIN_TIMEOUT_MS", d.timeout_ms, 100),
+      premigrate_backup: bool(env, "DATALEVIN_PREMIGRATE_BACKUP", d.premigrate_backup),
+      premigrate_dir: str(env, "DATALEVIN_PREMIGRATE_DIR", d.premigrate_dir)
     }
   end
 
@@ -182,6 +188,15 @@ defmodule SukhiFedi.Datalevin.Config do
         if Regex.match?(~r/^\d+[kKmMgG]$/, v),
           do: v,
           else: bad("DATALEVIN_XMX", v, "like 64m or 1g")
+    end
+  end
+
+  defp bool(env, key, default) do
+    case env[key] do
+      v when v in [nil, ""] -> default
+      v when v in ["1", "true", "on", "yes"] -> true
+      v when v in ["0", "false", "off", "no"] -> false
+      v -> bad(key, v, "1/true/on or 0/false/off")
     end
   end
 

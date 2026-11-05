@@ -1,67 +1,129 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Datalevin.Manifest do
   @moduledoc """
-  Records the application/catalog identity of a Datalevin store.
+  The record a Datalevin store keeps of itself: `<dir>/.sukhi-store.json`.
+  The main store and the graph store (`<dir>/graph`) each have one.
 
-  A store copied from an older release without a manifest is accepted once and
-  stamped after it opens. A manifest with a different catalog fingerprint is
-  refused before the application can serve requests.
+  Format 2 says which migrations the data has been through and what schema
+  the store was last opened with, so the next release can tell what changed
+  (`SchemaDiff`) instead of refusing every difference:
+
+      "format"         2
+      "name"           "main" | "graph"
+      "schema_version" the newest applied migration (0: none)
+      "migrations"     [{"version", "name", "applied_at"}]
+      "schema"         the schema it was last stamped with (wire form)
+      "migrating"      null, or {"version", "started_at"} while one runs
+      "catalog_sha256" a fingerprint of "schema" (for the backup inventory)
+
+  Format 1 (the catalog fingerprint alone) is read once and upgraded by the
+  migrator. The file lives beside the data, so a backup of the directory
+  carries it; it is written by rename, so it is never half a file.
+
+  This module only reads and writes the file and checks a backup inventory;
+  what the contents mean is `SukhiFedi.Datalevin.Migrator`'s.
   """
 
-  alias SukhiFedi.Datalevin.{Catalog, Config}
+  alias SukhiFedi.Datalevin.{Config, Migrator}
   require Logger
 
-  @format 1
+  @format 2
+  @inventory_format 1
   @manifest_file ".sukhi-store.json"
+
+  @type t :: %{String.t() => term()}
 
   @spec path(Config.t()) :: String.t()
   def path(%Config{dir: dir}), do: Path.join(dir, @manifest_file)
 
-  @spec expected(Config.t()) :: map()
-  def expected(%Config{} = config) do
-    %{
-      "format" => @format,
-      "store" => "datalevin",
-      "catalog_sha256" => catalog_sha256(),
-      "app_version" => app_version(),
-      "data_dir" => config.dir
-    }
-  end
+  @doc "The file name, for callers that must tell it apart from data."
+  @spec file_name() :: String.t()
+  def file_name, do: @manifest_file
 
-  @spec verify!(Config.t()) :: :ok | :legacy
-  def verify!(%Config{} = config) do
+  @spec read(Config.t()) :: {:ok, t()} | :none | {:error, String.t()}
+  def read(%Config{} = config) do
     file = path(config)
 
     case File.read(file) do
       {:ok, body} ->
         case JSON.decode(body) do
-          {:ok, manifest} -> verify!(manifest, expected(config), file)
-          {:error, reason} -> refuse!("invalid store manifest #{file}: #{inspect(reason)}")
+          {:ok, %{} = manifest} -> {:ok, manifest}
+          {:ok, _} -> {:error, "invalid store manifest #{file}: not an object"}
+          {:error, reason} -> {:error, "invalid store manifest #{file}: #{inspect(reason)}"}
         end
 
       {:error, :enoent} ->
-        Logger.warning("datalevin store manifest missing; accepting legacy store #{config.dir}")
-        :legacy
+        :none
 
       {:error, reason} ->
-        refuse!("cannot read store manifest #{file}: #{inspect(reason)}")
+        {:error, "cannot read store manifest #{file}: #{inspect(reason)}"}
     end
   end
 
-  @spec write!(Config.t()) :: :ok
-  def write!(%Config{} = config) do
+  @doc "A format-2 manifest."
+  @spec build(Config.t(), :main | :graph, Migrator.schema(), [map()], map() | nil) :: t()
+  def build(%Config{} = config, name, schema, applied, migrating \\ nil) do
+    %{
+      "format" => @format,
+      "store" => "datalevin",
+      "name" => Atom.to_string(name),
+      "schema_version" => applied |> Enum.map(& &1["version"]) |> Enum.max(fn -> 0 end),
+      "migrations" => applied,
+      "migrating" => migrating,
+      "schema" => schema,
+      "catalog_sha256" => schema_sha256(schema),
+      "app_version" => app_version(),
+      "data_dir" => config.dir
+    }
+  end
+
+  @doc "Write by rename, so a crash leaves the old file or the new one."
+  @spec write!(Config.t(), t()) :: :ok
+  def write!(%Config{} = config, manifest) do
     file = path(config)
-    body = JSON.encode!(expected(config))
-    :ok = File.write(file, body <> "\n")
+    tmp = file <> ".tmp"
+    File.mkdir_p!(config.dir)
+    File.write!(tmp, JSON.encode!(manifest) <> "\n")
+    File.rename!(tmp, file)
     :ok
   end
 
-  @doc "Validate a previously generated backup inventory against this runtime."
+  @doc "A fingerprint of a schema that does not depend on map order or the OTP version."
+  @spec schema_sha256(Migrator.schema()) :: String.t()
+  def schema_sha256(schema) do
+    schema
+    |> Enum.sort()
+    |> Enum.map(fn {attr, props} -> [attr, Enum.sort(props)] end)
+    |> inspect(limit: :infinity, printable_limit: :infinity)
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+  end
+
+  @doc """
+  The fingerprint format 1 stored (`term_to_binary` of the schema): enough to
+  recognise a store stamped by the release before migrations existed.
+  """
+  @spec legacy_sha256(Migrator.schema()) :: String.t()
+  def legacy_sha256(schema) do
+    schema
+    |> :erlang.term_to_binary()
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+  end
+
+  @doc """
+  Validate a backup inventory (`Release.write_datalevin_backup_manifest!/1`)
+  against this runtime: the paths and the raw backend must match, and the
+  data must be a version this release can bring forward. An inventory from
+  before migrations (no `"schema_version"`) must carry this catalog's
+  fingerprint, as it always had to.
+  """
   @spec validate_backup!(String.t(), Config.t(), map()) :: :ok
   def validate_backup!(file, %Config{} = config, env \\ System.get_env()) do
     with {:ok, body} <- File.read(file),
          {:ok, manifest} <- JSON.decode(body),
-         :ok <- validate_backup_shape(manifest, config),
+         :ok <- validate_backup_shape(manifest),
+         :ok <- validate_version(manifest),
          :ok <- validate_path(manifest["data_dir"], config.dir, "data directory"),
          :ok <- validate_path(manifest["data_dir_manifest"], path(config), "store manifest"),
          :ok <-
@@ -81,31 +143,38 @@ defmodule SukhiFedi.Datalevin.Manifest do
     end
   end
 
-  defp verify!(manifest, expected, file) do
-    if manifest["format"] != expected["format"] or
-         manifest["catalog_sha256"] != expected["catalog_sha256"] do
-      refuse!(
-        "datalevin store is incompatible: #{file}; " <>
-          "stored catalog=#{inspect(manifest["catalog_sha256"])} " <>
-          "current catalog=#{expected["catalog_sha256"]}; " <>
-          "use the matching image/catalog or restore a compatible backup"
-      )
-    end
+  @doc "The format of the backup inventory (not of the store manifest)."
+  @spec inventory_format() :: pos_integer()
+  def inventory_format, do: @inventory_format
 
-    :ok
+  defp validate_backup_shape(manifest) when is_map(manifest) do
+    if manifest["store"] == "datalevin" and manifest["format"] == @inventory_format,
+      do: :ok,
+      else: {:error, "store or format does not match"}
   end
 
-  defp validate_backup_shape(manifest, config) when is_map(manifest) do
-    if manifest["store"] == "datalevin" and
-         manifest["format"] == @format and
-         manifest["catalog_sha256"] == expected(config)["catalog_sha256"] do
-      :ok
-    else
-      {:error, "store, format, or catalog fingerprint does not match"}
-    end
+  defp validate_backup_shape(_), do: {:error, "manifest is not an object"}
+
+  # Newer data than this release knows cannot be read back; older data is
+  # migrated forward when the release starts.
+  defp validate_version(%{"schema_version" => v}) when is_integer(v) do
+    latest = Migrator.latest_version(:main)
+
+    if v <= latest,
+      do: :ok,
+      else:
+        {:error,
+         "the backup holds schema version #{v}, newer than this release knows (#{latest}); " <>
+           "start the release that wrote it"}
   end
 
-  defp validate_backup_shape(_, _), do: {:error, "manifest is not an object"}
+  defp validate_version(manifest) do
+    expected = legacy_sha256(SukhiFedi.Datalevin.Catalog.dtlv_schema())
+
+    if manifest["catalog_sha256"] == expected,
+      do: :ok,
+      else: {:error, "catalog fingerprint does not match"}
+  end
 
   defp validate_path(actual, expected, _label) when actual == expected, do: :ok
   defp validate_path(_, _, label), do: {:error, "#{label} path does not match current runtime"}
@@ -132,13 +201,6 @@ defmodule SukhiFedi.Datalevin.Manifest do
   end
 
   defp refuse!(message), do: raise(ArgumentError, message)
-
-  defp catalog_sha256 do
-    Catalog.dtlv_schema()
-    |> :erlang.term_to_binary()
-    |> then(&:crypto.hash(:sha256, &1))
-    |> Base.encode16(case: :lower)
-  end
 
   defp app_version do
     case Application.spec(:sukhi_fedi, :vsn) do

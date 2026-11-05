@@ -14,6 +14,10 @@ defmodule SukhiFedi.Release do
   out-of-order history that `:up` `all: true` would silently skip over).
   `Mix.Tasks.Sukhi.Migrate` routes through `migrate_all/0`, so dev gets the
   same gate.
+
+  With `SUKHI_STORE=datalevin` the same entry point runs the versioned
+  Datalevin migrations instead (`SukhiFedi.Datalevin.Migrator`,
+  docs/DATALEVIN_MIGRATIONS.md).
   """
 
   require Logger
@@ -24,11 +28,13 @@ defmodule SukhiFedi.Release do
     load_app()
 
     if SukhiFedi.Store.datalevin?() do
-      # Nothing to migrate: the Datalevin schema is derived from
-      # priv/datalevin/catalog.exs and installed when the store opens, and the
-      # job queue creates its own SQLite tables at boot (docs/DATALEVIN.md).
+      # The Datalevin schema is derived (priv/datalevin/catalog.exs,
+      # schema.edn) and installed when the store opens; what needs doing is
+      # the versioned migrations, a store new or old, and a check that it
+      # opens (SukhiFedi.Datalevin.Migrator). The job queue creates its own
+      # SQLite tables at boot (docs/DATALEVIN.md).
       Logger.info("store_init_start store=datalevin")
-      initialize_datalevin!()
+      migrate_datalevin!()
       Logger.info("store_init_complete store=datalevin")
       :ok
     else
@@ -37,6 +43,26 @@ defmodule SukhiFedi.Release do
       Logger.info("migration_complete store=postgres")
       :ok
     end
+  end
+
+  @doc """
+  Where each Datalevin store stands: its migration version, what is pending,
+  and whether the schema drifted. Changes nothing.
+
+      bin/sukhi_fedi eval 'SukhiFedi.Release.datalevin_migration_status()'
+  """
+  def datalevin_migration_status do
+    load_app()
+
+    for s <- SukhiFedi.Datalevin.Migrator.status() do
+      IO.puts(
+        "store=#{s.store} state=#{s.state} version=#{inspect(s[:version])} " <>
+          "latest=#{s.latest} pending=#{inspect(s[:pending] || [])} dir=#{s.dir}" <>
+          if(s[:problem], do: "\n  #{s.problem}", else: "")
+      )
+    end
+
+    :ok
   end
 
   @doc """
@@ -58,7 +84,9 @@ defmodule SukhiFedi.Release do
       "raw_backend" => System.get_env("SUKHI_RAW_BACKEND", "sqlite"),
       "raw_bucket" => System.get_env("SUKHI_RAW_BUCKET") || System.get_env("S3_BUCKET"),
       "instance_config" => SukhiShared.InstanceConfig.path(),
-      "catalog_sha256" => expected_catalog_sha256()
+      "catalog_sha256" =>
+        SukhiFedi.Datalevin.Manifest.schema_sha256(SukhiFedi.Datalevin.Catalog.dtlv_schema()),
+      "schema_version" => store_schema_version(config)
     }
 
     :ok = File.write!(path, JSON.encode!(data) <> "\n")
@@ -128,26 +156,25 @@ defmodule SukhiFedi.Release do
               Exception.message(error)
   end
 
-  defp initialize_datalevin! do
-    config = SukhiFedi.Datalevin.Config.current()
-    manifest_status = SukhiFedi.Datalevin.Manifest.verify!(config)
-    {:ok, supervisor} = SukhiFedi.Datalevin.Supervisor.start_link([])
-    true = Process.alive?(supervisor)
-    Supervisor.stop(supervisor)
-    if manifest_status == :legacy, do: SukhiFedi.Datalevin.Manifest.write!(config)
+  defp migrate_datalevin! do
+    SukhiFedi.Datalevin.Migrator.run_all!()
     Logger.info("datalevin_init_complete")
   rescue
     error ->
       raise "datalevin initialization failed; inspect DATALEVIN_DIR and run " <>
-              "`podman logs <container>` as the sukhi user; startup stopped and " <>
-              "existing data was not changed: #{Exception.message(error)}"
+              "`podman logs <container>` as the sukhi user; startup stopped. A migration " <>
+              "that stopped midway runs again from its start next time; the copy taken " <>
+              "before it began is in datalevin-premigrate/ beside DATALEVIN_DIR: " <>
+              Exception.message(error)
   end
 
-  defp expected_catalog_sha256 do
-    SukhiFedi.Datalevin.Catalog.dtlv_schema()
-    |> :erlang.term_to_binary()
-    |> then(&:crypto.hash(:sha256, &1))
-    |> Base.encode16(case: :lower)
+  # The migration version the main store reports, or 0 for a store that has
+  # not been stamped yet.
+  defp store_schema_version(config) do
+    case SukhiFedi.Datalevin.Manifest.read(config) do
+      {:ok, %{"schema_version" => v}} when is_integer(v) -> v
+      _ -> 0
+    end
   end
 
   defp check_nats! do
