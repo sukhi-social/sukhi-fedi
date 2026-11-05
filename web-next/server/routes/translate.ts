@@ -104,10 +104,17 @@ async function translationPage(ctx: Ctx, me: Account, v: Values, error?: string,
               <span>${t('translate.set.keyLabel')}</span>
               <input type="password" name="translate_deepl_key" placeholder="${t('translate.set.keyPlaceholder')}" autocomplete="off" spellcheck="false" />
             </label>
-            ${hint ? html`<p class="text-sm">${t('translate.set.keyNow', { hint })}</p>` : ''}
             <p class="muted text-sm">${t('translate.set.keyHint')}</p>
-            ${hint ? html`<label class="stack-tight"><input type="checkbox" name="translate_deepl_key_clear" value="1" /><span>${t('translate.set.keyClear')}</span></label>` : ''}
           </div>
+
+          <!-- 入っているキーと、消すボタン。訳し役がどちらを向いていても見える(DeepL を選んでいなくても、消せる)。
+               消すのは別の form(この form の中に form は置けないので、form 属性でつなぐ)── 保存は待たない。 -->
+          ${hint
+            ? html`<div class="hstack" style="--gap: var(--space-3)">
+                <p class="text-sm">${t('translate.set.keyNow', { hint })}</p>
+                <button type="submit" form="tr-key-clear" class="chip">${t('translate.set.keyClear')}</button>
+              </div>`
+            : ''}
         </section>
 
         ${error ? html`<p class="error" role="alert">${error}</p>` : ''}
@@ -116,6 +123,7 @@ async function translationPage(ctx: Ctx, me: Account, v: Values, error?: string,
           <a class="chip" href="/settings">${t('translate.set.back')}</a>
         </div>
       </form>
+      ${hint ? html`<form id="tr-key-clear" method="post" action="/settings/translation/key-clear" up-confirm="${t('translate.set.keyClearConfirm')}"></form>` : ''}
     </div>`;
   return ok(layout(ctx, { title: t('translate.settings'), me, body }), status);
 }
@@ -133,9 +141,8 @@ route('POST', '/settings/translation', async (ctx) => {
   const codes = (k: string) => [...new Set(f.getAll(k).map((x) => baseLang(String(x))).filter((x): x is string => !!x))];
   const v: Values = { reads: codes('reads'), learns: codes('learns'), engine: f.get('engine') === 'deepl' ? 'deepl' : 'libre' };
   const key = String(f.get('translate_deepl_key') ?? '').trim();
-  const clear = f.get('translate_deepl_key_clear') === '1';
 
-  const hasKey = !!me.source?.translate_deepl_key_hint && !clear;
+  const hasKey = !!me.source?.translate_deepl_key_hint;
   if (v.engine === 'deepl' && !key && !hasKey) return translationPage(ctx, me, v, t('translate.set.needKey'), 422);
 
   const fd = new FormData();
@@ -144,7 +151,6 @@ route('POST', '/settings/translation', async (ctx) => {
   fd.set('translate_engine', v.engine);
   // 書きこみ専用: 入っているときだけ送る(空のままなら、いまのキーのまま)。
   if (key) fd.set('translate_deepl_key', key);
-  if (clear) fd.set('translate_deepl_key_clear', 'true');
 
   try {
     const updated = await gwJson<Account>(ctx, 'PATCH', '/api/v1/accounts/update_credentials', { form: fd });
@@ -161,5 +167,26 @@ route('POST', '/settings/translation', async (ctx) => {
       if (d.translate_engine) return translationPage(ctx, me, v, t('translate.set.needKey'), 422);
     }
     return translationPage(ctx, me, v, failText(ctx, e), e instanceof GatewayError && e.status === 422 ? 422 : 502);
+  }
+});
+
+// キーを消す。押す → 確認(up-confirm)→ 消す → 訳し役は、この場所のものに戻る。
+// 「戻す」は gateway の一か所(キーを消すと、engine が deepl なら同じ手で nil に戻る)。ここは、消すと伝えるだけ。
+// 読めることば・学ぶことばには触らない。
+route('POST', '/settings/translation/key-clear', async (ctx) => {
+  const t = ctx.t;
+  const me = await needMe(ctx);
+  const fd = new FormData();
+  fd.set('translate_deepl_key_clear', 'true');
+  try {
+    const updated = await gwJson<Account>(ctx, 'PATCH', '/api/v1/accounts/update_credentials', { form: fd });
+    const s = ctx.sess();
+    s.me = updated;
+    saveSession(s);
+    ctx.flash('notice', t('translate.set.keyCleared'));
+    return redirect('/settings/translation');
+  } catch (e) {
+    if (!(e instanceof GatewayError || e instanceof TypeError)) throw e;
+    return translationPage(ctx, me, valuesOf(me), failText(ctx, e), e instanceof GatewayError && e.status === 422 ? 422 : 502);
   }
 });
