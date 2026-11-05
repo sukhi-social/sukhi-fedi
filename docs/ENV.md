@@ -114,7 +114,8 @@ path takes its credentials, region and bucket from the same config.
 | Var | Default | Notes |
 |---|---|---|
 | `INVITE_REQUIRED` | `true` | `false` lets anyone register. A mailbox is still verified either way. |
-| `LEGAL_FLAVOR` | `sukhi` | Which `/terms` and `/privacy` set to serve: `sukhi` or `natadeco`. Both are baked into the release. |
+| `LEGAL_FLAVOR` | `sukhi` | Which bundled `/terms` and `/privacy` set to serve when `legal.dir` is unset: `sukhi` or `natadeco`. Both are baked into the release. |
+| `SUKHI_INSTANCE_CONFIG` → `legal.dir` | — (bundled) | Absolute path of a directory holding **this instance's own** `terms.<lang>.md` and `privacy.<lang>.md` (`ja`, `ko`, `en`; the same languages for both). Read and rendered once at boot; changing them takes a restart. A missing directory, an empty/unreadable file, a document missing in a language or an unsupported language refuses to boot. Unset → the sukhi/natadeco documents bundled in the release are served (`LEGAL_FLAVOR`), which are not anyone else's policy. |
 | `PUBLIC_PREVIEW` | `off` | Server-rendered preview for logged-out visitors/crawlers: `off`, `meta` (OG / Twitter / JSON-LD head only) or `full` (plus a readable body). Public content only. |
 | `PUBLIC_PREVIEW_ROBOTS` | `noindex, nofollow` | The meta-robots string on preview pages. Set `index, follow` to be crawled. |
 | `SSR_URL` | — | When set (natadeco: `http://natadeco-ssr:3000`), pages that would get the empty SPA shell are forwarded to this SSR server. |

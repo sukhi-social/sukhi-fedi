@@ -93,6 +93,17 @@ defmodule SukhiShared.InstanceConfig do
   def unauthenticated_redirect(%{"unauthenticated_redirect" => url}) when is_binary(url), do: url
   def unauthenticated_redirect(_config), do: nil
 
+  @doc """
+  The directory holding this instance's own terms and privacy policy
+  (`legal.dir` in the instance config), or `nil` when the instance serves the
+  documents bundled with the release. Absolute; whether it exists and holds
+  documents is checked when the gateway starts
+  (`SukhiFedi.Legal.Documents.install!/1`).
+  """
+  @spec legal_dir(t()) :: String.t() | nil
+  def legal_dir(%{"legal" => %{"dir" => dir}}) when is_binary(dir), do: dir
+  def legal_dir(_config), do: nil
+
   @spec routes(t()) :: [String.t()] | nil
   def routes(%{"routes" => routes}) when is_list(routes) do
     Enum.map(routes, fn %{"pattern" => pattern, "frontend" => frontend} ->
@@ -118,6 +129,7 @@ defmodule SukhiShared.InstanceConfig do
     validate_routes!(routes, frontends || %{})
     validate_addons!(addons)
     validate_redirect!(redirect)
+    validate_legal!(Map.get(config, "legal", %{}))
 
     unless is_list(routes) do
       raise ArgumentError, "instance config #{path()}: routes must be an array"
@@ -139,6 +151,20 @@ defmodule SukhiShared.InstanceConfig do
 
   defp validate_addons!(_),
     do: raise(ArgumentError, "instance config #{path()}: addons must be an object")
+
+  defp validate_legal!(%{"dir" => dir} = legal) when map_size(legal) == 1 do
+    unless is_binary(dir) and Path.type(dir) == :absolute do
+      raise ArgumentError, "instance config #{path()}: legal.dir must be an absolute path"
+    end
+
+    :ok
+  end
+
+  defp validate_legal!(legal) when legal == %{}, do: :ok
+
+  defp validate_legal!(_),
+    do:
+      raise(ArgumentError, ~s(instance config #{path()}: legal must be {"dir": "/absolute/path"}))
 
   defp validate_redirect!(nil), do: :ok
 

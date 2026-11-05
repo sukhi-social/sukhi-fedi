@@ -2,7 +2,7 @@
 defmodule SukhiFedi.Web.LegalController do
   @moduledoc """
   Serves the static legal pages — terms of service and privacy policy — in
-  Japanese (default) and Korean.
+  the languages the instance has (Japanese, Korean, English).
 
   Robust by construction: the Markdown sources in `priv/legal/` are rendered
   to HTML **at compile time** and baked into the release. At runtime we only
@@ -50,25 +50,19 @@ defmodule SukhiFedi.Web.LegalController do
     |> String.replace("\u200B", "<wbr>")
   end
 
+  # Same shape as `SukhiFedi.Legal.Documents.all/0`, so the pages do not care
+  # which of the two they are serving.
   docs =
     for {flavor, dir} <- @flavor_dirs, into: %{} do
-      en =
-        if Enum.all?(@en_doc_files, &File.exists?(Path.join(dir, &1))) do
-          %{terms_en: bake.(dir, "terms.en.md"), privacy_en: bake.(dir, "privacy.en.md")}
-        else
-          %{}
-        end
+      en? = Enum.all?(@en_doc_files, &File.exists?(Path.join(dir, &1)))
 
-      {flavor,
-       Map.merge(
-         %{
-           terms_ja: bake.(dir, "terms.ja.md"),
-           terms_ko: bake.(dir, "terms.ko.md"),
-           privacy_ja: bake.(dir, "privacy.ja.md"),
-           privacy_ko: bake.(dir, "privacy.ko.md")
-         },
-         en
-       )}
+      lang_docs = fn doc ->
+        for lang <- ~w(ja ko en), lang != "en" or en?, into: %{} do
+          {lang, bake.(dir, "#{doc}.#{lang}.md")}
+        end
+      end
+
+      {flavor, %{terms: lang_docs.("terms"), privacy: lang_docs.("privacy")}}
     end
 
   @docs docs
@@ -181,7 +175,37 @@ defmodule SukhiFedi.Web.LegalController do
   }
 
   defp flavor, do: Application.get_env(:sukhi_fedi, :legal_flavor, :sukhi)
-  defp docs, do: Map.fetch!(@docs, flavor())
+
+  # The operator's own documents when the instance config names a directory
+  # (SukhiFedi.Legal.Documents), else the bundled set for the flavor.
+  defp doc_set(doc) do
+    set = SukhiFedi.Legal.Documents.all() || Map.fetch!(@docs, flavor())
+    Map.fetch!(set, doc)
+  end
+
+  # {lang, body, toggles}: the language asked for if the instance has it, else
+  # its default (Japanese when offered, otherwise the first); the toggles are
+  # the other languages, the default one without a query.
+  @lang_names %{"ja" => "日本語", "ko" => "한국어", "en" => "English"}
+
+  defp pick(conn, doc) do
+    set = doc_set(doc)
+    langs = set |> Map.keys() |> Enum.sort()
+    default = if "ja" in langs, do: "ja", else: hd(langs)
+
+    lang =
+      case conn.query_params do
+        %{"lang" => l} when is_map_key(set, l) -> l
+        _ -> default
+      end
+
+    toggles =
+      for other <- langs, other != lang do
+        {Map.fetch!(@lang_names, other), if(other == default, do: nil, else: "lang=#{other}")}
+      end
+
+    {lang, Map.fetch!(set, lang), toggles, if(lang == default, do: nil, else: "lang=#{lang}")}
+  end
 
   # Fonts are subset to the glyphs these docs use and embedded as base64 at
   # compile time — no external request (Google Fonts would leak the reader's
@@ -319,90 +343,36 @@ defmodule SukhiFedi.Web.LegalController do
   # プライバシーは行き来できるので、両方が signup を受ける。
   defp signup?(conn), do: match?(%{"signup" => "true"}, conn.query_params)
 
+  @titles %{
+    privacy: %{"ja" => "個人情報の取り扱いについて", "ko" => "개인정보 처리방침", "en" => "Privacy Policy"},
+    terms: %{"ja" => "利用規約", "ko" => "이용약관", "en" => "Terms"}
+  }
+  @cross_labels %{
+    terms: %{"ja" => "利用規約", "ko" => "이용약관", "en" => "Terms"},
+    privacy: %{"ja" => "プライバシーポリシー", "ko" => "개인정보 처리방침", "en" => "Privacy Policy"}
+  }
+
   @spec privacy(Plug.Conn.t()) :: Plug.Conn.t()
-  def privacy(conn) do
-    body = docs()
-
-    case lang(conn, body) do
-      "ko" ->
-        render(
-          conn,
-          "ko",
-          "개인정보 처리방침",
-          body.privacy_ko,
-          "/privacy",
-          {"이용약관", "/terms"},
-          signup?(conn),
-          toggles(body, "ko")
-        )
-
-      "en" ->
-        render(
-          conn,
-          "en",
-          "Privacy Policy",
-          body.privacy_en,
-          "/privacy",
-          {"Terms", "/terms"},
-          signup?(conn),
-          toggles(body, "en")
-        )
-
-      _ ->
-        render(
-          conn,
-          "ja",
-          "個人情報の取り扱いについて",
-          body.privacy_ja,
-          "/privacy",
-          {"利用規約", "/terms"},
-          signup?(conn),
-          toggles(body, "ja")
-        )
-    end
-  end
+  def privacy(conn), do: legal_doc(conn, :privacy)
 
   @spec terms(Plug.Conn.t()) :: Plug.Conn.t()
-  def terms(conn) do
-    body = docs()
+  def terms(conn), do: legal_doc(conn, :terms)
 
-    case lang(conn, body) do
-      "ko" ->
-        render(
-          conn,
-          "ko",
-          "이용약관",
-          body.terms_ko,
-          "/terms",
-          {"개인정보 처리방침", "/privacy"},
-          signup?(conn),
-          toggles(body, "ko")
-        )
+  defp legal_doc(conn, doc) do
+    {lang, body, toggles, lang_q} = pick(conn, doc)
+    other = if doc == :terms, do: :privacy, else: :terms
+    path = "/#{doc}"
 
-      "en" ->
-        render(
-          conn,
-          "en",
-          "Terms",
-          body.terms_en,
-          "/terms",
-          {"Privacy Policy", "/privacy"},
-          signup?(conn),
-          toggles(body, "en")
-        )
-
-      _ ->
-        render(
-          conn,
-          "ja",
-          "利用規約",
-          body.terms_ja,
-          "/terms",
-          {"プライバシーポリシー", "/privacy"},
-          signup?(conn),
-          toggles(body, "ja")
-        )
-    end
+    render(
+      conn,
+      lang,
+      @titles[doc][lang],
+      body,
+      path,
+      {@cross_labels[other][lang], "/#{other}", lang_q},
+      signup?(conn),
+      toggles
+    )
   end
 
   @spec licenses(Plug.Conn.t()) :: Plug.Conn.t()
@@ -586,31 +556,6 @@ defmodule SukhiFedi.Web.LegalController do
     end
   end
 
-  defp lang(conn) do
-    case conn.query_params do
-      %{"lang" => "ko"} -> "ko"
-      _ -> "ja"
-    end
-  end
-
-  # Terms and privacy: English only where a flavor ships a translation.
-  defp lang(conn, body) do
-    case conn.query_params do
-      %{"lang" => "en"} -> if Map.has_key?(body, :terms_en), do: "en", else: "ja"
-      _ -> lang(conn)
-    end
-  end
-
-  # The language links on terms/privacy: every language the flavor has, except
-  # the one you are reading.
-  defp toggles(body, current) do
-    all =
-      [{"日本語", nil, "ja"}, {"한국어", "lang=ko", "ko"}] ++
-        if(Map.has_key?(body, :terms_en), do: [{"English", "lang=en", "en"}], else: [])
-
-    for {label, q, code} <- all, code != current, do: {label, q}
-  end
-
   # {path, label, query} for the documents, in the page's language. Terms
   # and privacy are ja ⇄ ko; licenses are en ⇄ ja (Korean readers get en);
   # credits are all three.
@@ -660,13 +605,27 @@ defmodule SukhiFedi.Web.LegalController do
   # button at the bottom that returns to /signup, and keeps the signup flag
   # on the cross-link and the language toggle so neither loses the way back.
   #
-  # `toggle` is `{label, query}` for the language link, or a list of them:
-  # terms/privacy pass the other languages they have (see `toggles/2`),
-  # /licenses passes its own (en ⇄ ja); /credits passes a list (en, ja, ko: each
-  # page links the other two).
-  defp render(conn, lang, title, body, self_path, {cross_label, cross_path}, signup?, toggle) do
-    sq = if signup?, do: "signup=true", else: nil
+  # `cross` is `{label, path}` (the other document, in the page's language
+  # unless that is Japanese) or `{label, path, query}` when the caller knows
+  # which language it must carry. `toggle` is `{label, query}` for the
+  # language link, or a list of them (terms/privacy: every other language the
+  # instance has; /credits: the other two).
+  defp render(conn, lang, title, body, self_path, {label, path}, signup?, toggle) do
     lang_q = if lang in ["ko", "en"], do: "lang=#{lang}", else: nil
+    render(conn, lang, title, body, self_path, {label, path, lang_q}, signup?, toggle)
+  end
+
+  defp render(
+         conn,
+         lang,
+         title,
+         body,
+         self_path,
+         {cross_label, cross_path, lang_q},
+         signup?,
+         toggle
+       ) do
+    sq = if signup?, do: "signup=true", else: nil
 
     home =
       case lang do
@@ -677,6 +636,8 @@ defmodule SukhiFedi.Web.LegalController do
 
     toggles =
       case toggle do
+        nil when lang == "ko" -> [{"日本語", nil}]
+        nil -> [{"한국어", "lang=ko"}]
         {_, _} = one -> [one]
         many -> many
       end
