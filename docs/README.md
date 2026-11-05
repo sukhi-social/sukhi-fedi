@@ -22,6 +22,7 @@
 | --- | --- |
 | Joining, writing, notifications, moving, leaving | [`USING.md`](USING.md) / [`USING.ja.md`](USING.ja.md) |
 | What a Mastodon app can do against sukhi | [`MASTODON_API.md`](MASTODON_API.md) |
+| Reading a post in another language (translation, DeepL key) | [`TRANSLATION.md`](TRANSLATION.md) |
 | What happens to feedback (the operator's side) | [`FEEDBACK.md`](FEEDBACK.md) |
 
 ## 3. Running your own server

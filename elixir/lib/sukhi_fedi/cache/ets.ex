@@ -29,7 +29,9 @@ defmodule SukhiFedi.Cache.Ets do
     # SukhiFedi.Web.AdmissionQueue: waiting tickets / running requests
     :admission,
     :admission_bg,
-    :admission_flight
+    :admission_flight,
+    # `{pid}` per translation running on the hosted translator (Translate.Gate)
+    :translate_flight
   ]
   @sweep_interval_ms 60_000
 

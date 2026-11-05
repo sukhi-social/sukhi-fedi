@@ -10,7 +10,8 @@ defmodule SukhiFedi.RpcGateTest do
     ed25519_private_key_jwk: %{"kty" => "OKP", "d" => "private"},
     password_hash: "$argon2id$…",
     totp_secret: <<1, 2, 3>>,
-    totp_last_used_step: 12_345
+    totp_last_used_step: 12_345,
+    translate_deepl_key: <<4, 5, 6>>
   }
 
   defp account(extra \\ %{}) do

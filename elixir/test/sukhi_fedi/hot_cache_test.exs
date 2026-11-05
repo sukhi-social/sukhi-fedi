@@ -33,4 +33,33 @@ defmodule SukhiFedi.HotCacheTest do
     assert HotCache.ttl(:public_timeline) == 0
     assert HotCache.ttl(:moderation_sets) == 0
   end
+
+  describe "fetch_ok/3" do
+    test "keeps a success, so the next ask is served from memory" do
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+      key = {:hot_cache_test, make_ref()}
+      ok = fn -> {:ok, counted(counter).()} end
+
+      assert {:ok, 1} = HotCache.fetch_ok(key, 30, ok)
+      assert {:ok, 1} = HotCache.fetch_ok(key, 30, ok)
+      assert Agent.get(counter, & &1) == 1
+    end
+
+    test "forgets an error at once, so the next ask tries again" do
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+      key = {:hot_cache_test, make_ref()}
+
+      assert {:error, 1} = HotCache.fetch_ok(key, 30, fn -> {:error, counted(counter).()} end)
+      assert {:ok, 2} = HotCache.fetch_ok(key, 30, fn -> {:ok, counted(counter).()} end)
+      assert {:ok, 2} = HotCache.fetch_ok(key, 30, fn -> {:ok, counted(counter).()} end)
+    end
+
+    test "a TTL of 0 keeps nothing" do
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+      key = {:hot_cache_test, make_ref()}
+
+      assert {:ok, 1} = HotCache.fetch_ok(key, 0, fn -> {:ok, counted(counter).()} end)
+      assert {:ok, 2} = HotCache.fetch_ok(key, 0, fn -> {:ok, counted(counter).()} end)
+    end
+  end
 end

@@ -28,7 +28,9 @@ defmodule SukhiFedi.HotCache do
     moderation_sets: 5,
     map: 5,
     stats_dashboard: 30,
-    account_counts: 60
+    account_counts: 60,
+    # a finished translation, so a post many people ask for is translated once
+    translate: 600
   }
 
   @doc "TTL in seconds for `name`; 0 when the cache is switched off."
@@ -54,6 +56,32 @@ defmodule SukhiFedi.HotCache do
         value = fun.()
         Ets.put(@table, key, value, ttl)
         value
+    end
+  end
+
+  @doc """
+  Like `fetch/3`, but only an `{:ok, _}` answer is kept: an error (the engine was
+  busy, the key was refused) is returned and forgotten, so the next ask tries again
+  instead of repeating the failure for `ttl` seconds.
+  """
+  @spec fetch_ok(term(), non_neg_integer(), (-> {:ok, term()} | {:error, term()})) ::
+          {:ok, term()} | {:error, term()}
+  def fetch_ok(_key, ttl, fun) when ttl <= 0, do: fun.()
+
+  def fetch_ok(key, ttl, fun) do
+    case Ets.get(@table, key) do
+      {:ok, {:ok, _} = hit} ->
+        hit
+
+      _ ->
+        case fun.() do
+          {:ok, _} = ok ->
+            Ets.put(@table, key, ok, ttl)
+            ok
+
+          other ->
+            other
+        end
     end
   end
 

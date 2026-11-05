@@ -124,6 +124,18 @@ path takes its credentials, region and bucket from the same config.
 | `WT_TICKET_KEY` | — | Ed25519 seed (raw 32 bytes, base64) that signs WebTransport entry tickets. Unset → `/api/wt` answers 503. |
 | `WT_ENDPOINT` | `https://webtransport.f3liz.casa/wt` | The WebTransport edge a ticket is for. |
 
+## Translating posts (gateway)
+
+Off until `LIBRETRANSLATE_URL` is set. What this is for, and what it will not do: [`TRANSLATION.md`](TRANSLATION.md).
+
+| Var | Default | Notes |
+|---|---|---|
+| `LIBRETRANSLATE_URL` | — | The server's own translator: a [LibreTranslate](https://github.com/LibreTranslate/LibreTranslate) instance you run, e.g. `http://libretranslate:5000`. Unset = no server translator (`translation.enabled` is `false`; people with their own DeepL key can still translate public posts). Keep it off the public internet — only the gateway should reach it. Run it with `LT_LOAD_ONLY=ja,en,ko` so it loads only those languages. |
+| `LIBRETRANSLATE_API_KEY` | — | Sent in the request body when the instance requires a key. Treat as secret. |
+| `TRANSLATE_MAX_FLIGHT` | `2` | How many translations run on that instance at once. More are told to come back in ten seconds. Provisional until a load test sets it. |
+
+A person's own DeepL key is **not** an env var: each person brings theirs in settings; it is sealed with keys derived from `SECRET_KEY_BASE` (so rotating that secret makes every stored DeepL key unreadable — people enter theirs again).
+
 ## Release / test plumbing
 
 Not operator knobs; listed so the audit (`scripts/env_audit.jl`) stays quiet.

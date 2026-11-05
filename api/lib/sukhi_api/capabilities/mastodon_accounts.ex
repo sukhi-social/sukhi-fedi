@@ -228,7 +228,12 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
               "notification_hold_minutes",
               "notification_grouping",
               "home_filter",
-              "boost_hide_name"
+              "boost_hide_name",
+              "translate_reads",
+              "translate_learns",
+              "translate_engine",
+              "translate_deepl_key",
+              "translate_deepl_key_clear"
             ])
             |> maybe_put("avatar_url", avatar_url)
             |> maybe_put("banner_url", banner_url)

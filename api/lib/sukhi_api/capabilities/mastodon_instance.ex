@@ -13,6 +13,16 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
   # Same VERSION file as :sukhi_fedi reads. Runtime lookup (not a
   # compile-time module attribute) because :sukhi_api isn't loaded
   # during its own compile, so the attribute would freeze in as nil.
+  # Whether this server has a translator of its own (`LIBRETRANSLATE_URL` on the
+  # gateway). Mastodon clients show "Translate" only when this is true; a gateway
+  # that cannot be asked counts as "no" rather than failing the whole document.
+  defp translation_enabled? do
+    case SukhiApi.GatewayRpc.run(SukhiFedi.Translate, :enabled?, []) do
+      {:ok, true} -> true
+      _ -> false
+    end
+  end
+
   defp sukhi_version do
     case Application.spec(:sukhi_api, :vsn) do
       nil -> "0.0.0"
@@ -93,7 +103,7 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
           min_expiration: 300,
           max_expiration: 2_629_746
         },
-        translation: %{enabled: false},
+        translation: %{enabled: translation_enabled?()},
         # Mastodon 4.3's shape. A client needs this *before* it has a
         # subscription: `GET /push/subscription` 404s until there is one,
         # so asking there can't tell "push is off on this server" from
