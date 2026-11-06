@@ -87,10 +87,16 @@ defmodule SukhiShared.UrlGuard do
     end
   end
 
+  # One lookup per address family — the only name resolution in the whole
+  # fetch path (`HttpFetch` connects to what this returns). The resolver is
+  # `:inet.getaddrs/2` unless a test swaps it (`:resolver`, a 2-arity fun):
+  # that is how the DNS-rebinding test proves a second, different answer
+  # is never asked for.
   defp resolve(host) do
     cl = String.to_charlist(host)
+    lookup = Application.get_env(:sukhi_shared, :resolver, &:inet.getaddrs/2)
 
-    case {:inet.getaddrs(cl, :inet), :inet.getaddrs(cl, :inet6)} do
+    case {lookup.(cl, :inet), lookup.(cl, :inet6)} do
       {{:ok, a}, {:ok, b}} -> {:ok, a ++ b}
       {{:ok, a}, _} -> {:ok, a}
       {_, {:ok, b}} -> {:ok, b}
@@ -124,16 +130,35 @@ defmodule SukhiShared.UrlGuard do
   defp public_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: false
 
   # IPv4-mapped (::ffff:a.b.c.d) — unwrap and apply the IPv4 rules.
-  defp public_ip?({0, 0, 0, 0, 0, 0xFFFF, x, y}),
-    do: public_ip?({x >>> 8, x &&& 0xFF, y >>> 8, y &&& 0xFF})
+  defp public_ip?({0, 0, 0, 0, 0, 0xFFFF, x, y}), do: public_ip?(embedded_v4(x, y))
+
+  # ::/96, the deprecated IPv4-compatible form: nothing legitimate lives here.
+  defp public_ip?({0, 0, 0, 0, 0, 0, _, _}), do: false
+
+  # NAT64 (64:ff9b::/96) and 6to4 (2002::/16) carry an IPv4 address inside
+  # the IPv6 one. A host whose AAAA record is `64:ff9b::7f00:1` is a way to
+  # name 127.0.0.1 through a translator, so the embedded address is judged by
+  # the IPv4 rules. The local-use NAT64 prefix (64:ff9b:1::/48) is private.
+  defp public_ip?({0x64, 0xFF9B, 0, 0, 0, 0, x, y}), do: public_ip?(embedded_v4(x, y))
+  defp public_ip?({0x64, 0xFF9B, 1, _, _, _, _, _}), do: false
+  defp public_ip?({0x2002, x, y, _, _, _, _, _}), do: public_ip?(embedded_v4(x, y))
+
+  # Teredo (2001::/32), documentation (2001:db8::/32), discard-only (100::/64).
+  defp public_ip?({0x2001, 0, _, _, _, _, _, _}), do: false
+  defp public_ip?({0x2001, 0xDB8, _, _, _, _, _, _}), do: false
+  defp public_ip?({0x100, 0, 0, 0, _, _, _, _}), do: false
 
   defp public_ip?({w, _, _, _, _, _, _, _}) do
     cond do
+      # fc00::/7 unique local, fe80::/10 link-local, ff00::/8 multicast
       (w &&& 0xFE00) == 0xFC00 -> false
       (w &&& 0xFFC0) == 0xFE80 -> false
+      (w &&& 0xFF00) == 0xFF00 -> false
       true -> true
     end
   end
 
   defp public_ip?(_), do: false
+
+  defp embedded_v4(x, y), do: {x >>> 8, x &&& 0xFF, y >>> 8, y &&& 0xFF}
 end
