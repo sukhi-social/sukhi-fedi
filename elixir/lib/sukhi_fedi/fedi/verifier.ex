@@ -5,7 +5,7 @@ defmodule SukhiFedi.Fedi.Verifier do
 
   Resolves the signing key named by the `Signature` header's `keyId`
   (fetching the actor/key document), then delegates the cryptographic
-  and policy checks to `Fedi.HttpSignature.verify/5`.
+  and policy checks to `SukhiShared.HttpSignature.verify/5`.
 
   On success the result names *who* signed — `keyId` and the key's
   `owner` — because the inbox controller binds the signer's host to the
@@ -19,7 +19,8 @@ defmodule SukhiFedi.Fedi.Verifier do
   remote side doesn't strand its followers (same behavior as fedify).
   """
 
-  alias SukhiFedi.Fedi.{Fetcher, HttpSignature, JWK, Ojak, OjakShadow}
+  alias SukhiFedi.Fedi.{Fetcher, Ojak, OjakShadow}
+  alias SukhiShared.{HttpSignature, JWK}
 
   @type fetch_fun :: (String.t(), [:fresh] -> {:ok, map()} | {:error, term()})
 

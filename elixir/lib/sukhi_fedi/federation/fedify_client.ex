@@ -21,10 +21,6 @@ defmodule SukhiFedi.Federation.FedifyClient do
     Service.call("fedify.translate.v1", %{object_type: object_type, payload: payload})
   end
 
-  @doc "Sign an outbound HTTP request envelope."
-  @spec sign(map()) :: {:ok, term()} | {:error, term()}
-  def sign(payload) when is_map(payload), do: Service.call("fedify.sign.v1", payload)
-
   @doc "Verify an incoming signed HTTP request."
   @spec verify(map()) :: {:ok, term()} | {:error, term()}
   def verify(payload) when is_map(payload), do: Service.call("fedify.verify.v1", payload)

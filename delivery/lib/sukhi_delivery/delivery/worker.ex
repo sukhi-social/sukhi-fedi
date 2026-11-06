@@ -15,19 +15,21 @@ defmodule SukhiDelivery.Delivery.Worker do
   `(activity_id, inbox_url)` tuple has already been delivered. On success
   a receipt is recorded.
 
-  Signing is delegated to `SukhiDelivery.Delivery.FedifyClient.sign/1`
-  (NATS Micro → Bun/Fedify). If signing is unavailable (no key, service
-  down) the POST goes out unsigned and remote servers will 401/403 —
-  Oban retries with exponential backoff (max_attempts: 10).
+  Signing happens here, in process: the actor's private key is read from the
+  database and handed to `SukhiShared.HttpSignature` (the one place that
+  builds a signature base); the key never rides a message bus. If there is
+  no key the POST goes out unsigned and remote servers will 401/403 — Oban
+  retries with exponential backoff (max_attempts: 10).
   """
 
   use Oban.Worker, queue: :delivery, max_attempts: 10
   import Ecto.Query
 
-  alias SukhiDelivery.{Repo, Delivery.FedifyClient, Delivery.SigSpec}
+  alias SukhiDelivery.{Repo, Delivery.SigSpec}
   alias SukhiDelivery.Schema.{Object, Account, DeliveryReceipt}
   alias SukhiDelivery.Delivery.FollowersSync
   alias SukhiShared.DeliverySuspension.{Cache, Gate, Policy}
+  alias SukhiShared.{HttpSignature, JWK}
 
   # Outbound archive runs on the gateway (it owns the S3/zstd deps). We hand
   # it the bytes we actually sent by inserting a job on the shared oban_jobs
@@ -362,28 +364,13 @@ defmodule SukhiDelivery.Delivery.Worker do
       jwk ->
         key_id = "#{actor_uri}#main-key"
 
-        payload =
-          %{
-            actorUri: actor_uri,
-            inbox: inbox_url,
-            body: body,
-            privateKeyJwk: jwk,
-            keyId: key_id
-          }
-          |> put_algorithm(spec)
-
-        case FedifyClient.sign(payload) do
-          {:ok, %{"headers" => sig_headers}} -> {:ok, sig_headers}
+        with {:ok, private_key} <- JWK.private_key(jwk) do
+          {:ok, HttpSignature.sign_post(inbox_url, body, private_key, key_id, spec: spec)}
+        else
           _ -> :skip
         end
     end
   end
-
-  # The spec is chosen per host by `SigSpec` (learned via double-knock).
-  # cavage carries no algorithm tag; rfc9421 sets it so the fedify
-  # service signs RFC 9421 instead. [[fedify-401-diagnostic]]
-  defp put_algorithm(payload, :rfc9421), do: Map.put(payload, :algorithm, "rfc9421")
-  defp put_algorithm(payload, :cavage), do: payload
 
   defp get_private_key_jwk(actor_uri) when is_binary(actor_uri) do
     username =

@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiDelivery.Delivery.FedifyClient do
   @moduledoc """
-  NATS Micro client for the Bun `fedify` service.
+  NATS Micro client for the `fedify` service (served by the gateway's
+  `SukhiFedi.Fedi.Service`).
 
   Wraps request/reply to the service endpoints:
 
     * `fedify.translate.v1` — build ActivityPub JSON-LD from a domain object
-    * `fedify.sign.v1`      — sign an outbound HTTP request envelope
     * `fedify.verify.v1`    — verify an incoming signed HTTP request
+
+  There is no sign endpoint: the delivery worker signs in process with
+  `SukhiShared.HttpSignature`, so a private key never rides NATS.
 
   The service is queue-grouped (`fedify-workers`) on the Bun side so
   multiple replicas share load automatically.
@@ -18,11 +21,6 @@ defmodule SukhiDelivery.Delivery.FedifyClient do
   @spec translate(String.t(), map()) :: {:ok, term()} | {:error, term()}
   def translate(object_type, payload) when is_binary(object_type) and is_map(payload) do
     request("fedify.translate.v1", %{object_type: object_type, payload: payload})
-  end
-
-  @spec sign(map()) :: {:ok, term()} | {:error, term()}
-  def sign(payload) when is_map(payload) do
-    request("fedify.sign.v1", payload)
   end
 
   @spec verify(map()) :: {:ok, term()} | {:error, term()}

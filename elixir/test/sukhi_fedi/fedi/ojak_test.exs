@@ -2,7 +2,8 @@
 defmodule SukhiFedi.Fedi.OjakTest do
   use ExUnit.Case, async: true
 
-  alias SukhiFedi.Fedi.{HttpSignature, JWK, Ojak}
+  alias SukhiFedi.Fedi.Ojak
+  alias SukhiShared.{HttpSignature, JWK}
   alias SukhiFedi.FediGolden
 
   # Same idea as the native tests: fedify made these bytes with a fixed key,

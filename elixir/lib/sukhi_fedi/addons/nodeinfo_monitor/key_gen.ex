@@ -16,7 +16,7 @@ defmodule SukhiFedi.Addons.NodeinfoMonitor.KeyGen do
   Uses Erlang's standard `:public_key`/`:crypto` so no extra dependencies.
   """
 
-  alias SukhiFedi.Fedi.JWK
+  alias SukhiShared.JWK
 
   @type jwk :: %{required(String.t() | atom()) => String.t()}
   @type result :: %{

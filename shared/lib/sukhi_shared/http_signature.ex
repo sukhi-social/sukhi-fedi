@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-defmodule SukhiFedi.Fedi.HttpSignature do
+defmodule SukhiShared.HttpSignature do
   @moduledoc """
   HTTP Signatures, pure functions. Two specs, one module:
 
@@ -29,7 +29,7 @@ defmodule SukhiFedi.Fedi.HttpSignature do
   (`delivery`); this module only builds and checks strings.
   """
 
-  alias SukhiFedi.Fedi.JWK
+  alias SukhiShared.JWK
 
   @time_window_seconds 3600
   # :calendar counts from year 0; Unix time from 1970.

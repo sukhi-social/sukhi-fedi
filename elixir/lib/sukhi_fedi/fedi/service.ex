@@ -14,7 +14,7 @@ defmodule SukhiFedi.Fedi.Service do
   directly: same dispatch, same JSON-shaped result, no NATS hop to itself.
   The
   actual properties live where they belong — signing policy in
-  `HttpSignature`, canonicalization in `Canon`, SSRF in `UrlGuard` via
+  `SukhiShared.HttpSignature`, canonicalization in `Canon`, SSRF in `UrlGuard` via
   `Fetcher`, signer/actor binding in `Verifier` + the inbox controller.
 
   FEP roadmap for fedify-family interop (hackers.pub, Hollo) — each
@@ -38,7 +38,7 @@ defmodule SukhiFedi.Fedi.Service do
 
   require Logger
 
-  alias SukhiFedi.Fedi.{Builders, Fetcher, HttpSignature, Inbox, JWK, Verifier}
+  alias SukhiFedi.Fedi.{Builders, Fetcher, Inbox, Verifier}
 
   @impl true
   def request(%{topic: "fedify.ping.v1", body: body}), do: {:reply, body}
@@ -87,8 +87,6 @@ defmodule SukhiFedi.Fedi.Service do
   defp handle("fedify.translate.v1", %{"object_type" => type, "payload" => payload}),
     do: Builders.build(type, payload)
 
-  defp handle("fedify.sign.v1", payload), do: sign_delivery(payload)
-
   defp handle("fedify.verify.v1", payload), do: Verifier.verify(payload)
 
   defp handle("fedify.inbox.v1", payload), do: Inbox.handle(payload)
@@ -97,21 +95,6 @@ defmodule SukhiFedi.Fedi.Service do
     do: Fetcher.fetch_document(uri, payload["signAs"])
 
   defp handle(topic, _payload), do: {:error, "unknown subject: #{topic}"}
-
-  # `fedify.sign.v1` — sign an outbound POST envelope; the delivery
-  # worker attaches the returned headers and does the HTTP itself.
-  # `algorithm: "rfc9421"` (the per-host override the worker carries
-  # for hackers.pub) selects RFC 9421; default stays cavage, the spec
-  # every current peer accepts.
-  defp sign_delivery(%{"inbox" => inbox, "body" => body, "keyId" => key_id} = payload) do
-    spec = if payload["algorithm"] == "rfc9421", do: :rfc9421, else: :cavage
-
-    with {:ok, private_key} <- JWK.private_key(payload["privateKeyJwk"] || %{}) do
-      {:ok, %{"headers" => HttpSignature.sign_post(inbox, body, private_key, key_id, spec: spec)}}
-    end
-  end
-
-  defp sign_delivery(_payload), do: {:error, "sign payload missing inbox/body/keyId"}
 
   defp describe(reason) when is_binary(reason), do: reason
   defp describe(reason), do: inspect(reason)

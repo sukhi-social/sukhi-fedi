@@ -19,7 +19,8 @@ defmodule SukhiFedi.Fedi.Fetcher do
 
   alias SukhiFedi.Cache.Ets
   alias SukhiShared.UrlGuard
-  alias SukhiFedi.Fedi.{HttpFetch, HttpSignature, JWK}
+  alias SukhiFedi.Fedi.HttpFetch
+  alias SukhiShared.{HttpSignature, JWK}
 
   @accept ~s(application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams")
   @max_redirects 5

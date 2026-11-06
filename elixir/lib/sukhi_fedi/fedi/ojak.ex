@@ -16,7 +16,7 @@ defmodule SukhiFedi.Fedi.Ojak do
 
   The adapter speaks our dialect on both sides:
 
-    * keys come in as what `Fedi.JWK` produces (`:public_key` records,
+    * keys come in as what `SukhiShared.JWK` produces (`:public_key` records,
       raw Ed25519 bytes, the PEM from a remote actor document) and leave
       ojak as PEM / `{:ed25519, bytes}`;
     * results are `:ok | {:error, atom}`, with ojak's `{:not_covered, _}`
@@ -28,7 +28,7 @@ defmodule SukhiFedi.Fedi.Ojak do
   what reaches it is `Plug.Parsers`' default body limit at the router.
   """
 
-  alias SukhiFedi.Fedi.JWK
+  alias SukhiShared.JWK
 
   @doc "Whether verifiers should also ask ojak and log disagreements."
   @spec shadow?() :: boolean()

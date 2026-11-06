@@ -24,9 +24,9 @@ defmodule SukhiDelivery.Delivery.WorkerTest do
 
       # Integration test expects the docker-compose.test.yml stack: DB
       # seeded with an account whose username matches the object_id's
-      # actor, and a reachable fedify-service for signing. Without NATS,
-      # signing falls through to `:skip` and the POST goes out unsigned
-      # — the assertion above will fail in that mode.
+      # actor, with a private key. Without a key, signing falls through to
+      # `:skip` and the POST goes out unsigned — the assertion above will
+      # fail in that mode.
       args = %{
         "object_id" => 1,
         "inbox_url" => inbox_url

@@ -23,6 +23,6 @@ defmodule SukhiShared.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger]]
+    [extra_applications: [:logger, :crypto, :public_key, :inets]]
   end
 end

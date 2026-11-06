@@ -2,7 +2,8 @@
 defmodule SukhiFedi.Fedi.OipTest do
   use ExUnit.Case, async: true
 
-  alias SukhiFedi.Fedi.{JWK, Oip}
+  alias SukhiFedi.Fedi.Oip
+  alias SukhiShared.JWK
   alias SukhiFedi.FediGolden
 
   # The compatibility proof, both directions at once: the golden proof

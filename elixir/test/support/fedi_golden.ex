@@ -20,7 +20,7 @@ defmodule SukhiFedi.FediGolden do
   end
 
   def public_key do
-    {:ok, key} = SukhiFedi.Fedi.JWK.public_key(fixture()["publicKeyJwk"])
+    {:ok, key} = SukhiShared.JWK.public_key(fixture()["publicKeyJwk"])
     key
   end
 
@@ -38,12 +38,12 @@ defmodule SukhiFedi.FediGolden do
   def oip, do: fixture()["oip"]
 
   def oip_public_key do
-    {:ok, key} = SukhiFedi.Fedi.JWK.ed25519_public_key(oip()["publicKeyJwk"])
+    {:ok, key} = SukhiShared.JWK.ed25519_public_key(oip()["publicKeyJwk"])
     key
   end
 
   def oip_private_key do
-    {:ok, key} = SukhiFedi.Fedi.JWK.ed25519_private_key(oip()["privateKeyJwk"])
+    {:ok, key} = SukhiShared.JWK.ed25519_private_key(oip()["privateKeyJwk"])
     key
   end
 end

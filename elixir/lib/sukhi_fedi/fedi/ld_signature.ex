@@ -24,7 +24,8 @@ defmodule SukhiFedi.Fedi.LdSignature do
   Until then RsaSignature2017 keeps Mastodon-level reach.
   """
 
-  alias SukhiFedi.Fedi.{Canon, JWK, Ojak}
+  alias SukhiFedi.Fedi.{Canon, Ojak}
+  alias SukhiShared.JWK
 
   @options_context "https://w3id.org/identity/v1"
 

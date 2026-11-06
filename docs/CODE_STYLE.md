@@ -73,6 +73,7 @@ definition. The current set:
 | Who may see a note | `Notes.Read.visible_to?/2` (`notes/read.ex:61`) | single read, thread context, polls, interactions |
 | Which rows a viewer's query may return | `WHERE` clauses + `scope_profile_statuses/3` (`notes/read.ex:87`, `timelines.ex:76,117`) | every timeline |
 | Which hosts we may fetch/POST | `SukhiShared.UrlGuard.safe?/1` (`shared/lib/sukhi_shared/url_guard.ex`; checked at `delivery/worker.ex:51`) — one copy, a path dependency of the gateway and delivery | every outbound HTTP |
+| How a request is signed and a signature checked | `SukhiShared.HttpSignature` + `SukhiShared.JWK` (`shared/lib/sukhi_shared/`) — pure `:crypto`, no DB, no network; the delivery worker signs with it in process, so the private key stays on the node | outbound delivery, authorized fetch, inbox verification |
 | Which HTML may be stored | `HTML.sanitize/1` + `HTML.Scrubber` (`html.ex:20`) | every content/bio changeset |
 | Which inline AP data is trustworthy | `trusted_inline_origin?/2` (`ap/instructions.ex:96`) | every inbox instruction |
 
@@ -142,9 +143,11 @@ Rules for the set:
   bytes before a decoder runs. No redirect, no hidden retry, no pool.
   The media proxy and the delivery node still use their own client and
   do not pin yet.
-- HTTP Signatures are produced only by `fedify.sign.v1` and verified
-  only by `fedify.verify.v1`. No hand-rolled signature-base strings
-  outside Bun.
+- HTTP Signatures are produced and checked only by
+  `SukhiShared.HttpSignature` (with `SukhiShared.JWK` for the keys): the
+  delivery worker calls it to sign, `Fedi.Verifier` to verify (`fedify.verify.v1`
+  is the wire form of the latter). No hand-rolled signature-base strings
+  anywhere else, and no private key is sent over NATS.
 - The ojak-ex NIF is reached only through `SukhiFedi.Fedi.Ojak`: key and
   error shapes are converted there, and its two switches (`OJAK_SHADOW`,
   `OJAK_LD_BACKEND`) are read there. `OjakShadow.compare/3` sits at the

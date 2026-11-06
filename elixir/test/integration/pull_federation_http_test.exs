@@ -14,7 +14,7 @@ defmodule SukhiFedi.Integration.PullFederationHttpTest do
   import Ecto.Query, only: [from: 2]
 
   alias SukhiFedi.Cache.Ets
-  alias SukhiFedi.Fedi.{HttpSignature, JWK}
+  alias SukhiShared.{HttpSignature, JWK}
   alias SukhiFedi.FediGolden
   alias SukhiFedi.PullTables
   alias SukhiFedi.Schema.{Account, Follow}

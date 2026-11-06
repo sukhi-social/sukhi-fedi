@@ -2,7 +2,7 @@
 defmodule SukhiFedi.Fedi.HttpSignatureTest do
   use ExUnit.Case, async: true
 
-  alias SukhiFedi.Fedi.{HttpSignature, JWK}
+  alias SukhiShared.{HttpSignature, JWK}
   alias SukhiFedi.FediGolden
 
   defp golden_request, do: FediGolden.fixture()["http_signature"]
