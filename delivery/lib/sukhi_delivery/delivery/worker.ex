@@ -27,6 +27,7 @@ defmodule SukhiDelivery.Delivery.Worker do
   alias SukhiDelivery.{Repo, Delivery.FedifyClient, Delivery.SigSpec}
   alias SukhiDelivery.Schema.{Object, Account, DeliveryReceipt}
   alias SukhiDelivery.Delivery.FollowersSync
+  alias SukhiShared.DeliverySuspension.{Cache, Gate, Policy}
 
   # Outbound archive runs on the gateway (it owns the S3/zstd deps). We hand
   # it the bytes we actually sent by inserting a job on the shared oban_jobs
@@ -43,9 +44,70 @@ defmodule SukhiDelivery.Delivery.Worker do
     if already_delivered?(activity_id, inbox_url) do
       :ok
     else
-      do_deliver(job, args, activity_id, inbox_url)
+      case suspension_hold(args, inbox_url, DateTime.utc_now()) do
+        {:snooze, seconds} -> {:snooze, seconds}
+        :go -> do_deliver(job, args, activity_id, inbox_url)
+      end
     end
   end
+
+  @doc """
+  FEP-f799: is this inbox resting, and if so for how many seconds? (docs/DELIVERY_SUSPENSION.md)
+
+  `{:snooze, seconds}` while a notice is in effect for `inbox_url`: Oban puts
+  the job back without counting an attempt (the Lite engine takes the
+  attempt back off, `Oban.Engines.Lite.snooze_job/3`), so the backoff and the
+  `max_attempts` ceiling are exactly where they were. The wait is the notice's
+  effective end plus 0..`resume_jitter` seconds, so a crowd that was held
+  together does not wake together. Every wake asks again, so a cancellation
+  in the meantime lets the job go.
+
+  `Create` / `Update` / `Undo` of a `DeliverySuspension` are never held:
+  judged by what the activity contains (`Gate.exempt?/1`), not its type. The
+  activity is read only when something is in effect, so the common case is one
+  ETS lookup that finds nothing.
+
+  The cache is empty when the gateway is not in this VM, and then nothing is
+  held: when in doubt, deliver. A shared inbox and a personal inbox are not
+  swapped for one another to get around a rest; the job goes where it was
+  addressed.
+  """
+  @spec suspension_hold(map(), term(), DateTime.t(), Policy.t()) ::
+          :go | {:snooze, pos_integer()}
+  def suspension_hold(args, inbox_url, now, policy \\ Policy.default()) do
+    case Cache.candidates(inbox_url) do
+      [] ->
+        :go
+
+      notices ->
+        hold(Gate.resume_at(inbox_url, now, notices, policy), args, inbox_url, now, policy)
+    end
+  end
+
+  defp hold(nil, _args, _inbox_url, _now, _policy), do: :go
+
+  defp hold(%DateTime{} = resume, args, inbox_url, now, policy) do
+    if Gate.exempt?(activity_json(args)) do
+      :go
+    else
+      wait = div(max(DateTime.diff(resume, now, :millisecond), 0) + 999, 1000)
+      seconds = max(wait, 1) + :rand.uniform(policy.resume_jitter + 1) - 1
+
+      :telemetry.execute(
+        [:sukhi_delivery, :suspension, :held],
+        %{count: 1, seconds: seconds},
+        %{host: URI.parse(inbox_url).host}
+      )
+
+      {:snooze, seconds}
+    end
+  end
+
+  # The activity as JSON, when the job carries it (every job the gateway
+  # enqueues does). One we cannot read is not exempt; the delivery itself
+  # will read it again.
+  defp activity_json(%{"raw_json" => %{} = json}), do: json
+  defp activity_json(_args), do: nil
 
   defp do_deliver(job, args, activity_id, inbox_url) do
     if SukhiShared.UrlGuard.safe?(inbox_url) do
