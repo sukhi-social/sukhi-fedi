@@ -71,6 +71,7 @@ Start at [`DEVELOPING.md`](DEVELOPING.md), then [`ARCHITECTURE.md`](ARCHITECTURE
 | How sukhi sounds in English, and why | [`ENGLISH_VOICE.md`](ENGLISH_VOICE.md) |
 | The HTML / CSS subset we use | [`CSS_SUBSET.md`](CSS_SUBSET.md) (ja) |
 | Datalevin data structure | [`DATALEVIN_SCHEMA.md`](DATALEVIN_SCHEMA.md) (ja) |
+| Pausing delivery while a peer is under maintenance (FEP-f799) | [`DELIVERY_SUSPENSION.md`](DELIVERY_SUSPENSION.md) (ja) |
 | Web Push: design, and what shipped | [`WEBPUSH.md`](WEBPUSH.md) |
 | Making the backend unhurried | [`UNHURRIED_BACKEND.md`](UNHURRIED_BACKEND.md) (ja) |
 | Four seams where native code could plug in | [`native-seams.md`](native-seams.md) |

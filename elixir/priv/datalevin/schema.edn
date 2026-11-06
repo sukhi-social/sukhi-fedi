@@ -262,7 +262,46 @@
  ;; ───────── Local user ─────────
  :user/actor     {:db/valueType :db.type/ref :db/unique :db.unique/identity}
  :user/admin?    {:db/valueType :db.type/boolean}
- :user/languages {:db/valueType :db.type/string :db/cardinality :db.cardinality/many}}
+ :user/languages {:db/valueType :db.type/string :db/cardinality :db.cardinality/many}
+
+ ;; ───────── FEP-f799 配送のお休み(docs/DELIVERY_SUSPENSION.md) ─────────
+ ;; ref は持たない(掃除の「ref はすべて分類済み」の対象外)。キーは文字列で指す。
+ ;; 受理した notice。索引に要る列を属性に、全体(時刻つき)を record の JSON に持つ。
+ ;; 取り消し(:cancelled)と最高の revision は、古い写しがまだ受け入れられる間は消さない。
+ :dsnotice/id          {:db/valueType :db.type/string  :db/unique :db.unique/identity} ;; notice の URL
+ :dsnotice/controller  {:db/valueType :db.type/string}  ;; attributedTo
+ :dsnotice/target-kind {:db/valueType :db.type/keyword} ;; :inbox :origin
+ :dsnotice/target      {:db/valueType :db.type/string}  ;; inbox は書かれたまま、origin は正規化済み
+ :dsnotice/status      {:db/valueType :db.type/keyword} ;; :active :cancelled
+ :dsnotice/revision    {:db/valueType :db.type/long}
+ :dsnotice/published   {:db/valueType :db.type/long}    ;; µs
+ :dsnotice/create-id   {:db/valueType :db.type/string}  ;; 運んだ Create の id(Undo の突き合わせ)
+ :dsnotice/record      {:db/valueType :db.type/string}  ;; JSON。読み戻しの正本
+ :dsnotice/snapshot    {:db/valueType :db.type/string}  ;; 受け取った notice の本文(管理画面・監査用)
+
+ ;; 先に届いた Undo。(actor, create_id) で預かり、数と期間に上限を置く。
+ :dspending/actor       {:db/valueType :db.type/string}
+ :dspending/create-id   {:db/valueType :db.type/string}
+ :dspending/uniq        {:db/valueType :db.type/tuple
+                         :db/tupleAttrs [:dspending/actor :dspending/create-id]
+                         :db/unique :db.unique/identity}
+ :dspending/received-at {:db/valueType :db.type/long}
+ :dspending/expires-at  {:db/valueType :db.type/long}
+
+ ;; 制御の確認の証拠(段4が書く)。最後に新しく取れて確認できた時刻と、最後の試行。
+ :dsevidence/kind        {:db/valueType :db.type/keyword} ;; :inbox :shared-inbox :origin
+ :dsevidence/target      {:db/valueType :db.type/string}
+ :dsevidence/controller  {:db/valueType :db.type/string}
+ :dsevidence/uniq        {:db/valueType :db.type/tuple
+                          :db/tupleAttrs [:dsevidence/kind :dsevidence/target :dsevidence/controller]
+                          :db/unique :db.unique/identity}
+ :dsevidence/verified-at {:db/valueType :db.type/long}
+ :dsevidence/attempted-at {:db/valueType :db.type/long}
+ :dsevidence/failure     {:db/valueType :db.type/keyword}
+
+ ;; controller ごとの「この公開時刻より前は受け付けない」線。忘れた分だけ進める。
+ :dscutoff/controller {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :dscutoff/before     {:db/valueType :db.type/long}}
 
 ;; スレッドの再帰ルール(クエリ側に渡す。ancestor は 3 段で確認済み)
 ;; [[(ancestor ?c ?p) [?c :object/in-reply-to ?p]]

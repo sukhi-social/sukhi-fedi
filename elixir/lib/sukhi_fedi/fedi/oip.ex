@@ -89,20 +89,28 @@ defmodule SukhiFedi.Fedi.Oip do
   back to the HTTP signature; rejecting a suite we cannot check would
   cut off peers that moved past Ed25519).
 
-  The key's `controller` must be the activity's `actor` — a valid proof
-  by an unrelated key proves nothing about this activity.
+  The key's `controller` must be the document's owner — a valid proof by an
+  unrelated key proves nothing about this document. The owner is the
+  document's `actor` (an activity). A document that is not an activity names
+  its owner in another member, and the caller says which with `owner:`
+  (FEP-f799's `DeliverySuspension` is owned by `attributedTo`). Without
+  `owner:` a document with no `actor` is **not** compared, so a caller that
+  verifies such a document must pass it: leaving it out means "any key".
+  With `owner:`, a document that lacks that member fails.
   """
-  @spec verify_inbound(map(), fetch_fun()) ::
+  @spec verify_inbound(map(), fetch_fun(), keyword()) ::
           :ok | :no_proof | :no_checkable_proof | {:error, term()}
-  def verify_inbound(document, fetch_fun \\ &Fetcher.fetch_cached/2)
+  def verify_inbound(document, fetch_fun \\ &Fetcher.fetch_cached/2, opts \\ [])
 
-  def verify_inbound(%{"proof" => _} = document, fetch_fun) do
+  def verify_inbound(%{"proof" => _} = document, fetch_fun, opts) do
+    owner = Keyword.get(opts, :owner)
+
     case checkable_proofs(document) do
       [] ->
         :no_checkable_proof
 
       proofs ->
-        if Enum.any?(proofs, &resolved_proof_valid?(document, &1, fetch_fun)) do
+        if Enum.any?(proofs, &resolved_proof_valid?(document, &1, fetch_fun, owner)) do
           :ok
         else
           {:error, :bad_proof}
@@ -110,7 +118,7 @@ defmodule SukhiFedi.Fedi.Oip do
     end
   end
 
-  def verify_inbound(_document, _fetch_fun), do: :no_proof
+  def verify_inbound(_document, _fetch_fun, _opts), do: :no_proof
 
   # ── Verification pieces ──────────────────────────────────────────────────
 
@@ -160,13 +168,13 @@ defmodule SukhiFedi.Fedi.Oip do
     end
   end
 
-  defp resolved_proof_valid?(document, proof, fetch_fun, retried? \\ false) do
+  defp resolved_proof_valid?(document, proof, fetch_fun, owner, retried? \\ false) do
     key_id = proof["verificationMethod"]
 
     valid? =
       with {:ok, key_document} <- fetch_fun.(key_id, if(retried?, do: [:fresh], else: [])),
            {:ok, multikey} <- find_multikey(key_document, key_id),
-           :ok <- check_controller(multikey, document),
+           :ok <- check_controller(multikey, document, owner),
            {:ok, public_key} <-
              JWK.ed25519_public_key_from_multibase(multikey["publicKeyMultibase"] || "") do
         proof_valid?(document, proof, public_key)
@@ -179,7 +187,7 @@ defmodule SukhiFedi.Fedi.Oip do
       # The cached key may be stale (remote rotated it). One retry
       # against a fresh fetch before giving up — same as Verifier.
       retried? -> false
-      true -> resolved_proof_valid?(document, proof, fetch_fun, true)
+      true -> resolved_proof_valid?(document, proof, fetch_fun, owner, true)
     end
   end
 
@@ -200,10 +208,20 @@ defmodule SukhiFedi.Fedi.Oip do
 
   defp find_multikey(_document, _key_id), do: {:error, :key_not_found}
 
-  defp check_controller(multikey, document) do
+  # `owner` names the member that holds the document's owner; without it the
+  # owner is the `actor`, and a document with none is not compared (an
+  # activity always has one, by now).
+  defp check_controller(multikey, document, nil) do
     case actor_uri(document["actor"]) do
       nil -> :ok
       actor -> if multikey["controller"] == actor, do: :ok, else: {:error, :key_actor_mismatch}
+    end
+  end
+
+  defp check_controller(multikey, document, owner) when is_binary(owner) do
+    case actor_uri(document[owner]) do
+      nil -> {:error, :no_owner}
+      uri -> if multikey["controller"] == uri, do: :ok, else: {:error, :key_actor_mismatch}
     end
   end
 

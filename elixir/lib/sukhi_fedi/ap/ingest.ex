@@ -54,9 +54,36 @@ defmodule SukhiFedi.AP.Ingest do
           {:error, :proof_failed}
 
         verdict ->
-          if f = opts[:before_parse], do: f.()
-          parse_and_execute(raw_json, signer_host, verdict == :author_signed, opts)
+          case suspension(raw_json, signer_host, opts) do
+            :pass ->
+              if f = opts[:before_parse], do: f.()
+              parse_and_execute(raw_json, signer_host, verdict == :author_signed, opts)
+
+            result ->
+              result
+          end
       end
+    end
+  end
+
+  # FEP-f799 control activities (a `DeliverySuspension` notice and its Undo)
+  # are taken here, not classified: the fedify parse does not know them, and
+  # whether one is believed is `DeliverySuspension.Receiver`'s decision. It
+  # needs the graph store (its tables live there); without it the activity
+  # goes the ordinary way. A rejection is answered with a plain 400 - the
+  # reason goes to telemetry, not to the sender.
+  defp suspension(raw_json, signer_host, opts) do
+    if SukhiFedi.Graph.enabled?() do
+      case SukhiFedi.Fedi.DeliverySuspension.Receiver.handle(raw_json,
+             signer_host: signer_host,
+             raw_body: opts[:raw_body]
+           ) do
+        :pass -> :pass
+        {:ok, _outcome} -> :suppressed
+        {:error, _reason} -> {:error, {:parse, :delivery_suspension_rejected}}
+      end
+    else
+      :pass
     end
   end
 
