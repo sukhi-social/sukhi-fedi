@@ -32,6 +32,22 @@ defmodule SukhiFedi.Integration.InteractionsTest do
              )
     end
 
+    test "the event names the note's author, so delivery needn't guess from the note URL" do
+      # Misskey (`/notes/<id>`) and Pleroma (`/objects/<uuid>`) URLs carry no
+      # actor; the favourite went nowhere until the author rode along.
+      a = create_account!("alice_fav_au")
+      b = create_account!("bob_fav_au")
+      {:ok, n} = Notes.create_status(b, %{"status" => "hi"})
+
+      {:ok, _} = Notes.favourite(a, n.id)
+
+      assert %OutboxEvent{payload: payload} =
+               Repo.one!(from e in OutboxEvent, where: e.subject == "sns.outbox.like.created")
+
+      assert payload["note_author_id"] == b.id
+      assert payload["account_id"] == a.id
+    end
+
     test "is idempotent — second call no-op, no extra outbox row" do
       a = create_account!("alice_fav_id")
       b = create_account!("bob_fav_id")

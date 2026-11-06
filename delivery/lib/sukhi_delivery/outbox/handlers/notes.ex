@@ -29,7 +29,8 @@ defmodule SukhiDelivery.Outbox.Handlers.Notes do
       inbox_for_actor_uri: 1,
       note_ap_id: 2,
       note_author_inbox: 1,
-      note_author_uri: 1,
+      note_author_inbox: 2,
+      note_author_uri: 2,
       parse_id: 1,
       relay_inboxes: 0
     ]
@@ -185,7 +186,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Notes do
         :no_actor
 
       %{actor_uri: actor_uri} ->
-        recipients = note_author_inbox(question_ap_id)
+        recipients = note_author_inbox(question_ap_id, p["note_author_id"])
         ballot_id = "#{actor_uri}/poll-votes/#{p["poll_id"]}-#{p["option_id"]}"
         activity_id = "#{ballot_id}/activity"
 
@@ -194,7 +195,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Notes do
           noteId: ballot_id,
           name: name,
           inReplyTo: question_ap_id,
-          to: note_author_uri(question_ap_id),
+          to: note_author_uri(question_ap_id, p["note_author_id"]),
           activityId: activity_id,
           recipientInboxes: recipients
         }
