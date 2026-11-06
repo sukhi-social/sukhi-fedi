@@ -91,6 +91,25 @@ defmodule SukhiFedi.Fedi.OipTest do
       assert {:error, :bad_proof} = Oip.verify_inbound(document, &fetch_golden_actor/2)
     end
 
+    test "owner: names the member that holds the owner, and a document without it fails" do
+      document = FediGolden.oip()["announce_with_proof"]
+
+      assert :ok = Oip.verify_inbound(document, &fetch_golden_actor/2, owner: "actor")
+
+      # a notice-shaped document has no `actor`: asking for `attributedTo`
+      # finds nothing to compare, which is a refusal, not a pass
+      assert {:error, :bad_proof} =
+               Oip.verify_inbound(document, &fetch_golden_actor/2, owner: "attributedTo")
+    end
+
+    test "without owner: a document that has no actor is not compared (callers must pass owner:)" do
+      document = Map.delete(FediGolden.oip()["announce_with_proof"], "actor")
+      # the proof covers `actor`, so deleting it also breaks the proof; what
+      # this pins is that the missing member is not itself the failure
+      fetch = fn _key_id, _opts -> {:ok, FediGolden.oip()["actor_document"]} end
+      assert {:error, :bad_proof} = Oip.verify_inbound(document, fetch)
+    end
+
     test "no proof member → :no_proof (HTTP signature carries the request)" do
       document = Map.delete(FediGolden.oip()["announce_with_proof"], "proof")
       fetch = fn _key_id, _opts -> flunk("must not fetch") end

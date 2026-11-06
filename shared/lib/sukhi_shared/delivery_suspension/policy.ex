@@ -25,7 +25,12 @@ defmodule SukhiShared.DeliverySuspension.Policy do
             max_redirects: 3,
             # after a suspension ends, deliveries resume spread over 0..this
             resume_jitter: 60,
-            per_target_concurrency: 2
+            per_target_concurrency: 2,
+            # what one controller may keep with us (spec §13): notices, and
+            # Undos held for a Create we have not seen yet (per actor / in all)
+            max_notices_per_controller: 32,
+            max_pending_per_actor: 16,
+            max_pending_total: 4096
 
   @type t :: %__MODULE__{
           notice_max_bytes: pos_integer(),
@@ -37,7 +42,10 @@ defmodule SukhiShared.DeliverySuspension.Policy do
           fetch_timeout_ms: pos_integer(),
           max_redirects: non_neg_integer(),
           resume_jitter: non_neg_integer(),
-          per_target_concurrency: pos_integer()
+          per_target_concurrency: pos_integer(),
+          max_notices_per_controller: pos_integer(),
+          max_pending_per_actor: pos_integer(),
+          max_pending_total: pos_integer()
         }
 
   @spec default() :: t()

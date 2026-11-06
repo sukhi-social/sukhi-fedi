@@ -210,3 +210,7 @@ API の読み取り(`SUKHI_GRAPH_READ=1`。`Graph.Timelines`):
 - 韓国語の分かち書き。
 - 掃除の TTL(初期値: フォロー中 90 日、それ以外 14 日)と、大きい `raw` の閾値(案: 4 KiB)を、実データで確かめる。
 - LMDB の詰め直し(`dtlv copy -c`)をどう運用に入れるか。
+
+## 配送のお休み(FEP-f799)の表
+
+`dsnotice/` `dspending/` `dsevidence/` `dscutoff/` の4つは、このグラフのスキーマ(`schema.edn`)に直接あります。ref は持たず、掃除(`Graph.Sweep`)の対象外です。意味と守り方は [`DELIVERY_SUSPENSION.md`](DELIVERY_SUSPENSION.md)。
