@@ -120,6 +120,51 @@ defmodule SukhiDelivery.Outbox.Recipients do
     |> Enum.uniq()
   end
 
+  # Where an activity about someone else's note goes: that note's author.
+  #
+  # The gateway names the author (`note_author_id`, the note's `account_id`)
+  # and the account row already holds the real `actor_uri` / inbox — so ask
+  # that, not the note's URL. Guessing from the URL is only a last resort for
+  # events that carry no author (older queued ones): it only works for the
+  # `<actor>/notes/<id>` and `<actor>/statuses/<id>` shapes, and gives nothing
+  # for Misskey (`/notes/<id>`) or Pleroma (`/objects/<uuid>`).
+  @doc false
+  def note_author_inbox(note_ap_id, author_id) do
+    case author_endpoints(author_id) do
+      {_uri, inbox} -> [inbox]
+      nil -> note_author_inbox(note_ap_id)
+    end
+  end
+
+  @doc false
+  def note_author_uri(note_ap_id, author_id) do
+    case author_endpoints(author_id) do
+      {uri, _inbox} -> [uri]
+      nil -> note_author_uri(note_ap_id)
+    end
+  end
+
+  # `{actor_uri, inbox}` of the account with this id, or nil when there is no
+  # id / no such account. A DB error is not swallowed (see `actor_for/1`).
+  defp author_endpoints(nil), do: nil
+
+  defp author_endpoints(author_id) do
+    case safe_account_id(author_id) do
+      nil -> nil
+      id -> author_endpoints_of(Repo.get(Account, id))
+    end
+  end
+
+  # Pure half of the above. A remote shadow row without an `actor_uri` says
+  # nothing we can send to, so it falls back to the URL guess too.
+  @doc false
+  def author_endpoints_of(%Account{domain: nil} = a), do: followee_endpoints(a)
+
+  def author_endpoints_of(%Account{actor_uri: uri} = a) when is_binary(uri),
+    do: followee_endpoints(a)
+
+  def author_endpoints_of(_), do: nil
+
   @doc false
   def note_author_inbox(note_ap_id) when is_binary(note_ap_id) do
     # Convention: a note URI is `<actor_uri>/notes/<id>` or similar; the

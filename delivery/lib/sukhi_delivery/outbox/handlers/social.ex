@@ -20,7 +20,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
       followed_inboxes: 1,
       followers_inboxes: 1,
       local_actor_uri: 1,
-      note_author_inbox: 1,
+      note_author_inbox: 2,
       parse_id: 1,
       relay_inboxes: 0
     ]
@@ -76,7 +76,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
         :no_actor
 
       %{actor_uri: actor_uri} ->
-        recipients = note_author_inbox(note_ap_id) ++ relay_inboxes()
+        recipients = note_author_inbox(note_ap_id, p["note_author_id"]) ++ relay_inboxes()
         domain = SukhiDelivery.Config.domain!()
 
         activity_id =
@@ -118,7 +118,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
         :no_actor
 
       %{actor_uri: actor_uri} ->
-        recipients = note_author_inbox(note_ap_id) ++ relay_inboxes()
+        recipients = note_author_inbox(note_ap_id, p["note_author_id"]) ++ relay_inboxes()
         domain = SukhiDelivery.Config.domain!()
 
         # Reactions ride as Like on the wire (Mastodon accepts it as
@@ -193,7 +193,8 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
 
       %{actor_uri: actor_uri} ->
         recipients =
-          followers_inboxes(actor_uri) ++ note_author_inbox(note_ap_id) ++ relay_inboxes()
+          followers_inboxes(actor_uri) ++
+            note_author_inbox(note_ap_id, p["note_author_id"]) ++ relay_inboxes()
 
         recipients = Enum.uniq(recipients)
         domain = SukhiDelivery.Config.domain!()

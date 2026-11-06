@@ -64,6 +64,7 @@ defmodule SukhiFedi.Notes.Interactions do
                 account_id: r.account_id,
                 note_id: r.note_id,
                 note_ap_id: note.ap_id,
+                note_author_id: note.account_id,
                 emoji: r.emoji
               }
             end
@@ -115,7 +116,8 @@ defmodule SukhiFedi.Notes.Interactions do
                 reaction_id: r.id,
                 account_id: r.account_id,
                 note_id: r.note_id,
-                note_ap_id: note.ap_id
+                note_ap_id: note.ap_id,
+                note_author_id: note.account_id
               }
             end
           )
@@ -171,6 +173,7 @@ defmodule SukhiFedi.Notes.Interactions do
                 account_id: r.account_id,
                 note_id: r.note_id,
                 note_ap_id: note.ap_id,
+                note_author_id: note.account_id,
                 emoji: r.emoji
               }
             end
@@ -232,6 +235,7 @@ defmodule SukhiFedi.Notes.Interactions do
                 account_id: r.account_id,
                 note_id: r.note_id,
                 note_ap_id: note.ap_id,
+                note_author_id: note.account_id,
                 emoji: r.emoji
               }
             end
@@ -272,7 +276,8 @@ defmodule SukhiFedi.Notes.Interactions do
                 boost_id: b.id,
                 account_id: b.account_id,
                 note_id: b.note_id,
-                note_ap_id: note.ap_id
+                note_ap_id: note.ap_id,
+                note_author_id: note.account_id
               }
             end
           )
@@ -319,7 +324,8 @@ defmodule SukhiFedi.Notes.Interactions do
                 boost_id: b.id,
                 account_id: b.account_id,
                 note_id: b.note_id,
-                note_ap_id: note.ap_id
+                note_ap_id: note.ap_id,
+                note_author_id: note.account_id
               }
             end
           )

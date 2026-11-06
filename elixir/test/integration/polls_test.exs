@@ -275,6 +275,7 @@ defmodule SukhiFedi.Integration.PollsTest do
       assert payload["question_ap_id"] == note.ap_id
       assert payload["name"] == "Elixir"
       assert payload["account_id"] == voter.id
+      assert payload["note_author_id"] == note.account_id
     end
 
     test "voting on a LOCAL poll enqueues no ballot (the author is us)" do

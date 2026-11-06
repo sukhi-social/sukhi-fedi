@@ -290,6 +290,7 @@ defmodule SukhiFedi.Polls do
             %{
               account_id: account_id,
               question_ap_id: question_ap_id,
+              note_author_id: poll.note.account_id,
               name: Map.get(titles, opt_id, ""),
               poll_id: poll.id,
               option_id: opt_id
