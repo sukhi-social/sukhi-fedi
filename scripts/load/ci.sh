@@ -25,6 +25,9 @@ export DOMAIN=localhost
 # checkout (main) ignores the variable. Built-in frontend only: nothing else
 # runs beside the server here.
 export SUKHI_INSTANCE_CONFIG="$HERE/instance.json"
+# The gateway refuses to start without legal documents (no LEGAL_FLAVOR
+# default since 19b55a3); both checkouts read this, main included.
+export LEGAL_FLAVOR=sukhi
 export METRICS_TOKEN=bench-metrics
 export DB_POOL_SIZE="${DB_POOL_SIZE:-10}"
 export LOAD_TOKEN_FILE="$OUT/$LABEL.token"
