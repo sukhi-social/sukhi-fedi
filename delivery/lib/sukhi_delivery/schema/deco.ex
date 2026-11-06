@@ -9,7 +9,7 @@ defmodule SukhiDelivery.Schema.Deco do
   # ある。読むだけ・落ちたら諦める、で扱う。
   schema "decos" do
     field(:slug, :string)
-    field(:private_key_jwk, :map)
+    field(:private_key_jwk, :map, redact: true)
     field(:public_key_pem, :string)
     field(:has_actor, :boolean, default: true)
   end

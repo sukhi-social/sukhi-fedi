@@ -23,7 +23,10 @@ defmodule SukhiFedi.Schema.Account do
     # `%{"name" => String.t(), "value" => String.t()}`; for remote rows
     # this mirrors the upstream actor's `attachment`.
     field :fields, {:array, :map}, default: []
-    field :private_key_jwk, :map
+    # Secrets are `redact: true`: `inspect/1`, crash reports and logger
+    # metadata print `**redacted**` instead of the key / hash. (RpcGate
+    # blanks the same fields on their way to the api node.)
+    field :private_key_jwk, :map, redact: true
     field :public_key_jwk, :map
     # PEM-encoded SubjectPublicKeyInfo — read by actor_controller.ex for
     # ActivityPub actor JSON publication.
@@ -32,7 +35,7 @@ defmodule SukhiFedi.Schema.Account do
     # is stored in its Multikey `publicKeyMultibase` form so both
     # ActorJson modules publish `assertionMethod` by reading it — same
     # precomputed pattern as `public_key_pem`.
-    field :ed25519_private_key_jwk, :map
+    field :ed25519_private_key_jwk, :map, redact: true
     field :ed25519_public_multibase, :string
     # Auto-created actors for the NodeInfo monitor bot.
     field :is_bot, :boolean, default: false
@@ -128,14 +131,14 @@ defmodule SukhiFedi.Schema.Account do
     # that completed the code round-trip — email login keys off it.
     field :email, :string
     field :email_verified_at, :utc_datetime
-    field :password_hash, :string
+    field :password_hash, :string, redact: true
     # Authenticator-app 2FA. `totp_secret` is set at setup time but the
     # factor counts only once `totp_enabled_at` is non-NULL (the user
     # proved they scanned it). `totp_last_used_step` rejects replay of
     # the current 30-second code.
-    field :totp_secret, :binary
+    field :totp_secret, :binary, redact: true
     field :totp_enabled_at, :utc_datetime
-    field :totp_last_used_step, :integer
+    field :totp_last_used_step, :integer, redact: true
 
     # おやすみ. While `now` is before this, no push leaves the building —
     # for every device at once, which is why it sits on the account and
