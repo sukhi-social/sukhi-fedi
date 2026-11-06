@@ -39,6 +39,21 @@ defmodule SukhiShared.UrlGuardTest do
     refute UrlGuard.public_host?("::1")
   end
 
+  test "public_addrs/1 hands back the checked addresses, and only if all are public" do
+    assert {:ok, [_ | _] = addrs} = UrlGuard.public_addrs("1.1.1.1")
+    assert {1, 1, 1, 1} in addrs
+    assert :error = UrlGuard.public_addrs("127.0.0.1")
+    assert :error = UrlGuard.public_addrs("::1")
+    assert :error = UrlGuard.public_addrs("no-such-host.invalid")
+  end
+
+  test "public_addrs/1 follows the test switch, public_host?/1 does not" do
+    Application.put_env(:sukhi_shared, :disable_url_guard, true)
+
+    assert {:ok, _} = UrlGuard.public_addrs("127.0.0.1")
+    refute UrlGuard.public_host?("127.0.0.1")
+  end
+
   test "rejects non-https and malformed urls" do
     refute UrlGuard.safe?("http://1.1.1.1/inbox")
     refute UrlGuard.safe?("ftp://1.1.1.1/inbox")

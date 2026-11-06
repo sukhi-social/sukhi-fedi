@@ -109,7 +109,7 @@ defmodule SukhiFedi.Fedi.Fetcher do
   def get_raw(url, sign_as \\ nil) when is_binary(url) do
     with :ok <- guard(url),
          {:ok, %{status: status, headers: headers, body: body}} <-
-           request(url, signer(sign_as), retry: false) do
+           request(url, signer(sign_as)) do
       {:ok, %{status: status, headers: headers, body: body}}
     end
   end
@@ -129,7 +129,7 @@ defmodule SukhiFedi.Fedi.Fetcher do
           end
 
         %{status: 200, body: body} when is_binary(body) ->
-          JSON.decode(body)
+          HttpFetch.decode_json(body)
 
         %{status: status} ->
           {:error, {:http_status, status}}
@@ -137,17 +137,14 @@ defmodule SukhiFedi.Fedi.Fetcher do
     end
   end
 
-  defp request(url, signer, extra \\ []) do
+  defp request(url, signer) do
     headers =
       case signer do
         nil -> %{"accept" => @accept}
         {private_key, key_id} -> HttpSignature.sign_get(url, private_key, key_id) |> Map.put("accept", @accept)
       end
 
-    HttpFetch.capped_get(
-      url,
-      [headers: headers, redirect: false, finch: SukhiFedi.Finch, receive_timeout: @receive_timeout] ++ extra
-    )
+    HttpFetch.capped_get(url, headers: headers, receive_timeout: @receive_timeout)
   end
 
   defp guard(url) do

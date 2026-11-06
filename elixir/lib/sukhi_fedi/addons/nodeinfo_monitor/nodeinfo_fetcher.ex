@@ -95,11 +95,10 @@ defmodule SukhiFedi.Addons.NodeinfoMonitor.NodeinfoFetcher do
 
     case SukhiFedi.Fedi.HttpFetch.capped_get(url,
            headers: headers,
-           receive_timeout: @timeout_ms,
-           finch: SukhiFedi.Finch
+           receive_timeout: @timeout_ms
          ) do
       {:ok, %{status: 200, body: body}} when is_binary(body) ->
-        case JSON.decode(body) do
+        case SukhiFedi.Fedi.HttpFetch.decode_json(body) do
           {:ok, json} -> {:ok, json}
           {:error, reason} -> {:error, {:invalid_json, reason}}
         end

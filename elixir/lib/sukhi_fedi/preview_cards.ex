@@ -115,11 +115,9 @@ defmodule SukhiFedi.PreviewCards do
 
   defp fetch_opts do
     [
-      redirect: false,
       headers: [{"user-agent", @user_agent}, {"accept", "text/html,application/xhtml+xml"}],
-      connect_options: [timeout: @timeout],
-      receive_timeout: @timeout,
-      retry: false
+      connect_timeout: @timeout,
+      receive_timeout: @timeout
     ]
   end
 
