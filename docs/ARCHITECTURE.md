@@ -35,7 +35,7 @@ subjects); the Bun worker that used to own that slice is retired
  ║  inbox POST receive + dispatch   ║     ║  Oban :delivery / :federation     ║
  ║  Outbox *write side* (Ecto.Multi)║     ║  HTTP POST + retries              ║
  ║  WebFinger / NodeInfo            ║     ║  Collection-Synchronization       ║
- ║  Routes /api/v1 + /api/admin →api║     ║  signs via fedify.sign.v1         ║
+ ║  Routes /api/v1 + /api/admin →api║     ║  signs in process (SukhiShared)   ║
  ╚═════════════════════════════╤════╝     ╚═════════════════════════════╤════╝
                                │                                        │
                                ▼                                        │
@@ -46,7 +46,7 @@ subjects); the Bun worker that used to own that slice is retired
                                │
                                ▼
                 NATS (plain core — no JetStream, nothing durable)
-                ├─ fedify.*.v1  request/reply — translate / sign / verify
+                ├─ fedify.*.v1  request/reply — translate / verify
                 └─ stream.*     pub/sub       — streaming fan-out
                                │
                 ┌──────────────┼────────────────┐
@@ -55,7 +55,7 @@ subjects); the Bun worker that used to own that slice is retired
  ║  SukhiFedi.Fedi 翻訳家+印鑑職人  ║  ║  api — REST plugin node     ║
  ║  NATS Micro service "fedify"     ║  ║  (:sukhi_api, BEAM node)    ║
  ║    fedify.translate.v1           ║  ║  :rpc-invoked from gateway  ║
- ║    fedify.sign.v1                ║  ║  Mastodon / Misskey APIs    ║
+ ║                                  ║  ║  Mastodon / Misskey APIs    ║
  ║    fedify.verify.v1              ║  ║  capabilities auto-register ║
  ║    fedify.inbox.v1               ║  ║                             ║
  ║    fedify.ping.v1                ║  ║                             ║
@@ -436,13 +436,14 @@ same queue group for rollback.
 
 The gateway itself no longer goes over NATS for these: `Federation.FedifyClient`
 calls `Fedi.Service.call/2` in-process (same dispatch, same JSON-shaped result).
-The wire form is for the delivery node (`translate`, `sign`) and for rollback.
+The wire form is for the delivery node (`translate`) and for rollback. There is
+no `sign` endpoint: the delivery worker signs in process with
+`SukhiShared.HttpSignature`, so an actor's private key never rides NATS.
 
 | Endpoint              | Request                                                       | Response                                 |
 | --------------------- | ------------------------------------------------------------- | ---------------------------------------- |
 | `fedify.ping.v1`      | raw bytes                                                     | echoes request (health check)            |
 | `fedify.translate.v1` | `{object_type, payload}`                                      | `{ok:true, data:{…}}`                    |
-| `fedify.sign.v1`      | `{actorUri, inbox, body, privateKeyJwk, keyId, algorithm?}`   | `{ok:true, data:{headers:{…}}}`          |
 | `fedify.verify.v1`    | `{method, url, headers, body}`                                | `{ok:true, data:{ok:bool, …}}`           |
 | `fedify.inbox.v1`     | `{raw}` (incoming AP activity as parsed JSON)                 | `{ok:true, data:{action, …}}` instruction|
 
@@ -606,18 +607,21 @@ SukhiFedi.Notes.create_status/2
           1. check delivery_receipts(activity_id, inbox_url) — skip if delivered
           2. resolve body from args["raw_json"] (no DB round-trip)
           3. attach Collection-Synchronization header
-          4. sign envelope: FedifyClient.sign(...) → NATS Micro to Bun,
-             which fetches a cached CryptoKey from bun/fedify/key_cache.ts
+          4. sign in process: read the actor's private JWK from the DB,
+             SukhiShared.JWK.private_key/1 → SukhiShared.HttpSignature.sign_post/5
+             (cavage or RFC 9421, per host via SigSpec); no NATS hop, and the
+             private key never leaves the node
           5. Req.post inbox_url  via named Finch pool (size 50 × 4)
           6. on 2xx → insert delivery_receipt
           7. on non-2xx / error → Oban exp backoff, max 10 attempts
 ```
 
 All the work that is invariant across a fan-out (body encode, follower
-digest, signing key import) happens exactly once per activity rather
-than once per recipient. See `SukhiDelivery.Delivery.FanOut` (legacy
-helper, kept for richer fan-out scenarios) and
-`bun/fedify/key_cache.ts` for the Bun CryptoKey reuse.
+digest) happens exactly once per activity rather than once per recipient.
+See `SukhiDelivery.Delivery.FanOut` (legacy helper, kept for richer fan-out
+scenarios). The signature itself is per recipient (it covers the inbox's
+host and a fresh date); the private JWK is turned into a key record each
+time, which is integer decoding, not a key import.
 
 The same `Outbox.Consumer` path covers note delete, follow / unfollow,
 favourite / unfavourite, reblog / unreblog, and pin / unpin — each

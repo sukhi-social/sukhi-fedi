@@ -2,7 +2,8 @@
 defmodule SukhiFedi.Fedi.VerifierTest do
   use ExUnit.Case, async: true
 
-  alias SukhiFedi.Fedi.{HttpSignature, JWK, Verifier}
+  alias SukhiFedi.Fedi.Verifier
+  alias SukhiShared.{HttpSignature, JWK}
   alias SukhiFedi.FediGolden
 
   defp actor_doc do

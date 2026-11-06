@@ -25,7 +25,8 @@ defmodule SukhiFedi.Fedi.Oip do
       `verify/2` here exclude `signature` from the hashed document.
   """
 
-  alias SukhiFedi.Fedi.{Canon, Fetcher, JWK, Ojak, OjakShadow}
+  alias SukhiFedi.Fedi.{Canon, Fetcher, Ojak, OjakShadow}
+  alias SukhiShared.JWK
 
   @cryptosuite "eddsa-jcs-2022"
 

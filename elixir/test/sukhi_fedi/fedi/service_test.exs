@@ -24,9 +24,9 @@ defmodule SukhiFedi.Fedi.ServiceTest do
       assert Service.call("fedify.nope.v1", %{}) == {:error, "unknown subject: fedify.nope.v1"}
     end
 
-    test "a malformed payload comes back as an error string" do
-      assert {:error, msg} = Service.call("fedify.sign.v1", %{"inbox" => "https://x.test/inbox"})
-      assert is_binary(msg)
+    test "the sign subject is gone: delivery signs in process, no key on the wire" do
+      assert Service.call("fedify.sign.v1", %{"privateKeyJwk" => %{}}) ==
+               {:error, "unknown subject: fedify.sign.v1"}
     end
 
     test "atom-keyed input works: it is JSON-shaped before dispatch" do

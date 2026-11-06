@@ -2,7 +2,8 @@
 defmodule SukhiFedi.Fedi.LdSignatureTest do
   use ExUnit.Case, async: true
 
-  alias SukhiFedi.Fedi.{JWK, LdSignature}
+  alias SukhiFedi.Fedi.LdSignature
+  alias SukhiShared.JWK
   alias SukhiFedi.FediGolden
 
   # The compatibility proof: signatures fedify produced (jsonld.js

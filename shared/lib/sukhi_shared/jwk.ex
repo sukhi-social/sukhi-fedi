@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-defmodule SukhiFedi.Fedi.JWK do
+defmodule SukhiShared.JWK do
   @moduledoc """
   Key material conversions for the native federation service.
 

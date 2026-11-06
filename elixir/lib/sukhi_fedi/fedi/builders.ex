@@ -25,7 +25,8 @@ defmodule SukhiFedi.Fedi.Builders do
   """
 
   alias SukhiFedi.AP.Titled
-  alias SukhiFedi.Fedi.{Audience, JWK, LdSignature, Oip}
+  alias SukhiFedi.Fedi.{Audience, LdSignature, Oip}
+  alias SukhiShared.JWK
 
   # One shared @context for everything we emit. AS + security/v1 (for
   # the signature terms) + the handful of compatibility terms our

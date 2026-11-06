@@ -3,7 +3,8 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.ReceiverTest do
   # Real `dtlv` (GraphCase): the store is part of what is under test.
   use SukhiFedi.GraphCase
 
-  alias SukhiFedi.Fedi.{JWK, Oip}
+  alias SukhiFedi.Fedi.Oip
+  alias SukhiShared.JWK
   alias SukhiFedi.Fedi.DeliverySuspension.{Receiver, Store}
   alias SukhiShared.DeliverySuspension.{Gate, Policy}
 
