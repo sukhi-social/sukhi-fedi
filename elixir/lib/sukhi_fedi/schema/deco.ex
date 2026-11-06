@@ -19,8 +19,8 @@ defmodule SukhiFedi.Schema.Deco do
     # 差し込めるのは create_deco/2 が内部で足す分だけ。
     field(:public_key_pem, :string)
     field(:public_key_jwk, :map)
-    field(:private_key_jwk, :map)
-    field(:ed25519_private_key_jwk, :map)
+    field(:private_key_jwk, :map, redact: true)
+    field(:ed25519_private_key_jwk, :map, redact: true)
     field(:ed25519_public_multibase, :string)
 
     # 名前・説明の、もう一つの言語ぶん。`name`/`description` には

@@ -130,6 +130,44 @@ and a small static server), `sukhi-fedi-web-next` (`web-next/`) and
 from its own route table. Design notes and the migration order:
 `gateway-web-split/DESIGN.md` (project files).
 
+### 2.1 Where the data lives
+
+The system-of-record sentence in §1 (PostgreSQL) is the default. Two other
+stores can sit beside it or take its place; the application code does not
+change, only which of them answers.
+
+```
+                         SukhiFedi.Repo  (looks like Ecto)
+                                │  SukhiFedi.Store.Adapter picks one at boot
+              ┌─────────────────┴─────────────────┐
+   SUKHI_STORE unset (default)          SUKHI_STORE=datalevin
+              │                                   │
+        PostgreSQL                 SukhiFedi.Datalevin.Adapter
+   (migrations, triggers,          Ecto queries compiled to Datalog;
+    LISTEN/NOTIFY)                 one `dtlv` child, one database,
+                                   one writer. Not crash-atomic.
+                                   docs/DATALEVIN.md
+
+   SUKHI_GRAPH=1  ── a second `dtlv` (`<DATALEVIN_DIR>/graph`) beside either:
+        actors / objects / activities and their edges
+        (SukhiFedi.Graph, priv/datalevin/schema.edn, docs/DATALEVIN_SCHEMA.md).
+        Filled best-effort from each admitted inbound activity (a copy, not
+        yet the only home); SUKHI_GRAPH_READ=1 lets the public, hashtag and
+        list timelines choose their page from it and falls back to the
+        relational query on any miss. Direction: docs/FEDERATION_REDUCER.md.
+
+   Job queues (Oban) ── SQLite (`SUKHI_QUEUE_DB`) in datalevin mode, and
+        the delivery queue when `DELIVERY_QUEUE=sqlite`. Jobs are not in the
+        same store as the business rows, so "enqueue in the same transaction"
+        holds only on PostgreSQL. docs/DELIVERY_QUEUE_MIGRATION.ja.md
+```
+
+Direction (decided 2026-11): Datalevin is the store new work targets
+and PostgreSQL is to be removed; the Ecto-compatible adapter is the bridge
+while the graph grows into the home of remote content. The rest of this
+document still describes the PostgreSQL path (outbox triggers, LISTEN/NOTIFY)
+unless it says otherwise.
+
 ## 3. Repository layout
 
 ```
@@ -583,9 +621,11 @@ helper, kept for richer fan-out scenarios) and
 
 The same `Outbox.Consumer` path covers note delete, follow / unfollow,
 favourite / unfavourite, reblog / unreblog, and pin / unpin — each
-maps to a different Bun translator key but the Relay → Consumer →
-Worker shape is identical. `sns.outbox.actor.updated` is currently
-`:skipped` until Bun grows an `Update(Actor)` wrapper (TODO).
+maps to a different translator key but the Relay → Consumer →
+Worker shape is identical. `sns.outbox.actor.updated` is the one that does
+not go through the translator: the handler builds the `Update(Person)` itself
+(`SukhiDelivery.Outbox.Handlers.Social.actor_updated/1` →
+`AP.ActorJson.build_update/1`) and enqueues it to followers and relays.
 
 A transient failure in the dispatch job — the translator restarting, so
 nothing can be signed for a few seconds — comes back as `{:error, _}`

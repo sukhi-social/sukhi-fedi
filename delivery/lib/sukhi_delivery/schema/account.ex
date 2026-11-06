@@ -19,11 +19,11 @@ defmodule SukhiDelivery.Schema.Account do
     field :public_key_pem, :string
     field :avatar_url, :string
     field :banner_url, :string
-    field :private_key_jwk, :map
+    field :private_key_jwk, :map, redact: true
     # Ed25519 pair (gateway-side migration): the private JWK signs
     # FEP-8b32 Object Integrity Proofs on outbound activities, the
     # precomputed Multikey form goes into actor JSON's `assertionMethod`.
-    field :ed25519_private_key_jwk, :map
+    field :ed25519_private_key_jwk, :map, redact: true
     field :ed25519_public_multibase, :string
     # Remote-actor mirror columns (gateway-side migration). NULL for
     # locally-hosted accounts; set for upserted remote shadows.

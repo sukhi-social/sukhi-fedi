@@ -83,6 +83,29 @@ defmodule SukhiFedi.RpcGateTest do
     end
   end
 
+  describe "schema redaction" do
+    # RpcGate blanks these on the way out; `redact: true` keeps them out of
+    # `inspect/1`, crash reports and logger metadata on the gateway itself.
+    # One list, two doors: a field added to `secret_fields/0` that a schema
+    # carries must be redacted there too.
+    test "every gated secret a schema carries is redact: true" do
+      for schema <- [Account, Deco],
+          field <- RpcGate.secret_fields(),
+          field in schema.__schema__(:fields) do
+        assert field in schema.__schema__(:redact_fields),
+               "#{inspect(schema)}.#{field} is gated by RpcGate but not redact: true"
+      end
+    end
+
+    test "inspect hides the key, the hash and the TOTP secret" do
+      text = inspect(account())
+
+      for secret <- ["private", "$argon2id$", "12345"] do
+        refute text =~ secret
+      end
+    end
+  end
+
   describe "call/3" do
     test "runs the function and scrubs what it returns" do
       assert {:ok, %Account{username: "hinata"} = a} =
