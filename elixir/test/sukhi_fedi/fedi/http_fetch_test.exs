@@ -94,6 +94,51 @@ defmodule SukhiFedi.Fedi.HttpFetchTest do
              HttpFetch.capped_get("#{base}/slow-start", receive_timeout: 100)
   end
 
+  test "a fetch resolves the name once and connects to that answer (DNS rebinding)", %{port: port} do
+    # First lookup: the loopback server. Any later lookup: an address nothing
+    # listens on. If the fetch asked again, or connected by name, it would miss.
+    {:ok, calls} = Agent.start_link(fn -> 0 end)
+
+    resolver = fn _host, family ->
+      n = Agent.get_and_update(calls, fn n -> {n, n + 1} end)
+
+      case {family, n} do
+        {:inet, 0} -> {:ok, [{127, 0, 0, 1}]}
+        {:inet, _} -> {:ok, [{192, 0, 2, 1}]}
+        {:inet6, _} -> {:error, :nxdomain}
+      end
+    end
+
+    prev = Application.get_env(:sukhi_shared, :resolver)
+    Application.put_env(:sukhi_shared, :resolver, resolver)
+
+    on_exit(fn ->
+      if is_nil(prev),
+        do: Application.delete_env(:sukhi_shared, :resolver),
+        else: Application.put_env(:sukhi_shared, :resolver, prev)
+    end)
+
+    assert {:ok, %Req.Response{status: 200, body: body}} =
+             HttpFetch.capped_get("http://rebind.example:#{port}/host")
+
+    assert body == "rebind.example:#{port}"
+    # one lookup per address family, and no more
+    assert Agent.get(calls, & &1) == 2
+  end
+
+  test "a caller may lower the size cap, and a lowered cap cuts the body off", %{base: base} do
+    # /tiny is 33 bytes: a cap of 10 refuses it, a cap of 64 KiB (a notice) does not.
+    assert {:error, :document_too_large} = HttpFetch.capped_get("#{base}/tiny", max_bytes: 10)
+
+    assert {:ok, %Req.Response{status: 200}} =
+             HttpFetch.capped_get("#{base}/tiny", max_bytes: 64 * 1024)
+  end
+
+  test "a caller cannot raise the size cap past the ceiling", %{base: base} do
+    assert {:error, :document_too_large} =
+             HttpFetch.capped_get("#{base}/huge", max_bytes: 64 * 1024 * 1024)
+  end
+
   test "an option it does not act on is refused, not ignored", %{base: base} do
     assert_raise ArgumentError, fn -> HttpFetch.capped_get("#{base}/tiny", redirect: true) end
   end
@@ -110,6 +155,17 @@ defmodule SukhiFedi.Fedi.HttpFetchTest do
       assert HttpFetch.json_depth_ok?(ok)
       refute HttpFetch.json_depth_ok?(too_deep)
       assert {:error, :json_too_deep} = HttpFetch.decode_json(too_deep)
+    end
+
+    test "a caller may lower the depth limit, never raise it" do
+      eight = String.duplicate("[", 8) <> String.duplicate("]", 8)
+      nine = String.duplicate("[", 9) <> String.duplicate("]", 9)
+      forty = String.duplicate("[", 40) <> String.duplicate("]", 40)
+
+      assert HttpFetch.json_depth_ok?(eight, max_depth: 8)
+      refute HttpFetch.json_depth_ok?(nine, max_depth: 8)
+      assert {:error, :json_too_deep} = HttpFetch.decode_json(nine, max_depth: 8)
+      refute HttpFetch.json_depth_ok?(forty, max_depth: 1000)
     end
 
     test "an unclosed megabyte of brackets is refused without decoding" do

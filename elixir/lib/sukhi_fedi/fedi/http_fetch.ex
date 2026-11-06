@@ -27,6 +27,11 @@ defmodule SukhiFedi.Fedi.HttpFetch do
 
   The caller passes only what a fetch needs (see `t:opts/0`); an option this
   module does not act on is an `ArgumentError`, not silently ignored.
+
+  The two limits are ceilings a caller may **lower**, never raise: a small
+  document (a delivery-suspension notice is 64 KiB, nesting 8) asks for
+  `max_bytes:` / `max_depth:` below the defaults, and a value above them is
+  clamped to them. The ceilings stay in this one file.
   """
 
   alias SukhiShared.UrlGuard
@@ -45,7 +50,8 @@ defmodule SukhiFedi.Fedi.HttpFetch do
           headers: [{String.t(), String.t()}] | %{optional(String.t()) => String.t()},
           json: term(),
           receive_timeout: pos_integer(),
-          connect_timeout: pos_integer()
+          connect_timeout: pos_integer(),
+          max_bytes: pos_integer()
         ]
 
   @doc """
@@ -68,12 +74,15 @@ defmodule SukhiFedi.Fedi.HttpFetch do
 
   @doc """
   Decode a fetched JSON document. The nesting depth is checked on the bytes
-  first (`json_depth_ok?/1`); only a body that passes reaches the decoder.
+  first (`json_depth_ok?/2`); only a body that passes reaches the decoder.
   Returns `{:error, :json_too_deep}` for one that does not.
+
+  `max_depth:` lowers the limit for a caller whose documents are small (it is
+  clamped to the ceiling, see the moduledoc).
   """
-  @spec decode_json(binary()) :: {:ok, term()} | {:error, term()}
-  def decode_json(body) when is_binary(body) do
-    if json_depth_ok?(body), do: JSON.decode(body), else: {:error, :json_too_deep}
+  @spec decode_json(binary(), keyword()) :: {:ok, term()} | {:error, term()}
+  def decode_json(body, opts \\ []) when is_binary(body) and is_list(opts) do
+    if json_depth_ok?(body, opts), do: JSON.decode(body), else: {:error, :json_too_deep}
   end
 
   @doc """
@@ -82,33 +91,40 @@ defmodule SukhiFedi.Fedi.HttpFetch do
   string is not a level. It does not validate JSON — the decoder does that —
   it only decides whether the decoder may run.
   """
-  @spec json_depth_ok?(binary()) :: boolean()
-  def json_depth_ok?(body) when is_binary(body), do: depth_ok?(body, 0, false, false)
-
-  defp depth_ok?(<<>>, _depth, _in_string, _escaped), do: true
-
-  # inside a string: an escaped byte is skipped, a bare quote ends it
-  defp depth_ok?(<<_, rest::binary>>, depth, true, true), do: depth_ok?(rest, depth, true, false)
-
-  defp depth_ok?(<<?\\, rest::binary>>, depth, true, false),
-    do: depth_ok?(rest, depth, true, true)
-
-  defp depth_ok?(<<?", rest::binary>>, depth, true, false),
-    do: depth_ok?(rest, depth, false, false)
-
-  defp depth_ok?(<<_, rest::binary>>, depth, true, false), do: depth_ok?(rest, depth, true, false)
-
-  # outside a string
-  defp depth_ok?(<<?", rest::binary>>, depth, false, _), do: depth_ok?(rest, depth, true, false)
-
-  defp depth_ok?(<<open, rest::binary>>, depth, false, _) when open in [?[, ?{] do
-    depth + 1 <= @max_json_depth and depth_ok?(rest, depth + 1, false, false)
+  @spec json_depth_ok?(binary(), keyword()) :: boolean()
+  def json_depth_ok?(body, opts \\ []) when is_binary(body) and is_list(opts) do
+    limit = opts |> Keyword.get(:max_depth, @max_json_depth) |> min(@max_json_depth)
+    depth_ok?(body, 0, limit, false, false)
   end
 
-  defp depth_ok?(<<close, rest::binary>>, depth, false, _) when close in [?], ?}],
-    do: depth_ok?(rest, max(depth - 1, 0), false, false)
+  defp depth_ok?(<<>>, _depth, _limit, _in_string, _escaped), do: true
 
-  defp depth_ok?(<<_, rest::binary>>, depth, false, _), do: depth_ok?(rest, depth, false, false)
+  # inside a string: an escaped byte is skipped, a bare quote ends it
+  defp depth_ok?(<<_, rest::binary>>, depth, limit, true, true),
+    do: depth_ok?(rest, depth, limit, true, false)
+
+  defp depth_ok?(<<?\\, rest::binary>>, depth, limit, true, false),
+    do: depth_ok?(rest, depth, limit, true, true)
+
+  defp depth_ok?(<<?", rest::binary>>, depth, limit, true, false),
+    do: depth_ok?(rest, depth, limit, false, false)
+
+  defp depth_ok?(<<_, rest::binary>>, depth, limit, true, false),
+    do: depth_ok?(rest, depth, limit, true, false)
+
+  # outside a string
+  defp depth_ok?(<<?", rest::binary>>, depth, limit, false, _),
+    do: depth_ok?(rest, depth, limit, true, false)
+
+  defp depth_ok?(<<open, rest::binary>>, depth, limit, false, _) when open in [?[, ?{] do
+    depth + 1 <= limit and depth_ok?(rest, depth + 1, limit, false, false)
+  end
+
+  defp depth_ok?(<<close, rest::binary>>, depth, limit, false, _) when close in [?], ?}],
+    do: depth_ok?(rest, max(depth - 1, 0), limit, false, false)
+
+  defp depth_ok?(<<_, rest::binary>>, depth, limit, false, _),
+    do: depth_ok?(rest, depth, limit, false, false)
 
   # ── transport ────────────────────────────────────────────────────────────
 
@@ -118,7 +134,8 @@ defmodule SukhiFedi.Fedi.HttpFetch do
         :json,
         headers: [],
         receive_timeout: @default_timeout_ms,
-        connect_timeout: @default_timeout_ms
+        connect_timeout: @default_timeout_ms,
+        max_bytes: @max_bytes
       ])
 
     with {:ok, %URI{scheme: scheme, host: host} = uri} when scheme in ["http", "https"] <-
@@ -251,7 +268,7 @@ defmodule SukhiFedi.Fedi.HttpFetch do
   defp fold([{:data, ref, data} | rest], conn, ref, acc, opts, deadline) do
     body = acc.body <> data
 
-    if byte_size(body) > @max_bytes do
+    if byte_size(body) > min(Keyword.fetch!(opts, :max_bytes), @max_bytes) do
       close_with(conn, :document_too_large)
     else
       fold(rest, conn, ref, %{acc | body: body}, opts, deadline)
