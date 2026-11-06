@@ -38,7 +38,7 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Receiver do
 
   alias SukhiFedi.Fedi.{Fetcher, Oip}
   alias SukhiFedi.Fedi.DeliverySuspension.{Control, Store}
-  alias SukhiShared.DeliverySuspension.{Gate, Notice, Origin, Policy}
+  alias SukhiShared.DeliverySuspension.{Cache, Gate, Notice, Origin, Policy}
 
   @type outcome :: :accepted | :cancelled | :unchanged | :stale | :parked
   @type result :: :pass | {:ok, outcome()} | {:error, term()}
@@ -410,7 +410,9 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Receiver do
              snapshot: document && JSON.encode!(document)
            ),
          :ok <-
-           if(state.parked?, do: Store.delete_pending(record.controller, create_id), else: :ok) do
+           if(state.parked?, do: Store.delete_pending(record.controller, create_id), else: :ok),
+         # the store has it; now the delivery worker's copy
+         :ok <- Cache.put(record) do
       {:ok, if(record.status == :cancelled, do: :cancelled, else: :accepted)}
     end
   end

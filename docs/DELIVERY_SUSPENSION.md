@@ -5,7 +5,7 @@
 **読む人の困りごと(仮説):** 相手が止まっている間に、こちらの配送が失敗を重ねて諦めてしまうこと。また、だれかが他人の宛先を「お休み」にして、配送を止められてしまうこと。
 
 > FEP-f799 は DRAFT です。プロパティ名は変わるかもしれないので、名前は `SukhiShared.DeliverySuspension.Notice` の一か所にまとめてあります。
-> 見通しと段ごとの計画は #116(子 issue #156〜#162)。**いま動いているのは受け取りの途中まで**で、配送はまだ休みません(下の「いまどこまで」)。
+> 見通しと段ごとの計画は #116(子 issue #156〜#162)。配送を休ませる道は通っていますが、**お知らせを有効にする制御の確認が段4なので、実際に休む配送はまだありません**(下の「いまどこまで」)。
 
 ## 守っている約束
 
@@ -39,6 +39,19 @@
 
 送り手への答えは、受理なら 202、拒否なら 400(本文は `delivery_suspension_rejected` だけ)。理由は telemetry `[:sukhi_fedi, :delivery_suspension, :received]` の `detail` と、info ログに出ます。
 
+## 配送のとき(段3)
+
+`SukhiDelivery.Delivery.Worker.perform` は、`already_delivered?` のあと・`UrlGuard.safe?` の前で `Worker.suspension_hold/4` を見ます。
+
+- 休み中なら `{:snooze, 秒}`。秒は**実効終了 + 0〜60 秒のランダム**。ばらつきは、止めていた配送がいっせいに起きないためです。
+- snooze は試行に数えません(Oban の Lite エンジンは `attempt` を1戻します。`delivery/test/queue/sqlite_queue_test.exs` で、すでに3回失敗したジョブでも `attempt` が3のままなのを確かめてあります)。バックオフと `max_attempts` の歯止めは、休む前と同じ場所にあります。`Retry-After` には触れません。
+- 起きるたびにもう一度ゲートで見るので、休みのあいだに取り消されたら、そのまま送ります。
+- **止めないもの**: `Create` / `Update` の `object` が `DeliverySuspension`、`Undo` が指す `Create` がそうなもの。型ではなく**中身**で見分けます(`Gate.exempt?/1`)。ふつうの `Create` / `Update` / `Undo` は止めます。
+- 共有 inbox と個別 inbox は、休みを避けるために入れ替えません。宛てられた先に出します。
+- 宛先の記録は ETS(`SukhiShared.DeliverySuspension.Cache`)の写しを引きます。**写しは正本ではありません**。gateway が store に書いたあとに写しへ入れ、起動時に `Upkeep` が store から組み直します。再起動しても、同じ宛先が同じ時刻まで休みます。取り消しは写しから消えます。
+- **同じ VM のとき(combined)だけ働きます。** 写しの表は gateway が持つので、gateway と delivery が別の VM のとき、delivery には表が無く、何も休みません(迷ったら配送)。
+- 休ませた件数は telemetry `[:sukhi_delivery, :suspension, :held]`。
+
 ## 記録するもの(`schema.edn`)
 
 | 表 | 属性 | 中身 |
@@ -48,7 +61,7 @@
 | control evidence | `dsevidence/*` | 制御を最後に確認できた時刻と最後の試行(段4が書く) |
 | controller cutoffs | `dscutoff/*` | 「この時刻より前は受けない」線 |
 
-忘れるとき(`Store.sweep/2`)は、年齢上限を過ぎた notice と期限切れの預かりを消し、消した分だけ cutoff を進めます。方針をゆるめても、忘れた取り消しが蘇りません。`sweep` を定期実行に載せるのは段3です。
+忘れるとき(`Store.sweep/2`)は、年齢上限を過ぎた notice と期限切れの預かりを消し、消した分だけ cutoff を進めます。方針をゆるめても、忘れた取り消しが蘇りません。`Upkeep` が1時間ごとに `sweep` を呼び、そのあと写しを組み直します。
 
 ## いまどこまで
 
@@ -56,8 +69,8 @@
 | --- | --- | --- |
 | 0 | 前提の補強(IPv6、DNS の固定、JSON の深さ) | merge 済み(#163) |
 | 1 | 純粋な部品 `Origin` `Notice` `Policy` `Gate` | merge 済み(#165) |
-| 2 | `Store`・`Receiver`・`Ingest` の分岐・proof の持ち主 | この変更 |
-| 3 | 配送への組み込み(保留・免除・再開・ETS) | 次 |
+| 2 | `Store`・`Receiver`・`Ingest` の分岐・proof の持ち主 | merge 済み(#167) |
+| 3 | 配送への組み込み(保留・免除・再開・ETS) | この変更 |
 | 4 以降 | 取得と制御の確認、告げる側、管理画面 | 後 |
 
 初版の範囲は段0〜3。宛先ごとの同時数、容量上限の記録、`Retry-After` は後回しです。

@@ -71,6 +71,95 @@ defmodule SukhiDelivery.Queue.SqliteQueueTest do
     assert Keyword.has_key?(Queue.postgres_oban_config()[:queues], :delivery)
   end
 
+  test "a held delivery is snoozed on Lite without costing an attempt (FEP-f799)" do
+    alias SukhiShared.DeliverySuspension.{Cache, Notice}
+
+    start_supervised!(Cache)
+    now = DateTime.utc_now()
+
+    Cache.put(%Notice{
+      id: "https://rest.example/suspensions/1",
+      controller: "https://rest.example/users/ops",
+      target_kind: :origin,
+      target: "https://rest.example",
+      revision: 1,
+      published: DateTime.add(now, -60, :second),
+      end_time: DateTime.add(now, 3600, :second),
+      effective_start: DateTime.add(now, -30, :second),
+      accepted_at: DateTime.add(now, -30, :second)
+    })
+
+    # The real worker: no activity_id, so it touches no relational database.
+    Queue.insert_all([
+      SukhiDelivery.Delivery.Worker.new(%{
+        "inbox_url" => "https://rest.example/inbox",
+        "raw_json" => %{"type" => "Create", "object" => %{"type" => "Note"}}
+      })
+    ])
+
+    job = wait_for_job(fn j -> j.state == "scheduled" and j.meta["snoozed"] == 1 end)
+
+    # Oban counted the run and took it back: the backoff is where it was,
+    # and the 10-attempt ceiling is a whole 10 away.
+    assert job.attempt == 0
+    assert job.max_attempts == 10
+    assert DateTime.diff(job.scheduled_at, now, :second) >= 3600 - 5
+  end
+
+  test "a delivery that has already failed keeps its attempts across the rest (FEP-f799)" do
+    alias SukhiShared.DeliverySuspension.{Cache, Notice}
+
+    start_supervised!(Cache)
+    now = DateTime.utc_now()
+
+    Cache.put(%Notice{
+      id: "https://rest.example/suspensions/2",
+      controller: "https://rest.example/users/ops",
+      target_kind: :inbox,
+      target: "https://rest.example/inbox",
+      revision: 1,
+      published: DateTime.add(now, -60, :second),
+      end_time: DateTime.add(now, 3600, :second),
+      effective_start: DateTime.add(now, -30, :second),
+      accepted_at: DateTime.add(now, -30, :second)
+    })
+
+    # Put off for a minute, so the running queue leaves it alone while we make it
+    # a job that has already been tried three times; then run it by hand.
+    Queue.insert_all([
+      SukhiDelivery.Delivery.Worker.new(
+        %{
+          "inbox_url" => "https://rest.example/inbox",
+          "raw_json" => %{"type" => "Create", "object" => %{"type" => "Note"}}
+        },
+        schedule_in: 60
+      )
+    ])
+
+    QueueRepo.update_all(Oban.Job, set: [attempt: 3, state: "available", scheduled_at: now])
+    Oban.drain_queue(SukhiDelivery.QueueOban, queue: :delivery)
+
+    # (the running queue may have taken it first; either way it ends up here)
+    job = wait_for_job(fn j -> j.state == "scheduled" and j.meta["snoozed"] == 1 end)
+    assert job.attempt == 3
+  end
+
+  defp wait_for_job(ready?, tries \\ 50) do
+    job = QueueRepo.one(Oban.Job)
+
+    cond do
+      job && ready?.(job) ->
+        job
+
+      tries == 0 ->
+        flunk("job never reached the expected state: #{inspect(job)}")
+
+      true ->
+        Process.sleep(100)
+        wait_for_job(ready?, tries - 1)
+    end
+  end
+
   test "Oban Lite runs a delivery job from the SQLite file" do
     me = self() |> :erlang.pid_to_list() |> to_string()
     Queue.insert_all([EchoWorker.new(%{"reply_to" => me})])
