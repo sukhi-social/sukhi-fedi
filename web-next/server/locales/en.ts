@@ -734,6 +734,7 @@ export const en: Dict = {
   'profile.mute': 'Mute',
   'profile.unblock': 'Unblock',
   'profile.block': 'Block',
+  'profile.confirmBlock': 'Block this person? Any follows between you will end.',
   'profile.followingSuffix': 'Following',
   'profile.followersSuffix': 'Followers',
   'profile.postsSuffix': 'Posts',

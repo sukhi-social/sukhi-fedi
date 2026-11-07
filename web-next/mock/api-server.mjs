@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 export async function startApiServer({ port = Number(process.env.PORT ?? 4000), quiet = false } = {}) {
   // mock.mjs が読まれる前に置く(NOW は読み込み時に決まる)。
   process.env.SUKHI_MOCK_NOW ??= new Date().toISOString();
-  const { respond, ME, HOME } = await import('./mock.mjs');
+  const { respond, ME, HOME, PEOPLE } = await import('./mock.mjs');
 
   const unknown = new Set();
   const open = new Set();
@@ -209,12 +209,22 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       res.end();
       return;
     }
+    // 人の頁(/@nabi)は、聞かれた acct の人を返す(返事を作る respond() は道しか見ないので、ここで)。
+    if (pathname === '/api/v1/accounts/lookup' && method === 'GET') {
+      const acct = new URL(req.url ?? '/', 'http://localhost').searchParams.get('acct');
+      const who = PEOPLE.find((p) => p.acct === acct || p.username === acct);
+      if (who) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(who));
+        return;
+      }
+    }
     if (pathname === '/__mock/requests-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(requestLog));
       return;
     }
-    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss)$/);
+    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss|accounts\/[^/]+\/(?:mute|unmute|block|unblock))$/);
     if (fr && method === 'POST') requestLog.push(fr[1]);
     if (pathname === '/__mock/translate-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });

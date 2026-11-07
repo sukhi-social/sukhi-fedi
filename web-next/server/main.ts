@@ -13,6 +13,7 @@ import './routes/translate.ts'; // write.ts の /statuses/:id/:verb より先に
 import './routes/write.ts';
 import './routes/requests.ts';
 import './routes/settings.ts';
+import './routes/people.ts';
 import './routes/security.ts';
 import './routes/migration.ts';
 import './routes/data.ts';

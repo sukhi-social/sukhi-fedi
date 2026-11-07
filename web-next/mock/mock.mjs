@@ -292,7 +292,11 @@ const ROUTES = [
   ['/api/v1/follow_requests', () => [NABI]],
   [/^\/api\/v1\/follow_requests\/[^/]+\/(authorize|reject)$/, () => ({ id: '1', following: false, followed_by: true, requested: false })],
   [/^\/api\/v1\/notifications\/[^/]+\/dismiss$/, () => ({})],
-  ['/api/v1/blocks', () => []],
+  ['/api/v1/blocks', () => [NABI]],
+  // ミュート・ブロックは、押した後の関係で返る(プロフィールの「…」が、その姿で組みなおされる)。
+  [/^\/api\/v1\/accounts\/([^/]+)\/(mute|unmute|block|unblock)$/, (m) => ({
+    id: m[1], following: false, followed_by: false, requested: false, muting: m[2] === 'mute', blocking: m[2] === 'block'
+  })],
   ['/api/v1/mutes', () => [HINA]],
   ['/api/v1/bookmarks', () => [S1, S3]],
   ['/api/v1/favourites', () => [S2]],

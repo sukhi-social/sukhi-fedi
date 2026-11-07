@@ -80,6 +80,7 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
           <li><a class="chip" href="/settings/security">${t('settings.security')}</a></li>
           <li><a class="chip" href="/settings/migration">${t('settings.migration')}</a></li>
           <li><a class="chip" href="/settings/data">${t('settings.data')}</a></li>
+          <li><a class="chip" href="/settings/people">${t('settings.blockMute')}</a></li>
         </ul>
       </nav>
       ${isAdmin(me.role?.name)

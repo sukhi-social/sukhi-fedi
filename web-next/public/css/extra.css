@@ -646,3 +646,9 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
 .notif-answered {
   color: var(--color-text-muted);
 }
+
+/* プロフィールの「…」は右端にあるので、メニューは右端にそろえて左へ開く(右へ開くと画面の外に切れる)。 */
+.profile-menu {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}

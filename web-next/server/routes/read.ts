@@ -13,7 +13,7 @@ import { timeWords } from '../time.ts';
 import { layout } from '../views/layout.ts';
 import { avatar, icon } from '../views/parts.ts';
 import { statusCard } from '../views/status.ts';
-import { accountRow, followButton, nameHtml, nameOf } from '../views/account.ts';
+import { accountRow, nameHtml, nameOf, profileActions } from '../views/account.ts';
 import { spreadWithinMoments } from '../shuffle.ts';
 import { maybeMe, replyAcctsFor, statusList } from './shared.ts';
 
@@ -330,7 +330,7 @@ route('GET', '/@:acct', async (ctx) => {
           <p class="display-name text-lg">${nameHtml(account)}</p>
           <p class="muted">@${account.acct}</p>
         </div>
-        ${rel ? followButton(ctx, account.id, rel) : ''}
+        ${rel ? profileActions(ctx, account.id, rel) : ''}
         ${isSelf ? html`<a class="chip" href="/settings">${t('profile.edit')}</a>` : ''}
       </div>
       ${account.roles?.length ? html`<p class="profile-roles">${account.roles.map((r) => html`<span class="role-badge">${r.name}</span>`)}</p>` : ''}
