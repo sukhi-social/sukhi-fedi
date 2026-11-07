@@ -1,0 +1,39 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>確認する曜日(管理する人の設定・案)</title>
+<meta name="lab:desc" content="管理する人が『この日は大丈夫だよ〜』と決めた曜日。申し込みの人には、その曜日に沿って『◯曜日(◯日後)に確認します』と見せる。無理のない日だけ。">
+<meta name="lab:nav" content="none">
+<style>
+  .wd { display: grid; gap: 1rem; max-width: var(--measure); margin-inline: auto; width: 100%; }
+  .wd h2 { margin: 0; font-size: 1.25rem; }
+  .wd p { margin: 0; }
+  .wd .muted { color: var(--color-text-muted); }
+  .wd .card { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); padding: .85rem 1rem; display: grid; gap: .6rem; }
+  .wd .days { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .wd .day { display: inline-flex; align-items: center; gap: .3rem; border: 1px solid var(--color-border); border-radius: 999px; padding: .25rem .8rem; cursor: pointer; }
+  .wd .day:has(input:checked) { background: var(--color-accent-soft); border-color: var(--color-accent-strong); color: var(--color-accent-strong); }
+  .wd .day input { position: absolute; opacity: 0; }
+  .wd .day:has(input:focus-visible) { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+  .wd .preview { border-left: 3px solid var(--color-accent); padding: .2rem .75rem; }
+</style>
+
+<div class="wd">
+  <div class="card">
+    <h2>確認する日</h2>
+    <p>「この日は大丈夫だよ〜」という曜日を、選んでください。申し込みの人には、その曜日に沿って、何日後に確認するかを見せます。</p>
+    <div class="days" role="group" aria-label="曜日">
+      <label class="day"><input type="checkbox" /> 月</label>
+      <label class="day"><input type="checkbox" checked /> 火</label>
+      <label class="day"><input type="checkbox" /> 水</label>
+      <label class="day"><input type="checkbox" checked /> 木</label>
+      <label class="day"><input type="checkbox" /> 金</label>
+      <label class="day"><input type="checkbox" /> 土</label>
+      <label class="day"><input type="checkbox" /> 日</label>
+    </div>
+    <p class="muted" style="font-size:.8125rem">お休みの日は、次の「大丈夫な日」に、自動でずれます。</p>
+  </div>
+  <div class="card">
+    <p class="muted" style="font-size:.8125rem">いま申し込むと、こう見えます(水曜日の例)</p>
+    <p class="preview">くろはが確認するのは、<b>木曜日(1日後)</b>です。返事は、そのあとメールでお返しします。</p>
+  </div>
+</div>

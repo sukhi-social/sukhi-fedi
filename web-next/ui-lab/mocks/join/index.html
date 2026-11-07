@@ -1,8 +1,8 @@
 <!--lab:shell-->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <title>入会の申し込み(案)</title>
-<meta name="lab:desc" content="招待コードをやめて、申し込みにする。ゆっくり自分のことを書く → 受付のメール → 「受け取りましたか?」→ 完了。返事は一週間以内にメールで。文面は docs の下書き(ひなた 2026-11-07)。">
-<meta name="lab:scenes" content="asked=受け取りましたか?;nomail=いいえ(メールを見直す);done=完了;edit=編集のリンクから;invited=お誘いの人が書いてある">
+<meta name="lab:desc" content="招待コードをやめて、申し込みにする。三つの質問に、書きたいところだけ答える → 受付のメール → 「受け取りましたか?」→ 完了。管理する人が「大丈夫」と決めた曜日に沿って、何日後に確認するかを書く。呼び名はメールで使う。ニックネームは、承認のあと。">
+<meta name="lab:scenes" content="asked=受け取りましたか?;nomail=いいえ(メールを見直す);done=完了;edit=編集のリンクから">
 <meta name="lab:nav" content="none">
 <style>
   .join .step { display: none; }
@@ -30,37 +30,30 @@
     </section>
     <p class="editing notice">申し込みを編集しています。直したら「送り直す」を押してください。</p>
     <form class="form stack" method="post" action="/join">
+      <p class="prose-small">気になっただけ、でも大丈夫です。書きたいところだけ、書いてください。</p>
       <label class="stack-tight">
-        <span>あなたのこと</span>
-        <textarea name="about" rows="6" required placeholder="ゆっくり、書いてください。">
-最近、友だちに教えてもらって、ここのことを知りました。夜に、ひとりで本を読むのがすきです。</textarea>
-        <span class="help">
-          ゆっくり書いてください。ただ気になったよ〜って方は、そう書いても大丈夫です。
-        </span>
+        <span>1. なんて呼んだらいいですか？</span>
+        <input type="text" name="call_name" autocomplete="off" value="ゆき" />
+        <span class="help">メールで、こう呼びます。ニックネームは、承認のあとに決めます。</span>
       </label>
-      <div class="prose-small">
-        <p class="hints-title">こんなことを書いてくれたら嬉しい！</p>
-        <ul class="hints">
-          <li>どうしてここに来ようと思ったか</li>
-          <li>最近、だれかにしてもらって嬉しかったこと、してあげて嬉しかったこと</li>
-          <li>ここで居心地が悪いことがあったら、どうしてほしいか</li>
-        </ul>
-        <p class="help">全部書かなくて大丈夫です。</p>
-      </div>
+      <label class="stack-tight">
+        <span>2. どこで、sukhi のことを知りましたか？</span>
+        <textarea name="found" rows="3">友だちが、ここの話をしていました。</textarea>
+        <span class="help">だれかのお誘いなら、その人の sukhi でのニックネームや、ハンドルも教えてください。</span>
+      </label>
+      <label class="stack-tight">
+        <span>3. ここで、どんなふうに過ごせたらいいなと思いますか？</span>
+        <textarea name="how" rows="4">夜に、ひとりで本を読んでいる人の話を、ゆっくり読みたいです。</textarea>
+      </label>
       <label class="stack-tight">
         <span>メールアドレス</span>
         <input type="email" name="email" value="yuki@example.org" autocomplete="email" autocapitalize="none" spellcheck="false" required />
         <span class="help">返事と、編集のリンクを送るために使います。</span>
       </label>
-      <label class="stack-tight">
-        <span>だれのお誘いで来ましたか？ <span class="help" style="display:inline">(空でもよいです)</span></span>
-        <input type="text" name="invited_by" autocomplete="off" value="" placeholder="" />
-        <span class="help">sukhi 内のニックネームや、ハンドルを教えてください。</span>
-      </label>
       <button type="submit" class="btn primary px-6 py-2"><span class="new-only">送る</span><span class="editing" style="display:none">送り直す</span></button>
     </form>
     <p class="prose-small after-form">
-      返事は一週間以内にメールでお返しします。ここでの過ごし方は、<a href="/terms">規約</a>に書いてあります。
+      くろはが確認するのは、<b>木曜日(3日後)</b>です。返事は、そのあとメールでお返しします。ここでの過ごし方は、<a href="/terms">規約</a>に書いてあります。
     </p>
     <p class="prose-small"><a href="/">もどる</a></p>
   </section>
@@ -99,7 +92,7 @@
   <section class="step s-done">
     <section class="hero">
       <h1>ありがとうございます</h1>
-      <p class="tagline">返事は一週間以内にメールにてお返しします。</p>
+      <p class="tagline">くろはが確認するのは、木曜日(3日後)です。返事は、そのあとメールでお返しします。</p>
     </section>
     <p class="prose-small">内容を編集したいときは、メールにあるリンクからお願いします！</p>
     <p class="prose-small"><a href="/">もどる</a></p>
