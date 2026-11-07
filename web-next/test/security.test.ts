@@ -252,3 +252,29 @@ test('パスキーのログイン: options を返し、通ったら関所へ送�
   assert.equal(fin.status, 200);
   assert.deepEqual(await fin.json(), { ok: true, redirect: '/check?intent=login' });
 });
+
+test('アカウントを閉じる: 本人確認が違えば閉じず、合えば受けつけて、取り消せる', async () => {
+  const page = await text('/settings/close');
+  assert.match(page, /action="\/settings\/close\/request"/);
+  assert.match(await text('/settings'), /href="\/settings\/close"/);
+  // これまでの試験で、あいことばを持つようになっていることがある。持たなければ、コードを送る口が付く。
+  const withPassword = /name="password"/.test(page);
+  if (!withPassword) assert.match(page, /formaction="\/settings\/close\/reauth"/);
+  const wrongForm = withPassword ? { password: 'nope' } : { reauth_code: '000000' };
+  const rightForm = withPassword ? { password: 'secret' } : { reauth_code: '123456' };
+
+  const wrong = await go('/settings/close/request', { form: wrongForm });
+  assert.equal(wrong.status, 422);
+  assert.match(await wrong.text(), /class="error"/);
+  assert.doesNotMatch(await text('/settings/close'), /action="\/settings\/close\/cancel"/);
+
+  const done = await go('/settings/close/request', { form: rightForm });
+  assert.equal(done.status, 303);
+  const pending = await text('/settings/close');
+  assert.match(pending, /action="\/settings\/close\/cancel"/);
+  assert.doesNotMatch(pending, /action="\/settings\/close\/request"/);
+
+  const cancel = await go('/settings/close/cancel', { form: {} });
+  assert.equal(cancel.status, 303);
+  assert.match(await text('/settings/close'), /action="\/settings\/close\/request"/);
+});

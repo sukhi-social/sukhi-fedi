@@ -17,6 +17,7 @@ import './routes/people.ts';
 import './routes/feedback.ts';
 import './routes/announcements.ts';
 import './routes/security.ts';
+import './routes/close.ts';
 import './routes/migration.ts';
 import './routes/data.ts';
 import './routes/push.ts';

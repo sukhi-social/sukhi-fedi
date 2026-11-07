@@ -21,7 +21,7 @@ import { timeWords } from '../time.ts';
 import { layout } from '../views/layout.ts';
 import { json, needMe, readJson } from './shared.ts';
 
-type Auth = {
+export type Auth = {
   manageable: boolean;
   acct: string;
   email: string | null;
@@ -57,7 +57,7 @@ const ERRORS: Record<string, TranslationKey> = {
   already_registered: 'security.passkeyDup'
 };
 
-function explain(ctx: Ctx, code: string | undefined, hasPassword: boolean): string {
+export function explain(ctx: Ctx, code: string | undefined, hasPassword: boolean): string {
   const t = ctx.t;
   if (code === 'reauth') return hasPassword ? t('security.wrongPassword') : t('security.reauthFailed');
   return t(ERRORS[code ?? ''] ?? 'common.deliverFailed');
@@ -70,7 +70,7 @@ const OPEN = /^[a-z0-9-]{1,32}$/;
 const openOf = (v: string) => (OPEN.test(v) ? v : '');
 
 // 本人確認の中身。フォームにあるものだけ送る(gateway が、あいことばの有無で、どちらを見るか決める)。
-function reauthOf(f: FormData): { password?: string; reauth_code?: string } {
+export function reauthOf(f: FormData): { password?: string; reauth_code?: string } {
   const out: { password?: string; reauth_code?: string } = {};
   const password = str(f, 'password');
   const code = str(f, 'reauth_code').trim();
@@ -81,7 +81,7 @@ function reauthOf(f: FormData): { password?: string; reauth_code?: string } {
 
 // ── 本人確認の欄 ──────────────────────────────────────────────
 // 外す操作の形(<form>)の中に置く。`open` は、コードを送って戻ったとき、同じ折りたたみを開いておくための印。
-function reauthField(ctx: Ctx, a: Auth, open: string): SafeHtml {
+export function reauthField(ctx: Ctx, a: Auth, open: string, sendAction = '/settings/security/reauth'): SafeHtml {
   const t = ctx.t;
   if (a.has_password) {
     return html`<input type="hidden" name="open" value="${open}" />
@@ -95,7 +95,7 @@ function reauthField(ctx: Ctx, a: Auth, open: string): SafeHtml {
       <span>${t('security.reauthLabel')}</span>
       <p class="muted text-sm">${t('security.reauthHelp')}</p>
       <input type="text" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" placeholder="${t('login.code')}" required />
-      <div><button type="submit" class="chip" formaction="/settings/security/reauth" formnovalidate>${t('security.reauthSend')}</button></div>
+      <div><button type="submit" class="chip" formaction="${sendAction}" formnovalidate>${t('security.reauthSend')}</button></div>
     </div>`;
 }
 

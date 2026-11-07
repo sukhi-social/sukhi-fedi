@@ -85,7 +85,21 @@ export const jaExtra = {
   'settings.boostHideNameHint': 'ブーストの行は、アイコンだけで並びます。',
   'status.boostSummary': '{by}が、{who}の投稿をブースト',
   'status.boostSummaryHidden': '{who}の投稿を、ブースト',
-  'status.boostedLine': '{by}さんがブーストしました'
+  'status.boostedLine': '{by}さんがブーストしました',
+  'close.title': 'アカウントを閉じる',
+  'close.intro': 'いつでも、閉じられます。理由は聞きません。押してから1日は、取り消せます。そのあいだ、連合には何も送りません。',
+  'close.what': '閉じると、投稿はすべて消えて、相手のサーバにも「忘れて」とお願いを送ります。ログインも、できなくなります。',
+  'close.handle': 'ハンドルは、ずっと空けておきます。だれも、もう使えません(あなたも)。',
+  'close.exportPre': '残しておきたいものがあれば、先に ',
+  'close.exportLink': '引っ越しと書き出し',
+  'close.exportPost': ' が使えます。',
+  'close.mail': 'メールを確認済みなら、受けつけたときと、閉じたときに、お知らせします。',
+  'close.request': 'アカウントを閉じる',
+  'close.pending': 'お願いを、受けつけました。{at} ごろ、閉じます。',
+  'close.pendingHelp': 'それまでは、ここから取り消せます。',
+  'close.cancel': '取り消す',
+  'close.cancelled': '取り消しました。このまま、いてくださいね。',
+  'close.started': 'もう閉じる作業が始まっていて、取り消せません。'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -171,7 +185,21 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'settings.boostHideNameHint': '부스트 줄이 아이콘만으로 이어져요.',
   'status.boostSummary': '{by}님이 {who}님의 글을 부스트',
   'status.boostSummaryHidden': '{who}님의 글을 부스트',
-  'status.boostedLine': '{by}님이 부스트했어요'
+  'status.boostedLine': '{by}님이 부스트했어요',
+  'close.title': '계정 닫기',
+  'close.intro': '언제든 닫을 수 있어요. 이유는 묻지 않아요. 누르고 나서 하루 동안은 취소할 수 있어요. 그동안 연합에는 아무것도 보내지 않아요.',
+  'close.what': '닫으면 글이 모두 사라지고, 상대 서버에도 "잊어 달라"는 부탁을 보내요. 로그인도 할 수 없게 돼요.',
+  'close.handle': '핸들은 계속 비워 둘게요. 아무도 더는 쓸 수 없어요(본인도요).',
+  'close.exportPre': '남겨 두고 싶은 게 있다면, 먼저 ',
+  'close.exportLink': '이사와 내보내기',
+  'close.exportPost': '를 쓸 수 있어요.',
+  'close.mail': '메일이 확인되어 있다면, 접수했을 때와 닫았을 때 알려 드려요.',
+  'close.request': '계정 닫기',
+  'close.pending': '부탁을 접수했어요. {at}쯤 닫아요.',
+  'close.pendingHelp': '그때까지는 여기서 취소할 수 있어요.',
+  'close.cancel': '취소하기',
+  'close.cancelled': '취소했어요. 이대로 함께 있어 주세요.',
+  'close.started': '이미 닫는 작업이 시작되어서 취소할 수 없어요.'
 };
 
 // English. The voice is described in docs/ENGLISH_VOICE.md: plain, warm, in no hurry.
@@ -258,5 +286,19 @@ export const enExtra: Record<keyof typeof jaExtra, string> = {
   'settings.boostHideNameHint': 'Boost rows line up with icons only.',
   'status.boostSummary': '{by} boosted {who}’s post',
   'status.boostSummaryHidden': 'Boosted {who}’s post',
-  'status.boostedLine': '{by} boosted'
+  'status.boostedLine': '{by} boosted',
+  'close.title': 'Close your account',
+  'close.intro': 'You can close it whenever you like, and we won’t ask why. For one day after you press the button you can change your mind, and nothing is sent to other servers in that time.',
+  'close.what': 'Closing removes all of your posts, and asks other servers to forget them. You will no longer be able to log in.',
+  'close.handle': 'Your handle stays empty for good. No one else can take it, and neither can you.',
+  'close.exportPre': 'If there is anything you want to keep, you can use ',
+  'close.exportLink': 'Move and export',
+  'close.exportPost': ' first.',
+  'close.mail': 'If your email is verified, we’ll write to you when we receive the request and when the account is closed.',
+  'close.request': 'Close my account',
+  'close.pending': 'We have your request. The account will close around {at}.',
+  'close.pendingHelp': 'Until then, you can cancel it from here.',
+  'close.cancel': 'Cancel the request',
+  'close.cancelled': 'Cancelled. You’re staying.',
+  'close.started': 'Closing has already begun and can’t be cancelled.'
 };

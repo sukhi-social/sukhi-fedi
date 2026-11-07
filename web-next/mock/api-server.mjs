@@ -110,6 +110,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
   // ログインの要素。あいことばは持たない(いまの標準): 本人確認はメールの 6 桁(123456)。
   const security = {
     has_password: false,
+    closing: null,
     email: 'kuro@example.com',
     email_verified: true,
     pending_email: null,
@@ -132,6 +133,16 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     handle(method, path, b) {
       if (method === 'GET' && path === '/settings/sessions') return [200, { sessions: this.sessions }];
       if (path === '/settings/reauth/request') return [200, { ok: true }];
+      if (method === 'GET' && path === '/settings/close/status') return [200, { pending: this.closing }];
+      if (path === '/settings/close/request') {
+        if (!this.reauthOk(b)) return [403, { error: 'reauth' }];
+        this.closing = { scheduled_for: new Date(Date.now() + 86400000).toISOString() };
+        return [200, { pending: this.closing }];
+      }
+      if (path === '/settings/close/cancel') {
+        this.closing = null;
+        return [200, { pending: null }];
+      }
       if (path === '/settings/email/request') {
         if (!/^[^@\s]+@[^@\s]+$/.test(b.email ?? '')) return [422, { error: 'email' }];
         if (this.email_verified && !this.reauthOk(b)) return [403, { error: 'reauth' }];

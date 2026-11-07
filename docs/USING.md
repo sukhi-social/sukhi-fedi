@@ -111,8 +111,6 @@ You may leave. No reason asked.
 - When you close your account, you have **one day** to change your mind, and nothing
   is sent outward in that time. You get an email when it starts and when it is done.
 - Your username is never given to anyone else afterwards.
-- The close-account screen exists in the old UI (`web/`) but is still to come in the
-  current one (web-next).
 - You can export your follows as CSV first.
 
 ## Not here yet
@@ -120,7 +118,7 @@ You may leave. No reason asked.
 What the current UI (web-next) doesn't have yet. We haven't built it; we aren't hiding it.
 
 Lists, bookmarks, a favourites page, direct messages, an emoji picker, mention
-completion, polls, and the close-account screen.
+completion, and polls.
 ([`web-next/README.md`](../web-next/README.md), "まだ", is the up-to-date list.)
 
 ## If you're stuck, or want to tell us something

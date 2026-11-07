@@ -81,6 +81,7 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
           <li><a class="chip" href="/settings/migration">${t('settings.migration')}</a></li>
           <li><a class="chip" href="/settings/data">${t('settings.data')}</a></li>
           <li><a class="chip" href="/settings/people">${t('settings.blockMute')}</a></li>
+          <li><a class="chip" href="/settings/close">${t('close.title')}</a></li>
           <li><a class="chip" href="/feedback">${t('feedback.open')}</a></li>
         </ul>
       </nav>
