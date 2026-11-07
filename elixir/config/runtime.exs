@@ -225,6 +225,32 @@ cond do
       from: System.get_env("MAIL_FROM", "no-reply@localhost")
 end
 
+# ── Applications to join (docs/JOIN.md) ─────────────────────────────────
+# Who looks at applications, and on which weekdays that is fine. Until
+# the admin screen holds these, the environment does.
+#
+#   JOIN_GREETER      the name shown on the form ("くろ"); unset → a plain
+#                     "the person who runs this place" in each language.
+#   JOIN_CHECK_DAYS   comma list of mon,tue,wed,thu,fri,sat,sun; unset →
+#                     every day (so "tomorrow").
+#   JOIN_UTC_OFFSET_HOURS  where the day line falls; default 9 (Japan).
+join_days =
+  "JOIN_CHECK_DAYS"
+  |> System.get_env("")
+  |> String.split(",", trim: true)
+  |> Enum.map(&String.trim/1)
+  |> Enum.flat_map(fn d ->
+    case Enum.find_index(~w(mon tue wed thu fri sat sun), &(&1 == String.downcase(d))) do
+      nil -> []
+      i -> [i + 1]
+    end
+  end)
+
+config :sukhi_fedi, :join,
+  greeter: System.get_env("JOIN_GREETER"),
+  check_days: join_days,
+  utc_offset_hours: String.to_integer(System.get_env("JOIN_UTC_OFFSET_HOURS", "9"))
+
 # ── Web Push (VAPID / RFC 8292) ──────────────────────────────────────────
 # Off unless a keypair is configured — the same shape as SMTP being the
 # log transport until SMTP_HOST is set. Generate the pair once, out of

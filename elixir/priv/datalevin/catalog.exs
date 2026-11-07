@@ -884,6 +884,35 @@
     ],
     pk: ["id"]
   },
+  "join_applications" => %{
+    columns: [
+      %{
+        default: "nextval('join_applications_id_seq'::regclass)",
+        name: "id",
+        type: "bigint",
+        null: false
+      },
+      %{default: nil, name: "receipt", type: "character varying", null: false},
+      %{default: nil, name: "email", type: "character varying", null: false},
+      %{default: nil, name: "call_name", type: "character varying", null: true},
+      %{default: nil, name: "found", type: "text", null: true},
+      %{default: nil, name: "hope", type: "text", null: true},
+      %{default: nil, name: "lang", type: "character varying", null: true},
+      %{default: nil, name: "check_on", type: "date", null: true},
+      %{default: nil, name: "claim_hash", type: "character varying", null: false},
+      %{default: nil, name: "edit_hash", type: "character varying", null: true},
+      %{default: nil, name: "confirmed_at", type: "timestamp without time zone", null: true},
+      %{default: nil, name: "created_at", type: "timestamp without time zone", null: false},
+      %{default: nil, name: "updated_at", type: "timestamp without time zone", null: false}
+    ],
+    unique: [
+      %{name: "join_applications_claim_hash_index", keys: [col: "claim_hash"], where: []},
+      %{name: "join_applications_edit_hash_index", keys: [col: "edit_hash"], where: []},
+      %{name: "join_applications_receipt_index", keys: [col: "receipt"], where: []}
+    ],
+    fks: [],
+    pk: ["id"]
+  },
   "accounts" => %{
     columns: [
       %{default: "nextval('accounts_id_seq'::regclass)", name: "id", type: "bigint", null: false},

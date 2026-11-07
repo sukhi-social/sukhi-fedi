@@ -699,3 +699,8 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
 .suggest { list-style: none; margin: 0; padding: .25rem; border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-surface); display: grid; }
 .suggest button { all: unset; box-sizing: border-box; inline-size: 100%; cursor: pointer; padding: .45rem .6rem; border-radius: 8px; }
 .suggest button:hover, .suggest button:focus-visible { background: var(--color-accent-soft); }
+
+/* 入会の申し込み(/join)。受付番号は、メールの番号と見比べやすいよう、すこし離して見せる。 */
+.join textarea { min-block-size: 6rem; inline-size: 100%; box-sizing: border-box; }
+.join .choices { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.join .receipt { display: inline-block; font-variant-numeric: tabular-nums; letter-spacing: .08em; background: var(--color-accent-soft); color: var(--color-accent-strong); border-radius: 999px; padding: 0 .7rem; }
