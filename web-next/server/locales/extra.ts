@@ -120,7 +120,18 @@ export const jaExtra = {
   'rooms.sent': '届けました。',
   'rooms.failed': 'うまく届きませんでした。書いたものは残してあります。すこし待って、もう一度どうぞ。',
   'rooms.heldHint': '送ると、{when}後に届きます。そのあいだは、「書く」の頁の「お預かりしているもの」から、取りやめられます。',
-  'rooms.tooLong': '長すぎます。5000 文字までです。少し分けてもらえますか。'
+  'rooms.tooLong': '長すぎます。5000 文字までです。少し分けてもらえますか。',
+  'status.pollClosedNote': '締め切りました。',
+  'status.pollMine': 'あなたの選択',
+  'compose.poll': '投票をつける',
+  'compose.pollOption': '選択肢 {n}',
+  'compose.pollDuration': '締め切り',
+  'compose.pollMultiple': '複数、選べるようにする',
+  'compose.pollH1': '1 時間',
+  'compose.pollD1': '1 日',
+  'compose.pollD3': '3 日',
+  'compose.pollD7': '7 日',
+  'compose.pollNeedTwo': '投票の選択肢は、二つ以上にしてくださいね。'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -241,7 +252,18 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'rooms.sent': '전했어요.',
   'rooms.failed': '잘 전해지지 않았어요. 적은 글은 남겨 두었어요. 잠시 뒤에 다시 보내 주세요.',
   'rooms.heldHint': '보내면 {when} 뒤에 전해져요. 그동안은 "쓰기" 페이지의 "맡아 두고 있는 글"에서 거둘 수 있어요.',
-  'rooms.tooLong': '너무 길어요. 5000자까지예요. 조금 나누어 주실 수 있나요.'
+  'rooms.tooLong': '너무 길어요. 5000자까지예요. 조금 나누어 주실 수 있나요.',
+  'status.pollClosedNote': '마감했어요.',
+  'status.pollMine': '내가 고른 것',
+  'compose.poll': '투표 붙이기',
+  'compose.pollOption': '선택지 {n}',
+  'compose.pollDuration': '마감',
+  'compose.pollMultiple': '여러 개 고를 수 있게 하기',
+  'compose.pollH1': '1시간',
+  'compose.pollD1': '1일',
+  'compose.pollD3': '3일',
+  'compose.pollD7': '7일',
+  'compose.pollNeedTwo': '투표 선택지는 두 개 이상으로 해 주세요.'
 };
 
 // English. The voice is described in docs/ENGLISH_VOICE.md: plain, warm, in no hurry.
@@ -363,5 +385,16 @@ export const enExtra: Record<keyof typeof jaExtra, string> = {
   'rooms.sent': 'Delivered.',
   'rooms.failed': 'It didn’t go through. What you wrote has been kept. Wait a little and try again.',
   'rooms.heldHint': 'After you send, it is delivered in {when}. Until then you can take it back from “Posts we’re holding for you” on the Write page.',
-  'rooms.tooLong': 'That is too long (up to 5000 characters). Could you split it a little?'
+  'rooms.tooLong': 'That is too long (up to 5000 characters). Could you split it a little?',
+  'status.pollClosedNote': 'This poll has closed.',
+  'status.pollMine': 'Your choice',
+  'compose.poll': 'Add a poll',
+  'compose.pollOption': 'Choice {n}',
+  'compose.pollDuration': 'Closes in',
+  'compose.pollMultiple': 'Allow more than one choice',
+  'compose.pollH1': '1 hour',
+  'compose.pollD1': '1 day',
+  'compose.pollD3': '3 days',
+  'compose.pollD7': '7 days',
+  'compose.pollNeedTwo': 'A poll needs at least two choices.'
 };

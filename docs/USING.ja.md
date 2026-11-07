@@ -112,8 +112,7 @@ Mastodon 用のアプリ(Elk、Phanpy、Ivory、Tusky、Moshidon など)から�
 
 いまの画面(web-next)に、まだないものです。作っていないだけで、隠しているわけではありません。
 
-絵文字ピッカー、メンションの補完、
-投票。
+絵文字ピッカー、メンションの補完。
 ([`web-next/README.md`](../web-next/README.md) の「まだ」が、最新です。)
 
 ## こまったとき、聞きたいとき

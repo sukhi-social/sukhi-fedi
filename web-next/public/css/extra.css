@@ -684,3 +684,7 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
 .room-write { display: grid; gap: .5rem; border-block-start: 1px solid var(--color-border); padding-block-start: .75rem; }
 .room-write textarea { inline-size: 100%; }
 .room-send { display: flex; gap: .5rem; align-items: center; justify-content: space-between; }
+
+/* 投票: 結果は棒の長さだけ(数も百分率も、目には出さない)。 */
+.poll-mine { font-size: var(--text-sm); color: var(--color-text-muted); }
+.poll-result .poll-label { padding-block: .15rem; }

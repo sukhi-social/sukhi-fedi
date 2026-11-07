@@ -207,7 +207,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     try { json = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { /* JSON でない */ }
 
     if (pathname === '/api/v1/statuses' && method === 'POST' && json?.scheduled_at) {
-      const s = { id: `sch${scheduled.length + 1}`, scheduled_at: json.scheduled_at, params: { text: json.status } };
+      const s = { id: `sch${scheduled.length + 1}`, scheduled_at: json.scheduled_at, params: { text: json.status, poll: json.poll ?? null } };
       scheduled.push(s);
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(s));
@@ -263,7 +263,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       res.end(JSON.stringify(requestLog));
       return;
     }
-    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss|accounts\/[^/]+\/(?:mute|unmute|block|unblock)|announcements\/[^/]+\/dismiss|feedback)$/);
+    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss|accounts\/[^/]+\/(?:mute|unmute|block|unblock)|announcements\/[^/]+\/dismiss|feedback|polls\/[^/]+\/votes)$/);
     if (fr && method === 'POST') requestLog.push(fr[1]);
     if (pathname === '/__mock/translate-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
