@@ -1,7 +1,7 @@
 <!--lab:shell-->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <title>通報は、人に知らせる(案)</title>
-<meta name="lab:desc" content="『管理者に』ではなく『〈呼び名〉さんに知らせます』。中身を見るのは、通報した人と受け取る人だけ。受け取る人が休んでいるときは『お休み中です。ミュートかブロックを活用してね』。">
+<meta name="lab:desc" content="『管理者に』ではなく『〈呼び名〉さんに知らせます』。中身を見るのは、通報した人と受け取る人だけ。受け取る人が休んでいるときは『お休み中です』だけにせず、確認できる日と、ミュート・ブロックのボタンを別々に置く。">
 <meta name="lab:scenes" content="sent=知らせた;resting=受け取る人がお休み中">
 <meta name="lab:nav" content="none">
 <style>
@@ -27,12 +27,12 @@
   <!-- ① 押したとき(菜単の「通報」から) -->
   <section class="step s-ask">
     <div class="card">
-      <h2>くろはさんに知らせます</h2>
+      <h2>くろさんに知らせます</h2>
       <div class="who">
         <img src="/avatar-default.svg" alt="" />
-        <div><b>くろは</b><span class="muted" style="font-size:.8125rem">このサイトを管理しています。ゆっくり読みます。</span></div>
+        <div><b>くろ</b><span class="muted" style="font-size:.8125rem">このサイトを管理しています。ゆっくり読みます。</span></div>
       </div>
-      <p>通報の中身を見るのは、あなたと、くろはさんだけです。</p>
+      <p>通報の中身を見るのは、あなたと、くろさんだけです。<br>くろさんが確認できるのは、<b>木曜日(3日後)</b>です。</p>
       <form class="rp-form" method="post" action="/statuses/1/report">
         <label>
           <span>理由があれば、書いてください</span>
@@ -49,20 +49,26 @@
   <!-- ② 知らせたあと -->
   <section class="step s-sent">
     <div class="card" role="status">
-      <h2>くろはさんに届きました</h2>
-      <p>ありがとう。くろはさんが、ゆっくり読みます。</p>
-      <p class="muted" style="font-size:.8125rem">見たくないものは、ミュートかブロックで、離れておけます。</p>
-      <div class="row"><a class="chip" href="/settings/people">ミュートかブロック</a></div>
+      <h2>くろさんに届きました</h2>
+      <p>くろさんが確認できるのは、<b>木曜日(3日後)</b>です。ゆっくり読みます。</p>
+      <p class="muted" style="font-size:.8125rem">それまで、見たくないときは、ミュートかブロックで離れておけます。</p>
+      <div class="row">
+        <button class="chip" type="button">この人をミュートする</button>
+        <button class="chip" type="button">この人をブロックする</button>
+      </div>
     </div>
   </section>
 
   <!-- ③ 受け取る人が休んでいるとき -->
   <section class="step s-resting">
     <div class="card" role="status">
-      <h2>くろはさんは、いまお休み中です</h2>
-      <p>ミュートかブロックを、活用してね。</p>
-      <p class="muted" style="font-size:.8125rem">お休みが明けたら、くろはさんに届くように、知らせは残しておきます。</p>
-      <div class="row"><a class="chip" href="/settings/people">ミュートかブロック</a></div>
+      <h2>くろさんは、いまお休み中です</h2>
+      <p>確認できるのは、<b>木曜日(3日後)</b>です。</p>
+      <p class="muted" style="font-size:.8125rem">それまで、ミュートかブロックで離れておけます。知らせは、残しておきます。</p>
+      <div class="row">
+        <button class="chip" type="button">この人をミュートする</button>
+        <button class="chip" type="button">この人をブロックする</button>
+      </div>
     </div>
   </section>
 </div>
