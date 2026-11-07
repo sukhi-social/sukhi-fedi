@@ -657,3 +657,7 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
 .announce { padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border-strong, var(--color-border)); border-radius: var(--radius); background: var(--color-surface); display: grid; gap: var(--space-2); font-size: var(--text-sm); }
 .announce p { margin: 0 0 var(--space-2); line-height: 1.6; }
 .announce form { justify-self: start; }
+
+/* リストの一覧。名前は下線のあるリンクで、押せると分かるように(消す、だけが目立たないように)。 */
+.list-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; border-block-end: 1px solid var(--color-border); }
+.list-link { flex: 1; color: inherit; font-weight: 600; }

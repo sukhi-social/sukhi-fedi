@@ -230,6 +230,20 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
         return;
       }
     }
+    // リストを作る・消す(テストが見る)。作ったら、その一つを返す。
+    if (pathname === '/api/v1/lists' && method === 'POST') {
+      requestLog.push(`POST lists ${json?.title ?? ''}`);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ id: '9', title: json?.title ?? '', replies_policy: 'list', exclusive: false }));
+      return;
+    }
+    const ld = pathname.match(/^\/api\/v1\/lists\/([^/]+)$/);
+    if (ld && method === 'DELETE') {
+      requestLog.push(`DELETE lists/${ld[1]}`);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{}');
+      return;
+    }
     if (pathname === '/__mock/requests-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(requestLog));
