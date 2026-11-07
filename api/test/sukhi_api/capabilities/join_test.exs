@@ -105,7 +105,9 @@ defmodule SukhiApi.Capabilities.JoinTest do
       assert body == %{
                "receipt" => "482913",
                "claim" => "secret-claim",
-               "check_on" => "2026-11-05"
+               "check_on" => "2026-11-05",
+               "weekday" => 4,
+               "days_after" => 3
              }
 
       assert_received {:rpc, :submit, [attrs]}
