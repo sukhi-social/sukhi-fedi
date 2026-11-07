@@ -189,6 +189,7 @@ To keep you logged in, and to show pages the way you chose, we use three things.
 - **Session cookie** — a cookie to keep you logged in for a short while on the login and admin pages (signed on the server to prevent tampering).
 - **Language and time-zone cookies** — they remember the language you chose and the name of your time zone (for example `Asia/Tokyo`), so that times are shown as your local time of day. They contain nothing that identifies you.
 - **Browser storage (localStorage)** — the web app (SPA) stores the authentication token it receives after you log in in the browser's localStorage, not in a cookie. It logs in to the API with this token.
+- **Browser storage (drafts)** — while you write an article in the web app, the half-written title and text are kept in your device's localStorage only. They are never sent to the server. Once you send the article they are cleared the next time you open the writing page, and you can clear them yourself with the discard button there.
 
 In addition, for bot and abuse protection, the security tool (Anubis) and Cloudflare on the connection path may set cookies for security purposes.
 

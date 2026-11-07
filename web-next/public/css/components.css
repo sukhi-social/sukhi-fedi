@@ -534,6 +534,31 @@
     mask-image: linear-gradient(to bottom, black 70%, transparent);
   }
 
+  /* 記事の、流れでの姿: 題 → 書き出し(三行ぶんだけ) → 「記事を読む」。 */
+  .content-wrap.excerpt {
+    max-height: 5.4rem;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent);
+    mask-image: linear-gradient(to bottom, black 55%, transparent);
+  }
+  .article-title {
+    margin: var(--space-1) 0 0;
+    font-size: 1.2rem;
+    line-height: 1.45;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .article-title a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .article-title.reader-title {
+    margin-block-start: var(--space-3);
+    font-size: 1.6rem;
+    line-height: 1.4;
+    font-weight: 700;
+  }
+
   /* リーダー（記事ページ）の本文。畳まず、ゆったり読める行間と段落の間。 */
   .content-wrap.reader .content {
     line-height: 1.85;
@@ -1435,6 +1460,70 @@
   .composer-hint {
     font-size: var(--text-sm);
     color: var(--color-text-muted);
+  }
+
+  /* 記事を書く面。題は枠のない一行(紙の見出しのように)、本文は読むときの大きさで書く。 */
+  .composer-article .title-field input {
+    inline-size: 100%;
+    padding: 0.4rem 0;
+    font-size: 1.35rem;
+    line-height: 1.4;
+    font-weight: 600;
+    background: transparent;
+    border: 0;
+    border-block-end: 1px solid var(--color-border);
+    border-radius: 0;
+  }
+  .composer-article .title-field input:focus {
+    outline: none;
+    border-block-end-color: var(--color-accent-strong);
+  }
+  .composer-article .article-body textarea.grows {
+    min-height: 18rem;
+    font-size: 1.1875rem;
+    line-height: 1.85;
+  }
+  .composer-article .article-body textarea.grows:lang(ja) {
+    letter-spacing: 0.05em;
+  }
+
+  /* 「どう届けるか」: 二つの選択肢に、その結果を一行ずつ。 */
+  .wire {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .wire legend {
+    padding: 0;
+    margin-block-end: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .wire label {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.1rem var(--space-3);
+    align-items: start;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+  .wire label:has(input:checked) {
+    border-color: var(--color-accent-strong);
+    background: var(--color-accent-soft);
+  }
+  .wire input {
+    margin-block-start: 0.3rem;
+  }
+  .wire b {
+    font-weight: 600;
+  }
+  .wire small {
+    grid-column: 2;
+    color: var(--color-text-muted);
+    line-height: 1.6;
   }
 
   .composer-row {

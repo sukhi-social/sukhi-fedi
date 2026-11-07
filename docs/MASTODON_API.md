@@ -68,6 +68,18 @@ note — the latter auto-fetches + mirrors via
 **not yet** wired into `create_status/2` — only standalone Poll
 read + vote endpoints are live (see Polls below).
 
+**Sukhi extension: `title`, `as_article` (writing an article).** A
+status with a `title` is a titled post (stored in `notes.title`, the same
+column an imported `Article` uses). `title` is trimmed, blank means none,
+and more than 120 characters is `422` (`details.title`) — the limit is on
+this write path only, never on what we import. `as_article` (boolean; the
+strings `"false"` / `"0"` read as false) picks the wire type: `true` sends
+an AP `Article` (with an excerpt in `summary`, because Mastodon shows an
+`Article` as title + `summary` + link and drops `content`), otherwise a
+`Note` with `name` and the title quoted at the head of the body. Without a
+`title`, `as_article` does nothing. The wire shape lives in
+`SukhiFedi.AP.Titled`. Read back, `Status.title` is the bare title.
+
 **Sukhi extension: `delivery`.** A Status the viewer wrote themself,
 within the last 2 days, carries `delivery`: `"delivering"` (still on its
 way out), `"delivered"` (nothing is waiting), or `"delayed"` (a send is

@@ -44,6 +44,55 @@ defmodule SukhiFedi.Integration.NotesTest do
       assert ev.payload["misskey_content"] == "**hello**"
     end
 
+    test "題つきの記事: 題は前後を落として置き、outbox には as_article ごと載る" do
+      a = create_account!("alice_article")
+
+      {:ok, note} =
+        Notes.create_status(a, %{
+          "status" => "## 火のこと\n\n弱いほうが、待てる。",
+          "title" => "  ほうじ茶を焙じた日  ",
+          "as_article" => true
+        })
+
+      assert note.title == "ほうじ茶を焙じた日"
+
+      ev = outbox_event!(note)
+      assert ev.payload["title"] == "ほうじ茶を焙じた日"
+      assert ev.payload["as_article"] == true
+      assert ev.payload["content"] =~ "<h2>"
+    end
+
+    test "as_article はフォームの \"false\" / \"0\" を偽と読む" do
+      a = create_account!("alice_article_form")
+
+      for off <- ["false", "0", ""] do
+        {:ok, note} =
+          Notes.create_status(a, %{"status" => "本文", "title" => "題", "as_article" => off})
+
+        assert outbox_event!(note).payload["as_article"] == false
+      end
+
+      {:ok, on} = Notes.create_status(a, %{"status" => "本文", "title" => "題", "as_article" => "true"})
+      assert outbox_event!(on).payload["as_article"] == true
+    end
+
+    test "空の題は題なし、長すぎる題は書く口で断る" do
+      a = create_account!("alice_article_title")
+
+      {:ok, blank} = Notes.create_status(a, %{"status" => "本文", "title" => "   "})
+      assert blank.title == nil
+
+      too_long = String.duplicate("あ", 121)
+
+      assert {:error, {:validation, %{title: [msg]}}} =
+               Notes.create_status(a, %{"status" => "本文", "title" => too_long})
+
+      assert msg =~ "120"
+
+      # 上限ちょうどは通る。
+      assert {:ok, _} = Notes.create_status(a, %{"status" => "本文", "title" => String.duplicate("あ", 120)})
+    end
+
     test "spoiler_text → cw, in_reply_to_id resolves to ap_id" do
       a = create_account!("alice_reply")
 
@@ -932,6 +981,15 @@ defmodule SukhiFedi.Integration.NotesTest do
 
       assert mentions_for(b.id) == [note.id]
     end
+  end
+
+
+  defp outbox_event!(note) do
+    Repo.one!(
+      from(e in OutboxEvent,
+        where: e.subject == "sns.outbox.note.created" and e.aggregate_id == ^to_string(note.id)
+      )
+    )
   end
 
 end
