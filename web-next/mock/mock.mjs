@@ -289,6 +289,7 @@ const ROUTES = [
   ['/api/v1/accounts/migration', () => ({ aliases: ['https://old.example/users/kuro'], moved_to: null })],
   ['/api/v1/accounts/lookup', () => ME],
   ['/api/v1/accounts/search', () => [NABI, HINA]],
+  [/^\/api\/v1\/accounts\/([^/]+)\/lists$/, () => [LISTS[0]]],
   ['/api/v1/accounts/relationships', () =>
     PEOPLE.map((p) => ({ id: p.id, following: p.id !== '1', followed_by: true, requested: false }))],
   [/^\/api\/v1\/accounts\/([^/]+)\/statuses$/, () => HOME.slice(0, 4)],

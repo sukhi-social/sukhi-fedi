@@ -36,6 +36,7 @@ export function profileActions(ctx: Ctx, accountId: string, rel: Relationship): 
     <span class="boost-wrap" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false" @closemenus.document="open = false">
       <button type="button" class="chip" aria-haspopup="menu" :aria-expanded="open" aria-label="${t('status.more')}" @click="open = !open">…</button>
       <div class="menu boost-menu profile-menu" role="menu" x-show="open" x-cloak>
+        <a class="menu-item" role="menuitem" href="/accounts/${accountId}/lists">${t('lists.addTo')}</a>
         ${act(rel.muting ? 'unmute' : 'mute', t(rel.muting ? 'profile.unmute' : 'profile.mute'))}
         ${act(rel.blocking ? 'unblock' : 'block', t(rel.blocking ? 'profile.unblock' : 'profile.block'), { danger: !rel.blocking, confirm: rel.blocking ? undefined : t('profile.confirmBlock') })}
       </div>

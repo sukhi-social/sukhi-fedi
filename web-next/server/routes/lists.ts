@@ -266,3 +266,49 @@ route('POST', '/lists/:id/gate', async (ctx) => {
   }
   return redirect(`/lists/${encodeURIComponent(id)}/members`);
 });
+
+// ── プロフィールから、この人を入れるリストを選ぶ ───────────────────
+// 入っているリストには「外す」、入っていないリストには「加える」。押すと、その行だけが入れ替わる。
+const memberRow = (ctx: Ctx, accountId: string, list: List, isMember: boolean) =>
+  html`<article class="list-row" id="al-${list.id}">
+    <span class="list-link">${list.title}</span>
+    <form method="post" action="/accounts/${accountId}/lists/${list.id}/${isMember ? 'remove' : 'add'}" in-place>
+      <button type="submit" class="chip" aria-pressed="${isMember ? 'true' : 'false'}">${isMember ? ctx.t('listDetail.removeMember') : ctx.t('listDetail.add')}</button>
+    </form>
+  </article>`;
+
+route('GET', '/accounts/:id/lists', async (ctx) => {
+  const t = ctx.t;
+  const me = await needMe(ctx);
+  const id = ctx.params.id;
+  if (!idOk(id)) throw new NotFound();
+  const enc = encodeURIComponent(id);
+  const [who, all, mine] = await Promise.all([
+    gwJson<Account>(ctx, 'GET', `/api/v1/accounts/${enc}`, { auth: false, notFound: true }),
+    gwJson<List[]>(ctx, 'GET', '/api/v1/lists').catch(() => null),
+    gwJson<List[]>(ctx, 'GET', `/api/v1/accounts/${enc}/lists`).catch(() => [] as List[])
+  ]);
+  const inIds = new Set((mine ?? []).map((l) => String(l.id)));
+  const body = html`<header class="timeline page-head">
+      <h1>${t('lists.addTo')}</h1>
+      <p class="prose-small"><a class="chip" href="/@${who.acct}">@${who.acct}</a></p>
+    </header>
+    <section class="timeline stack">
+      ${all === null ? html`<p class="error">${t('common.readFailed')}</p>` : ''}
+      ${all && all.length === 0 ? html`<p class="prose-small">${t('lists.empty')} <a href="/lists">${t('lists.title')}</a></p>` : ''}
+      ${all && all.length ? html`<div>${all.map((l) => memberRow(ctx, id, l, inIds.has(String(l.id))))}</div>` : ''}
+      <p class="muted text-sm">${t('listDetail.followHint')}</p>
+    </section>`;
+  return ok(layout(ctx, { title: t('lists.addTo'), me, body }));
+});
+
+for (const verb of ['add', 'remove'] as const) {
+  route('POST', `/accounts/:id/lists/:list/${verb}`, async (ctx) => {
+    await needMe(ctx);
+    const { id, list } = ctx.params;
+    if (!idOk(id) || !idOk(list)) throw new NotFound();
+    await gwJson(ctx, verb === 'add' ? 'POST' : 'DELETE', `/api/v1/lists/${encodeURIComponent(list)}/accounts`, { json: { account_ids: [id] } });
+    const l = await gwJson<List>(ctx, 'GET', `/api/v1/lists/${encodeURIComponent(list)}`, { notFound: true });
+    return backOr(ctx, memberRow(ctx, id, l, verb === 'add'));
+  });
+}

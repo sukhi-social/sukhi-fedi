@@ -117,7 +117,7 @@ You may leave. No reason asked.
 
 What the current UI (web-next) doesn't have yet. We haven't built it; we aren't hiding it.
 
-Saving drafts, private notes on a person, adding someone to a list from their profile,
+Saving drafts, private notes on a person,
 and handing a post over inside a room.
 ([`web-next/README.md`](../web-next/README.md), "まだ", is the up-to-date list.)
 
