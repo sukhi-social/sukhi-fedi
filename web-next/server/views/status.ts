@@ -10,7 +10,7 @@
 
 import { html, raw, type SafeHtml } from '../html.ts';
 import type { Ctx } from '../http.ts';
-import type { Account, MediaAttachment, Status } from '../types.ts';
+import type { Account, MediaAttachment, Poll, Status } from '../types.ts';
 import { renderEmojis } from '../emoji.ts';
 import { renderMfm } from '../mfm.ts';
 import { phrase } from '../phrase.ts';
@@ -81,6 +81,7 @@ function reactions(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
 
 function actions(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   const t = ctx.t;
+  const rp = o.domId ?? `st-${s.id}`;
   const mine = o.me?.id === s.account.id;
   const post = (verb: string) => `/statuses/${s.id}/${verb}`;
   return html`<footer class="status-actions">
@@ -102,6 +103,7 @@ function actions(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
     <span class="boost-wrap" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false" @closemenus.document="open = false">
       <button type="button" class="chip" aria-haspopup="menu" :aria-expanded="open" aria-label="${t('status.more')}" @click="open = !open">${icon('more')}</button>
       <div class="menu" role="menu" x-show="open" x-cloak>
+        <a class="menu-item" role="menuitem" href="/statuses/${s.id}/react?d=${rp}" up-target="#rp-${rp}" up-history="false" up-scroll="false" @click="open = false">${icon('smile')}<span>${t('status.reactAdd')}</span></a>
         ${mine
           ? html`<form method="post" action="${post('delete')}" in-place up-confirm="${t('status.confirmDelete')}">
               <button type="submit" class="menu-item danger" role="menuitem">${icon('trash')}<span>${t('status.delete')}</span></button>
@@ -116,6 +118,43 @@ function actions(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
       <button type="submit" class="chip bookmark ${s.bookmarked ? 'active' : ''}" aria-pressed="${s.bookmarked ? 'true' : 'false'}" aria-label="${s.bookmarked ? t('status.bookmarkRemove') : t('status.bookmarkAdd')}">${icon('bookmark', !!s.bookmarked)}</button>
     </form>
   </footer>`;
+}
+
+// 投票。数も、百分率も、目では見せない(棒の長さだけ)。読み上げには割合を添える。
+// 投票済み・締め切りは結果の棒、それ以外は選ぶ形。押したあとは、この枠だけが入れ替わる(id が差し替え先)。
+export function pollBlock(ctx: Ctx, p: Poll, o: { href: string; remote: boolean; canVote: boolean }): SafeHtml {
+  const t = ctx.t;
+  const total = Math.max(1, p.votes_count);
+  const done = p.expired || !!p.voted;
+  const closed = p.expired ? html`<p class="poll-meta">${t('status.pollClosedNote')}</p>` : '';
+  const link = !o.canVote
+    ? html`<p class="poll-meta"><a href="${o.href}" ${o.remote ? raw('up-follow="false" target="_blank" rel="noopener noreferrer"') : ''}>${t('status.poll')}</a></p>`
+    : '';
+  if (done) {
+    return html`<div class="poll" id="poll-${p.id}" data-in-place aria-label="${t('status.poll')}">
+      ${p.options.map((opt, i) => {
+        const pct = Math.round(((opt.votes_count ?? 0) / total) * 100);
+        const mine = p.own_votes?.includes(i);
+        return html`<div class="poll-result ${mine ? 'mine' : ''}">
+          <div class="poll-bar" style="width: ${pct}%"></div>
+          <span class="poll-label">${opt.title}${mine ? html` <span class="poll-mine">${t('status.pollMine')}</span>` : ''}</span>
+          <span class="visually-hidden">${pct}%</span>
+        </div>`;
+      })}
+      ${closed}${link}
+    </div>`;
+  }
+  if (!o.canVote) {
+    return html`<div class="poll" id="poll-${p.id}" aria-label="${t('status.poll')}">
+      ${p.options.map((opt) => html`<p class="poll-choice"><span>${opt.title}</span></p>`)}${link}
+    </div>`;
+  }
+  return html`<form class="poll" id="poll-${p.id}" data-in-place method="post" action="/polls/${p.id}/vote" in-place aria-label="${t('status.poll')}">
+    ${p.options.map(
+      (opt, i) => html`<label class="poll-choice"><input type="${p.multiple ? 'checkbox' : 'radio'}" name="choice" value="${i}" ${p.multiple ? '' : raw('required')} /><span>${opt.title}</span></label>`
+    )}
+    <div><button type="submit" class="chip">${t('status.vote')}</button></div>
+  </form>`;
 }
 
 function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
@@ -175,12 +214,7 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
 
       ${s.spoiler_text ? '' : mediaBlock}
 
-      ${s.poll
-        ? html`<div class="poll" aria-label="${t('status.poll')}">
-            ${s.poll.options.map((opt) => html`<p class="poll-choice"><span>${opt.title}</span></p>`)}
-            <p class="poll-meta"><a href="${s.url ?? `/@${a.acct}/${s.id}`}" ${s.url ? raw('up-follow="false" target="_blank" rel="noopener noreferrer"') : ''}>${t('status.poll')}</a></p>
-          </div>`
-        : ''}
+      ${s.poll ? pollBlock(ctx, s.poll, { href: s.url ?? `/@${a.acct}/${s.id}`, remote: !!s.url, canVote: !!o.me }) : ''}
 
       ${s.card && s.media_attachments.length === 0 && !s.quote
         ? html`<a class="preview-card" href="${s.card.url}" target="_blank" rel="noopener noreferrer nofollow" up-follow="false">
@@ -193,6 +227,7 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
         : ''}
 
       ${reactions(ctx, s, o)}
+      ${o.me ? html`<div id="rp-${o.domId ?? `st-${s.id}`}"></div>` : ''}
       ${o.me ? actions(ctx, s, o) : ''}
       ${o.note ? html`<p class="muted status-note" role="status">${o.note}</p>` : ''}
     </div>

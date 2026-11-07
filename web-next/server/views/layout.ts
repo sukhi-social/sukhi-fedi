@@ -61,6 +61,10 @@ function appNav(ctx: Ctx, me: Account): SafeHtml {
           </button>
           <div class="nav-menu-panel" role="menu" x-show="open" x-cloak x-transition.opacity.duration.150ms>
             <a class="nav-menu-item" role="menuitem" href="${profileHref}" aria-current="${ctx.url.pathname === profileHref ? 'page' : null}">${icon('user')}<span>${ctx.t('nav.profile')}</span></a>
+            <a class="nav-menu-item" role="menuitem" href="/bookmarks" aria-current="${ctx.url.pathname === '/bookmarks' ? 'page' : null}">${icon('bookmark')}<span>${ctx.t('nav.bookmarks')}</span></a>
+            <a class="nav-menu-item" role="menuitem" href="/favourites" aria-current="${ctx.url.pathname === '/favourites' ? 'page' : null}">${icon('star')}<span>${ctx.t('nav.favourites')}</span></a>
+            <a class="nav-menu-item" role="menuitem" href="/rooms" aria-current="${ctx.url.pathname.startsWith('/rooms') ? 'page' : null}">${icon('mail')}<span>${ctx.t('rooms.title')}</span></a>
+            <a class="nav-menu-item" role="menuitem" href="/lists" aria-current="${ctx.url.pathname === '/lists' ? 'page' : null}">${icon('list')}<span>${ctx.t('nav.lists')}</span></a>
             <a class="nav-menu-item" role="menuitem" href="/settings" aria-current="${ctx.url.pathname === '/settings' ? 'page' : null}">${icon('settings')}<span>${ctx.t('nav.settings')}</span></a>
             <div class="nav-menu-sep" role="separator"></div>
             <form method="post" action="/logout">

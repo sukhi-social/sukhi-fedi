@@ -10,11 +10,12 @@ import { html, raw, type SafeHtml } from '../html.ts';
 import { ok, redirect, route, type Ctx, type Reply } from '../http.ts';
 import { saveSession, setMe } from '../session.ts';
 import { delayWords, timeWords } from '../time.ts';
-import type { Account, Notification, NotificationType, Relationship, Status } from '../types.ts';
+import type { Account, Notification, NotificationType, Poll, Relationship, Status } from '../types.ts';
 import { layout } from '../views/layout.ts';
 import { avatar } from '../views/parts.ts';
 import { followButton, nameHtml, nameOf, profileActions, requestButtons } from '../views/account.ts';
-import { statusCard } from '../views/status.ts';
+import { pollBlock, statusCard } from '../views/status.ts';
+import { byCategory, customEmojis } from '../customEmojis.ts';
 import { backOr, failText, needMe, replyAcctsFor } from './shared.ts';
 import { FILTERS } from './read.ts';
 import { renderEmojis } from '../emoji.ts';
@@ -105,8 +106,15 @@ route('POST', '/accounts/:id/:verb', async (ctx) => {
 type Scheduled = { id: string; scheduled_at: string; params?: { text?: string } };
 type Held = { id: string; text: string; at: string };
 
+const POLL_EXPIRES: [number, 'compose.pollH1' | 'compose.pollD1' | 'compose.pollD3' | 'compose.pollD7'][] = [
+  [3600, 'compose.pollH1'],
+  [86400, 'compose.pollD1'],
+  [259200, 'compose.pollD3'],
+  [604800, 'compose.pollD7']
+];
+
 type ComposeView = {
-  values?: { status?: string; spoiler?: string; sensitive?: boolean; visibility?: string };
+  values?: { status?: string; spoiler?: string; sensitive?: boolean; visibility?: string; poll?: string[]; pollExpires?: string; pollMultiple?: boolean };
   replyId?: string;
   quoteId?: string;
   error?: string;
@@ -132,7 +140,8 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
 
   const fetchOne = (id?: string) =>
     id ? gwJson<Status>(ctx, 'GET', `/api/v1/statuses/${encodeURIComponent(id)}`, { auth: 'optional' }).catch(() => null) : Promise.resolve(null);
-  const [replyTo, quoteOf, held] = await Promise.all([fetchOne(replyId), fetchOne(quoteId), heldList(ctx)]);
+  const [replyTo, quoteOf, held, emojis] = await Promise.all([fetchOne(replyId), fetchOne(quoteId), heldList(ctx), customEmojis(ctx)]);
+  const emojiGroups = byCategory(emojis);
 
   // 返信は、相手の @ を頭に置いて始める(自分への返信は、置かない)。
   // 他のアプリの「共有」から来たとき(manifest の share_target)は、題・本文・URL を、重ならないように置く。
@@ -149,7 +158,7 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
 
   const body = html`<header class="timeline page-head"><h1>${t('nav.compose')}</h1></header>
     <div class="timeline stack">
-      <form class="composer composer-page" method="post" action="/compose" enctype="multipart/form-data" x-data="{ cw: ${String(!!v.values?.spoiler)}, files: [] }">
+      <form class="composer composer-page" method="post" action="/compose" enctype="multipart/form-data" x-data="composeAssist({ cw: ${String(!!v.values?.spoiler)} })">
         ${replyId ? html`<input type="hidden" name="in_reply_to_id" value="${replyId}" />` : ''}
         ${quoteId ? html`<input type="hidden" name="quote_id" value="${quoteId}" />` : ''}
         ${quoteOf
@@ -168,14 +177,36 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
 
         <label class="stack-tight">
           <span class="visually-hidden">${t('compose.bodyLabel')}</span>
-          <textarea name="status" class="grows" rows="6" required autofocus placeholder="${replyTo ? t('compose.placeholderReply') : t('compose.placeholderNew')}">${text}</textarea>
+          <textarea name="status" class="grows" rows="6" required autofocus x-ref="body" @input.debounce.250ms="suggest()" placeholder="${replyTo ? t('compose.placeholderReply') : t('compose.placeholderNew')}">${text}</textarea>
         </label>
+        <div class="suggest-host" x-show="hits" x-cloak x-html="hits" @click="pick($event)"></div>
+        ${emojiGroups.length
+          ? html`<details class="composer-more">
+              <summary>${t('compose.emoji')}</summary>
+              ${emojiGroups.map(
+                ([cat, list]) => html`<p class="muted text-sm">${cat ?? t('emojiPicker.uncategorized')}</p>
+                  <div class="emoji-grid">${list.map((e) => html`<button type="button" class="emoji-btn" title=":${e.shortcode}:" aria-label=":${e.shortcode}:" @click="ins(':${e.shortcode}:')"><img class="emoji" src="${e.static_url ?? e.url}" alt="" loading="lazy" /></button>`)}</div>`
+              )}
+            </details>`
+          : ''}
 
         <details class="composer-more">
           <summary>${t('compose.more')}</summary>
           <div class="composer-more-row">
             <label class="stack-tight"><input type="checkbox" x-model="cw" /><span>${t('compose.fold')}</span></label>
             <label class="stack-tight"><input type="checkbox" name="sensitive" value="1" ${v.values?.sensitive ? raw('checked') : ''} /><span>${t('compose.sensitive')}</span></label>
+          </div>
+        </details>
+
+        <details class="composer-more" ${v.values?.poll?.some((x) => x) ? raw('open') : ''}>
+          <summary>${t('compose.poll')}</summary>
+          <div class="stack-tight">
+            ${[0, 1, 2, 3].map((i) => html`<label class="stack-tight"><span class="visually-hidden">${t('compose.pollOption', { n: i + 1 })}</span>
+              <input type="text" name="poll_option" maxlength="50" value="${v.values?.poll?.[i] ?? ''}" placeholder="${t('compose.pollOption', { n: i + 1 })}" /></label>`)}
+            <label class="stack-tight"><span>${t('compose.pollDuration')}</span>
+              <select name="poll_expires">${POLL_EXPIRES.map(([sec, key]) => html`<option value="${sec}" ${String(sec) === (v.values?.pollExpires ?? '86400') ? raw('selected') : ''}>${t(key)}</option>`)}</select>
+            </label>
+            <label class="stack-tight"><input type="checkbox" name="poll_multiple" value="1" ${v.values?.pollMultiple ? raw('checked') : ''} /><span>${t('compose.pollMultiple')}</span></label>
           </div>
         </details>
 
@@ -220,10 +251,17 @@ route('POST', '/compose', async (ctx) => {
   const f = await ctx.form();
   const str = (k: string) => String(f.get(k) ?? '');
   const text = str('status').trim();
-  const values = { status: str('status'), spoiler: str('spoiler_text'), sensitive: f.get('sensitive') === '1', visibility: str('visibility') || 'public' };
+  const pollOptions = f.getAll('poll_option').map((x) => String(x).trim());
+  const values = {
+    status: str('status'), spoiler: str('spoiler_text'), sensitive: f.get('sensitive') === '1', visibility: str('visibility') || 'public',
+    poll: pollOptions, pollExpires: str('poll_expires'), pollMultiple: f.get('poll_multiple') === '1'
+  };
   const view = (error: string): Promise<Reply> => composePage(ctx, me, { values, replyId: str('in_reply_to_id') || undefined, quoteId: str('quote_id') || undefined, error }, 422);
 
   if (!text) return view(t('feedback.empty'));
+  // 投票は、選択肢が二つ以上あるときだけ。一つだけ書いてあるのは、まだ途中。
+  const filled = pollOptions.filter(Boolean);
+  if (filled.length === 1) return view(t('compose.pollNeedTwo'));
 
   try {
     // 画像は、先に gateway へ(四枚まで)。
@@ -242,6 +280,10 @@ route('POST', '/compose', async (ctx) => {
     if (str('in_reply_to_id')) body.in_reply_to_id = str('in_reply_to_id');
     if (str('quote_id')) body.quote_id = str('quote_id');
     if (mediaIds.length) body.media_ids = mediaIds;
+    if (filled.length >= 2) {
+      const sec = Number(values.pollExpires);
+      body.poll = { options: filled, expires_in: POLL_EXPIRES.some(([n]) => n === sec) ? sec : 86400, multiple: values.pollMultiple };
+    }
     // 四半刻の余白。0 にすれば、すぐ上がる。
     const delayed = config.postDelayMin > 0;
     if (delayed) body.scheduled_at = new Date(Date.now() + config.postDelayMin * 60_000).toISOString();
@@ -262,6 +304,17 @@ route('POST', '/compose', async (ctx) => {
     if (e instanceof GatewayError || e instanceof TypeError) return view(failText(ctx, e));
     throw e;
   }
+});
+
+// 投票する。返ってきた最新の投票で、この枠だけを入れ替える。
+route('POST', '/polls/:id/vote', async (ctx) => {
+  await needMe(ctx);
+  const f = await ctx.form();
+  const choices = f.getAll('choice').map(String).filter((c) => /^\d{1,3}$/.test(c));
+  if (choices.length === 0) return backOr(ctx, null);
+  const id = encodeURIComponent(ctx.params.id);
+  const poll = await gwJson<Poll>(ctx, 'POST', `/api/v1/polls/${id}/votes`, { json: { choices } });
+  return backOr(ctx, pollBlock(ctx, poll, { href: '#', remote: false, canVote: true }));
 });
 
 route('POST', '/compose/withdraw', async (ctx) => {

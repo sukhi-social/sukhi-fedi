@@ -105,6 +105,45 @@ document.addEventListener("alpine:init", () => {
       });
     },
   }));
+
+  // 書く欄の手助け: 絵文字をカーソルに入れる / @ のあとの名前の候補(サーバが小さな HTML で返す)。
+  // 候補は、押したときだけ入る。勝手には入れない。
+  Alpine.data("composeAssist", ({ cw = false } = {}) => ({
+    cw,
+    files: [],
+    hits: "",
+    ins(text) {
+      const el = this.$refs.body;
+      el.setRangeText(text + " ", el.selectionStart, el.selectionEnd, "end");
+      el.focus();
+    },
+    async suggest() {
+      const el = this.$refs.body;
+      const before = el.value.slice(0, el.selectionStart);
+      const m = /(?:^|\s)@([\w.-]{1,30}(?:@[\w.-]*)?)$/.exec(before);
+      if (!m) {
+        this.hits = "";
+        return;
+      }
+      try {
+        const res = await fetch("/people/suggest?q=" + encodeURIComponent(m[1]), { credentials: "same-origin" });
+        this.hits = res.ok ? await res.text() : "";
+      } catch {
+        this.hits = "";
+      }
+    },
+    pick(event) {
+      const b = event.target.closest("[data-acct]");
+      if (!b) return;
+      const el = this.$refs.body;
+      const pos = el.selectionStart;
+      const head = el.value.slice(0, pos).replace(/@[\w.-]*(?:@[\w.-]*)?$/, "@" + b.dataset.acct + " ");
+      el.value = head + el.value.slice(pos);
+      el.setSelectionRange(head.length, head.length);
+      this.hits = "";
+      el.focus();
+    },
+  }));
 });
 
 // ── どの OS か(粗いヒント)。--tap-min が、これを読む(docs/UX_CONTRACT.md)──

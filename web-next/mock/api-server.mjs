@@ -207,7 +207,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     try { json = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { /* JSON でない */ }
 
     if (pathname === '/api/v1/statuses' && method === 'POST' && json?.scheduled_at) {
-      const s = { id: `sch${scheduled.length + 1}`, scheduled_at: json.scheduled_at, params: { text: json.status } };
+      const s = { id: `sch${scheduled.length + 1}`, scheduled_at: json.scheduled_at, params: { text: json.status, poll: json.poll ?? null } };
       scheduled.push(s);
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(s));
@@ -230,12 +230,40 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
         return;
       }
     }
+    // リストを作る・消す(テストが見る)。作ったら、その一つを返す。
+    if (pathname === '/api/v1/lists' && method === 'POST') {
+      requestLog.push(`POST lists ${json?.title ?? ''}`);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ id: '9', title: json?.title ?? '', replies_policy: 'list', exclusive: false }));
+      return;
+    }
+    const la = pathname.match(/^\/api\/v1\/lists\/([^/]+)\/accounts$/);
+    if (la && (method === 'POST' || method === 'DELETE')) {
+      requestLog.push(`${method} lists/${la[1]}/accounts ${(json?.account_ids ?? []).join(',')}`);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{}');
+      return;
+    }
+    const lp = pathname.match(/^\/api\/v1\/lists\/([^/]+)$/);
+    if (lp && method === 'PUT') {
+      requestLog.push(`PUT lists/${lp[1]} ${JSON.stringify(json)}`);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ id: lp[1], title: 'お茶の人', ...json }));
+      return;
+    }
+    const ld = pathname.match(/^\/api\/v1\/lists\/([^/]+)$/);
+    if (ld && method === 'DELETE') {
+      requestLog.push(`DELETE lists/${ld[1]}`);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{}');
+      return;
+    }
     if (pathname === '/__mock/requests-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(requestLog));
       return;
     }
-    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss|accounts\/[^/]+\/(?:mute|unmute|block|unblock)|announcements\/[^/]+\/dismiss|feedback)$/);
+    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss|accounts\/[^/]+\/(?:mute|unmute|block|unblock)|announcements\/[^/]+\/dismiss|feedback|polls\/[^/]+\/votes)$/);
     if (fr && method === 'POST') requestLog.push(fr[1]);
     if (pathname === '/__mock/translate-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });

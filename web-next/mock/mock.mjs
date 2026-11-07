@@ -87,6 +87,8 @@ const status = (id, who, content, mins, extra = {}) => ({
   ...extra
 });
 
+const EMOJI_SVG = (c) => `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text x='12' y='18' font-size='18' text-anchor='middle'>${c}</text></svg>`)}`;
+
 const S1 = status('1001', ME, '<p>ほうじ茶を、はじめて自分で焙じました。台所じゅうがいい匂いです。</p>', 35, {
   favourites_count: 4,
   reblogs_count: 1,
@@ -103,7 +105,11 @@ const S2 = status('1002', NABI, '<p>영도에서 커피. 바다가 보이는 자
 });
 
 const S3 = status('1003', HINA, '<p>みなさん、今日はあたたかいものに出会えましたか。</p>', 300, {
-  reblogs_count: 3
+  reblogs_count: 3,
+  poll: {
+    id: 'p1', expires_at: null, expired: false, multiple: false, votes_count: 5, voters_count: 5, voted: false, own_votes: [],
+    options: [{ title: 'お茶', votes_count: 3 }, { title: 'スープ', votes_count: 1 }, { title: 'ひなたぼっこ', votes_count: 1 }]
+  }
 });
 
 // 引用と、たたまれたもの(CW)。どちらも画面の形が変わるので、一枚ずつ。
@@ -173,9 +179,10 @@ export const CONVERSATIONS = [
   }
 ];
 
+// gateway と同じ、新しい順。
 export const CONVERSATION_STATUSES = [
-  DM('3001', ME, '<p>こんばんは。あしたのこと、決めましょうか。</p>', 40),
-  DM('3002', NABI, '<p>내일 시간 괜찮으세요?</p>', 18)
+  DM('3002', NABI, '<p>@kuro 내일 시간 괜찮으세요?</p>', 18),
+  DM('3001', ME, '<p>@nabi こんばんは。あしたのこと、決めましょうか。</p>', 40)
 ];
 
 // クリップ(自分あて DM)。ピンは既存のリアクション機構を借りている。
@@ -281,6 +288,7 @@ const ROUTES = [
   ['/api/v1/accounts/verify_credentials', () => ({ ...ME, source: { note: 'お茶と、古い本。', fields: [] } })],
   ['/api/v1/accounts/migration', () => ({ aliases: ['https://old.example/users/kuro'], moved_to: null })],
   ['/api/v1/accounts/lookup', () => ME],
+  ['/api/v1/accounts/search', () => [NABI, HINA]],
   ['/api/v1/accounts/relationships', () =>
     PEOPLE.map((p) => ({ id: p.id, following: p.id !== '1', followed_by: true, requested: false }))],
   [/^\/api\/v1\/accounts\/([^/]+)\/statuses$/, () => HOME.slice(0, 4)],
@@ -289,7 +297,11 @@ const ROUTES = [
   ['/api/v1/announcements', () => ANNOUNCEMENTS],
   [/^\/api\/v1\/announcements\/[^/]+\/dismiss$/, () => ({})],
   ['/api/v1/feedback', () => ({ id: 'f1' })],
-  ['/api/v1/custom_emojis', () => []],
+  ['/api/v1/custom_emojis', () => [
+    { shortcode: 'tea', url: EMOJI_SVG('🍵'), static_url: EMOJI_SVG('🍵'), category: 'くらし', visible_in_picker: true },
+    { shortcode: 'cat', url: EMOJI_SVG('🐈'), static_url: EMOJI_SVG('🐈'), category: 'くらし', visible_in_picker: true },
+    { shortcode: 'star', url: EMOJI_SVG('⭐'), static_url: EMOJI_SVG('⭐'), category: null, visible_in_picker: true }
+  ]],
   ['/api/v1/follow_invites', () => [{ code: 'warm-code' }]],
   ['/api/v1/follow_requests', () => [NABI]],
   [/^\/api\/v1\/follow_requests\/[^/]+\/(authorize|reject)$/, () => ({ id: '1', following: false, followed_by: true, requested: false })],
@@ -304,6 +316,10 @@ const ROUTES = [
   ['/api/v1/favourites', () => [S2]],
   ['/api/v1/conversations', () => CONVERSATIONS],
   [/^\/api\/v1\/conversations\/([^/]+)\/statuses$/, () => CONVERSATION_STATUSES],
+  [/^\/api\/v1\/polls\/([^/]+)\/votes$/, (m) => ({
+    id: m[1], expires_at: null, expired: false, multiple: false, votes_count: 6, voters_count: 6, voted: true, own_votes: [1],
+    options: [{ title: 'お茶', votes_count: 3 }, { title: 'スープ', votes_count: 2 }, { title: 'ひなたぼっこ', votes_count: 1 }]
+  })],
   ['/api/v1/lists', () => LISTS],
   // 全員を入れると、どの投稿にもリストの札が付いて「そういう画面」に
   // 見えてしまう。一人だけ入れて、札が付く人と付かない人を並べる。

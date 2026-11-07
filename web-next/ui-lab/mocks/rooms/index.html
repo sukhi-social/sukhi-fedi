@@ -1,0 +1,128 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>ふたりの部屋(DM の案)</title>
+<meta name="lab:desc" content="DM を、相手ごとの「部屋」にする案。入力中・既読・未読の数・通話は作らない。通知はお預かりでまとめる。部屋のなかから、投稿を一つ差し出せる。宛先が相手だけの投稿をそのまま使うので、Mastodon や Misskey の人とも話せる。">
+<meta name="lab:scenes" content="list=部屋の一覧;room=部屋のなか;held=送った直後(お預かり);gift=投稿を差し出す;empty=部屋がまだ無い;new=新しい部屋">
+<meta name="lab:nav" content="none">
+<style>
+  .rooms { display: grid; gap: var(--space-3, .75rem); }
+  .rooms h1 { margin: 0; font-size: 1.25rem; }
+  .rooms .lead, .rooms .note { margin: 0; font-size: .8125rem; color: var(--color-text-muted); line-height: 1.6; }
+  .scene { display: none; }
+  html[data-s~=list] #s-list, html[data-s~=empty] #s-empty, html[data-s~=new] #s-new,
+  html[data-s~=room] #s-room, html[data-s~=held] #s-room, html[data-s~=gift] #s-room { display: grid; gap: var(--space-3, .75rem); }
+  html:not([data-s]) #s-list { display: grid; gap: var(--space-3, .75rem); }
+
+  /* 一覧: 相手ごとの一行。数は出さない。「ひらいていない」は、点ひとつと、ことば。 */
+  .room-row { display: grid; grid-template-columns: auto 1fr auto; gap: .75rem; align-items: center; padding: .8rem 0; border-block-end: 1px solid var(--color-border); color: inherit; text-decoration: none; }
+  .room-row .nm { display: grid; gap: .15rem; min-width: 0; }
+  .room-row b { font-size: 1rem; }
+  .room-row .last { font-size: .875rem; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .room-row .when { font-size: .75rem; color: var(--color-text-muted); text-align: end; display: grid; gap: .25rem; justify-items: end; }
+  .room-row .new { display: inline-flex; align-items: center; gap: .3rem; color: var(--color-accent-strong); }
+  .room-row .new::before { content: ''; inline-size: .5rem; block-inline-size: .5rem; block-size: .5rem; border-radius: 50%; background: var(--color-accent-strong); }
+  .room-row .where { font-size: .6875rem; color: var(--color-text-muted); }
+
+  /* 部屋: 古い順に、下へ。時間は、うつろいのことばで区切る。 */
+  .head { display: grid; grid-template-columns: auto 1fr auto; gap: .75rem; align-items: center; }
+  .head .nm { display: grid; }
+  .head .nm b { font-size: 1.05rem; }
+  .head .nm span { font-size: .8125rem; color: var(--color-text-muted); }
+  .day { text-align: center; font-size: .75rem; color: var(--color-text-muted); margin: .5rem 0 0; }
+  .talk { display: grid; gap: .35rem; }
+  .msg { max-inline-size: 82%; padding: .55rem .8rem; border-radius: 16px; line-height: 1.6; background: var(--color-surface); border: 1px solid var(--color-border); }
+  .msg.them { justify-self: start; border-end-start-radius: 4px; }
+  .msg.me { justify-self: end; border-end-end-radius: 4px; background: var(--color-accent-soft); border-color: transparent; }
+  .msg p { margin: 0; }
+  .msg .t { display: block; margin-block-start: .15rem; font-size: .6875rem; color: var(--color-text-muted); }
+  .held-note { justify-self: end; font-size: .75rem; color: var(--color-text-muted); display: flex; gap: .5rem; align-items: center; }
+  html:not([data-s~=held]) .only-held { display: none; }
+  html:not([data-s~=gift]) .only-gift { display: none; }
+  .gift { justify-self: end; max-inline-size: 82%; border: 1px dashed var(--color-border-strong, var(--color-border)); border-radius: 14px; padding: .6rem .8rem; display: grid; gap: .25rem; font-size: .875rem; }
+  .gift .by { font-size: .75rem; color: var(--color-text-muted); }
+
+  /* 書く欄: 入力中は、相手に見えない。送るのは、ゆっくりで。 */
+  .write { display: grid; gap: .5rem; border-block-start: 1px solid var(--color-border); padding-block-start: .75rem; }
+  .write textarea { inline-size: 100%; min-block-size: 4.5rem; }
+  .write .row { display: flex; gap: .5rem; align-items: center; justify-content: space-between; }
+  .write .row .left { display: flex; gap: .5rem; align-items: center; }
+  .remote { font-size: .75rem; color: var(--color-text-muted); }
+</style>
+
+<section class="rooms timeline">
+
+  <!-- 一覧 -->
+  <div class="scene" id="s-list">
+    <div class="head" style="grid-template-columns:1fr auto">
+      <h1>ふたりの部屋</h1>
+      <a class="chip" href="/rooms/new">新しい部屋</a>
+    </div>
+    <p class="lead">急がずに話したい人と、ゆっくり話す場所です。入力中も、既読も、数も出ません。</p>
+    <div>
+      <a class="room-row" href="/rooms/nabi">
+        <span class="avatar" aria-hidden="true" style="background:hsl(80 35% 85%);color:hsl(90 30% 30%)">나</span>
+        <span class="nm"><b>나비</b><span class="last">내일 시간 괜찮으세요?</span></span>
+        <span class="when"><span>きょうの夜</span><span class="new">ひらいていません</span></span>
+      </a>
+      <a class="room-row" href="/rooms/hina">
+        <span class="avatar" aria-hidden="true" style="background:hsl(30 55% 88%);color:hsl(25 45% 32%)">ひ</span>
+        <span class="nm"><b>ひなた</b><span class="last">ありがとうございました。</span><span class="where">natadeco.com の人</span></span>
+        <span class="when"><span>昨日の夕方</span></span>
+      </a>
+      <a class="room-row" href="/rooms/self">
+        <span class="avatar" aria-hidden="true" style="background:hsl(200 40% 88%);color:hsl(210 40% 30%)">自</span>
+        <span class="nm"><b>じぶん</b><span class="last">あとで読む: ほうじ茶の淹れかた</span></span>
+        <span class="when"><span>おととい</span></span>
+      </a>
+    </div>
+    <p class="note">ひらいていない部屋には、数ではなく、ことばがひとつ付くだけです。</p>
+  </div>
+
+  <!-- 部屋が、まだ無い -->
+  <div class="scene" id="s-empty">
+    <h1>ふたりの部屋</h1>
+    <p class="lead">まだ、部屋はありません。話したい人がいたら、ここから、はじめられます。</p>
+    <p><a class="btn" href="/rooms/new">新しい部屋をつくる</a></p>
+  </div>
+
+  <!-- 新しい部屋 -->
+  <div class="scene" id="s-new">
+    <h1>新しい部屋</h1>
+    <p class="lead">相手は <b>@user</b> か <b>@user@host</b> で。Mastodon や Misskey の人にも、そのまま届きます。</p>
+    <form class="form" method="post" action="/rooms">
+      <div class="hstack hstack-stretch">
+        <input class="fill" type="text" name="acct" placeholder="@user または @user@host" aria-label="相手" />
+        <button type="submit" class="btn">はじめる</button>
+      </div>
+    </form>
+    <p class="note">この部屋の話は、その人と、あなただけに届きます。</p>
+  </div>
+
+  <!-- 部屋のなか -->
+  <div class="scene" id="s-room">
+    <div class="head">
+      <a class="chip" href="/rooms" aria-label="ふたりの部屋の一覧へ">‹</a>
+      <span class="nm"><b>나비</b><span>@nabi@planet.moe</span></span>
+      <a class="chip" href="/@nabi">プロフィール</a>
+    </div>
+    <p class="note">この部屋には、入力中や既読は出ません。返事は、ゆっくりで大丈夫です。</p>
+    <div class="talk">
+      <p class="day">昨日の夜ふけ</p>
+      <div class="msg me"><p>こんばんは。あしたのこと、決めましょうか。</p><span class="t">夜ふけ</span></div>
+      <p class="day">きょうの朝</p>
+      <div class="msg them"><p>내일 시간 괜찮으세요?</p><span class="t">朝</span></div>
+      <div class="msg them"><p>カフェで会えたら、うれしいです。</p><span class="t">朝</span></div>
+      <div class="msg me"><p>はい、だいじょうぶです。午後なら、いつでも。</p><span class="t">いま</span></div>
+      <div class="gift only-gift"><span class="by">あなたが差し出した投稿</span><span>ほうじ茶を、はじめて自分で焙じました。台所じゅうがいい匂いです。</span><span class="by">@kuro</span></div>
+      <p class="held-note only-held"><span>お預かり中です。もうすこしあとで届きます。</span><button type="button" class="chip">取りやめる</button></p>
+    </div>
+    <form class="write" method="post" action="/rooms/nabi">
+      <textarea name="body" placeholder="ゆっくり、書いてください" aria-label="お便り"></textarea>
+      <div class="row">
+        <span class="left"><button type="button" class="chip">投稿を差し出す</button><span class="remote">相手のサーバにも届きます</span></span>
+        <button type="submit" class="btn">送る</button>
+      </div>
+    </form>
+  </div>
+
+</section>
