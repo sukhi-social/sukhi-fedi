@@ -690,19 +690,21 @@ defmodule SukhiFedi.Web.Router do
   # bucket and never stored with the feedback. Must precede the
   # `/api/v1/*_` forwarder.
   post "/api/v1/feedback" do
-    limited =
-      SukhiFedi.Web.RateLimitPlug.call(
-        conn,
-        SukhiFedi.Web.RateLimitPlug.init(bucket: "feedback", limit: 5, scale_ms: 900_000)
-      )
+    plugin_limited(conn, "feedback", 5, 900_000)
+  end
 
-    case limited do
-      %Plug.Conn{halted: true} ->
-        limited
+  # Asking to join (docs/JOIN.md) is open to someone with no account and
+  # sends mail, so it is held the same way: 10 writes a quarter-hour per
+  # peer for the whole `/api/v1/join` family (apply, "I got it", fix the
+  # address, the edit link), one shared bucket. The per-address mail limit
+  # sits in `JoinApplications`. `GET /api/v1/join/info` reads only and
+  # falls to the forwarder below.
+  post "/api/v1/join" do
+    plugin_limited(conn, "join", 10, 900_000)
+  end
 
-      %Plug.Conn{halted: false} ->
-        SukhiFedi.Web.PluginPlug.call(limited, SukhiFedi.Web.PluginPlug.init([]))
-    end
+  post "/api/v1/join/*_" do
+    plugin_limited(conn, "join", 10, 900_000)
   end
 
   match "/api/v1/*_" do
@@ -1182,5 +1184,24 @@ defmodule SukhiFedi.Web.Router do
 
   defp frontend_configured? do
     Application.get_env(:sukhi_fedi, :frontend_configured, false)
+  end
+
+  # An open door into the plugin node with its own per-peer limit, on top of
+  # the global bucket. The limit lives here and only here; the peer id is
+  # held in the in-memory bucket and never stored with what was sent.
+  defp plugin_limited(conn, bucket, limit, scale_ms) do
+    limited =
+      SukhiFedi.Web.RateLimitPlug.call(
+        conn,
+        SukhiFedi.Web.RateLimitPlug.init(bucket: bucket, limit: limit, scale_ms: scale_ms)
+      )
+
+    case limited do
+      %Plug.Conn{halted: true} ->
+        limited
+
+      %Plug.Conn{halted: false} ->
+        SukhiFedi.Web.PluginPlug.call(limited, SukhiFedi.Web.PluginPlug.init([]))
+    end
   end
 end

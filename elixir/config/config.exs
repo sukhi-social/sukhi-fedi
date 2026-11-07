@@ -41,7 +41,9 @@ config :sukhi_fedi, Oban,
        # latest inbound original). Logs a WARNING if the archive drifted.
        {"30 3 * * *", SukhiFedi.Maintenance.ArchiveIntegrity},
        # Closing accounts whose one day of grace is up (AccountDeletion).
-       {"*/10 * * * *", SukhiFedi.AccountDeletion.Worker}
+       {"*/10 * * * *", SukhiFedi.AccountDeletion.Worker},
+       # Applications to join that nobody confirmed (JoinApplications).
+       {"*/10 * * * *", SukhiFedi.JoinApplications.Sweeper}
      ]},
     # The same two guards the delivery node keeps (delivery/config/config.exs).
     #

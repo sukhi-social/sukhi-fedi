@@ -166,6 +166,12 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     # changeset, and storage that keeps no IP. Reading it is admin-only
     # (`/api/v1/admin/feedback`, behind the `match` below).
     "post /api/v1/feedback",
+    # Asking to join: no account yet, so open; held by a per-peer limit
+    # (10 / 15 min, one bucket for the family) at the route, a per-address
+    # mail limit in the context, and a changeset on every field. Applications
+    # nobody confirmed are deleted after three hours.
+    "post /api/v1/join",
+    "post /api/v1/join/*_",
     "match /api/v1/*_",
     "match /api/admin/*_",
     "match /api/v2/*_",

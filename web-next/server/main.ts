@@ -19,6 +19,7 @@ import './routes/lists.ts';
 import './routes/rooms.ts';
 import './routes/emojis.ts';
 import './routes/feedback.ts';
+import './routes/join.ts';
 import './routes/announcements.ts';
 import './routes/security.ts';
 import './routes/close.ts';

@@ -119,6 +119,9 @@ path takes its credentials, region and bucket from the same config.
 | Var | Default | Notes |
 |---|---|---|
 | `INVITE_REQUIRED` | `true` | `false` lets anyone register. A mailbox is still verified either way. |
+| `JOIN_GREETER` | — | The name shown on the "ask to join" form as the person who looks at applications (`くろ`). Unset → a plain "the person who looks after this place" in each language. See [`JOIN.md`](JOIN.md). |
+| `JOIN_CHECK_DAYS` | every day | Comma list of `mon,tue,wed,thu,fri,sat,sun`: the days it is fine to look at applications. The form and the receipt mail say "Thursday (in 3 days)" from this. |
+| `JOIN_UTC_OFFSET_HOURS` | `9` | Where the day line falls for `JOIN_CHECK_DAYS`. |
 | `LEGAL_FLAVOR` | — (required unless `legal.dir` is set) | Which bundled `/terms` and `/privacy` set to serve when `legal.dir` is unset: `sukhi` or `natadeco`. Any other value refuses to boot. Both are baked into the release. |
 | `SUKHI_INSTANCE_CONFIG` → `legal.dir` | — (bundled) | Absolute path of a directory holding **this instance's own** `terms.<lang>.md` and `privacy.<lang>.md` (`ja`, `ko`, `en`; the same languages for both). Read and rendered once at boot; changing them takes a restart. A missing directory, an empty/unreadable file, a document missing in a language or an unsupported language refuses to boot. Unset → the bundled set `LEGAL_FLAVOR` names is served; with neither set, the gateway refuses to boot. The bundled sets are not anyone else's policy. |
 | `PUBLIC_PREVIEW` | `off` | Server-rendered preview for logged-out visitors/crawlers: `off`, `meta` (OG / Twitter / JSON-LD head only) or `full` (plus a readable body). Public content only. |

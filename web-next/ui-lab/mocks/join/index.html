@@ -1,0 +1,100 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>入会の申し込み(案)</title>
+<meta name="lab:desc" content="招待コードをやめて、申し込みにする。三つの質問に、書きたいところだけ答える → 受付のメール → 「受け取りましたか?」→ 完了。管理する人が「大丈夫」と決めた曜日に沿って、何日後に確認するかを書く。呼び名はメールで使う。ニックネームは、承認のあと。">
+<meta name="lab:scenes" content="asked=受け取りましたか?;nomail=いいえ(メールを見直す);done=完了;edit=編集のリンクから">
+<meta name="lab:nav" content="none">
+<style>
+  .join .step { display: none; }
+  html:not([data-s~=asked]):not([data-s~=nomail]):not([data-s~=done]):not([data-s~=edit]) .join .s-form,
+  html[data-s~=asked] .join .s-asked,
+  html[data-s~=nomail] .join .s-nomail,
+  html[data-s~=done] .join .s-done,
+  html[data-s~=edit] .join .s-form { display: grid; gap: 1rem; }
+  .join textarea { min-height: 9rem; width: 100%; box-sizing: border-box; }
+  .join .hints { margin: 0; padding-left: 1.1rem; display: grid; gap: .15rem; }
+  .join .hints-title { font-weight: 600; }
+  .join .choices { display: flex; flex-wrap: wrap; gap: .6rem; }
+  .join .receipt { display: inline-block; font-variant-numeric: tabular-nums; letter-spacing: .08em; background: var(--color-accent-soft); color: var(--color-accent-strong); border-radius: 999px; padding: 0 .7rem; }
+  .join .editing { display: none; }
+  html[data-s~=edit] .join .editing { display: block; }
+  html[data-s~=edit] .join .new-only { display: none; }
+</style>
+
+<div class="measure stack join">
+  <!-- ① 申し込み(はじめ / 編集のリンクから) -->
+  <section class="step s-form">
+    <section class="hero">
+      <h1>和やかな場所へようこそ！</h1>
+      <p class="tagline">このサイトを管理している、くろは、あなたのことが知りたいです。</p>
+    </section>
+    <p class="editing notice">申し込みを編集しています。直したら「送り直す」を押してください。</p>
+    <form class="form stack" method="post" action="/join">
+      <p class="prose-small">気になっただけ、でも大丈夫です。書きたいところだけ、書いてください。</p>
+      <label class="stack-tight">
+        <span>1. なんて呼んだらいいですか？</span>
+        <input type="text" name="call_name" autocomplete="off" value="ゆき" />
+        <span class="help">メールで、こう呼びます。ニックネームは、承認のあとに決めます。</span>
+      </label>
+      <label class="stack-tight">
+        <span>2. どこで、sukhi のことを知りましたか？</span>
+        <textarea name="found" rows="3">友だちが、ここの話をしていました。</textarea>
+        <span class="help">だれかのお誘いなら、その人の sukhi でのニックネームや、ハンドルも教えてください。</span>
+      </label>
+      <label class="stack-tight">
+        <span>3. ここで、どんなふうに過ごせたらいいなと思いますか？</span>
+        <textarea name="how" rows="4">夜に、ひとりで本を読んでいる人の話を、ゆっくり読みたいです。</textarea>
+      </label>
+      <label class="stack-tight new-only">
+        <span>メールアドレス</span>
+        <input type="email" name="email" value="yuki@example.org" autocomplete="email" autocapitalize="none" spellcheck="false" required />
+        <span class="help">返事と、編集のリンクを送るために使います。</span>
+      </label>
+      <button type="submit" class="btn primary px-6 py-2"><span class="new-only">送る</span><span class="editing" style="display:none">送り直す</span></button>
+    </form>
+    <p class="prose-small after-form">
+      くろが確認するのは、<b>木曜日(3日後)</b>です。返事は、そのあとメールでお返しします。ここでの過ごし方は、<a href="/terms">規約</a>に書いてあります。
+    </p>
+    <p class="prose-small"><a href="/">もどる</a></p>
+  </section>
+
+  <!-- ② 受け取りましたか? -->
+  <section class="step s-asked">
+    <section class="hero">
+      <h1>受付のメールを送りました</h1>
+      <p class="tagline">受付番号が入ったメールです。もらいましたか？</p>
+    </section>
+    <p class="prose-small">受付番号: <span class="receipt">482 913</span></p>
+    <div class="choices">
+      <a class="btn primary px-6 py-2" href="#asked-yes">はい！</a>
+      <a class="btn px-6 py-2" href="#asked-no">いいえー</a>
+    </div>
+    <p class="help">届かないときは、迷惑メールの中も見てみてくださいね。</p>
+  </section>
+
+  <!-- ③ いいえ → メールアドレスを見直す -->
+  <section class="step s-nomail">
+    <section class="hero">
+      <h1>メールアドレスを見直しましょう</h1>
+      <p class="tagline">書いたことは、このままです。アドレスだけ直して、送り直してください。</p>
+    </section>
+    <form class="form stack" method="post" action="/join/email">
+      <label class="stack-tight">
+        <span>メールアドレス</span>
+        <input type="email" name="email" value="yuki@exmaple.org" autocomplete="email" autocapitalize="none" spellcheck="false" required />
+        <span class="help">たとえば、 <code>example</code> のつづりは合っていますか？</span>
+      </label>
+      <button type="submit" class="btn primary px-6 py-2">受付のメールを送り直す</button>
+    </form>
+  </section>
+
+  <!-- ④ 完了 -->
+  <section class="step s-done">
+    <section class="hero">
+      <h1>ありがとうございます</h1>
+      <p class="tagline">くろが確認するのは、木曜日(3日後)です。返事は、そのあとメールでお返しします。</p>
+    </section>
+    <p class="prose-small">内容を編集したいときは、メールにあるリンクからお願いします！</p>
+    <p class="prose-small"><a href="/">もどる</a></p>
+  </section>
+</div>
