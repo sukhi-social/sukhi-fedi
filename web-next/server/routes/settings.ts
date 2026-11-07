@@ -150,6 +150,7 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
             ${check('indexable', t('settings.indexable'), v.indexable)}
             <p class="muted">${t('settings.searchConsentHint')}</p>
           </div>
+          <p class="text-sm"><a href="/requests">${t('settings.requestsLink')}</a></p>
         </section>
 
         <section class="stack">

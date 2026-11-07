@@ -605,6 +605,9 @@ export const ja = {
   'notif.updated': 'が投稿を編集しました',
   'notif.reacted': 'がリアクションしました',
   'notif.generic': 'からの通知',
+  'requests.accepted': 'お迎えしました。',
+  'requests.declined': 'そっと、お断りしました。',
+  'settings.requestsLink': 'フォローのお願いを見る',
 
   // ── メッセージ ───────────────────────────────────────
   'messages.title': 'メッセージ',

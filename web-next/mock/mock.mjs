@@ -151,7 +151,8 @@ export const NOTIFICATIONS = [
   { id: '9001', type: 'mention', created_at: ago(12), account: NABI, status: S2 },
   { id: '9002', type: 'favourite', created_at: ago(60), account: HINA, status: S1 },
   { id: '9003', type: 'follow', created_at: ago(200), account: NABI, status: null },
-  { id: '9004', type: 'reblog', created_at: ago(400), account: HINA, status: S1 }
+  { id: '9004', type: 'reblog', created_at: ago(400), account: HINA, status: S1 },
+  { id: '9005', type: 'follow_request', created_at: ago(20), account: HINA, status: null }
 ];
 
 const DM = (id, who, content, mins) =>
@@ -289,6 +290,8 @@ const ROUTES = [
   ['/api/v1/custom_emojis', () => []],
   ['/api/v1/follow_invites', () => [{ code: 'warm-code' }]],
   ['/api/v1/follow_requests', () => [NABI]],
+  [/^\/api\/v1\/follow_requests\/[^/]+\/(authorize|reject)$/, () => ({ id: '1', following: false, followed_by: true, requested: false })],
+  [/^\/api\/v1\/notifications\/[^/]+\/dismiss$/, () => ({})],
   ['/api/v1/blocks', () => []],
   ['/api/v1/mutes', () => [HINA]],
   ['/api/v1/bookmarks', () => [S1, S3]],
