@@ -18,6 +18,7 @@ import { saveSession, type Session } from "../session.ts";
 import type { TokenSet } from "../types.ts";
 import { layout } from "../views/layout.ts";
 import { entranceBar, legalFooter } from "../views/parts.ts";
+import { submitJoin } from "./join.ts";
 import { timeline } from "./read.ts";
 import { json, readJson } from "./shared.ts";
 import { isLocale, legalLang, type TranslationKey } from "../i18n.ts";
@@ -68,12 +69,14 @@ route("GET", "/check", async (ctx) => {
     );
     // メールのやりかけが消えた(リロード・タブの復元・二重の要求)。黙って空の /login にせず、一言添える。
     if (intent === "login-email") ctx.flash("notice", ctx.t("check.expired"));
-    return redirect(intent === "signup" ? "/signup" : "/login");
+    return redirect(intent === "signup" ? "/signup" : intent === "join" ? "/join" : "/login");
   }
   s.check = undefined; // 一度きり。リロードで二度は始まらない(メールも二度は送らない)。
   saveSession(s);
   if (c.intent === "login") return beginOAuth(ctx);
   if (c.intent === "login-email") return sendLoginCode(ctx, c.email);
+  // 入会の申し込み: 関所を通った人だけ、ここで預かって受付のメールを出す(docs/JOIN.md)。
+  if (c.intent === "join") return submitJoin(ctx, c.draft);
   // 加入: 証明がまだなら、ここでコードを送る。証明があれば、アカウントを作る。
   if (c.proof === undefined) return sendSignupCode(ctx, c);
   return finishSignup(
@@ -688,7 +691,8 @@ function signupPage(ctx: Ctx, v: SignupView = {}, status = 200): Reply {
                         value="${v.invite ?? ""}"
                         autocomplete="off"
                         required
-                    /></label>`
+                    /></label>
+                    <p class="help"><a href="/join">${t("join.fromSignup")}</a></p>`
                   : ""
               }
               <label class="agree">

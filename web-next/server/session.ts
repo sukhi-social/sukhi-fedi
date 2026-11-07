@@ -11,6 +11,8 @@ import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { config } from './config.ts';
 import type { Account, TokenSet } from './types.ts';
 
+export type JoinDraft = { email: string; call_name: string; found: string; hope: string };
+
 export type Session = {
   id: string;
   token?: TokenSet;
@@ -24,7 +26,12 @@ export type Session = {
   check?:
     | { intent: 'login' }
     | { intent: 'login-email'; email: string }
-    | { intent: 'signup'; username: string; email: string; invite: string; proof?: string };
+    | { intent: 'signup'; username: string; email: string; invite: string; proof?: string }
+    | { intent: 'join'; draft: JoinDraft };
+  // 入会の申し込み(docs/JOIN.md)の、書きかけ。送る前の入力を、エラーで戻したとき埋めるため。
+  joinDraft?: JoinDraft;
+  // 送った申し込み。claim は、申し込んだこのブラウザだけが持つ鍵(「受け取りましたか」に答えられるのは、ここから)。
+  join?: { claim: string; receipt: string; email: string; weekday: number; daysAfter: number; confirmed?: boolean };
   // 加入のやりかけ。/signup に戻ったとき、入力を埋めるため(同意は埋めない)。
   signupDraft?: { username: string; email: string; invite: string };
   // ログイン後に戻る先(/oauth/authorize から弾かれて来たとき)。

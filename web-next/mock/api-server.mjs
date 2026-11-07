@@ -258,6 +258,39 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       res.end('{}');
       return;
     }
+    // 入会の申し込み(docs/JOIN.md)。鍵は固定: claim は mock-claim、編集の鍵は mock-key。
+    // 'rate@' を含むアドレスは回数超過、'fail@' はメールが出なかった、として答える。
+    if (pathname.startsWith('/api/v1/join')) {
+      const reply = (status, body) => {
+        res.writeHead(status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(body));
+      };
+      const when = { check_on: '2026-11-12' };
+      const words = { receipt: '482913', call_name: 'ゆき', found: '友だちが話していました。', hope: '夜に、ゆっくり読みたいです。', ...when };
+      if (pathname === '/api/v1/join/info' && method === 'GET') return reply(200, { greeter: 'くろ', weekday: 4, days_after: 3, ...when });
+      if (method === 'POST') {
+        const email = String(json?.email ?? '');
+        if (pathname === '/api/v1/join' || pathname === '/api/v1/join/email') {
+          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reply(422, { error: 'validation_failed', details: { email: 'is invalid' } });
+          if (email.includes('rate@')) return reply(429, { error: 'rate_limited' });
+          if (email.includes('fail@')) return reply(502, { error: 'send_failed' });
+        }
+        if (pathname === '/api/v1/join') {
+          requestLog.push(`join ${email} ${json?.call_name ?? ''}`);
+          return reply(202, { receipt: '482913', claim: 'mock-claim', weekday: 4, days_after: 3, ...when });
+        }
+        if (pathname === '/api/v1/join/received' || pathname === '/api/v1/join/email') {
+          if (json?.claim !== 'mock-claim') return reply(404, { error: 'join_not_found' });
+          requestLog.push(pathname === '/api/v1/join/email' ? `join/email ${email}` : 'join/received');
+          return reply(200, { receipt: '482913' });
+        }
+        if (pathname === '/api/v1/join/lookup' || pathname === '/api/v1/join/edit') {
+          if (json?.key !== 'mock-key') return reply(404, { error: 'join_not_found' });
+          if (pathname === '/api/v1/join/edit') requestLog.push(`join/edit ${json?.call_name ?? ''}`);
+          return reply(200, words);
+        }
+      }
+    }
     if (pathname === '/__mock/requests-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(requestLog));
