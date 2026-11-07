@@ -10,10 +10,11 @@ import type { Ctx } from '../http.ts';
 // ── 線画のアイコン(NavIcon.svelte と同じ形。currentColor、色は持たない)────
 export type IconName =
   | 'home' | 'bell' | 'search' | 'compose' | 'user' | 'logout' | 'plus'
-  | 'star' | 'repeat' | 'quote' | 'reply' | 'more' | 'trash' | 'flag' | 'bookmark' | 'pin' | 'image' | 'settings' | 'list';
+  | 'star' | 'repeat' | 'quote' | 'reply' | 'more' | 'trash' | 'flag' | 'bookmark' | 'pin' | 'image' | 'settings' | 'list' | 'mail';
 
 const PATHS: Record<IconName, string> = {
   home: '<path d="M3.5 11.5 12 4l8.5 7.5" /><path d="M6 10v9.5h12V10" />',
+  mail: '<rect x="3.5" y="5.5" width="17" height="13" rx="2" /><path d="M4 7.5l8 6 8-6" />',
   list: '<path d="M9 7h11M9 12h11M9 17h11" /><circle cx="5" cy="7" r="1" /><circle cx="5" cy="12" r="1" /><circle cx="5" cy="17" r="1" />',
   bell: '<path d="M6 17c1.2-1.5 1.5-3.5 1.5-6a4.5 4.5 0 0 1 9 0c0 2.5.3 4.5 1.5 6Z" /><path d="M10 20a2 2 0 0 0 4 0" />',
   search: '<circle cx="11" cy="11" r="6.5" /><path d="M16 16 20.5 20.5" />',

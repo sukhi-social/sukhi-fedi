@@ -117,7 +117,7 @@ You may leave. No reason asked.
 
 What the current UI (web-next) doesn't have yet. We haven't built it; we aren't hiding it.
 
-Direct messages, an emoji picker, mention
+An emoji picker, mention
 completion, and polls.
 ([`web-next/README.md`](../web-next/README.md), "まだ", is the up-to-date list.)
 

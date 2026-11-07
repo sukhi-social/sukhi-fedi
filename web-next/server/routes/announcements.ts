@@ -15,7 +15,7 @@ type Announcement = { id: string; content: string; read: boolean; published_at: 
 
 const idOk = (id: string) => /^[\w-]{1,64}$/.test(id);
 
-function paragraphs(text: string): SafeHtml {
+export function paragraphs(text: string): SafeHtml {
   return html`${text.split('\n\n').map((p) => html`<p>${p.split('\n').flatMap((l, i) => (i ? [html`<br />`, l] : [l]))}</p>`)}`;
 }
 

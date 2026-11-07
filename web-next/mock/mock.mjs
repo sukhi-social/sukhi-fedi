@@ -173,9 +173,10 @@ export const CONVERSATIONS = [
   }
 ];
 
+// gateway と同じ、新しい順。
 export const CONVERSATION_STATUSES = [
-  DM('3001', ME, '<p>こんばんは。あしたのこと、決めましょうか。</p>', 40),
-  DM('3002', NABI, '<p>내일 시간 괜찮으세요?</p>', 18)
+  DM('3002', NABI, '<p>@kuro 내일 시간 괜찮으세요?</p>', 18),
+  DM('3001', ME, '<p>@nabi こんばんは。あしたのこと、決めましょうか。</p>', 40)
 ];
 
 // クリップ(自分あて DM)。ピンは既存のリアクション機構を借りている。
