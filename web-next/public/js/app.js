@@ -108,10 +108,64 @@ document.addEventListener("alpine:init", () => {
 
   // 書く欄の手助け: 絵文字をカーソルに入れる / @ のあとの名前の候補(サーバが小さな HTML で返す)。
   // 候補は、押したときだけ入る。勝手には入れない。
-  Alpine.data("composeAssist", ({ cw = false } = {}) => ({
+  Alpine.data("composeAssist", ({ cw = false, draft = "" } = {}) => ({
     cw,
     files: [],
     hits: "",
+    restored: false,
+    // 書きかけ(記事の題と本文)。この端末の localStorage にだけ置く ── 送らない。
+    // 送信を押した時点で「送った」の印を付け、次に書く頁を開いたとき、その印のものは捨てる。
+    // (送れなかった頁は、サーバが書いた中身を返すので、それでまた置きなおされる。)
+    init() {
+      if (draft) this.loadDraft();
+    },
+    draftRead() {
+      try {
+        return JSON.parse(localStorage.getItem("sukhi.draft." + draft) || "null");
+      } catch {
+        return null;
+      }
+    },
+    draftWrite(v) {
+      try {
+        if (v) localStorage.setItem("sukhi.draft." + draft, JSON.stringify(v));
+        else localStorage.removeItem("sukhi.draft." + draft);
+      } catch {
+        // 置けなくても、書くことは、できる。
+      }
+    },
+    draftNow(sent) {
+      const title = this.$refs.title ? this.$refs.title.value : "";
+      const status = this.$refs.body.value;
+      return title || status ? { title, status, sent } : null;
+    },
+    loadDraft() {
+      if (this.draftNow(false)) {
+        this.save();
+        return;
+      }
+      const d = this.draftRead();
+      if (!d) return;
+      if (d.sent || !(d.title || d.status)) {
+        this.draftWrite(null);
+        return;
+      }
+      if (this.$refs.title) this.$refs.title.value = d.title || "";
+      this.$refs.body.value = d.status || "";
+      this.restored = true;
+    },
+    save() {
+      this.draftWrite(this.draftNow(false));
+    },
+    sent() {
+      this.draftWrite(this.draftNow(true));
+    },
+    discard() {
+      if (this.$refs.title) this.$refs.title.value = "";
+      this.$refs.body.value = "";
+      this.draftWrite(null);
+      this.restored = false;
+    },
     ins(text) {
       const el = this.$refs.body;
       el.setRangeText(text + " ", el.selectionStart, el.selectionEnd, "end");

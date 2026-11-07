@@ -280,7 +280,7 @@ route('GET', '/@:acct/:id', async (ctx) => {
     ${thread.descendants.map((s) => card(s))}
     <p class="prose-small" style="margin-top: var(--space-6);"><a href="/timeline">${ctx.t('common.backToTimeline')}</a></p>
   </section>`;
-  return ok(layout(ctx, { title: nameOf(status.account), me, entrance: !me, legal: !me, body }));
+  return ok(layout(ctx, { title: status.title?.trim() || nameOf(status.account), me, entrance: !me, legal: !me, body }));
 });
 
 // ── プロフィール ────────────────────────────────────────────────

@@ -17,6 +17,9 @@ defmodule SukhiFedi.Notes.Create do
 
   require Logger
 
+  # 題の長さの上限(文字)。書く口でだけ見る。web-next の ARTICLE_TITLE_MAX と同じ数。
+  @title_max 120
+
   @doc """
   Create a note and enqueue the `sns.outbox.note.created` event atomically.
 
@@ -81,6 +84,36 @@ defmodule SukhiFedi.Notes.Create do
   def create_status(%Account{id: aid}, params), do: create_status(aid, params)
 
   def create_status(account_id, params) when is_integer(account_id) do
+    # 題の長さを見るのは、書く口のここ一か所。取り込む側(リモートの
+    # Article)には掛けない ── よその題が長いからと、その投稿ごと
+    # 落とすわけにはいかない。
+    if title_too_long?(params[:title] || params["title"]) do
+      {:error, {:validation, %{title: ["is too long (maximum is #{@title_max} characters)"]}}}
+    else
+      insert_status(account_id, params)
+    end
+  end
+
+  # 題 ── 前後の空白を落とし、空なら「題なし」。
+  defp normalize_title(t) when is_binary(t) do
+    case String.trim(t) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_title(_), do: nil
+
+  defp title_too_long?(t) do
+    case normalize_title(t) do
+      nil -> false
+      title -> String.length(title) > @title_max
+    end
+  end
+
+  defp truthy?(v), do: v not in [nil, false, "false", 0, "0", ""]
+
+  defp insert_status(account_id, params) do
     visibility = normalize_visibility(params[:visibility] || params["visibility"] || "public")
 
     # deco 発の「連合に出さない」指定。notes.visibility は変えず
@@ -90,7 +123,8 @@ defmodule SukhiFedi.Notes.Create do
 
     # 長い文章として出すか(AP の `Article`)。notes には持たせない ──
     # `local_only` と同じで、連合の側にだけ効く上乗せ。
-    as_article? = !!(params[:as_article] || params["as_article"])
+    # フォームで来た `"false"` / `"0"` を真と読まない(`!!` だとそう読む)。
+    as_article? = truthy?(params[:as_article] || params["as_article"])
 
     # FEP-1b12 の `audience` ── どの板の投稿か。deco が入れてくる。
     audience = params[:audience] || params["audience"]
@@ -127,7 +161,7 @@ defmodule SukhiFedi.Notes.Create do
           # 題は掲示板（deco）から来る。Mastodon の status には無い欄で、
           # 取り込んだ Article と同じ `notes.title` に入る ── 題つきの
           # 投稿の置き場を二つ作らないため。
-          title: params[:title] || params["title"],
+          title: normalize_title(params[:title] || params["title"]),
           cw: params[:spoiler_text] || params["spoiler_text"] || params[:cw] || params["cw"],
           sensitive: params[:sensitive] || params["sensitive"] || false,
           visibility: visibility
