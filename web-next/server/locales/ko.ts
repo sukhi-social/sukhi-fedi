@@ -605,6 +605,9 @@ export const ko: Dict = {
   'notif.updated': '님이 글을 수정했어요',
   'notif.reacted': '님이 반응했어요',
   'notif.generic': '님의 알림',
+  'requests.accepted': '맞이했어요.',
+  'requests.declined': '조용히 거절했어요.',
+  'settings.requestsLink': '팔로우 요청 보기',
 
   // ── 메시지 ───────────────────────────────────────────
   'messages.title': '메시지',

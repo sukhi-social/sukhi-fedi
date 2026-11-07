@@ -609,6 +609,9 @@ export const en: Dict = {
   'notif.updated': 'edited a post',
   'notif.reacted': 'reacted',
   'notif.generic': 'sent a notification',
+  'requests.accepted': 'Welcomed.',
+  'requests.declined': 'Quietly declined.',
+  'settings.requestsLink': 'See follow requests',
 
   // ── Messages ─────────────────────────────────────────
   'messages.title': 'Messages',

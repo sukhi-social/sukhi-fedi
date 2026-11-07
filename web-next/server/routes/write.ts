@@ -13,7 +13,7 @@ import { delayWords, timeWords } from '../time.ts';
 import type { Account, Notification, NotificationType, Relationship, Status } from '../types.ts';
 import { layout } from '../views/layout.ts';
 import { avatar } from '../views/parts.ts';
-import { followButton, nameHtml, nameOf } from '../views/account.ts';
+import { followButton, nameHtml, nameOf, requestButtons } from '../views/account.ts';
 import { statusCard } from '../views/status.ts';
 import { backOr, failText, needMe, replyAcctsFor } from './shared.ts';
 import { FILTERS } from './read.ts';
@@ -335,6 +335,19 @@ route('GET', '/notifications', async (ctx) => {
   };
 
   const replyAccts = await replyAcctsFor(ctx, arrived.flatMap((n) => (n.status ? [n.status] : [])));
+  // フォロー申請には、その場で答えられる(承認・断る)。答えたら、この通知は片づく。
+  const row = (n: Notification) => html`<article class="notif" id="nf-${n.id}">
+    <header class="notif-head">
+      <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span>${n.account.acct.includes('@') ? html`<span class="notif-handle">@${n.account.acct}</span>` : ''}</a>${who(n)}
+      <span class="notif-summary">${summary(n)}</span>
+      <form class="notif-dismiss" method="post" action="/notifications/${n.id}/dismiss" in-place>
+        <button type="submit" class="chip" aria-label="${t('notif.dismiss')}">×</button>
+      </form>
+    </header>
+    ${n.type === 'follow_request' ? requestButtons(ctx, n.account.id, n.id) : ''}
+    ${n.status ? statusCard(ctx, n.status, { me, replyAccts }) : ''}
+  </article>`;
+
   const moreHref = page.nextMaxId ? `/notifications?tier=${tier}&max_id=${encodeURIComponent(page.nextMaxId)}` : null;
   const tabLink = (k: string, label: string) => html`<a class="tab" href="/notifications?tier=${k}" aria-current="${tier === k ? 'true' : null}">${label}</a>`;
 
@@ -349,18 +362,7 @@ route('GET', '/notifications', async (ctx) => {
       ${tier === 'ambient' ? html`<p class="prose-small">${t('notif.holdNote')}</p>` : ''}
       ${arrived.length === 0 ? html`<p class="prose-small">${tier === 'direct' ? t('notif.emptyToYou') : t('notif.emptyReactions')}</p>` : ''}
       <div id="nf-items">
-        ${arrived.map(
-          (n) => html`<article class="notif" id="nf-${n.id}">
-            <header class="notif-head">
-              <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span>${n.account.acct.includes('@') ? html`<span class="notif-handle">@${n.account.acct}</span>` : ''}</a>${who(n)}
-              <span class="notif-summary">${summary(n)}</span>
-              <form class="notif-dismiss" method="post" action="/notifications/${n.id}/dismiss" in-place>
-                <button type="submit" class="chip" aria-label="${t('notif.dismiss')}">×</button>
-              </form>
-            </header>
-            ${n.status ? statusCard(ctx, n.status, { me, replyAccts }) : ''}
-          </article>`
-        )}
+        ${arrived.map(row)}
       </div>
       <div id="nf-more">${moreHref
         ? html`<a class="load-more" href="${moreHref}" up-target="#nf-items:after, #nf-more" up-history="false" up-scroll="false">${t('common.loadMore')}</a>`
@@ -371,18 +373,7 @@ route('GET', '/notifications', async (ctx) => {
   if (ctx.isUp && ctx.upTarget && ctx.upTarget.includes('nf-items:after')) {
     return ok(html`
       <div id="nf-items">
-        ${arrived.map(
-          (n) => html`<article class="notif" id="nf-${n.id}">
-            <header class="notif-head">
-              <a class="notif-who" href="/@${n.account.acct}">${avatar(n.account.avatar, nameOf(n.account), 'avatar avatar-sm')}<span class="display-name">${nameHtml(n.account)}</span>${n.account.acct.includes('@') ? html`<span class="notif-handle">@${n.account.acct}</span>` : ''}</a>${who(n)}
-              <span class="notif-summary">${summary(n)}</span>
-              <form class="notif-dismiss" method="post" action="/notifications/${n.id}/dismiss" in-place>
-                <button type="submit" class="chip" aria-label="${t('notif.dismiss')}">×</button>
-              </form>
-            </header>
-            ${n.status ? statusCard(ctx, n.status, { me, replyAccts }) : ''}
-          </article>`
-        )}
+        ${arrived.map(row)}
       </div>
       <div id="nf-more">${moreHref
         ? html`<a class="load-more" href="${moreHref}" up-target="#nf-items:after, #nf-more" up-history="false" up-scroll="false">${t('common.loadMore')}</a>`

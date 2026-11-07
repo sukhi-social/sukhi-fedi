@@ -41,7 +41,7 @@ server/
   http.ts        文脈(Ctx)・ルーター・静的ファイル・gateway への通し道
   gateway.ts     /api/v1 を呼ぶ(トークン付与・refresh・Link の次ページ)
   session.ts     トークンはここ(サーバ)。ブラウザには札(sukhi_sid)だけ
-  routes/        auth(入口・入る・はじめる)/ read(読む)/ write(書く・押す・通知)/
+  routes/        auth(入口・入る・はじめる)/ read(読む)/ write(書く・押す・通知)/ requests(フォロー申請に答える)/
                  settings(プロフィール)/ security(ログインと安全・あいことば)/ migration(引っ越し)/ data(フォロー等の CSV)
   maintenance.ts / maintenance-cli.ts   アプリが止まっている間に nginx が返す「メンテナンス中」の頁を作る(docs/OPS_MAINTENANCE_PAGE.ja.md)。ここは配らない
   views/         HTML(html`` は差し込みを自動でエスケープ。raw() だけがそのまま)

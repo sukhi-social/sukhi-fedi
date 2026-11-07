@@ -23,6 +23,16 @@ export function followButton(ctx: Ctx, accountId: string, rel: Relationship): Sa
   </form>`;
 }
 
+// フォロー申請への答え。押したところ(通知の行、または申請の一行)だけを差し替える。
+// 通知から来たときは、その通知の id も添える ── 答えたら通知は片づく(残すと、答えたボタンが出つづける)。
+export function requestButtons(ctx: Ctx, accountId: string, notifId?: string): SafeHtml {
+  const form = (verb: 'accept' | 'decline') => html`<form method="post" action="/requests/${accountId}/${verb}" in-place>
+    ${notifId ? html`<input type="hidden" name="nf" value="${notifId}" />` : ''}
+    <button type="submit" class="chip">${ctx.t(verb === 'accept' ? 'requests.approve' : 'requests.reject')}</button>
+  </form>`;
+  return html`<div class="request-actions">${form('accept')}${form('decline')}</div>`;
+}
+
 export function accountRow(ctx: Ctx, a: Account, rel: Relationship | null, me: Account | null): SafeHtml {
   return html`<article class="account-row">
     <a class="account-row-link" href="/@${a.acct}">

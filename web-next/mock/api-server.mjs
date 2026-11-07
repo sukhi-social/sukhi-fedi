@@ -42,6 +42,8 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
   let translateFail = null;
   // 翻訳の呼びが自動だったか、の記録(テストが見る)。GET /__mock/translate-log。
   const translateAuto = [];
+  // フォロー申請への答え(authorize / reject)と、片づけた通知の記録(テストが見る)。GET /__mock/requests-log。
+  const requestLog = [];
 
   // プロフィールの編集(PATCH update_credentials)も、覚えておく ── 設定の画面を、行って帰って試すため。
   // 形は gateway の verify_credentials に合わせる(source に原文・ひとこと欄・通知のペース)。
@@ -207,6 +209,13 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       res.end();
       return;
     }
+    if (pathname === '/__mock/requests-log' && method === 'GET') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(requestLog));
+      return;
+    }
+    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss)$/);
+    if (fr && method === 'POST') requestLog.push(fr[1]);
     if (pathname === '/__mock/translate-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(translateAuto));
