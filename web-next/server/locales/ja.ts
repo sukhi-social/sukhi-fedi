@@ -732,6 +732,7 @@ export const ja = {
   'profile.mute': 'ミュートする',
   'profile.unblock': 'ブロックを解く',
   'profile.block': 'ブロックする',
+  'profile.confirmBlock': 'ブロックしますか？ 相手のフォローも外れます。',
   'profile.followingSuffix': 'フォロー中',
   'profile.followersSuffix': 'フォロワー',
   'profile.postsSuffix': '投稿',

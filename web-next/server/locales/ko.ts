@@ -723,6 +723,7 @@ export const ko: Dict = {
   'profile.mute': '뮤트하기',
   'profile.unblock': '차단 풀기',
   'profile.block': '차단하기',
+  'profile.confirmBlock': '차단할까요? 서로의 팔로우도 풀려요.',
   'profile.followingSuffix': '팔로잉',
   'profile.followersSuffix': '팔로워',
   'profile.noFollowers': '아직 팔로워가 없어요.',

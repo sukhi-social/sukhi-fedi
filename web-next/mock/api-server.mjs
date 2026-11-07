@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 export async function startApiServer({ port = Number(process.env.PORT ?? 4000), quiet = false } = {}) {
   // mock.mjs が読まれる前に置く(NOW は読み込み時に決まる)。
   process.env.SUKHI_MOCK_NOW ??= new Date().toISOString();
-  const { respond, ME, HOME } = await import('./mock.mjs');
+  const { respond, ME, HOME, PEOPLE } = await import('./mock.mjs');
 
   const unknown = new Set();
   const open = new Set();
@@ -110,6 +110,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
   // ログインの要素。あいことばは持たない(いまの標準): 本人確認はメールの 6 桁(123456)。
   const security = {
     has_password: false,
+    closing: null,
     email: 'kuro@example.com',
     email_verified: true,
     pending_email: null,
@@ -132,6 +133,16 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     handle(method, path, b) {
       if (method === 'GET' && path === '/settings/sessions') return [200, { sessions: this.sessions }];
       if (path === '/settings/reauth/request') return [200, { ok: true }];
+      if (method === 'GET' && path === '/settings/close/status') return [200, { pending: this.closing }];
+      if (path === '/settings/close/request') {
+        if (!this.reauthOk(b)) return [403, { error: 'reauth' }];
+        this.closing = { scheduled_for: new Date(Date.now() + 86400000).toISOString() };
+        return [200, { pending: this.closing }];
+      }
+      if (path === '/settings/close/cancel') {
+        this.closing = null;
+        return [200, { pending: null }];
+      }
       if (path === '/settings/email/request') {
         if (!/^[^@\s]+@[^@\s]+$/.test(b.email ?? '')) return [422, { error: 'email' }];
         if (this.email_verified && !this.reauthOk(b)) return [403, { error: 'reauth' }];
@@ -209,12 +220,22 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       res.end();
       return;
     }
+    // 人の頁(/@nabi)は、聞かれた acct の人を返す(返事を作る respond() は道しか見ないので、ここで)。
+    if (pathname === '/api/v1/accounts/lookup' && method === 'GET') {
+      const acct = new URL(req.url ?? '/', 'http://localhost').searchParams.get('acct');
+      const who = PEOPLE.find((p) => p.acct === acct || p.username === acct);
+      if (who) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(who));
+        return;
+      }
+    }
     if (pathname === '/__mock/requests-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(requestLog));
       return;
     }
-    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss)$/);
+    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss|accounts\/[^/]+\/(?:mute|unmute|block|unblock)|announcements\/[^/]+\/dismiss|feedback)$/);
     if (fr && method === 'POST') requestLog.push(fr[1]);
     if (pathname === '/__mock/translate-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });

@@ -13,7 +13,7 @@ import { delayWords, timeWords } from '../time.ts';
 import type { Account, Notification, NotificationType, Relationship, Status } from '../types.ts';
 import { layout } from '../views/layout.ts';
 import { avatar } from '../views/parts.ts';
-import { followButton, nameHtml, nameOf, requestButtons } from '../views/account.ts';
+import { followButton, nameHtml, nameOf, profileActions, requestButtons } from '../views/account.ts';
 import { statusCard } from '../views/status.ts';
 import { backOr, failText, needMe, replyAcctsFor } from './shared.ts';
 import { FILTERS } from './read.ts';
@@ -84,12 +84,21 @@ route('POST', '/timeline/default', async (ctx) => {
   return redirect('/timeline?kind=home');
 });
 
+// フォロー・ミュート・ブロック。ミュートとブロックは、プロフィールの「…」と、設定の一覧から来る。
+//  ・プロフィールからなら、フォローの状態も変わりうる(ブロックはフォローを外す)ので、右上の一塊を返す。
+//  ・一覧からなら(`row` に、その行の id)、解いた行を空にして返す。
+const MODERATION = new Set(['mute', 'unmute', 'block', 'unblock']);
+
 route('POST', '/accounts/:id/:verb', async (ctx) => {
   await needMe(ctx);
   const verb = ctx.params.verb;
-  if (verb !== 'follow' && verb !== 'unfollow') return redirect('/');
+  const isFollow = verb === 'follow' || verb === 'unfollow';
+  if (!isFollow && !MODERATION.has(verb)) return redirect('/');
   const rel = await gwJson<Relationship>(ctx, 'POST', `/api/v1/accounts/${encodeURIComponent(ctx.params.id)}/${verb}`, { json: {} });
-  return backOr(ctx, followButton(ctx, ctx.params.id, rel));
+  if (isFollow) return backOr(ctx, followButton(ctx, ctx.params.id, rel));
+  const row = String((await ctx.form()).get('row') ?? '').replace(/[^\w-]/g, '');
+  if (row) return backOr(ctx, html`<article class="account-row" id="${row}"></article>`);
+  return backOr(ctx, profileActions(ctx, ctx.params.id, rel));
 });
 
 // ── 書く(compose) ──────────────────────────────────────────────

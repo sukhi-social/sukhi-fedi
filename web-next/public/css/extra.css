@@ -646,3 +646,14 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
 .notif-answered {
   color: var(--color-text-muted);
 }
+
+/* プロフィールの「…」は右端にあるので、メニューは右端にそろえて左へ開く(右へ開くと画面の外に切れる)。 */
+.profile-menu {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
+/* 管理者のおしらせ(ホームの先頭)。目立たせず、でも見落とさない静けさ。 */
+.announce { padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border-strong, var(--color-border)); border-radius: var(--radius); background: var(--color-surface); display: grid; gap: var(--space-2); font-size: var(--text-sm); }
+.announce p { margin: 0 0 var(--space-2); line-height: 1.6; }
+.announce form { justify-self: start; }
