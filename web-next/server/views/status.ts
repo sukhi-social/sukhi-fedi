@@ -81,6 +81,7 @@ function reactions(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
 
 function actions(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   const t = ctx.t;
+  const rp = o.domId ?? `st-${s.id}`;
   const mine = o.me?.id === s.account.id;
   const post = (verb: string) => `/statuses/${s.id}/${verb}`;
   return html`<footer class="status-actions">
@@ -102,6 +103,7 @@ function actions(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
     <span class="boost-wrap" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false" @closemenus.document="open = false">
       <button type="button" class="chip" aria-haspopup="menu" :aria-expanded="open" aria-label="${t('status.more')}" @click="open = !open">${icon('more')}</button>
       <div class="menu" role="menu" x-show="open" x-cloak>
+        <a class="menu-item" role="menuitem" href="/statuses/${s.id}/react?d=${rp}" up-target="#rp-${rp}" up-history="false" up-scroll="false" @click="open = false">${icon('smile')}<span>${t('status.reactAdd')}</span></a>
         ${mine
           ? html`<form method="post" action="${post('delete')}" in-place up-confirm="${t('status.confirmDelete')}">
               <button type="submit" class="menu-item danger" role="menuitem">${icon('trash')}<span>${t('status.delete')}</span></button>
@@ -225,6 +227,7 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
         : ''}
 
       ${reactions(ctx, s, o)}
+      ${o.me ? html`<div id="rp-${o.domId ?? `st-${s.id}`}"></div>` : ''}
       ${o.me ? actions(ctx, s, o) : ''}
       ${o.note ? html`<p class="muted status-note" role="status">${o.note}</p>` : ''}
     </div>

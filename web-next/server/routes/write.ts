@@ -15,6 +15,7 @@ import { layout } from '../views/layout.ts';
 import { avatar } from '../views/parts.ts';
 import { followButton, nameHtml, nameOf, profileActions, requestButtons } from '../views/account.ts';
 import { pollBlock, statusCard } from '../views/status.ts';
+import { byCategory, customEmojis } from '../customEmojis.ts';
 import { backOr, failText, needMe, replyAcctsFor } from './shared.ts';
 import { FILTERS } from './read.ts';
 import { renderEmojis } from '../emoji.ts';
@@ -139,7 +140,8 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
 
   const fetchOne = (id?: string) =>
     id ? gwJson<Status>(ctx, 'GET', `/api/v1/statuses/${encodeURIComponent(id)}`, { auth: 'optional' }).catch(() => null) : Promise.resolve(null);
-  const [replyTo, quoteOf, held] = await Promise.all([fetchOne(replyId), fetchOne(quoteId), heldList(ctx)]);
+  const [replyTo, quoteOf, held, emojis] = await Promise.all([fetchOne(replyId), fetchOne(quoteId), heldList(ctx), customEmojis(ctx)]);
+  const emojiGroups = byCategory(emojis);
 
   // 返信は、相手の @ を頭に置いて始める(自分への返信は、置かない)。
   // 他のアプリの「共有」から来たとき(manifest の share_target)は、題・本文・URL を、重ならないように置く。
@@ -156,7 +158,7 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
 
   const body = html`<header class="timeline page-head"><h1>${t('nav.compose')}</h1></header>
     <div class="timeline stack">
-      <form class="composer composer-page" method="post" action="/compose" enctype="multipart/form-data" x-data="{ cw: ${String(!!v.values?.spoiler)}, files: [] }">
+      <form class="composer composer-page" method="post" action="/compose" enctype="multipart/form-data" x-data="composeAssist({ cw: ${String(!!v.values?.spoiler)} })">
         ${replyId ? html`<input type="hidden" name="in_reply_to_id" value="${replyId}" />` : ''}
         ${quoteId ? html`<input type="hidden" name="quote_id" value="${quoteId}" />` : ''}
         ${quoteOf
@@ -175,8 +177,18 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
 
         <label class="stack-tight">
           <span class="visually-hidden">${t('compose.bodyLabel')}</span>
-          <textarea name="status" class="grows" rows="6" required autofocus placeholder="${replyTo ? t('compose.placeholderReply') : t('compose.placeholderNew')}">${text}</textarea>
+          <textarea name="status" class="grows" rows="6" required autofocus x-ref="body" @input.debounce.250ms="suggest()" placeholder="${replyTo ? t('compose.placeholderReply') : t('compose.placeholderNew')}">${text}</textarea>
         </label>
+        <div class="suggest-host" x-show="hits" x-cloak x-html="hits" @click="pick($event)"></div>
+        ${emojiGroups.length
+          ? html`<details class="composer-more">
+              <summary>${t('compose.emoji')}</summary>
+              ${emojiGroups.map(
+                ([cat, list]) => html`<p class="muted text-sm">${cat ?? t('emojiPicker.uncategorized')}</p>
+                  <div class="emoji-grid">${list.map((e) => html`<button type="button" class="emoji-btn" title=":${e.shortcode}:" aria-label=":${e.shortcode}:" @click="ins(':${e.shortcode}:')"><img class="emoji" src="${e.static_url ?? e.url}" alt="" loading="lazy" /></button>`)}</div>`
+              )}
+            </details>`
+          : ''}
 
         <details class="composer-more">
           <summary>${t('compose.more')}</summary>

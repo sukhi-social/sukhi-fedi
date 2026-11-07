@@ -117,8 +117,8 @@ You may leave. No reason asked.
 
 What the current UI (web-next) doesn't have yet. We haven't built it; we aren't hiding it.
 
-An emoji picker and mention
-completion.
+Saving drafts, private notes on a person, adding someone to a list from their profile,
+and handing a post over inside a room.
 ([`web-next/README.md`](../web-next/README.md), "まだ", is the up-to-date list.)
 
 ## If you're stuck, or want to tell us something

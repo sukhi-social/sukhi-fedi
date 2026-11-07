@@ -688,3 +688,14 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
 /* 投票: 結果は棒の長さだけ(数も百分率も、目には出さない)。 */
 .poll-mine { font-size: var(--text-sm); color: var(--color-text-muted); }
 .poll-result .poll-label { padding-block: .15rem; }
+
+/* 絵文字の選び口と、@ の候補。どちらも、押したときだけ入る。 */
+.emoji-picker { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-surface); }
+.emoji-grid { display: flex; flex-wrap: wrap; gap: .25rem; }
+.emoji-btn { all: unset; box-sizing: border-box; cursor: pointer; padding: .3rem; border-radius: 8px; line-height: 0; }
+.emoji-btn:hover, .emoji-btn:focus-visible { background: var(--color-accent-soft); }
+.emoji-btn:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 1px; }
+.emoji-btn img.emoji { inline-size: 1.75rem; block-size: 1.75rem; }
+.suggest { list-style: none; margin: 0; padding: .25rem; border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-surface); display: grid; }
+.suggest button { all: unset; box-sizing: border-box; inline-size: 100%; cursor: pointer; padding: .45rem .6rem; border-radius: 8px; }
+.suggest button:hover, .suggest button:focus-visible { background: var(--color-accent-soft); }

@@ -17,6 +17,7 @@ import './routes/people.ts';
 import './routes/saved.ts';
 import './routes/lists.ts';
 import './routes/rooms.ts';
+import './routes/emojis.ts';
 import './routes/feedback.ts';
 import './routes/announcements.ts';
 import './routes/security.ts';

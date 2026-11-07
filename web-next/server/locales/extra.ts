@@ -131,7 +131,9 @@ export const jaExtra = {
   'compose.pollD1': '1 日',
   'compose.pollD3': '3 日',
   'compose.pollD7': '7 日',
-  'compose.pollNeedTwo': '投票の選択肢は、二つ以上にしてくださいね。'
+  'compose.pollNeedTwo': '投票の選択肢は、二つ以上にしてくださいね。',
+  'status.reactAdd': 'リアクションをつける',
+  'compose.emoji': '絵文字'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -263,7 +265,9 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'compose.pollD1': '1일',
   'compose.pollD3': '3일',
   'compose.pollD7': '7일',
-  'compose.pollNeedTwo': '투표 선택지는 두 개 이상으로 해 주세요.'
+  'compose.pollNeedTwo': '투표 선택지는 두 개 이상으로 해 주세요.',
+  'status.reactAdd': '리액션 달기',
+  'compose.emoji': '이모지'
 };
 
 // English. The voice is described in docs/ENGLISH_VOICE.md: plain, warm, in no hurry.
@@ -396,5 +400,7 @@ export const enExtra: Record<keyof typeof jaExtra, string> = {
   'compose.pollD1': '1 day',
   'compose.pollD3': '3 days',
   'compose.pollD7': '7 days',
-  'compose.pollNeedTwo': 'A poll needs at least two choices.'
+  'compose.pollNeedTwo': 'A poll needs at least two choices.',
+  'status.reactAdd': 'Add a reaction',
+  'compose.emoji': 'Emoji'
 };
