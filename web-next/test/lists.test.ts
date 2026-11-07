@@ -122,3 +122,21 @@ test('ホームへの出し方: 外したチェックは「切」として送る
     filter_keyword: 'にゃー', filter_replies: 'to_me'
   });
 });
+
+test('プロフィールの「…」から、入れるリストの頁へ。入っているリストには「外す」、そうでなければ「加える」', async () => {
+  assert.match(await (await go('/@nabi')).text(), /href="\/accounts\/\d+\/lists"/);
+  const page = await (await go('/accounts/2/lists')).text();
+  assert.match(page, /id="al-1"[^]*action="\/accounts\/2\/lists\/1\/remove"/);
+  assert.match(page, /id="al-2"[^]*action="\/accounts\/2\/lists\/2\/add"/);
+});
+
+test('リストへ入れる・外す: gateway に届き、その行だけが返る', async () => {
+  const before = (await log()).length;
+  const hdr = { 'x-up-target': '#al-2', 'x-up-version': '3.15.0' };
+  const add = await go('/accounts/2/lists/2/add', { method: 'POST', body: new FormData(), headers: hdr });
+  assert.equal(add.status, 200);
+  assert.match(await add.text(), /id="al-2"[^]*\/accounts\/2\/lists\/2\/remove/);
+  const rm = await go('/accounts/2/lists/2/remove', { method: 'POST', body: new FormData(), headers: hdr });
+  assert.match(await rm.text(), /id="al-2"[^]*\/accounts\/2\/lists\/2\/add/);
+  assert.deepEqual((await log()).slice(before), ['POST lists/2/accounts 2', 'DELETE lists/2/accounts 2']);
+});
