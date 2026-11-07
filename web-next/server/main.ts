@@ -14,6 +14,8 @@ import './routes/write.ts';
 import './routes/requests.ts';
 import './routes/settings.ts';
 import './routes/people.ts';
+import './routes/feedback.ts';
+import './routes/announcements.ts';
 import './routes/security.ts';
 import './routes/migration.ts';
 import './routes/data.ts';

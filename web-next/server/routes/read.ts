@@ -16,6 +16,7 @@ import { statusCard } from '../views/status.ts';
 import { accountRow, nameHtml, nameOf, profileActions } from '../views/account.ts';
 import { spreadWithinMoments } from '../shuffle.ts';
 import { maybeMe, replyAcctsFor, statusList } from './shared.ts';
+import { announcementCard } from './announcements.ts';
 
 const KINDS: TimelineKind[] = ['home', 'public', 'bubble', 'tag'];
 
@@ -143,6 +144,9 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
         </div>`
       : '';
 
+  // 管理者のおしらせ。ホームの先頭の頁にだけ、まだ読んでいない新しい一枚を、そっと。
+  const notice = me && kind === 'home' && !maxId ? await announcementCard(ctx) : '';
+
   const body = html`<h1 class="visually-hidden">${kind === 'tag' && tag ? `#${tag}` : t(kind === 'home' ? 'timeline.tabHome' : kind === 'bubble' ? 'timeline.tabBubble' : 'timeline.tabPublic')}</h1>
     <nav class="tabs timeline" aria-label="${t('timeline.tabsLabel')}">
       ${me ? tab('home', t('timeline.tabHome')) : ''}${tab('public', t('timeline.tabPublic'))}${tab('bubble', t('timeline.tabBubble'))}${tab('tag', t('timeline.tabTag'))}
@@ -172,6 +176,7 @@ export async function timeline(ctx: Ctx, tagParam: string | null) {
           </label>
         </form>`
       : ''}
+    ${notice}
     <section class="timeline">
       ${freshBar}
       ${problem ? html`<p class="error">${problem}</p>` : ''}

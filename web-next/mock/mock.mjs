@@ -287,6 +287,8 @@ const ROUTES = [
   [/^\/api\/v1\/accounts\/([^/]+)\/(followers|following)$/, () => PEOPLE],
   [/^\/api\/v1\/accounts\/([^/]+)$/, (m) => PEOPLE.find((p) => p.id === m[1]) ?? ME],
   ['/api/v1/announcements', () => ANNOUNCEMENTS],
+  [/^\/api\/v1\/announcements\/[^/]+\/dismiss$/, () => ({})],
+  ['/api/v1/feedback', () => ({ id: 'f1' })],
   ['/api/v1/custom_emojis', () => []],
   ['/api/v1/follow_invites', () => [{ code: 'warm-code' }]],
   ['/api/v1/follow_requests', () => [NABI]],

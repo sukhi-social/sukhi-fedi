@@ -224,7 +224,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       res.end(JSON.stringify(requestLog));
       return;
     }
-    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss|accounts\/[^/]+\/(?:mute|unmute|block|unblock))$/);
+    const fr = pathname.match(/^\/api\/v1\/(follow_requests\/[^/]+\/(?:authorize|reject)|notifications\/[^/]+\/dismiss|accounts\/[^/]+\/(?:mute|unmute|block|unblock)|announcements\/[^/]+\/dismiss|feedback)$/);
     if (fr && method === 'POST') requestLog.push(fr[1]);
     if (pathname === '/__mock/translate-log' && method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
