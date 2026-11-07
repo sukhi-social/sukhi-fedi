@@ -237,6 +237,20 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       res.end(JSON.stringify({ id: '9', title: json?.title ?? '', replies_policy: 'list', exclusive: false }));
       return;
     }
+    const la = pathname.match(/^\/api\/v1\/lists\/([^/]+)\/accounts$/);
+    if (la && (method === 'POST' || method === 'DELETE')) {
+      requestLog.push(`${method} lists/${la[1]}/accounts ${(json?.account_ids ?? []).join(',')}`);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{}');
+      return;
+    }
+    const lp = pathname.match(/^\/api\/v1\/lists\/([^/]+)$/);
+    if (lp && method === 'PUT') {
+      requestLog.push(`PUT lists/${lp[1]} ${JSON.stringify(json)}`);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ id: lp[1], title: 'お茶の人', ...json }));
+      return;
+    }
     const ld = pathname.match(/^\/api\/v1\/lists\/([^/]+)$/);
     if (ld && method === 'DELETE') {
       requestLog.push(`DELETE lists/${ld[1]}`);

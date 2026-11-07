@@ -84,3 +84,41 @@ test('リストのタイムライン: 名前と、投稿と、一覧へ戻る道
 test('入口は、アバターの菜単にある', async () => {
   assert.match(await (await go('/')).text(), /class="nav-menu-item" role="menuitem" href="\/lists"/);
 });
+
+test('メンバー: 一覧と、加える欄と、外す口と、ホームへの出し方', async () => {
+  const page = await (await go('/lists/1/members')).text();
+  assert.match(page, /action="\/lists\/1\/members"/);
+  assert.match(page, /id="lm-\d+"/);
+  assert.match(page, /action="\/lists\/1\/members\/\d+\/remove"/);
+  assert.match(page, /action="\/lists\/1\/gate"/);
+  assert.match(page, /name="filter_replies"/);
+});
+
+test('加える: 人を引いて、gateway に届く', async () => {
+  const before = (await log()).length;
+  const res = await post('/lists/1/members', { acct: '@nabi' });
+  assert.equal(res.status, 303);
+  const got = (await log()).slice(before);
+  assert.equal(got.length, 1);
+  assert.match(got[0], /^POST lists\/1\/accounts \d+$/);
+});
+
+test('外す: gateway に届き、その行が空になる', async () => {
+  const before = (await log()).length;
+  const res = await go('/lists/1/members/2/remove', { method: 'POST', body: new FormData(), headers: { 'x-up-target': '#lm-2', 'x-up-version': '3.15.0' } });
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /<article class="account-row" id="lm-2"><\/article>/);
+  assert.deepEqual((await log()).slice(before), ['DELETE lists/1/accounts 2']);
+});
+
+test('ホームへの出し方: 外したチェックは「切」として送る', async () => {
+  const before = (await log()).length;
+  const res = await post('/lists/1/gate', { exclusive: '1', filter_keyword: ' にゃー ', filter_replies: 'to_me' });
+  assert.equal(res.status, 303);
+  const [line] = (await log()).slice(before);
+  const sent = JSON.parse(line.replace(/^PUT lists\/1 /, ''));
+  assert.deepEqual(sent, {
+    exclusive: true, filter_only_media: false, filter_hide_boosts: false, filter_hide_sensitive: false,
+    filter_keyword: 'にゃー', filter_replies: 'to_me'
+  });
+});
