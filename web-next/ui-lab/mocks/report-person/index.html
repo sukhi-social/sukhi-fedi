@@ -1,0 +1,68 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>通報は、人に知らせる(案)</title>
+<meta name="lab:desc" content="『管理者に』ではなく『〈呼び名〉さんに知らせます』。中身を見るのは、通報した人と受け取る人だけ。受け取る人が休んでいるときは『お休み中です。ブロックやミュート機能を活用してね』。">
+<meta name="lab:scenes" content="sent=知らせた;resting=受け取る人がお休み中">
+<meta name="lab:nav" content="none">
+<style>
+  .rp { display: grid; gap: 1rem; max-width: var(--measure); margin-inline: auto; width: 100%; }
+  .rp h2 { margin: 0; font-size: 1.25rem; }
+  .rp p { margin: 0; }
+  .rp .muted { color: var(--color-text-muted); }
+  .rp .card { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); padding: .85rem 1rem; display: grid; gap: .5rem; }
+  .rp .who { display: flex; gap: .7rem; align-items: center; }
+  .rp .who img { width: 40px; height: 40px; border-radius: 50%; }
+  .rp .who b { display: block; }
+  .rp-form { display: grid; gap: .6rem; }
+  .rp-form label { display: grid; gap: .3rem; }
+  .rp textarea { width: 100%; box-sizing: border-box; min-height: 5rem; }
+  .rp .row { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .rp .step { display: none; }
+  html:not([data-s~=sent]):not([data-s~=resting]) .rp .s-ask,
+  html[data-s~=sent] .rp .s-sent,
+  html[data-s~=resting] .rp .s-resting { display: grid; }
+</style>
+
+<div class="rp">
+  <!-- ① 押したとき(菜単の「通報」から) -->
+  <section class="step s-ask">
+    <div class="card">
+      <h2>くろはさんに知らせます</h2>
+      <div class="who">
+        <img src="/avatar-default.svg" alt="" />
+        <div><b>くろは</b><span class="muted" style="font-size:.8125rem">このサイトを管理しています。ゆっくり読みます。</span></div>
+      </div>
+      <p>通報の中身を見るのは、あなたと、くろはさんだけです。</p>
+      <form class="rp-form" method="post" action="/statuses/1/report">
+        <label>
+          <span>理由があれば、書いてください</span>
+          <textarea name="comment" placeholder="急がなくて大丈夫です。"></textarea>
+        </label>
+        <div class="row">
+          <button class="btn primary px-6 py-2" type="submit">知らせる</button>
+          <a class="chip" href="#back">やめておく</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ② 知らせたあと -->
+  <section class="step s-sent">
+    <div class="card" role="status">
+      <h2>くろはさんに届きました</h2>
+      <p>ありがとう。くろはさんが、ゆっくり読みます。</p>
+      <p class="muted" style="font-size:.8125rem">その間も、見たくないものは、ミュートやブロックで離れておけます。</p>
+      <div class="row"><a class="chip" href="/settings/people">ミュートとブロック</a></div>
+    </div>
+  </section>
+
+  <!-- ③ 受け取る人が休んでいるとき -->
+  <section class="step s-resting">
+    <div class="card" role="status">
+      <h2>くろはさんは、いまお休み中です</h2>
+      <p>ブロックやミュート機能を活用してね。</p>
+      <p class="muted" style="font-size:.8125rem">お休みが明けたら、くろはさんに届くように、知らせは残しておきます。</p>
+      <div class="row"><a class="chip" href="/settings/people">ミュートとブロック</a></div>
+    </div>
+  </section>
+</div>
