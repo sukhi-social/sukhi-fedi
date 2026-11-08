@@ -40,6 +40,19 @@ function toPlainText(h: string): string {
   return h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+const ENTITIES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&#x27;': "'" };
+const decode = (h: string) => h.replace(/&(?:amp|lt|gt|quot|#39|#x27);/g, (e) => ENTITIES[e] ?? e);
+
+// 記事の題は、よその記事では本文の頭に <h2> として折りこまれて届く(gateway の Extract)。
+// こちらで題を出すので、そのまま並べると二度出る ── 題と同じ見出しが頭にあるときだけ、外す。
+// 自分の記事は、題が本文に入っていないので、何も外れない。
+export function withoutTitle(content: string, title: string): string {
+  const m = /^\s*<h2[^>]*>([\s\S]*?)<\/h2>\s*/i.exec(content);
+  if (!m) return content;
+  const same = decode(toPlainText(m[1] ?? '')) === title.replace(/\s+/g, ' ').trim();
+  return same ? content.slice(m[0].length) : content;
+}
+
 function media(ctx: Ctx, s: Status): SafeHtml {
   const blur = !!s.sensitive && !s.spoiler_text;
   return html`<div class="media" x-data="{ shown: ${String(!blur)}, zoom: null }" :class="{ sensitive: !shown }">
@@ -162,7 +175,14 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
   const a = s.account;
   // 空の lang は「言語不明」になって、UI の言語の継承を切ってしまう。無いときは、付けない。
   const langAttr = s.language && /^[A-Za-z]{2,3}(-[A-Za-z0-9]+)*$/.test(s.language) ? raw(` lang="${s.language}"`) : '';
-  const body = raw(s.mfm ? renderMfm(s.mfm, s.emojis) : renderEmojis(s.content, s.emojis));
+  // 題がある(記事)。題は本文とは別に、本文の上に出す。
+  const title = s.title?.trim() ?? '';
+  const body = raw(s.mfm ? renderMfm(s.mfm, s.emojis) : renderEmojis(title ? withoutTitle(s.content, title) : s.content, s.emojis));
+  const titleBlock = title
+    ? o.full
+      ? html`<h1 class="article-title reader-title"${langAttr}>${title}</h1>`
+      : html`<h2 class="article-title"${langAttr}><a href="/@${a.acct}/${s.id}">${title}</a></h2>`
+    : '';
   const isRemote = a.acct.includes('@');
   const replyAcct = s.in_reply_to_account_id ? o.replyAccts?.get(s.in_reply_to_account_id) : undefined;
   const mediaBlock = s.media_attachments.length > 0 ? media(ctx, s) : '';
@@ -184,6 +204,7 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
         ${isRemote && s.url ? html`<a class="orig" href="${s.url}" target="_blank" rel="noopener noreferrer" title="${t('status.viewOriginal')}" up-follow="false">↗</a>` : ''}
       </header>
 
+      ${titleBlock}
       ${s.spoiler_text
         ? html`<details>
             <summary>${s.spoiler_text}</summary>
@@ -192,7 +213,7 @@ function inner(ctx: Ctx, s: Status, o: StatusOpts): SafeHtml {
             ${mediaBlock}
           </details>`
         : html`<div x-data="collapsible({ full: ${String(!!o.full)} })">
-            <div class="content-wrap" :class="{ collapsed: tall && !expanded, reader: ${String(!!o.full)} }">
+            <div class="content-wrap ${title && !o.full ? 'excerpt' : ''}" :class="{ collapsed: tall && !expanded && ${String(!title || !!o.full)}, reader: ${String(!!o.full)} }">
               <div class="content" x-ref="content"${langAttr}>${body}</div>
             </div>
             ${s.title && !o.full

@@ -131,6 +131,16 @@ const ARTICLE = status(
   { title: '板をつくるということ' }
 );
 
+// 自分の記事。題は本文に折りこまれていない(自分で書いたものは、題を別に持つ)。
+const ARTICLE_MINE = status(
+  '2002',
+  ME,
+  '<p>台所じゅうがいい匂いになった。茶葉を乾いた鍋に広げて、弱い火で、ゆっくり混ぜる。</p>' +
+    '<h2>火のこと</h2><p>強くすると、すぐ焦げる。弱いほうが、色が変わるのを待てる。</p>',
+  90,
+  { title: 'ほうじ茶を、はじめて自分で焙じた日' }
+);
+
 // 本文の字で、言語を付ける(Mastodon の status.language のかわり)。
 for (const s of [S1, S2, S3, S4, S5, S6]) {
   const text = String(s.content ?? '');
@@ -262,7 +272,7 @@ const TERMS_HTML =
 
 // ── 口ごとの返事 ──────────────────────────────────────────────────
 
-const statusById = (id) => [...HOME, ARTICLE].find((s) => s.id === id) ?? (id === '2001' ? ARTICLE : S1);
+const statusById = (id) => [...HOME, ARTICLE, ARTICLE_MINE].find((s) => s.id === id) ?? S1;
 
 // 押したあとの姿。数も、ひとつ動かす。
 const PRESS = {

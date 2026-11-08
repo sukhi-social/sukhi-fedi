@@ -207,7 +207,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     try { json = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { /* JSON でない */ }
 
     if (pathname === '/api/v1/statuses' && method === 'POST' && json?.scheduled_at) {
-      const s = { id: `sch${scheduled.length + 1}`, scheduled_at: json.scheduled_at, params: { text: json.status, poll: json.poll ?? null } };
+      const s = { id: `sch${scheduled.length + 1}`, scheduled_at: json.scheduled_at, params: { text: json.status, poll: json.poll ?? null, title: json.title ?? null, as_article: json.as_article ?? null, spoiler_text: json.spoiler_text ?? null, visibility: json.visibility ?? null } };
       scheduled.push(s);
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(s));

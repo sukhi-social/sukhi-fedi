@@ -1,0 +1,157 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>記事を書く(案)</title>
+<meta name="lab:desc" content="書く頁に「ひとこと / 記事」の二つを置く案。記事には題と、ゆったりした書く欄。配りかた(記事として / ふつうの投稿として)を、先に正直に言う。書きかけは、この端末にだけ、そっととっておく。">
+<meta name="lab:scenes" content="write=記事を書く;restored=書きかけが戻った;card=流れでの見え方;reader=開いたとき;profile=プロフィールの「記事」">
+<meta name="lab:nav" content="compose">
+<style>
+  .scene { display: none; }
+  html:not([data-s]) #s-write,
+  html[data-s~=write] #s-write, html[data-s~=restored] #s-write,
+  html[data-s~=card] #s-card, html[data-s~=reader] #s-reader, html[data-s~=profile] #s-profile { display: grid; gap: var(--space-3, .75rem); }
+
+  /* 書く頁の「ひとこと / 記事」。ナビではなく、この頁のなかの切り替え。 */
+  .kind { display: flex; gap: .5rem; }
+  .kind a { padding: .25rem .9rem; border-radius: 999px; border: 1px solid var(--color-border); color: var(--color-text-muted); text-decoration: none; font-size: .875rem; }
+  .kind a[aria-current=true] { color: var(--color-text); background: var(--fill-soft, var(--color-surface)); border-color: var(--color-border-strong, var(--color-border)); }
+
+  /* 題: 本文より一段大きく、枠のない一行。紙の見出しのように。 */
+  .title-field input { inline-size: 100%; font-size: 1.35rem; line-height: 1.4; font-weight: 600; border: 0; border-block-end: 1px solid var(--color-border); border-radius: 0; background: transparent; padding: .4rem 0; }
+  .title-field input:focus { outline: none; border-block-end-color: var(--color-accent-strong); }
+
+  /* 本文: 流れの本文(16px)ではなく、読むときの大きさで書く。 */
+  .article-body textarea { inline-size: 100%; min-block-size: 18rem; font-size: 1.1875rem; line-height: 1.85; }
+  html:lang(ja) .article-body textarea { letter-spacing: .05em; }
+  .hint { margin: 0; font-size: .8125rem; color: var(--color-text-muted); line-height: 1.7; }
+
+  /* 配りかた: 二つの選択肢に、その結果を一行ずつ。記事が既定。 */
+  .wire { border: 0; margin: 0; padding: 0; display: grid; gap: .5rem; }
+  .wire legend { font-size: .875rem; color: var(--color-text-muted); padding: 0; margin-block-end: .25rem; }
+  .wire label { display: grid; grid-template-columns: auto 1fr; gap: .1rem .6rem; align-items: start; padding: .6rem .75rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm, 8px); }
+  .wire label:has(input:checked) { border-color: var(--color-accent-strong); background: var(--color-accent-soft); }
+  .wire input { margin-block-start: .3rem; }
+  .wire b { font-weight: 600; }
+  .wire small { grid-column: 2; color: var(--color-text-muted); line-height: 1.6; }
+
+  .kept { display: flex; justify-content: space-between; gap: .75rem; align-items: center; font-size: .8125rem; color: var(--color-text-muted); }
+  html:not([data-s~=restored]) .only-restored { display: none; }
+
+  /* 流れの記事: 題 → 書き出し(三行) → 「記事を読む」。 */
+  .article-title { margin: .15rem 0 0; font-size: 1.2rem; line-height: 1.45; font-weight: 600; }
+  .article-title a { color: inherit; text-decoration: none; }
+  .excerpt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-block-start: .35rem; }
+  .reader-title { margin: .75rem 0 .25rem; font-size: 1.6rem; line-height: 1.4; font-weight: 700; }
+  .byline { margin: 0 0 .5rem; font-size: .875rem; color: var(--color-text-muted); }
+  .reader-body { font-size: 1.1875rem; line-height: 1.85; }
+  html:lang(ja) .reader-body { letter-spacing: .05em; }
+  .reader-body p { margin: .85rem 0; }
+  .reader-body h2 { font-size: 1.3rem; margin: 1.6rem 0 .4rem; }
+  .reader-body blockquote { margin: 1rem 0; padding-inline-start: 1rem; border-inline-start: 3px solid var(--color-border); color: var(--color-text-muted); }
+</style>
+
+<section class="timeline">
+
+  <!-- 書く -->
+  <div class="scene" id="s-write">
+    <header class="page-head"><h1>書く</h1></header>
+    <nav class="tabs" aria-label="書くもの">
+      <a class="tab" href="/compose">ひとこと</a>
+      <a class="tab" href="/compose?kind=article" aria-current="true">記事</a>
+    </nav>
+
+    <form class="composer composer-page" method="post" action="/compose" enctype="multipart/form-data">
+      <input type="hidden" name="kind" value="article" />
+      <p class="kept only-restored"><span>この端末にとっておいた書きかけを、戻しました。</span><button type="button" class="chip">捨てる</button></p>
+
+      <label class="stack-tight title-field">
+        <span class="visually-hidden">題</span>
+        <input type="text" name="title" maxlength="100" required placeholder="題" value="">
+      </label>
+
+      <label class="stack-tight article-body">
+        <span class="visually-hidden">本文</span>
+        <textarea name="status" required placeholder="ゆっくり、書いてください"></textarea>
+      </label>
+      <p class="hint">Markdown が使えます(見出し <code>##</code>、箇条書き <code>-</code>、引用 <code>&gt;</code>、リンク)。書きかけは、この端末にだけ、そっととっておきます。</p>
+
+      <fieldset class="wire">
+        <legend>どう届けるか</legend>
+        <label>
+          <input type="radio" name="as_article" value="1" checked>
+          <b>記事として</b>
+          <small>Misskey・hackers.pub・Lemmy などでは、題のある記事として。Mastodon には、書き出しとリンクが届きます(全文は、リンク先で)。</small>
+        </label>
+        <label>
+          <input type="radio" name="as_article" value="0">
+          <b>ふつうの投稿として</b>
+          <small>Mastodon にも全文が流れます。題は、本文の頭にそっと添えます。</small>
+        </label>
+      </fieldset>
+
+      <div class="composer-row">
+        <label class="chip">画像をつける <input type="file" name="files" accept="image/*" multiple hidden></label>
+        <label class="stack-tight"><span class="visually-hidden">公開の範囲</span>
+          <select name="visibility"><option>公開</option><option>未収載</option><option>フォロワーだけ</option></select></label>
+        <button type="submit" class="btn primary px-6 py-2">記事を出す</button>
+      </div>
+      <p class="composer-hint">出す前に、四半刻だけお預かりします。そのあいだは、取りやめられます。</p>
+    </form>
+  </div>
+
+  <!-- 流れでの見え方 -->
+  <div class="scene" id="s-card">
+    <article class="status">
+      <span class="avatar" aria-hidden="true" style="background:hsl(80 35% 85%);color:hsl(90 30% 30%)">ひ</span>
+      <div class="body">
+        <header class="meta"><a class="display-name" href="#">ひなた</a> <a class="handle" href="#">@hinata</a> <span class="sep">·</span> <a class="timestamp" href="#">今日の朝</a></header>
+        <h2 class="article-title"><a href="#">ほうじ茶を、はじめて自分で焙じた日</a></h2>
+        <div class="content excerpt"><p>台所じゅうがいい匂いになった。茶葉を乾いた鍋に広げて、弱い火で、ゆっくり混ぜる。色が変わるのを待つあいだ、なにも考えなくてよかった。</p></div>
+        <a class="read-more" href="#">記事を読む</a>
+      </div>
+    </article>
+    <article class="status">
+      <span class="avatar" aria-hidden="true" style="background:hsl(200 40% 88%);color:hsl(210 40% 30%)">나</span>
+      <div class="body">
+        <header class="meta"><a class="display-name" href="#">나비</a> <a class="handle" href="#">@nabi@planet.moe</a> <span class="sep">·</span> <a class="timestamp" href="#">昨日の夕方</a></header>
+        <p class="content">ひとこと。ふつうの投稿は、いままでどおり。</p>
+      </div>
+    </article>
+    <p class="hint">よそから来た記事も、書いた記事も、同じ形で並びます。題はリンク、書き出しは三行まで。</p>
+  </div>
+
+  <!-- 開いたとき -->
+  <div class="scene" id="s-reader">
+    <article class="status">
+      <div class="body">
+        <header class="meta"><a class="display-name" href="#">ひなた</a> <a class="handle" href="#">@hinata</a> <span class="sep">·</span> <a class="timestamp" href="#">今日の朝</a></header>
+        <h1 class="reader-title">ほうじ茶を、はじめて自分で焙じた日</h1>
+        <div class="reader-body">
+          <p>台所じゅうがいい匂いになった。茶葉を乾いた鍋に広げて、弱い火で、ゆっくり混ぜる。</p>
+          <h2>火のこと</h2>
+          <p>強くすると、すぐ焦げる。弱いほうが、色が変わるのを待てる。</p>
+          <blockquote><p>急がないほうが、うまくいく。</p></blockquote>
+          <p>淹れてみたら、思ったよりやさしい味だった。</p>
+        </div>
+        <footer class="status-actions"><a class="chip" href="#">返信</a></footer>
+      </div>
+    </article>
+  </div>
+
+  <!-- プロフィールの「記事」 -->
+  <div class="scene" id="s-profile">
+    <nav class="profile-tabs measure" aria-label="タブ">
+      <a class="tab" href="#">投稿</a><a class="tab active" href="#" aria-current="true">記事</a>
+    </nav>
+    <article class="status"><div class="body">
+      <h2 class="article-title"><a href="#">ほうじ茶を、はじめて自分で焙じた日</a></h2>
+      <div class="content excerpt"><p>台所じゅうがいい匂いになった。茶葉を乾いた鍋に広げて、弱い火で、ゆっくり混ぜる。</p></div>
+      <a class="read-more" href="#">記事を読む</a>
+    </div></article>
+    <article class="status"><div class="body">
+      <h2 class="article-title"><a href="#">朝の散歩の順路</a></h2>
+      <div class="content excerpt"><p>川沿いを北へ。橋を渡って、パン屋の前で折り返す。</p></div>
+      <a class="read-more" href="#">記事を読む</a>
+    </div></article>
+  </div>
+
+</section>

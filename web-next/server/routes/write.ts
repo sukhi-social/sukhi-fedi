@@ -106,6 +106,9 @@ route('POST', '/accounts/:id/:verb', async (ctx) => {
 type Scheduled = { id: string; scheduled_at: string; params?: { text?: string } };
 type Held = { id: string; text: string; at: string };
 
+// 題の上限。gateway(`Notes.Create` の @title_max)と同じ数。
+const ARTICLE_TITLE_MAX = 120;
+
 const POLL_EXPIRES: [number, 'compose.pollH1' | 'compose.pollD1' | 'compose.pollD3' | 'compose.pollD7'][] = [
   [3600, 'compose.pollH1'],
   [86400, 'compose.pollD1'],
@@ -114,7 +117,12 @@ const POLL_EXPIRES: [number, 'compose.pollH1' | 'compose.pollD1' | 'compose.poll
 ];
 
 type ComposeView = {
-  values?: { status?: string; spoiler?: string; sensitive?: boolean; visibility?: string; poll?: string[]; pollExpires?: string; pollMultiple?: boolean };
+  values?: {
+    status?: string; spoiler?: string; sensitive?: boolean; visibility?: string; poll?: string[]; pollExpires?: string; pollMultiple?: boolean;
+    title?: string; asArticle?: boolean;
+  };
+  // 'article' のとき、題つきの長い文章を書く形。返信・引用のなかでは、ひとこと。
+  kind?: 'note' | 'article';
   replyId?: string;
   quoteId?: string;
   error?: string;
@@ -142,6 +150,9 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
     id ? gwJson<Status>(ctx, 'GET', `/api/v1/statuses/${encodeURIComponent(id)}`, { auth: 'optional' }).catch(() => null) : Promise.resolve(null);
   const [replyTo, quoteOf, held, emojis] = await Promise.all([fetchOne(replyId), fetchOne(quoteId), heldList(ctx), customEmojis(ctx)]);
   const emojiGroups = byCategory(emojis);
+  // 記事は、返信でも引用でもない、はじめの文章だけ。
+  const kind: 'note' | 'article' = !replyId && !quoteId && (v.kind ?? q.get('kind')) === 'article' ? 'article' : 'note';
+  const article = kind === 'article';
 
   // 返信は、相手の @ を頭に置いて始める(自分への返信は、置かない)。
   // 他のアプリの「共有」から来たとき(manifest の share_target)は、題・本文・URL を、重ならないように置く。
@@ -158,7 +169,14 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
 
   const body = html`<header class="timeline page-head"><h1>${t('nav.compose')}</h1></header>
     <div class="timeline stack">
-      <form class="composer composer-page" method="post" action="/compose" enctype="multipart/form-data" x-data="composeAssist({ cw: ${String(!!v.values?.spoiler)} })">
+      ${!replyId && !quoteId
+        ? html`<nav class="tabs" aria-label="${t('compose.kindLabel')}">
+            <a class="tab" href="/compose" aria-current="${article ? null : 'true'}">${t('compose.kindNote')}</a>
+            <a class="tab" href="/compose?kind=article" aria-current="${article ? 'true' : null}">${t('compose.kindArticle')}</a>
+          </nav>`
+        : ''}
+      <form class="composer composer-page ${article ? 'composer-article' : ''}" method="post" action="/compose" enctype="multipart/form-data" x-data="composeAssist({ cw: ${String(!!v.values?.spoiler)}, draft: '${article ? 'article' : ''}' })" ${article ? raw('@input.debounce.400ms="save()" @submit="sent()"') : ''}>
+        ${article ? html`<input type="hidden" name="kind" value="article" />` : ''}
         ${replyId ? html`<input type="hidden" name="in_reply_to_id" value="${replyId}" />` : ''}
         ${quoteId ? html`<input type="hidden" name="quote_id" value="${quoteId}" />` : ''}
         ${quoteOf
@@ -170,15 +188,24 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
             : ''}
         ${v.error ? html`<p class="error" role="alert">${v.error}</p>` : ''}
 
-        <label class="stack-tight" x-show="cw" x-cloak>
-          <span>${t('compose.spoilerLabel')}</span>
-          <input type="text" name="spoiler_text" value="${v.values?.spoiler ?? ''}" placeholder="${t('compose.spoilerPlaceholder')}" maxlength="80" />
-        </label>
+        ${article
+          ? html`<p class="composer-reply" x-show="restored" x-cloak>
+                <span>${t('compose.draftRestored')}</span><button type="button" class="chip" @click="discard()">${t('compose.discardDraft')}</button>
+              </p>
+              <label class="stack-tight title-field">
+                <span class="visually-hidden">${t('compose.titleLabel')}</span>
+                <input type="text" name="title" x-ref="title" value="${v.values?.title ?? ''}" maxlength="${ARTICLE_TITLE_MAX}" required autofocus placeholder="${t('compose.titlePlaceholder')}" />
+              </label>`
+          : html`<label class="stack-tight" x-show="cw" x-cloak>
+              <span>${t('compose.spoilerLabel')}</span>
+              <input type="text" name="spoiler_text" value="${v.values?.spoiler ?? ''}" placeholder="${t('compose.spoilerPlaceholder')}" maxlength="80" />
+            </label>`}
 
-        <label class="stack-tight">
+        <label class="stack-tight ${article ? 'article-body' : ''}">
           <span class="visually-hidden">${t('compose.bodyLabel')}</span>
-          <textarea name="status" class="grows" rows="6" required autofocus x-ref="body" @input.debounce.250ms="suggest()" placeholder="${replyTo ? t('compose.placeholderReply') : t('compose.placeholderNew')}">${text}</textarea>
+          <textarea name="status" class="grows" rows="${article ? 14 : 6}" required ${article ? '' : raw('autofocus')} x-ref="body" @input.debounce.250ms="suggest()" placeholder="${article ? t('compose.articlePlaceholder') : replyTo ? t('compose.placeholderReply') : t('compose.placeholderNew')}">${text}</textarea>
         </label>
+        ${article ? html`<p class="composer-hint">${t('compose.articleHint')}</p>` : ''}
         <div class="suggest-host" x-show="hits" x-cloak x-html="hits" @click="pick($event)"></div>
         ${emojiGroups.length
           ? html`<details class="composer-more">
@@ -190,7 +217,21 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
             </details>`
           : ''}
 
-        <details class="composer-more">
+        ${article
+          ? html`<fieldset class="wire">
+              <legend>${t('compose.wireLegend')}</legend>
+              <label>
+                <input type="radio" name="as_article" value="1" ${v.values?.asArticle === false ? '' : raw('checked')} />
+                <b>${t('compose.wireArticle')}</b>
+                <small>${t('compose.wireArticleNote')}</small>
+              </label>
+              <label>
+                <input type="radio" name="as_article" value="0" ${v.values?.asArticle === false ? raw('checked') : ''} />
+                <b>${t('compose.wireNote')}</b>
+                <small>${t('compose.wireNoteNote')}</small>
+              </label>
+            </fieldset>`
+          : html`<details class="composer-more">
           <summary>${t('compose.more')}</summary>
           <div class="composer-more-row">
             <label class="stack-tight"><input type="checkbox" x-model="cw" /><span>${t('compose.fold')}</span></label>
@@ -208,7 +249,7 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
             </label>
             <label class="stack-tight"><input type="checkbox" name="poll_multiple" value="1" ${v.values?.pollMultiple ? raw('checked') : ''} /><span>${t('compose.pollMultiple')}</span></label>
           </div>
-        </details>
+        </details>`}
 
         <div class="composer-row">
           <label class="chip">${t('compose.addImage')}
@@ -216,9 +257,9 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
           </label>
           <label class="stack-tight">
             <span class="visually-hidden">${t('compose.visLabel')}</span>
-            <select name="visibility">${visLabels.map(([val, label]) => html`<option value="${val}" ${val === vis ? raw('selected') : ''}>${label}</option>`)}</select>
+            <select name="visibility">${visLabels.filter(([val]) => !(article && val === 'direct')).map(([val, label]) => html`<option value="${val}" ${val === vis ? raw('selected') : ''}>${label}</option>`)}</select>
           </label>
-          <button type="submit" class="btn primary px-6 py-2">${t('compose.submit')}</button>
+          <button type="submit" class="btn primary px-6 py-2">${article ? t('compose.submitArticle') : t('compose.submit')}</button>
         </div>
         <ul class="composer-files" x-show="files.length" x-cloak><template x-for="name in files"><li class="muted" x-text="name"></li></template></ul>
         <p class="composer-hint">${config.postDelayMin > 0 ? t('compose.queuedHint', { when }) : ''}</p>
@@ -229,7 +270,7 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
             <h2 class="muted">${t('compose.holding')}</h2>
             ${held.map(
               (h) => html`<article class="held-item">
-                <p class="held-text">${h.text}</p>
+                <p class="held-text">${[...h.text].length > 140 ? `${[...h.text].slice(0, 140).join('')}…` : h.text}</p>
                 <p class="muted">${t('compose.holdingUntil', { when: timeWords(h.at, ctx.locale, new Date(), ctx.tz) })}</p>
                 <form method="post" action="/compose/withdraw">
                   <input type="hidden" name="id" value="${h.id}" />
@@ -252,15 +293,26 @@ route('POST', '/compose', async (ctx) => {
   const str = (k: string) => String(f.get(k) ?? '');
   const text = str('status').trim();
   const pollOptions = f.getAll('poll_option').map((x) => String(x).trim());
+  // 記事(題つきの長い文章)。返信・引用のなかでは書けない ── 画面にも出さない。
+  const article = str('kind') === 'article' && !str('in_reply_to_id') && !str('quote_id');
+  const title = article ? str('title').trim() : '';
   const values = {
     status: str('status'), spoiler: str('spoiler_text'), sensitive: f.get('sensitive') === '1', visibility: str('visibility') || 'public',
-    poll: pollOptions, pollExpires: str('poll_expires'), pollMultiple: f.get('poll_multiple') === '1'
+    poll: pollOptions, pollExpires: str('poll_expires'), pollMultiple: f.get('poll_multiple') === '1',
+    title, asArticle: str('as_article') !== '0'
   };
-  const view = (error: string): Promise<Reply> => composePage(ctx, me, { values, replyId: str('in_reply_to_id') || undefined, quoteId: str('quote_id') || undefined, error }, 422);
+  const view = (error: string): Promise<Reply> =>
+    composePage(ctx, me, { values, kind: article ? 'article' : 'note', replyId: str('in_reply_to_id') || undefined, quoteId: str('quote_id') || undefined, error }, 422);
 
   if (!text) return view(t('feedback.empty'));
+  if (article && !title) return view(t('compose.needTitle'));
+  // 記事は、指名だけの形(direct)にしない ── それは「ふたりの部屋」の道。画面には出さないので、来たら断る
+  // (黙って公開に替えると、閉じたつもりの文章が開いてしまう)。
+  if (article && values.visibility === 'direct') return view(t('compose.postFailed'));
+  if (article && [...title].length > ARTICLE_TITLE_MAX) return view(t('compose.titleTooLong', { max: ARTICLE_TITLE_MAX }));
   // 投票は、選択肢が二つ以上あるときだけ。一つだけ書いてあるのは、まだ途中。
-  const filled = pollOptions.filter(Boolean);
+  // (記事には投票も折りたたみもない。送られてきても、読まない。)
+  const filled = article ? [] : pollOptions.filter(Boolean);
   if (filled.length === 1) return view(t('compose.pollNeedTwo'));
 
   try {
@@ -275,8 +327,13 @@ route('POST', '/compose', async (ctx) => {
     }
 
     const body: Record<string, unknown> = { status: text, visibility: values.visibility };
-    if (values.spoiler) body.spoiler_text = values.spoiler;
-    if (values.sensitive || values.spoiler) body.sensitive = true;
+    if (article) {
+      body.title = title;
+      body.as_article = values.asArticle;
+    } else {
+      if (values.spoiler) body.spoiler_text = values.spoiler;
+      if (values.sensitive || values.spoiler) body.sensitive = true;
+    }
     if (str('in_reply_to_id')) body.in_reply_to_id = str('in_reply_to_id');
     if (str('quote_id')) body.quote_id = str('quote_id');
     if (mediaIds.length) body.media_ids = mediaIds;
