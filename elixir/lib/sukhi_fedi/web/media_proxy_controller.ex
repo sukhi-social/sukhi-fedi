@@ -21,10 +21,9 @@ defmodule SukhiFedi.Web.MediaProxyController do
   上限で、edge cache が効く前提なら同時に並ぶ本数は少ない、という
   割り切り。足りなくなったら send_chunked への置き換えを考える。
 
-  URL の拡張子が `.avif` / `.webp` のときは、返す前に `MediaTranscode`
-  が encode し直す(転送量を軽くする層。失敗したら原本のまま)。WebP は
-  その場、AVIF は裏で焼けるまで WebP でつなぐ ─ 詳しくはあちらの
-  moduledoc。
+  URL の拡張子が `.webp` のときは、返す前に `MediaTranscode` が WebP に
+  encode し直す(転送量を軽くする層。失敗したら原本のまま)。詳しくは
+  あちらの moduledoc。
   """
 
   import Plug.Conn
@@ -46,15 +45,10 @@ defmodule SukhiFedi.Web.MediaProxyController do
   @media_cache "public, max-age=2592000"
   @profile_cache "public, max-age=86400"
 
-  # MediaTranscode が :retry(AVIF がまだ裏で焼けていない等の間に合わせ)を
-  # 返したとき用。長く持たせると間に合わせの bytes が CF にピン留めされて、
-  # その URL が二度と AVIF にならない。
-  @retry_cache "public, max-age=60"
-
   def media(conn, id_str) do
     with {:ok, id, target} <- parse_id(id_str),
          %Media{remote_url: url} when is_binary(url) <- Repo.get(Media, id) do
-      fetch(conn, url, @media_cache, variant(target, :media, id, url), @max_redirects)
+      fetch(conn, url, @media_cache, target, @max_redirects)
     else
       _ -> send_resp(conn, 404, "")
     end
@@ -64,7 +58,7 @@ defmodule SukhiFedi.Web.MediaProxyController do
   def header(conn, id_str), do: profile_image(conn, id_str, :banner_url)
 
   # アバターデコレーション(Misskey 系の飾り)の n 番目。APNG などの動く
-  # 画像が多いので、変換(avif/webp)には回さず、そのまま通す。
+  # 画像が多いので、変換(webp)には回さず、そのまま通す。
   def deco(conn, id_str, n_str) do
     with {:ok, id, _} <- parse_id(id_str),
          {:ok, n, _} <- parse_id(n_str),
@@ -83,29 +77,22 @@ defmodule SukhiFedi.Web.MediaProxyController do
     with {:ok, id, target} <- parse_id(id_str),
          %Account{domain: domain} = account when is_binary(domain) <- Repo.get(Account, id),
          url when is_binary(url) <- Map.get(account, field) do
-      fetch(conn, url, @profile_cache, variant(target, field, id, url), @max_redirects)
+      fetch(conn, url, @profile_cache, target, @max_redirects)
     else
       _ -> send_resp(conn, 404, "")
     end
   end
 
-  # MediaTranscode に渡す「何形式で、どの画像か」。鍵に URL のハッシュを
-  # 混ぜるのは、avatar / banner が actor 更新で別の画像になったとき、
-  # 古い AVIF を掴まないため。
-  defp variant(nil, _kind, _id, _url), do: nil
-  defp variant(target, kind, id, url), do: {target, {kind, id, :erlang.phash2(url)}}
-
   # id には飾りの拡張子が付いてくる("6.webp" 等)。Cloudflare は既定で
   # 拡張子を見てキャッシュ対象を決めるので、拡張子なしの URL は origin が
   # cache-control を付けても edge に乗らない(DYNAMIC のまま)。api 側の
   # view が元 URL の拡張子をくっつけ、こちらは基本は剥がして無視する ─
-  # ただし `.avif` / `.webp` だけは「この形式に変換して」の合図として
+  # ただし `.webp` だけは「この形式に変換して」の合図として
   # 読む(SPA が付け替えてくる。MediaTranscode の moduledoc を参照)。
   # 変換は URL 単位なので CF の cache key ともそのまま噛み合う。
   defp parse_id(id_str) do
     case Integer.parse(id_str) do
       {id, ""} -> {:ok, id, nil}
-      {id, ".avif"} -> {:ok, id, :avif}
       {id, ".webp"} -> {:ok, id, :webp}
       {id, "." <> _ext} -> {:ok, id, nil}
       _ -> :error
@@ -185,11 +172,8 @@ defmodule SukhiFedi.Web.MediaProxyController do
     ct = resp |> Req.Response.get_header("content-type") |> List.first()
 
     if media_type?(ct) do
-      # 変換できないものは受け取ったままの {body, ct} が返る。:retry は
-      # 「AVIF がまだ焼けていない」等の間に合わせなので、短く持たせて
-      # 問い直してもらう。
-      {body, ct, mode} = MediaTranscode.maybe(body, ct, variant)
-      cache_control = if mode == :retry, do: @retry_cache, else: cache_control
+      # 変換できないものは受け取ったままの {body, ct} が返る。
+      {body, ct} = MediaTranscode.maybe(body, ct, variant)
 
       conn
       |> put_resp_content_type(ct)

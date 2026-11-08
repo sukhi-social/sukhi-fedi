@@ -33,9 +33,6 @@ defmodule SukhiFedi.Application do
         SukhiFedi.Fedi.DeliverySuspension.children(),
         {Gnat.ConnectionSupervisor, nats_connection_settings()},
         SukhiFedi.Cache.Ets,
-        # 画像プロキシの AVIF 裏 encode(一枚ずつ)。結果を Cache.Ets の
-        # :media_variants に置くので、その後に。
-        SukhiFedi.Web.MediaTranscode.Worker,
         # Finch powers outbound HTTP from the federation fetcher and the
         # nodeinfo-monitor addon. Outbound ActivityPub delivery lives on
         # the separate delivery node; this pool does not carry that traffic.

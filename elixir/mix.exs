@@ -86,7 +86,7 @@ defmodule SukhiFedi.MixProject do
       {:hackney, "~> 4.9"},
       {:sweet_xml, "~> 0.7"},
 
-      # libvips (NIF) — remote media proxy の WebP / AVIF 変換レイヤー
+      # libvips (NIF) — remote media proxy の WebP 変換レイヤー
       # (Web.MediaTranscode)。precompiled の NIF + libvips が hex /
       # GitHub releases から落ちてくるので、alpine(musl) の build /
       # runtime に追加パッケージは要らない(libstdc++ は既にある)。

@@ -1,22 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Web.MediaTranscodeTest do
-  # Not async: the cache tables are one named process, started per test below.
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias SukhiFedi.Web.MediaTranscode
-  alias SukhiFedi.Web.MediaTranscode.Worker
   alias Vix.Vips.Image
   alias Vix.Vips.Operation
 
-  # `mix test --no-start` (make test-elixir) leaves the app's cache tables
-  # unstarted (and the worker with them); the worker records its verdicts in :media_variants.
-  setup do
-    if Process.whereis(SukhiFedi.Cache.Ets) == nil, do: start_supervised!(SukhiFedi.Cache.Ets)
-    if Process.whereis(Worker) == nil, do: start_supervised!(Worker)
-    :ok
-  end
-
-  # 写真っぽい(圧縮しがいのある)テスト画像。真っ黒だと jpeg も avif も
+  # 写真っぽい(圧縮しがいのある)テスト画像。真っ黒だと jpeg も webp も
   # 数百 byte になって大小の比較にならないので、ノイズを使う。
   defp noise_buffer(suffix, width \\ 320, height \\ 240) do
     {:ok, img} = Operation.gaussnoise(width, height, mean: 128.0, sigma: 30.0)
@@ -24,102 +14,70 @@ defmodule SukhiFedi.Web.MediaTranscodeTest do
     buf
   end
 
-  # テストごとに独立した鍵(Cache.Ets はアプリ全体で共有なので)。
-  defp key, do: {:test, make_ref()}
-
-  test "webp はその場で変換して決着" do
+  test "png はその場で webp に変換する" do
     png = noise_buffer(".png")
 
-    {out, ct, mode} = MediaTranscode.maybe(png, "image/png", {:webp, key()})
+    {out, ct} = MediaTranscode.maybe(png, "image/png", :webp)
 
     assert ct == "image/webp"
-    assert mode == :final
     assert byte_size(out) < byte_size(png)
   end
 
-  test "avif の初回は webp でつなぎ、裏で焼けたら avif で決着" do
+  test "jpeg も webp に変換する" do
     jpg = noise_buffer(".jpg[Q=85]")
-    k = key()
 
-    # 一回目: AVIF はまだ無いので、その場の webp を「また聞いて」で返す。
-    {out, ct, mode} = MediaTranscode.maybe(jpg, "image/jpeg", {:avif, k})
+    {out, ct} = MediaTranscode.maybe(jpg, "image/jpeg", :webp)
+
     assert ct == "image/webp"
-    assert mode == :retry
-    assert byte_size(out) < byte_size(jpg)
-
-    # 裏の encode が終わったら、同じ鍵は avif で決着する。
-    :ok = Worker.drain()
-    {out, ct, mode} = MediaTranscode.maybe(jpg, "image/jpeg", {:avif, k})
-    assert ct == "image/avif"
-    assert mode == :final
     assert byte_size(out) < byte_size(jpg)
   end
 
-  test "avif が縮まない画像は reject に落ちて、webp で決着する" do
-    # 1x1 png(282B)。avif は container overhead で 537B に膨らむ =
-    # 裏で reject になる。webp は 256B で、こちらは勝つ。
+  test "content-type の大文字・パラメータは見逃さない" do
+    jpg = noise_buffer(".jpg[Q=85]")
+    {_out, ct} = MediaTranscode.maybe(jpg, "image/JPEG; charset=utf-8", :webp)
+    assert ct == "image/webp"
+  end
+
+  test "変換を頼まれていなければ(nil)そのまま" do
+    jpg = noise_buffer(".jpg[Q=85]")
+    assert {^jpg, "image/jpeg"} = MediaTranscode.maybe(jpg, "image/jpeg", nil)
+  end
+
+  test "対象外の形式(svg / gif / 動画)は触らない" do
+    svg = ~s(<svg xmlns="http://www.w3.org/2000/svg"/>)
+    gif = "GIF89a" <> :binary.copy(<<0>>, 32)
+    vid = :binary.copy(<<1>>, 64)
+
+    assert {^svg, "image/svg+xml"} = MediaTranscode.maybe(svg, "image/svg+xml", :webp)
+    assert {^gif, "image/gif"} = MediaTranscode.maybe(gif, "image/gif", :webp)
+    assert {^vid, "video/mp4"} = MediaTranscode.maybe(vid, "video/mp4", :webp)
+  end
+
+  test "壊れた bytes は原本のまま" do
+    junk = "not an image at all"
+    assert {^junk, "image/jpeg"} = MediaTranscode.maybe(junk, "image/jpeg", :webp)
+  end
+
+  test "縮まない画像は原本のまま" do
+    # 1x1 png(282B)。webp にしても container overhead で得にならないことがある ─
+    # 縮まないなら原本を返す、という約束だけを見る。
     {:ok, img} = Operation.black(1, 1, bands: 3)
     {:ok, png} = Image.write_to_buffer(img, ".png")
-    k = key()
 
-    # 初回は間に合わせの webp + :retry。
-    assert {_out, "image/webp", :retry} = MediaTranscode.maybe(png, "image/png", {:avif, k})
+    {out, ct} = MediaTranscode.maybe(png, "image/png", :webp)
 
-    # 裏で「avif は駄目」と分かったら、以後は待たずに webp で決着。
-    :ok = Worker.drain()
-    assert {:ok, :reject} = SukhiFedi.Cache.Ets.get(:media_variants, k)
-    assert {_out, "image/webp", :final} = MediaTranscode.maybe(png, "image/png", {:avif, k})
+    case ct do
+      "image/webp" -> assert byte_size(out) < byte_size(png)
+      "image/png" -> assert out == png
+    end
   end
 
-  test "content-type の parameter 付きでも変換する" do
-    jpg = noise_buffer(".jpg[Q=85]")
-
-    {_out, ct, _mode} = MediaTranscode.maybe(jpg, "image/JPEG; charset=utf-8", {:webp, key()})
-
-    assert ct == "image/webp"
-  end
-
-  test "頼まれていない(variant なし)ならそのまま決着" do
-    jpg = noise_buffer(".jpg[Q=85]")
-
-    assert {^jpg, "image/jpeg", :final} = MediaTranscode.maybe(jpg, "image/jpeg", nil)
-  end
-
-  test "webp → webp は再エンコードせずそのまま" do
-    webp = noise_buffer(".webp[Q=80]")
-
-    assert {^webp, "image/webp", :final} =
-             MediaTranscode.maybe(webp, "image/webp", {:webp, key()})
-  end
-
-  test "対象外の形式(svg / gif / video)はそのまま決着" do
-    svg = "<svg xmlns='http://www.w3.org/2000/svg'/>"
-    assert {^svg, "image/svg+xml", :final} = MediaTranscode.maybe(svg, "image/svg+xml", {:avif, key()})
-
-    gif = "GIF89a..."
-    assert {^gif, "image/gif", :final} = MediaTranscode.maybe(gif, "image/gif", {:avif, key()})
-
-    vid = "not really a video"
-    assert {^vid, "video/mp4", :final} = MediaTranscode.maybe(vid, "video/mp4", {:avif, key()})
-  end
-
-  test "content-type が嘘(中身が画像でない)ならそのまま決着" do
-    junk = :crypto.strong_rand_bytes(64)
-
-    assert {^junk, "image/jpeg", :final} = MediaTranscode.maybe(junk, "image/jpeg", {:avif, key()})
-  end
-
-  test "画素数が上限を超える画像はそのまま決着(裏にも回さない)" do
+  test "画素数が上限を超える画像はそのまま" do
     # 4K(3840x2160) を一回りだけ超える。中身は黒で軽い。
     {:ok, img} = Operation.black(3900, 2200, bands: 3)
     {:ok, png} = Image.write_to_buffer(img, ".png")
-    k = key()
 
-    assert {^png, "image/png", :final} = MediaTranscode.maybe(png, "image/png", {:avif, k})
-
-    # 裏に enqueue されていない = drain 後も何も置かれていない。
-    :ok = Worker.drain()
-    assert :miss = SukhiFedi.Cache.Ets.get(:media_variants, k)
+    assert {^png, "image/png"} = MediaTranscode.maybe(png, "image/png", :webp)
   end
 
   # 16x16・2 フレームの本物の animated webp(img2webp 製)。libvips で
@@ -136,7 +94,6 @@ defmodule SukhiFedi.Web.MediaTranscodeTest do
 
     webp = @animated_webp
 
-    assert {^webp, "image/webp", :final} =
-             MediaTranscode.maybe(webp, "image/webp", {:avif, key()})
+    assert {^webp, "image/webp"} = MediaTranscode.maybe(webp, "image/webp", :webp)
   end
 end

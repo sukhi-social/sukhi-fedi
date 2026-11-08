@@ -248,7 +248,6 @@
       {@const v = proxyVariants(account.header)}
       <picture>
         {#if v}
-          <source srcset={v.avif} type="image/avif" />
           <source srcset={v.webp} type="image/webp" />
         {/if}
         <img class="profile-header" src={account.header} alt="" loading="lazy" />
