@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Web.Upstreams do
   @moduledoc """
-  The web fronts (web-simple, web-next, web-board, web-lobby…) that sit
+  The web fronts (web-simple, web-next, web-board, web-room…) that sit
   behind this gateway, and which of them answers a path.
 
   This module is the one place that decides it. It holds no state of its
@@ -30,7 +30,7 @@ defmodule SukhiFedi.Web.Upstreams do
       objects, **first match wins** (the way an nginx `location` list reads),
       so write the specific rows first:
 
-          [{"pattern":"/home","upstream":"web-lobby"},
+          [{"pattern":"/room/**","upstream":"web-room"},
            {"pattern":"/**","upstream":"web-next"}]
 
       A row only counts when the upstream it names also claims the path.

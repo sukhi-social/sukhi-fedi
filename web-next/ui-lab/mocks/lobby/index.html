@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <title>ロビー(案・一画面)</title>
 <meta name="lab:desc" content="ロビー = 静かなあいさつ + 最大3枚のウィジェット。状態が無ければ出ない/玄関であって目的地でない/今日は出さない。登録簿の関門(出す順・最大枚数・夜ふけの減らし)を、小さな script で真似ている。">
-<meta name="lab:scenes" content="firstrun=加入したて(フォロー0);fresh=便りが届いている;waiting=公開待ちがある;notice=お知らせがある;community=部屋に便り(将来);night=夜ふけ(最大2枚)">
+<meta name="lab:scenes" content="firstrun=加入したて(フォロー0);fresh=便りが届いている;waiting=公開待ちがある;notice=お知らせがある;community=村に便り(将来);night=夜ふけ(最大2枚)">
 <meta name="lab:nav" content="home">
 <style>
   .lobby { display: grid; gap: .9rem; max-width: var(--measure); margin-inline: auto; width: 100%; }
@@ -37,7 +37,7 @@
     <li class="w" data-w="letters" data-when="fresh"><a href="/notifications"><b>返信とフォローの申請が届いています</b><span class="line">ひなたさんから返信。ほかは、まとめてあとで。</span><span class="go" aria-hidden="true">›</span></a><button class="quiet" type="button">今日は出さない</button></li>
     <li class="w" data-w="waiting" data-when="waiting"><a href="/compose"><b>公開を待っている投稿があります</b><span class="line">もうすこしで上がります。それまでは、見直せます。</span><span class="go" aria-hidden="true">›</span></a><button class="quiet" type="button">今日は出さない</button></li>
     <li class="w" data-w="notice" data-when="notice"><a href="/notices"><b>お知らせがあります</b><span class="line">sukhi.social から、ひとつ。</span><span class="go" aria-hidden="true">›</span></a><button class="quiet" type="button">今日は出さない</button></li>
-    <li class="w" data-w="rooms" data-when="community"><a href="/communities"><b>入っている部屋に、すこし便りがあります</b><span class="line">ベランダ菜園部 ほか。</span><span class="go" aria-hidden="true">›</span></a><button class="quiet" type="button">今日は出さない</button></li>
+    <li class="w" data-w="rooms" data-when="community"><a href="/communities"><b>入っている村に、すこし便りがあります</b><span class="line">ベランダ菜園部 ほか。</span><span class="go" aria-hidden="true">›</span></a><button class="quiet" type="button">今日は出さない</button></li>
   </ul>
 
   <div class="home-door">

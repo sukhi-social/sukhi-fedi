@@ -11,7 +11,7 @@
     "web-next": { "url": "http://web-next:3000" },
     "web-simple": { "url": "http://web-simple:3000" },
     "web-board": { "url": "http://web-board:3000" },
-    "web-lobby": { "url": "http://web-lobby:3000" }
+    "web-room": { "url": "http://web-room:3000" }
   },
   "routes": [
     { "pattern": "/timeline", "frontend": "web-next" },

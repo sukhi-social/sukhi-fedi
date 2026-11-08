@@ -48,7 +48,7 @@ docker compose \
   `config/instance.json.example` を `/etc/sukhi/instance.json` として read-only
   mount し、Quadlet の `SUKHI_INSTANCE_CONFIG` で指定する。ファイルは必須で、
   `routes` の各行で `frontend` を明示する。選択肢は `relay`（内蔵）、
-  `web-next`、`web-simple`、`web-board`、`web-lobby`（予定）。起動時に解決した
+  `web-next`、`web-simple`、`web-board`、`web-room`（予定）。起動時に解決した
   path、frontend、active frontend/route 件数と構文不整合を journal に出す。
   外部 frontend は route で参照されたものだけ接続対象になる。秘密はこのファイルへ
   入れず、env/Podman secret で渡す。
