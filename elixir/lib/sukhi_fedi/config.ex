@@ -42,4 +42,16 @@ defmodule SukhiFedi.Config do
   """
   @spec invite_required?() :: boolean()
   def invite_required?, do: Application.get_env(:sukhi_fedi, :invite_required, true)
+
+  @doc """
+  The local username `INSTANCE_CONTACT` names as the server's contact, or
+  `nil` to let `Accounts.site_contact/0` fall back to the oldest admin.
+  """
+  @spec instance_contact() :: String.t() | nil
+  def instance_contact do
+    case Application.get_env(:sukhi_fedi, :instance_contact) do
+      name when is_binary(name) and name != "" -> String.trim_leading(name, "@")
+      _ -> nil
+    end
+  end
 end

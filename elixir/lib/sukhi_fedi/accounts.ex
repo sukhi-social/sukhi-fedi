@@ -93,6 +93,43 @@ defmodule SukhiFedi.Accounts do
   end
 
   @doc """
+  The person this server names as its contact (Mastodon's `contact_account`
+  in `/api/v1,v2/instance`), with the counts the account view wants, or `nil`.
+
+  `INSTANCE_CONTACT` picks a local username; unset, it is the oldest local
+  admin that is still here. The instance document is read by every client
+  at startup, so the answer is kept for a minute (`HotCache`) — one lookup
+  per minute, not one per client. This is the one place that decides who
+  the contact is; the API only renders it.
+  """
+  @spec site_contact() :: %{account: Account.t(), counts: map()} | nil
+  def site_contact do
+    HotCache.fetch(:site_contact, HotCache.ttl(:site_contact), fn ->
+      case find_site_contact() do
+        %Account{} = a -> %{account: a, counts: counts_for(a.id)}
+        nil -> nil
+      end
+    end)
+  end
+
+  defp find_site_contact do
+    case SukhiFedi.Config.instance_contact() do
+      nil -> oldest_admin()
+      username -> by_local_username(username) || oldest_admin()
+    end
+  end
+
+  defp oldest_admin do
+    Repo.one(
+      from(a in local_accounts(),
+        where: a.is_admin == true and is_nil(a.deleted_at),
+        order_by: [asc: a.id],
+        limit: 1
+      )
+    )
+  end
+
+  @doc """
   Fetch by id. Returns `{:ok, account}` or `{:error, :not_found}`.
   """
   @spec get_account(integer() | binary()) :: {:ok, Account.t()} | {:error, :not_found}
@@ -487,8 +524,13 @@ defmodule SukhiFedi.Accounts do
         )
         |> Repo.transaction()
         |> case do
-          {:ok, %{account: a}} -> {:ok, a}
-          {:error, _step, reason, _} -> {:error, reason}
+          {:ok, %{account: a}} ->
+            # who counts as the contact may just have changed
+            HotCache.forget(:site_contact)
+            {:ok, a}
+
+          {:error, _step, reason, _} ->
+            {:error, reason}
         end
     end
   end

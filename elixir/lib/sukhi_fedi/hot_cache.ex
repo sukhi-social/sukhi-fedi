@@ -29,6 +29,8 @@ defmodule SukhiFedi.HotCache do
     map: 5,
     stats_dashboard: 30,
     account_counts: 60,
+    # who the server names as its contact; every client asks at startup
+    site_contact: 60,
     # a finished translation, so a post many people ask for is translated once
     translate: 600
   }

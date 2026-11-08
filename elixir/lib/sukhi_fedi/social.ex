@@ -60,6 +60,7 @@ defmodule SukhiFedi.Social do
           locked: a.locked,
           is_bot: a.is_bot,
           is_admin: a.is_admin,
+          roles: a.roles,
           created_at: a.created_at
         }
       )
@@ -124,6 +125,7 @@ defmodule SukhiFedi.Social do
         locked: a.locked,
         is_bot: a.is_bot,
         is_admin: a.is_admin,
+        roles: a.roles,
         created_at: a.created_at
       }
     )

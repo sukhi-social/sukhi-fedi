@@ -107,7 +107,9 @@ defmodule SukhiFedi.Lists do
               actor_uri: a.actor_uri,
               avatar_url: a.avatar_url,
               banner_url: a.banner_url,
-              avatar_decorations: a.avatar_decorations
+              avatar_decorations: a.avatar_decorations,
+              is_admin: a.is_admin,
+              roles: a.roles
             }
         )
 

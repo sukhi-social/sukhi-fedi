@@ -26,6 +26,11 @@ defmodule SukhiApi.Views.MastodonAccount do
   # 揃えること。他クライアントにはこのシルエットがそのまま見える。
   @default_avatar_path "/static/avatar-default.svg"
 
+  # The badge a server admin wears. Mastodon's own owner/admin roles are named
+  # "Owner" / "Admin" with no colour of their own; `id` is not a number here so
+  # it can never collide with the index ids of the badges an admin hands out.
+  @admin_badge %{id: "admin", name: "Admin", color: ""}
+
   @doc """
   Render a single account.
 
@@ -187,18 +192,32 @@ defmodule SukhiApi.Views.MastodonAccount do
 
   # Public badges (Mastodon `roles`: id / name / color). Names are stored
   # escaped, so a client may set them as HTML-safe text.
+  #
+  # A server admin always carries the "Admin" badge, in front of the ones the
+  # admin handed out: Mastodon shows its highlighted staff roles the same way,
+  # so people can see who runs the place. It is derived here, from `is_admin`,
+  # and never stored — so it cannot drift from the flag, and nobody can hand
+  # it out or take it away by editing badges. Only a local account can have
+  # it: `is_admin` is never read from a remote actor.
   defp roles(account) do
-    case Map.get(account, :roles) do
-      rows when is_list(rows) ->
-        rows
-        |> Enum.with_index()
-        |> Enum.map(fn {row, n} ->
-          %{id: "#{n}", name: Map.get(row, "name", ""), color: Map.get(row, "color", "")}
-        end)
+    given =
+      case Map.get(account, :roles) do
+        rows when is_list(rows) ->
+          rows
+          |> Enum.with_index()
+          |> Enum.map(fn {row, n} ->
+            %{id: "#{n}", name: Map.get(row, "name", ""), color: Map.get(row, "color", "")}
+          end)
 
-      _ ->
-        []
-    end
+        _ ->
+          []
+      end
+
+    if admin?(account), do: [@admin_badge | given], else: given
+  end
+
+  defp admin?(account) do
+    Map.get(account, :is_admin, false) == true and Map.get(account, :domain) in [nil, ""]
   end
 
   # `source.fields`: the value as typed (Markdown) when we have it, so the edit
