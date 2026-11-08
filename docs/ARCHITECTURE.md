@@ -112,13 +112,14 @@ apps into a single-BEAM release for small single-box deployments
 topology; only the process count differs.
 
 **Web fronts.** The pages people read (web-simple, web-next, web-board,
-web-lobby…) are separate processes that sit *behind* the gateway, on a
+web-room…) are separate processes that sit *behind* the gateway, on a
 private network; the browser reaches only the gateway, so rule 1 holds.
 Each front serves a static `/.sukhi/web.json` listing the paths it can
 answer; the operator lists the fronts' URLs and, where two could answer,
 who wins in the required `/etc/sukhi/instance.json` (`routes`, first match
 wins). Each route must explicitly select `relay`, `web-next`, `web-simple`,
-`web-board`, or `web-lobby`. Paths with a
+`web-board`, or `web-room`. `web-room` is a reserved name for the day the room (`/room`) is
+split out; until then the room is built inside `web-next` (`web-next/server/room/`). Paths with a
 dot-led segment (`/.well-known/…`, `/.sukhi/…`) are the gateway's alone and
 are never forwarded. Everything the gateway itself routes (`/api`,
 `/oauth`, federation, media) is matched first and is not claimable. The one

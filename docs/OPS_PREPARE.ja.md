@@ -110,7 +110,7 @@ SMTP_HOST=…  SMTP_USERNAME=…  SMTP_PASSWORD=…  MAIL_FROM=no-reply@example.
 
 非秘密の instance config は `/etc/sukhi/instance.json` として mount する。
 `site_name`、`frontends`、`routes` は必須。各 route は `frontend` を明示し、
-`relay`（内蔵）、`web-next`、`web-simple`、`web-board`、`web-lobby`（予定）
+`relay`（内蔵）、`web-next`、`web-simple`、`web-board`、`web-room`（予定）
 から選ぶ。外部 frontend は URL を持つ定義にし、route で参照されたものだけが
 gateway の接続対象になる。`WEB_UPSTREAMS`、`WEB_ROUTES`、`INSTANCE_TITLE` は使わない。
 

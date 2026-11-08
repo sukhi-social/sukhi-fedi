@@ -1,0 +1,56 @@
+<!--lab:shell-->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<title>部屋(/room・案)</title>
+<meta name="lab:desc" content="ひなたの「部屋」デモを、そのまま取りこんだもの(段 0)。ナビは本物を使う。デモの JS は読んだだけで、直したのは「ナビが無くても動く」所だけ。デモの操作(時間帯・サーバーの返事)は画面の上の折りたたみ。計画書 §8 の直しは、まだ入れていない。">
+<meta name="lab:nav" content="none">
+<link rel="stylesheet" href="/m/room/style.css">
+<script defer src="/m/room/lofi.js"></script>
+<script defer src="/m/room/app.js"></script>
+
+<div id="main" tabindex="-1">
+  <div class="quiet-banner" id="quietBanner" hidden>
+  <p>しばらく静かにしています。通知は、戻るまで届きません。</p>
+  <button class="btn" id="quietBack">戻ってきました</button>
+</div>
+  <div class="demo-wrap wrap"><aside class="demo" aria-label="デモの操作">
+  <details id="demoPanel">
+    <summary>デモの操作と、しくみ</summary>
+    <div class="demo-body">
+      <p class="demo-note">これはデモです。データはこの画面の中だけにあり、どこにも送りません。</p>
+      <div class="demo-row">
+        <button class="btn" id="reopen">同じ日に、もう一度開く</button>
+        <button class="btn" id="nextDay">次の日にする</button>
+        <button class="btn" id="resetAll">はじめから</button>
+      </div>
+      <fieldset class="demo-row">
+        <legend>時間帯</legend>
+        <label><input type="radio" name="period" value="morning" checked> 朝</label>
+        <label><input type="radio" name="period" value="day"> 昼</label>
+        <label><input type="radio" name="period" value="evening"> 夕方</label>
+        <label><input type="radio" name="period" value="night"> 夜</label>
+      </fieldset>
+      <fieldset class="demo-row">
+        <legend>サーバーの返事(挨拶を待つあいだ)</legend>
+        <label><input type="radio" name="wait" value="220" checked> すぐ</label>
+        <label><input type="radio" name="wait" value="1500"> 少し待つ</label>
+        <label><input type="radio" name="wait" value="12000"> とても待つ</label>
+      </fieldset>
+      <div class="apiwrap"><p class="demo-label">サーバーとのやりとり(まね)</p>
+      <ol class="apilog" id="apiLog" aria-live="polite"></ol></div>
+    </div>
+  </details>
+</aside></div>
+  <p id="live" class="sr-live" role="status" aria-live="polite"></p>
+  <div id="view"></div>
+</div>
+<div class="dock" id="ytDock" hidden role="region" aria-label="YouTube の窓">
+  <div class="dock-head">
+    <span>YouTube</span>
+    <button class="text-btn" id="ytFold" aria-label="窓を畳む(止まります)">畳む</button>
+  </div>
+  <div class="dock-player" id="ytPlayer">
+    <p>ここに YouTube のプレーヤーが入ります。</p>
+    <p class="muted small">デモでは読み込みません。本物では 200×200 以上で、見えたまま。上に何も重ねません。</p>
+    <p class="small" id="ytNow"></p>
+  </div>
+</div>

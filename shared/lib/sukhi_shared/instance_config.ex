@@ -8,7 +8,7 @@ defmodule SukhiShared.InstanceConfig do
   """
 
   @default_path "/etc/sukhi/instance.json"
-  @frontend_names ~w(relay web-next web-simple web-board web-lobby)
+  @frontend_names ~w(relay web-next web-simple web-board web-room)
   @string_keys ~w(site_name site_logo site_icon unauthenticated_redirect)
 
   @type t :: %{optional(String.t()) => term()}
