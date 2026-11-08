@@ -18,10 +18,9 @@
 #
 # Memory limits below follow a 13-min 1-core endurance run (2026-06-11):
 # combined held flat at ~130 MiB under sustained read+write+inbox load,
-# while bun OOM-killed at a 120M cap (its resident floor is ~100 MiB and
-# JSON-LD work spikes above it) — so bun gets headroom before anything
-# else does. Minimal known-good split for a 512 MB container budget:
-# combined 192M / postgres 112M / bun 160M / nats 40M.
+# (the old Bun sidecar, retired and since removed, OOM-killed at a 120M cap
+# in the same run). Minimal known-good split for a 512 MB container
+# budget: combined 192M / postgres 112M / nats 40M.
 
 # One scheduler, busy-wait off, small heaps — same rationale as
 # docker-compose.x64-freetier.yml, shared by every BEAM container here.
@@ -100,11 +99,6 @@ services:
           memory: 384M
 
   delivery:
-    profiles: ["disabled"]
-
-  # Retired (v0.3.0); the combined image answers fedify.*.v1 natively via
-  # SukhiFedi.Fedi. Kept off — matches the base compose.
-  bun:
     profiles: ["disabled"]
 
   # Folded into the combined release above — no separate BEAM.

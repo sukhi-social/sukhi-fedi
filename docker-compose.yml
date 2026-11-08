@@ -102,26 +102,6 @@ services:
       com.centurylinklabs.watchtower.enable: "true"
     restart: unless-stopped
 
-  # Retired in production (v0.3.0). The native SukhiFedi.Fedi service inside
-  # the gateway answers all fedify.*.v1 subjects now, so this container is
-  # not started. Kept behind the `disabled` profile as a rollback path and
-  # as the oracle for golden fixtures — bring it back with
-  # `docker-compose --profile disabled up bun` if ever needed.
-  bun:
-    profiles: ["disabled"]
-    image: ghcr.io/${SUKHI_REPO_OWNER:-nyanrus}/sukhi-fedi-bun:${SUKHI_VERSION:-v1}
-    logging: *logging
-    environment:
-      NATS_URL: nats://nats:4222
-      ENABLED_ADDONS: ${ENABLED_ADDONS:-all}
-      DISABLE_ADDONS: ${DISABLE_ADDONS:-}
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
-    depends_on:
-      nats:
-        condition: service_healthy
-    restart: unless-stopped
-
   # ── Delivery node ────────────────────────────────────────────────────────
   # Owns the outbound federation side: Outbox.Relay (pg-notify → NATS) and
   # the Oban `:delivery` / `:federation` queues. Talks to the gateway only

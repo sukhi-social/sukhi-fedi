@@ -52,7 +52,6 @@ build_one() {
     # natadeco の頁を描く Node(2026-09-03)。Elixir が HTML の要求だけ
     # ここへ回す。IMAGE_PREFIX=natadeco で焼く。
     ssr)            ctx="web-natadeco"    file="web-natadeco/Dockerfile"    ;;
-    bun)            ctx="bun"             file="bun/Dockerfile"             ;;
     anubis)         ctx="config/anubis"   file="config/anubis/Dockerfile"   ;;
     *) echo "unknown image: $name" >&2; return 1 ;;
   esac
@@ -72,7 +71,7 @@ build_one() {
     && docker push '$img:$SHA'"
 }
 
-if [ "$#" -eq 0 ]; then echo "usage: $0 <combined|api|ssr|bun|anubis>..." >&2; exit 1; fi
+if [ "$#" -eq 0 ]; then echo "usage: $0 <combined|api|ssr|anubis>..." >&2; exit 1; fi
 
 # image を焼くためのツリーは ~/sukhi-images。
 # ここは毎回まるごと消して展開し直すから。

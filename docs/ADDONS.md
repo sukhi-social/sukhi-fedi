@@ -7,8 +7,7 @@
 ## ABI contract (v1)
 
 A sukhi-fedi **addon** declares itself with `use SukhiFedi.Addon, id:
-:some_id` (gateway) and an object exported from `bun/addons/<id>/manifest.ts`
-(Bun). Major-version mismatch with the running core is a boot failure.
+:some_id` (gateway). Major-version mismatch with the running core is a boot failure.
 
 ### Gateway side (`:sukhi_fedi`)
 
@@ -38,29 +37,6 @@ use SukhiApi.Capability, addon: :mastodon_api
 Capabilities without `:addon` are treated as core (always active).
 `ENABLED_ADDONS` reaches the api node through docker-compose's
 environment passthrough.
-
-### Bun side
-
-`bun/addons/<id>/manifest.ts` exports a `BunAddon` default:
-
-```ts
-import type { BunAddon } from "../types.ts";
-
-const myAddon: BunAddon = {
-  id: "my_addon",
-  abi_version: "1.0",
-  translators: {
-    "my_addon.custom_note": handleBuildCustomNote,
-  },
-  subscribes: (subscribe) => [subscribe("ap.build.my_addon", handler)],
-};
-export default myAddon;
-```
-
-New addons are imported from `bun/addons/loader.ts` so they're picked
-up at startup. Translator keys must be namespaced `<addon_id>.<type>`
-to avoid clashing with the core names (`note`, `follow`, `accept`,
-`announce`, `actor`, `dm`, `add`, `remove`).
 
 ## Migrations
 
@@ -95,10 +71,7 @@ to avoid clashing with the core names (`note`, `follow`, `accept`,
 3. (Optional) Add REST routes as SukhiApi capabilities in
    `api/lib/sukhi_api/capabilities/` tagged with `addon: :my_feature`.
 
-4. (Optional) Add a Bun-side manifest under `bun/addons/my_feature/`
-   and register it in `bun/addons/loader.ts`.
-
-5. Operators enable it by adding `my_feature` to `ENABLED_ADDONS` in
+4. Operators enable it by adding `my_feature` to `ENABLED_ADDONS` in
    their `.env` and `docker compose up -d`.
 
 ## Presets
@@ -160,7 +133,7 @@ their version changes.
 ## Rolling tags & Watchtower
 
 Images are published to
-`ghcr.io/<owner>/sukhi-fedi-{gateway,api,bun}` with
+`ghcr.io/<owner>/sukhi-fedi-{gateway,api}` with
 rolling tags:
 
 - `:vX.Y.Z` — immutable, never moves

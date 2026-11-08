@@ -7,8 +7,8 @@ defmodule SukhiFedi.CustomEmojis do
   - Local emoji registration and lookup (`register/1`, `get_local/1`, `list_local/1`).
   - Admin batch import in one transaction, audited (`import_many/3`). It
     takes already-normalised attribute maps; reading Misskey instances,
-    export JSON and emoji packs is the job of `scripts/emoji_import.jl`,
-    which posts to `POST /api/admin/emojis`.
+    export JSON and emoji packs is a client's job (it posts to
+    `POST /api/admin/emojis`); the old `scripts/emoji_import.jl` is in git history.
   - Remote emoji caching from inbound AP activities (`upsert_from_tag/3`).
   - Extracting custom emojis used in text content (`extract_from_text/1`).
   - Reaction namespacing and resolution (`namespaced/2`, `split/1`, `lookup_many/1`).
@@ -439,7 +439,9 @@ defmodule SukhiFedi.CustomEmojis do
   `emoji_key => %{url, static_url}`. Unicode glyphs and unknown
   shortcodes are absent from the result map.
   """
-  @spec lookup_many([String.t()]) :: %{String.t() => %{url: String.t(), static_url: String.t() | nil}}
+  @spec lookup_many([String.t()]) :: %{
+          String.t() => %{url: String.t(), static_url: String.t() | nil}
+        }
   def lookup_many([]), do: %{}
 
   def lookup_many(emojis) when is_list(emojis) do

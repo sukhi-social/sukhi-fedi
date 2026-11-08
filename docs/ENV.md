@@ -89,13 +89,12 @@ what to set on a small box.
 | `DATALEVIN_PREMIGRATE_BACKUP` | no | `1` | Copy the store's files before the first Datalevin migration of a run. `0` skips it. Needs room for a second copy ([DATALEVIN_MIGRATIONS.md](DATALEVIN_MIGRATIONS.md)). |
 | `DATALEVIN_PREMIGRATE_DIR` | no | `datalevin-premigrate/` beside `DATALEVIN_DIR` | Where those copies go. Nothing deletes them. |
 
-## NATS (gateway, delivery, bun)
+## NATS (gateway, delivery)
 
 | Var | Required | Default | Notes |
 |---|---|---|---|
 | `NATS_HOST` | no | `127.0.0.1` | gateway/delivery only. Compose: `nats`. Kamal: `sukhi-fedi-nats`. |
 | `NATS_PORT` | no | `4222` | gateway/delivery only. |
-| `NATS_URL` | no | — | bun only. Full URL form, e.g. `nats://sukhi-fedi-nats:4222`. |
 | `METRICS_PORT` | no | `4001` | delivery only. Prometheus scrape port for delivery worker metrics. |
 
 ## Media storage — S3 / rustfs (gateway)
@@ -363,4 +362,3 @@ For grep navigation if you're tracking a specific var:
 - gateway: `elixir/config/runtime.exs`, `elixir/lib/sukhi_fedi/config.ex`
 - delivery: `delivery/config/runtime.exs`, `delivery/lib/sukhi_delivery/config.ex`
 - api: `api/config/runtime.exs`, `api/lib/sukhi_api/config.ex`
-- bun: `bun/` (TS-side; uses `process.env.NATS_URL` etc.)

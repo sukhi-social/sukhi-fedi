@@ -1,15 +1,17 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.FediGolden do
   @moduledoc """
-  Loads the golden fixtures `bun/scripts/dump_golden.ts` produced by
+  Loads the golden fixtures the retired `bun/` worker produced by
   running the real fedify code paths with a fixed keypair. Tests verify
   fedify's outputs with the native code — when that passes, the two
   implementations agree on canonicalization and signing, which is the
   property remote servers depend on.
 
-  Regenerate (only needed when fedify changes):
+  The generator (`bun/scripts/dump_golden.ts`) was removed with `bun/`.
+  The fixture is a frozen record; to regenerate it, check out the git tag
+  `bun-last` (the last tree that had `bun/`) and run, there:
 
-      cd bun && node --import tsx scripts/dump_golden.ts \\
+      cd bun && node --import @oxc-node/core/register scripts/dump_golden.ts \\
         > ../elixir/test/support/fixtures/fedify_golden.json
   """
 

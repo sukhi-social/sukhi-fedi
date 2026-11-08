@@ -6,7 +6,7 @@
 //   Elixir/Erlang  prod dependency trees of elixir/ and delivery/
 //                  (`MIX_ENV=prod mix deps.tree`), licenses read from each
 //                  dep's hex_metadata.config
-//   npm            `pnpm licenses list --json` in bun/, web/, web-natadeco/
+//   npm            `pnpm licenses list --json` in pglite/, web/, web-natadeco/
 //
 // Grouped by the same eight categories as the thanks above it (not by
 // license — the license is a small tag on each line), one collapsed <details>
@@ -225,7 +225,7 @@ function npmRepoUrls(dir, homepage) {
 }
 
 const npm = new Map(); // display name -> { license, entry }
-for (const dir of ['bun', 'web', 'web-natadeco']) {
+for (const dir of ['pglite', 'web', 'web-natadeco']) {
   const json = JSON.parse(
     execFileSync('pnpm', ['licenses', 'list', '--json'], {
       cwd: join(root, dir),

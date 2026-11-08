@@ -33,11 +33,11 @@ export SKIP_S3_TESTS=1
 export MIX_ENV=test
 
 echo "→ starting PGlite on 127.0.0.1:$PORT (in-memory)"
-# bun's `run` used to fetch missing packages by itself; node does not.
-[ -d "$ROOT/bun/node_modules" ] || (cd "$ROOT/bun" && pnpm install)
+# node does not fetch missing packages by itself.
+[ -d "$ROOT/pglite/node_modules" ] || (cd "$ROOT/pglite" && pnpm install)
 # `exec` replaces the subshell with node so $! is node's own PID — without
 # it the trap would kill the subshell and orphan node, leaking the port.
-( cd "$ROOT/bun" && PGLITE_PORT="$PORT" exec node --import @oxc-node/core/register services/test_db.ts ) &
+( cd "$ROOT/pglite" && PGLITE_PORT="$PORT" exec node server.mjs ) &
 PGLITE_PID=$!
 trap 'kill "$PGLITE_PID" 2>/dev/null || true' EXIT
 

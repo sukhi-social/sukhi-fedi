@@ -71,7 +71,7 @@ queue group, so the topology above is unchanged — only the responder moved fro
 a sidecar into the BEAM. The worker under `bun/` is retired — and it never
 ran on Bun: it is Node.js 24+ under the old directory name. It is kept as a
 rollback path and as the build-time oracle that mints the golden fixtures the
-native port is checked against (the code is still under `bun/`). Read "Bun" below as "the `fedify` service", now native.
+native port is checked against (the code was removed; see git tag `bun-last`). Read "Bun" below as "the `fedify` service", now native.
 
 Rules enforced by this split:
 
@@ -291,33 +291,11 @@ sukhi-fedi/
 │   ├── mix.exs
 │   └── Dockerfile
 │
-├── bun/                                   # Node.js 24+ (NOT Bun; old dir name).
-│   │                                         翻訳家 + 印鑑職人, RETIRED v0.3.0:
-│   │                                         served natively by SukhiFedi.Fedi.
-│   │                                         kept for rollback + golden fixtures
-│   │                                         (build/test-time verifier; README.md)
-│   ├── services/fedify_service.ts         # ★ NATS Micro service (only entrypoint)
-│   ├── handlers/
-│   │   ├── build/{note,follow,accept,announce,actor,dm,collection_op,
-│   │   │           like,undo,delete}.ts   # one translator per type
-│   │   ├── verify.ts                      # HTTP Signature verify
-│   │   ├── sign_delivery.ts               # HTTP Signature sign
-│   │   ├── inbox.ts                       # incoming activity → instruction
-│   │   └── inbox_test.ts
-│   ├── fedify/
-│   │   ├── context.ts                     # cachedDocumentLoader
-│   │   ├── keys.ts                        # local-actor key store (actor creation)
-│   │   ├── key_cache.ts                   # imported CryptoKey cache (sign path)
-│   │   └── utils.ts                       # signAndSerialize, injectDefined, …
-│   ├── addons/
-│   │   ├── loader.ts                      # ABI check + enabled/disabled filter
-│   │   ├── types.ts                       # BunAddon + TranslateHandler
-│   │   ├── mastodon_api/manifest.ts
-│   │   └── misskey_api/manifest.ts
-│   ├── package.json                       # TS 6.0.3, @fedify/fedify 2.x,
-│   │                                        @js-temporal/polyfill, @nats-io/*
-│   ├── tsconfig.json
-│   └── Dockerfile                         # node:24-alpine
+├── pglite/                                # PGlite (Postgres as WASM) for `make dev`
+│   ├── server.mjs                            and `make test-pglite`; goes away
+│   └── package.json                          with PostgreSQL. (`bun/`, the retired
+│                                             fedify worker, was removed; git tag
+│                                             `bun-last` is the last tree with it.)
 │
 ├── api/                                   # ★ Mastodon/Misskey REST plugin node
 │   ├── mix.exs                            # independent :sukhi_api app
@@ -376,8 +354,7 @@ sukhi-fedi/
 │   └── Dockerfile                         # small single-box image
 │
 ├── infra/
-│   ├── cloud-init.yaml.tmpl               # shared VM bootstrap template
-│   └── terraform/ · terraform-x64-freetier/ # infra-as-code (OCI ARM + x64)
+│   └── cloud-init.yaml.tmpl               # shared VM bootstrap template
 │
 ├── docker-compose.yml                     # dev + prod stack (pinned GHCR images)
 ├── docker-compose.combined.yml            # 1-BEAM override (≈1 core / 2 GB box)
@@ -1050,11 +1027,6 @@ cd elixir && mix test --no-start
 # Elixir integration tests (needs docker-compose.test.yml up):
 cd elixir && mix test --only integration
 
-# Bun-sidecar tests (Node 22+, node:test via tsx):
-cd bun && npm test
-
-# Type-check the whole bun surface (TS 6.0.3 via tsc):
-cd bun && npm run check
 ```
 
 ## 12. Horizontal scale posture

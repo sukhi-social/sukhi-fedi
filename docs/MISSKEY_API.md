@@ -1,8 +1,7 @@
 # Misskey API — planned surface
 
 > **Status: not implemented.** This is a design map, not a contract.
-> No Misskey REST routes exist yet — `bun/addons/misskey_api/manifest.ts`
-> is a placeholder shell and the `api/` plugin node carries only
+> No Misskey REST routes exist yet — the `api/` plugin node carries only
 > `mastodon_*` capabilities. This document records the intended shape
 > so the work can be picked up without re-deciding it. See
 > [`TODO.md`](../TODO.md) for the punch-list and

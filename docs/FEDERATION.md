@@ -6,10 +6,10 @@
 > the function that backs it; if a row says we do something, there is
 > code at that `file:line` doing it.
 >
-> The Bun/Fedify worker (`bun/`) is
-> **retired in production** (v0.3.0+); it survives only as the dev-stack
-> oracle that mints golden fixtures. This file describes the path that
-> actually runs. Companions: [`ARCHITECTURE.md`](ARCHITECTURE.md) (where
+> The Bun/Fedify worker (`bun/`) was
+> retired in v0.3.0 and has since been removed (git tag `bun-last`); its
+> golden fixtures live on in `elixir/test/support/fixtures`. This file
+> describes the path that actually runs. Companions: [`ARCHITECTURE.md`](ARCHITECTURE.md) (where
 > processes run) and [`CODE_STYLE.md`](CODE_STYLE.md) (where concerns
 > live — every property below sits in one named place, by §0/§3).
 

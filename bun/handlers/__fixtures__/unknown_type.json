@@ -1,6 +1,0 @@
-{
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "id": "https://weird.example/activities/quack/1",
-  "type": "Quack",
-  "actor": "https://weird.example/users/duck"
-}

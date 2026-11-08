@@ -23,9 +23,9 @@ make dev-web    # http://localhost:5173, in a second terminal
 ```
 
 `make dev` starts an embedded Postgres (PGlite — Postgres compiled to WASM,
-run by bun, persisted in `.pglite-dev/`), runs the migrations, and boots
+run by node, persisted in `.pglite-dev/`), runs the migrations, and boots
 gateway + delivery + api as **one BEAM** with an IEx shell. Nothing to
-install beyond the toolchain in `mise.toml` (`mise trust` once) and bun.
+install beyond the toolchain in `mise.toml` (`mise trust` once) and node.
 
 NATS carries streaming and the outbound-federation relay; `make dev` starts
 `nats-server` when it's on PATH and says so when it isn't (`brew install
@@ -105,8 +105,7 @@ make check         # linters and type checks
 `make` on its own lists every target. Each layer is also its own target
 (`make test-api`, …) when you want just one.
 
-Two things `make test` does not cover: the retired Bun worker (`cd bun &&
-npm test`, `npm run check`; Node 22+), and the integration tests that need NATS or S3
+One thing `make test` does not cover: the integration tests that need NATS or S3
 rather than only Postgres — those want the Docker stack:
 
 ```bash

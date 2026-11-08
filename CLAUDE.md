@@ -23,7 +23,6 @@ Practical notes:
   `make dev` runs the whole thing locally with no Docker.
 - Tests: `make test` (unit, every layer), `make test-pglite`
   (DB integration, no docker).
-- TypeScript in `bun/` (a Node 24+ sidecar, kept under its old name) is checked
-  with `pnpm run check` in that directory (type-only).
+- `pglite/` is the embedded Postgres `make dev` / `make test-pglite` start (node).
 - Every source file starts with
   `# SPDX-License-Identifier: AGPL-3.0-or-later`.

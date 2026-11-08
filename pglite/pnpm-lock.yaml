@@ -1,0 +1,35 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.4.6
+        version: 0.4.6
+      '@electric-sql/pglite-socket':
+        specifier: ^0.1.6
+        version: 0.1.6(@electric-sql/pglite@0.4.6)
+
+packages:
+
+  '@electric-sql/pglite-socket@0.1.6':
+    resolution: {integrity: sha512-QAPUOwUdFnv3grJoLQbtkN8MywMK92kPfCeQ9QIJlB9DfPlExvU19cI2djxyffRF2WJL89eiZ1GAyfBDVH2xGQ==}
+    hasBin: true
+    peerDependencies:
+      '@electric-sql/pglite': 0.4.6
+
+  '@electric-sql/pglite@0.4.6':
+    resolution: {integrity: sha512-qmlmfN8UyKCee35qkV0r/MBp+Znl8FjBz7OpoglNvww3GJpw0/DLP0o1ZymvLNmcD5DTLOQdzKPtF8Hd3mdl1w==}
+
+snapshots:
+
+  '@electric-sql/pglite-socket@0.1.6(@electric-sql/pglite@0.4.6)':
+    dependencies:
+      '@electric-sql/pglite': 0.4.6
+
+  '@electric-sql/pglite@0.4.6': {}
