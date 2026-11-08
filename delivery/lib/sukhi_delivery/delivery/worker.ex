@@ -28,7 +28,7 @@ defmodule SukhiDelivery.Delivery.Worker do
   alias SukhiDelivery.{Repo, Delivery.SigSpec}
   alias SukhiDelivery.Schema.{Object, DeliveryReceipt}
   alias SukhiDelivery.Delivery.FollowersSync
-  alias SukhiShared.DeliverySuspension.{Cache, Gate, Policy}
+  alias SukhiShared.DeliverySuspension.{Cache, Gate, Hint, Policy}
   alias SukhiShared.{HttpSignature, JWK}
 
   # Outbound archive runs on the gateway (it owns the S3/zstd deps). We hand
@@ -37,6 +37,12 @@ defmodule SukhiDelivery.Delivery.Worker do
   # gateway enqueues us. See SukhiFedi.Federation.OutboundArchive.
   @archive_worker "SukhiFedi.Federation.OutboundArchive"
   @archive_queue "outbound_archive"
+
+  # FEP-f799 hint: a response may point at a resting notice (`Hint`). The
+  # gateway fetches and judges it; this node only passes the address on.
+  @hint_worker "SukhiFedi.Fedi.DeliverySuspension.Hint"
+  @hint_queue "suspension_hint"
+  @hint_unique_seconds 600
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args} = job) do
@@ -158,7 +164,53 @@ defmodule SukhiDelivery.Delivery.Worker do
 
     inbox_url
     |> deliver_with_knock(actor_uri, body, static_headers, host, spec)
+    |> tap(&pass_on_suspension_hint(&1, inbox_url))
     |> handle_result(job, body, activity_id, inbox_url, actor_uri)
+  end
+
+  @doc """
+  FEP-f799: if the response to a delivery points at a suspension notice
+  (`Link: <…>; rel="https://w3id.org/fep/f799#deliverySuspension"`), hand the
+  address to the gateway, which fetches it and judges it like any notice.
+
+  Any response can carry it, whatever its status. It is only a pointer: it
+  changes nothing here, and the delivery that is happening carries on as it
+  would have. Jobs are unique by address for ten minutes, so a server that
+  says it on every answer is fetched once, not once per delivery. Returns
+  `:ok` or `:none`; it never raises.
+  """
+  @spec pass_on_suspension_hint(term(), String.t()) :: :ok | :none
+  def pass_on_suspension_hint({:ok, %{headers: headers}}, inbox_url) do
+    case Hint.notice_url(headers, inbox_url) do
+      {:ok, url} -> enqueue_hint(url, inbox_url)
+      :none -> :none
+    end
+  end
+
+  def pass_on_suspension_hint(_result, _inbox_url), do: :none
+
+  defp enqueue_hint(url, inbox_url) do
+    Oban.insert(
+      SukhiDelivery.Queue.gateway_oban(),
+      Oban.Job.new(%{url: url, inbox_url: inbox_url},
+        worker: @hint_worker,
+        queue: @hint_queue,
+        max_attempts: 3,
+        unique: [period: @hint_unique_seconds, fields: [:worker, :args], keys: [:url]]
+      )
+    )
+
+    :telemetry.execute([:sukhi_delivery, :suspension, :hint], %{count: 1}, %{
+      host: URI.parse(inbox_url).host
+    })
+
+    :ok
+  rescue
+    # A pointer we could not pass on is a pointer lost; the delivery is not.
+    error ->
+      require Logger
+      Logger.warning("suspension hint enqueue failed: #{inspect(error)}")
+      :none
   end
 
   # Double-knock: POST with the spec we expect this host to want; if it

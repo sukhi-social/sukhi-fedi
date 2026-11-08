@@ -388,6 +388,8 @@ if config_env() == :prod do
         String.to_integer(System.get_env("OBAN_INBOUND_ARCHIVE_CONCURRENCY", "10")),
       outbound_archive:
         String.to_integer(System.get_env("OBAN_OUTBOUND_ARCHIVE_CONCURRENCY", "10")),
+      suspension_hint:
+        String.to_integer(System.get_env("OBAN_SUSPENSION_HINT_CONCURRENCY", "2")),
       publish: String.to_integer(System.get_env("OBAN_PUBLISH_CONCURRENCY", "5")),
       preview: String.to_integer(System.get_env("OBAN_PREVIEW_CONCURRENCY", "3")),
       backfill: String.to_integer(System.get_env("OBAN_BACKFILL_CONCURRENCY", "2"))
