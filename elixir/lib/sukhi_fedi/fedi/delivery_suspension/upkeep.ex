@@ -8,7 +8,8 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Upkeep do
       ready. A restart therefore changes nothing: an inbox that was resting
       rests until the same time, because the time is in the notice.
     * Every hour it forgets what can no longer be accepted (`Store.sweep/2`,
-      which moves each controller's cutoff past what it drops) and reads the
+      which moves each controller's cutoff past what it drops), looks again at
+      who still speaks for the notices in effect (`Recheck`), and reads the
       store again.
 
   The timer is only a wake-up. Nothing is decided by it: the worker asks the
@@ -19,7 +20,7 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Upkeep do
 
   require Logger
 
-  alias SukhiFedi.Fedi.DeliverySuspension.Store
+  alias SukhiFedi.Fedi.DeliverySuspension.{Recheck, Store}
   alias SukhiShared.DeliverySuspension.{Cache, Policy}
 
   @retry_ms 5_000
@@ -63,7 +64,23 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Upkeep do
     if report.notices + report.pending > 0,
       do: Logger.info("delivery_suspension: forgot #{inspect(report)}")
 
+    # Looking again at who still speaks for what is network work: its own process,
+    # so it never holds up a reload or a call.
+    _ = Task.start(fn -> recheck() end)
+
     {:noreply, load_or_retry(state)}
+  end
+
+  defp recheck do
+    report = Recheck.run(DateTime.utc_now())
+
+    if report.withdrawn > 0,
+      do:
+        Logger.info(
+          "delivery_suspension: withdrew #{report.withdrawn} (link gone): #{inspect(report)}"
+        )
+  rescue
+    error -> Logger.warning("delivery_suspension: recheck failed: #{Exception.message(error)}")
   end
 
   defp load_or_retry(state) do

@@ -102,12 +102,55 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.ReceiverTest do
       assert {:error, :nope} = recv(create(), control: fn _, _ -> {:error, :nope} end)
       assert :none = Store.get_notice(@notice_id)
     end
+  end
 
-    test "until the control check exists, nothing is taken" do
-      assert {:error, :control_unverified} =
-               Receiver.handle(create(), signer_host: "a.example", now: @now)
+  describe "with the real control check (the web is stood in for)" do
+    alias SukhiFedi.Fedi.DeliverySuspension.Control
+    alias SukhiFedi.SuspensionNet, as: Net
 
+    @inbox "https://a.example/users/alice/inbox"
+
+    defp linked_web do
+      %{
+        @alice => Net.json(%{"id" => @alice, "inbox" => @inbox}),
+        @inbox => Net.json(%{"id" => @inbox, "inboxOf" => @alice})
+      }
+    end
+
+    defp checked(web),
+      do: [control: fn n, now -> Control.verify(n, now, http: Net.http(web)) end]
+
+    defp about_inbox(extra \\ %{}), do: notice(Map.merge(%{"targetInbox" => @inbox}, extra))
+
+    test "a notice the controller really stands behind is taken, and the evidence is kept" do
+      assert {:ok, :accepted} = recv(create(about_inbox()), checked(linked_web()))
+
+      assert {:ok, %{verified_at: %DateTime{}, failure: nil}} =
+               Store.get_evidence(:inbox, @inbox, @alice)
+    end
+
+    test "a notice the target does not point back to is refused, and nothing is stored" do
+      web = %{linked_web() | @inbox => Net.json(%{"id" => @inbox})}
+
+      assert {:error, {:unlinked, :inbox_of}} = recv(create(about_inbox()), checked(web))
       assert :none = Store.get_notice(@notice_id)
+    end
+
+    test "documents that cannot be read are not a reason to take a notice" do
+      web = %{@alice => Net.status(503)}
+
+      assert {:error, {:unreachable, :unavailable}} = recv(create(about_inbox()), checked(web))
+      assert :none = Store.get_notice(@notice_id)
+    end
+
+    test "a notice already taken can still be cancelled while the controller is unreachable" do
+      assert {:ok, :accepted} = recv(create(about_inbox()), checked(linked_web()))
+      cancel = about_inbox(%{"revision" => 2, "status" => "cancelled"})
+
+      assert {:ok, _} =
+               recv(update(cancel, "https://a.example/activities/u2"), checked(%{}))
+
+      assert {%{status: :cancelled}, _} = held()
     end
   end
 
