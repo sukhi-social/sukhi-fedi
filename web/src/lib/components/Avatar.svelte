@@ -35,12 +35,11 @@
     aria-hidden="true">{initial}</span
   >
 {:else}
-  <!-- リモートアバター(/proxy/avatar/)はプロキシに avif/webp 変換を頼む。
+  <!-- リモートアバター(/proxy/avatar/)はプロキシに webp 変換を頼む。
        ローカルや直 URL は v が null になって、素の img のまま。 -->
   {@const v = proxyVariants(src)}
   <picture>
     {#if v}
-      <source srcset={v.avif} type="image/avif" />
       <source srcset={v.webp} type="image/webp" />
     {/if}
     <img class={klass} {src} {alt} loading="lazy" />

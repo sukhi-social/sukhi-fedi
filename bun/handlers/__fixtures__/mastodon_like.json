@@ -1,7 +1,0 @@
-{
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "id": "https://mastodon.example/users/bob/activities/like/1",
-  "type": "Like",
-  "actor": "https://mastodon.example/users/bob",
-  "object": "https://local.example/users/alice/statuses/1"
-}

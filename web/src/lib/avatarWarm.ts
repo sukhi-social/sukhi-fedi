@@ -6,7 +6,7 @@
 // 顔も温めておく(押した瞬間、顔ごと揃って差し込まれる)。
 //
 // 温めは画面外の <picture> で行う。実際の描画(Avatar.svelte)と同じ
-// 要素なので、ブラウザが選ぶ variant(avif / webp / 原本)と必ず同じ
+// 要素なので、ブラウザが選ぶ variant(webp / 原本)と必ず同じ
 // URL が温まる ── 検出コードで当てにいくより、ずれない。
 
 import type { Status } from '#lib/api.js';
@@ -45,15 +45,10 @@ export function warmAvatars(statuses: Status[], budgetMs: number): Promise<void>
         const v = proxyVariants(src);
         const pic = document.createElement('picture');
         if (v) {
-          for (const [type, srcset] of [
-            ['image/avif', v.avif],
-            ['image/webp', v.webp]
-          ] as const) {
-            const source = document.createElement('source');
-            source.type = type;
-            source.srcset = srcset;
-            pic.appendChild(source);
-          }
+          const source = document.createElement('source');
+          source.type = 'image/webp';
+          source.srcset = v.webp;
+          pic.appendChild(source);
         }
         const img = document.createElement('img');
         img.onload = () => resolve();

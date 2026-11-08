@@ -55,12 +55,3 @@ services:
     tmpfs:
       - /data
 
-  fedify-service:
-    build:
-      context: ./bun
-    depends_on:
-      nats:
-        condition: service_healthy
-    environment:
-      NATS_URL: nats://nats:4222
-    command: ["bun", "run", "services/fedify_service.ts"]

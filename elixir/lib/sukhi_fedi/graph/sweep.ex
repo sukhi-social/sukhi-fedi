@@ -37,7 +37,7 @@ defmodule SukhiFedi.Graph.Sweep do
   # the schema is here or in `@edges`, so a new one forces a decision.
   @dependents ~w(content/object attachment/object tagging/object reaction/object entry/object
                  activity/object notification/source poll/object choice/poll vote/choice
-                 bookmark/object pin/object report/object)a
+                 bookmark/object pin/object report/object card/object)a
 
   # Ref attributes that describe an object (or someone else) and are not owned by it.
   @edges ~w(key/actor collection/owner object/attributed-to object/in-reply-to object/root
@@ -45,7 +45,14 @@ defmodule SukhiFedi.Graph.Sweep do
             activity/actor follow/follower follow/followee follow/activity reaction/actor
             reaction/emoji notification/recipient notification/from bookmark/actor pin/actor
             list/owner list/members block/actor block/target mute/actor mute/target
-            vote/actor report/actor user/actor entry/owner entry/via)a
+            vote/actor report/actor user/actor entry/owner entry/via
+            token/user token/app app/owner passkey/user push/user
+            invite/issued-by invite/on-behalf-of invite/used-by announcement/dismissed-by
+            marker/owner scheduled/user draft/user conv/participant conv/unread-for
+            memo/author memo/target instance/set-by nodeinfo/instance relay/created-by
+            feedback/user feedback/handled-by audit/admin audit/target
+            deco/actor deco/created-by deco/topic-by deco/follower
+            deco-pref/user deco-pref/deco object/deco)a
 
   @spec classified_refs() :: {[atom()], [atom()]}
   def classified_refs, do: {@dependents, @edges}

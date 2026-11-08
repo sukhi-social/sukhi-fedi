@@ -31,7 +31,6 @@
       >
         <picture>
           {#if v}
-            <source srcset={v.avif} type="image/avif" />
             <source srcset={v.webp} type="image/webp" />
           {/if}
           <img src={tile.src} alt={tile.alt} loading="lazy" />

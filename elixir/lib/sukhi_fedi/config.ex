@@ -20,6 +20,19 @@ defmodule SukhiFedi.Config do
   end
 
   @doc """
+  Whether this node talks to NATS (`NATS_ENABLED`, default on).
+
+  Off is for the single-BEAM `combined` release, where nothing needs NATS
+  for the core: the delivery side calls `Fedi.Service` in-process, and a new
+  post reaches the streaming feeds by a direct call. What does stop working
+  without NATS: the WebTransport edge (it reads `stream.*` from NATS), and
+  any gateway/delivery pair that runs in separate BEAMs.
+  """
+  @spec nats_enabled?() :: boolean()
+  def nats_enabled?,
+    do: Application.get_env(:sukhi_fedi, :nats, []) |> Keyword.get(:enabled, true)
+
+  @doc """
   Whether signup needs an invite code (`INVITE_REQUIRED`, default on).
 
   The one definition of "is the door latched" — signup reads it, and

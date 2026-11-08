@@ -32,6 +32,40 @@ defmodule SukhiFedi.Addons.Streaming.NatsListenerTest do
     :ok
   end
 
+  describe "with NATS off (NATS_ENABLED=false)" do
+    setup do
+      old = Application.get_env(:sukhi_fedi, :nats, [])
+      Application.put_env(:sukhi_fedi, :nats, Keyword.put(old, :enabled, false))
+      on_exit(fn -> Application.put_env(:sukhi_fedi, :nats, old) end)
+    end
+
+    test "it does not try to subscribe, and stays up" do
+      {:ok, pid} = NatsListener.start_link([])
+
+      assert :sys.get_state(pid) == %{subscribed: false, gnat: nil}
+      assert Process.alive?(pid)
+
+      GenServer.stop(pid)
+    end
+
+    test "a new post is fanned out by a direct call, and a bad one does not kill it" do
+      {:ok, pid} = NatsListener.start_link([])
+
+      # Not a local actor, so no feed is touched: this only walks the cast
+      # path (JSON round trip, then the same handler a NATS message reaches).
+      :ok = NatsListener.fan_out(%{"id" => "1"}, "https://elsewhere.example/users/x")
+      assert :sys.get_state(pid) == %{subscribed: false, gnat: nil}
+      assert Process.alive?(pid)
+
+      GenServer.stop(pid)
+    end
+
+    test "publish_new_post/2 is a quiet no-op when nothing is listening" do
+      assert :ok =
+               SukhiFedi.Streaming.publish_new_post(%{"id" => "1"}, "https://x.example/users/a")
+    end
+  end
+
   test "starts with no NATS connection instead of taking the app down" do
     {:ok, pid} = NatsListener.start_link([])
 

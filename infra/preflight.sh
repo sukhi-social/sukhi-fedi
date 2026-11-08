@@ -38,24 +38,6 @@ if grep -rn '"localhost:4000"' elixir/lib delivery/lib api/lib 2>/dev/null; then
   fail=1
 fi
 
-# (3) NATS endpoint name with dots.
-# Past regression: @nats-io/services rejected endpoint names containing
-# "." at registration time. addEndpoint("foo.v1") is forbidden; the
-# subject string passed via opts is unaffected (dots there are required).
-if grep -rnE 'addEndpoint\("[^"]*\.[^"]*"' bun/services/ 2>/dev/null; then
-  echo "FAIL: NATS endpoint name contains dots"
-  fail=1
-fi
-
-# (4) AS#Public literal directly written in builders.
-# Past regression: Create(Note) and Delete(Note) skipped to/cc, dropping
-# them from public timelines. resolveAudience() is the only sanctioned
-# way to construct AP addressing.
-if grep -rn --exclude='_*' 'activitystreams#Public' bun/handlers/build/ 2>/dev/null; then
-  echo "FAIL: AS#Public literal in builder (use resolveAudience instead)"
-  fail=1
-fi
-
 # (5) Webfinger reverse-lookup smoke test.
 # Past regression: the endpoint accepted only acct: form; remote servers
 # probing with ?resource=https://... got 404 and dropped the actor.

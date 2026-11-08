@@ -28,6 +28,7 @@
  :actor/avatar       {:db/valueType :db.type/string}
  :actor/banner       {:db/valueType :db.type/string}
  :actor/bot?         {:db/valueType :db.type/boolean}
+ :actor/type         {:db/valueType :db.type/keyword} ;; :Person :Group :Service … (JSON-LD の @type。板は :Group)
  :actor/suspended-at {:db/valueType :db.type/long}
  :actor/inbox        {:db/valueType :db.type/string}
  :actor/outbox       {:db/valueType :db.type/string}
@@ -44,7 +45,7 @@
  :key/actor      {:db/valueType :db.type/ref}
  :key/type       {:db/valueType :db.type/keyword}
  :key/public     {:db/valueType :db.type/string}
- :key/private    {:db/valueType :db.type/string}
+ :key/private    {:db/valueType :db.type/string} ;; ローカルの秘密鍵(JWK の JSON)。RSA と Ed25519(:key/type :Multikey)の 2 本。読み出しは RpcGate の秘匿の対象
  :key/revoked-at {:db/valueType :db.type/long}
 
  ;; ───────── アドレス先(to/cc の行き先で actor 以外) ─────────
@@ -263,6 +264,226 @@
  :user/actor     {:db/valueType :db.type/ref :db/unique :db.unique/identity}
  :user/admin?    {:db/valueType :db.type/boolean}
  :user/languages {:db/valueType :db.type/string :db/cardinality :db.cardinality/many}
+
+ ;; ───────── Token(ブラウザの session と OAuth の access token を一つに) ─────────
+ ;; 秘密は sha256 のハッシュだけを持つ。kind で分け、:session は ip/ua を、:access は app/refresh-hash を持つ。
+ ;; 持たない属性は省く(nil は書けない)。数分で消えるもの(認可コード・passkey の challenge・メールの確認コード)は
+ ;; ここに置かず、メモリ(ETS)に置く約束。時刻は µs。
+ ;; used-at は書くたびに LMDB へ行くので、前の値から数分たったときだけ更新する。
+ :token/hash         {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :token/kind         {:db/valueType :db.type/keyword} ;; :session :access
+ :token/user         {:db/valueType :db.type/ref}     ;; ローカルの actor(:user/actor を持つもの)
+ :token/app          {:db/valueType :db.type/ref}     ;; :access のみ
+ :token/refresh-hash {:db/valueType :db.type/string :db/unique :db.unique/identity} ;; :access のみ。回転の相手
+ :token/scope        {:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many} ;; :read :write :follow :push …
+ :token/expires-at   {:db/valueType :db.type/long}
+ :token/revoked-at   {:db/valueType :db.type/long}
+ :token/used-at      {:db/valueType :db.type/long}
+ :token/created-at   {:db/valueType :db.type/long}
+ :token/ip           {:db/valueType :db.type/string}  ;; :session のみ
+ :token/ua           {:db/valueType :db.type/string}  ;; :session のみ
+
+ ;; ───────── OAuth アプリ ─────────
+ :app/client-id    {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :app/secret-hash  {:db/valueType :db.type/string}
+ :app/name         {:db/valueType :db.type/string}
+ :app/redirect-uri {:db/valueType :db.type/string}
+ :app/scope        {:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
+ :app/website      {:db/valueType :db.type/string}
+ :app/owner        {:db/valueType :db.type/ref}
+ :app/created-at   {:db/valueType :db.type/long}
+
+ ;; ───────── Passkey(WebAuthn の資格情報) ─────────
+ :passkey/cred-id    {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :passkey/user       {:db/valueType :db.type/ref}
+ :passkey/cose-key   {:db/valueType :db.type/bytes}
+ :passkey/sign-count {:db/valueType :db.type/long}
+ :passkey/nickname   {:db/valueType :db.type/string}
+ :passkey/used-at    {:db/valueType :db.type/long}
+ :passkey/created-at {:db/valueType :db.type/long}
+
+ ;; ───────── Web Push の購読 ─────────
+ ;; alert は有効な通知の種類の集合(今の alerts の {"follow": true, …} を「真のものだけ」にした形)。
+ :push/user     {:db/valueType :db.type/ref}
+ :push/endpoint {:db/valueType :db.type/string}
+ :push/uniq     {:db/valueType :db.type/tuple
+                 :db/tupleAttrs [:push/user :push/endpoint]
+                 :db/unique :db.unique/identity}
+ :push/p256dh   {:db/valueType :db.type/string}
+ :push/auth     {:db/valueType :db.type/string}
+ :push/alert    {:db/valueType :db.type/keyword :db/cardinality :db.cardinality/many}
+
+ ;; ───────── 表にせず、持ち主の属性や線にしたもの ─────────
+ ;; Postgres では別の表と外部キーでしか言えなかったものを、すでにある entity の属性や多値の ref にした。
+ ;; 溶かさなかったもの(理由): account_deletions(終わるとアカウントごと消えるので、持ち主に付けると記録も消える),
+ ;; quote_authorizations(AP の object なので Graph の object 側で),
+ ;; metric_samples / outbound_events / delivery_receipts / inbound_events / note_cleanup_ledger(Datalog に入れない・重なる)。
+
+ ;; ── 招待コード。使った人は線(invite_code_uses は used_at を誰も読まないので落とした。uses_count は数えれば出る)
+ :invite/code        {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :invite/issued-by   {:db/valueType :db.type/ref}
+ :invite/on-behalf-of {:db/valueType :db.type/ref}
+ :invite/note        {:db/valueType :db.type/string}
+ :invite/max-uses    {:db/valueType :db.type/long}
+ :invite/expires-at  {:db/valueType :db.type/long}
+ :invite/used-by     {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+ :invite/created-at  {:db/valueType :db.type/long}
+ ;; フォローの招待(アカウントごとに 1 つ)
+ :user/follow-invite {:db/valueType :db.type/string :db/unique :db.unique/identity}
+
+ ;; ── 参加の申し込み(docs/JOIN.md)。秘密は claim/edit のハッシュだけ
+ :join/receipt      {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :join/email        {:db/valueType :db.type/string}
+ :join/call-name    {:db/valueType :db.type/string}
+ :join/found        {:db/valueType :db.type/string}
+ :join/hope         {:db/valueType :db.type/string}
+ :join/lang         {:db/valueType :db.type/string}
+ :join/check-on     {:db/valueType :db.type/string} ;; ISO の日付 "2026-11-08"
+ :join/claim-hash   {:db/valueType :db.type/string}
+ :join/edit-hash    {:db/valueType :db.type/string}
+ :join/confirmed-at {:db/valueType :db.type/long}
+ :join/created-at   {:db/valueType :db.type/long}
+
+ ;; ── お知らせ。読んだ人(dismiss)は線
+ :announcement/sid          {:db/valueType :db.type/long :db/unique :db.unique/identity} ;; API の ID
+ :announcement/content      {:db/valueType :db.type/string}
+ :announcement/published?   {:db/valueType :db.type/boolean}
+ :announcement/all-day?     {:db/valueType :db.type/boolean}
+ :announcement/starts-at    {:db/valueType :db.type/long}
+ :announcement/ends-at      {:db/valueType :db.type/long}
+ :announcement/published-at {:db/valueType :db.type/long}
+ :announcement/dismissed-by {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+
+ ;; ── 読んだところの印(Mastodon の markers)
+ :marker/owner        {:db/valueType :db.type/ref}
+ :marker/timeline     {:db/valueType :db.type/keyword} ;; :home :notifications
+ :marker/uniq         {:db/valueType :db.type/tuple
+                       :db/tupleAttrs [:marker/owner :marker/timeline]
+                       :db/unique :db.unique/identity}
+ :marker/last-read-id {:db/valueType :db.type/string}
+ :marker/version      {:db/valueType :db.type/long}
+
+ ;; ── 予約投稿と下書き。params は問い合わせない塊なので JSON 文字列を 1 つ
+ :scheduled/sid    {:db/valueType :db.type/long :db/unique :db.unique/identity}
+ :scheduled/user   {:db/valueType :db.type/ref}
+ :scheduled/params {:db/valueType :db.type/string}
+ :scheduled/at     {:db/valueType :db.type/long}
+ :scheduled/job    {:db/valueType :db.type/long} ;; Oban(SQLite)の job id
+ :draft/user       {:db/valueType :db.type/ref :db/unique :db.unique/identity} ;; アカウントごとに 1 つ
+ :draft/text       {:db/valueType :db.type/string}
+ :draft/spoiler    {:db/valueType :db.type/string}
+ :draft/sensitive? {:db/valueType :db.type/boolean}
+ :draft/visibility {:db/valueType :db.type/keyword}
+
+ ;; ── DM の会話。unread は「未読の人の集合」(1 人ずつの行にしない)
+ :conv/id          {:db/valueType :db.type/string :db/unique :db.unique/identity} ;; conversation の AP id
+ :conv/participant {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+ :conv/unread-for  {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
+
+ ;; ── アカウントについての自分用メモ(Mastodon の account note)
+ :memo/author  {:db/valueType :db.type/ref}
+ :memo/target  {:db/valueType :db.type/ref}
+ :memo/uniq    {:db/valueType :db.type/tuple
+                :db/tupleAttrs [:memo/author :memo/target]
+                :db/unique :db.unique/identity}
+ :memo/comment {:db/valueType :db.type/string}
+
+ ;; ── リンクカード(object ごとに 1 つ)
+ :card/object   {:db/valueType :db.type/ref :db/unique :db.unique/identity}
+ :card/url      {:db/valueType :db.type/string}
+ :card/title    {:db/valueType :db.type/string}
+ :card/summary  {:db/valueType :db.type/string}
+ :card/image    {:db/valueType :db.type/string}
+ :card/kind     {:db/valueType :db.type/keyword}
+ :card/provider {:db/valueType :db.type/string}
+
+ ;; ── サーバーどうし。ドメイン 1 つが :instance/host の entity 1 つで、表ごとの旗はその属性になる
+ ;; (instance_blocks → :instance/state と reason(すでにある)、bubble_instances → bubble?、map_peers → map-peer?、
+ ;;  monitored_instances → monitored? と下の software〜inactive?)。set-by は旗を立てた管理者。
+ :instance/bubble?   {:db/valueType :db.type/boolean}
+ :instance/map-peer? {:db/valueType :db.type/boolean}
+ :instance/monitored? {:db/valueType :db.type/boolean}
+ :instance/set-by    {:db/valueType :db.type/ref}
+ :instance/software  {:db/valueType :db.type/string}
+ :instance/version   {:db/valueType :db.type/string}
+ :instance/polled-at {:db/valueType :db.type/long}
+ :instance/failures  {:db/valueType :db.type/long}
+ :instance/inactive? {:db/valueType :db.type/boolean}
+ ;; nodeinfo の取得履歴。raw は問い合わせない塊(JSON 文字列)
+ :nodeinfo/instance  {:db/valueType :db.type/ref}
+ :nodeinfo/polled-at {:db/valueType :db.type/long}
+ :nodeinfo/uniq      {:db/valueType :db.type/tuple
+                      :db/tupleAttrs [:nodeinfo/instance :nodeinfo/polled-at]
+                      :db/unique :db.unique/identity}
+ :nodeinfo/software  {:db/valueType :db.type/string}
+ :nodeinfo/version   {:db/valueType :db.type/string}
+ :nodeinfo/raw       {:db/valueType :db.type/string}
+
+ ;; ── デコ(natadeco の板)。Group actor になれる。鍵は :key/* で持つ(下)。
+ ;; 板の名前・説明は :content/*(:content/object にデコの entity を指し、kind は :name と :summary)。
+ ;; 板に載る投稿は object から線(:object/deco)。deco_notes の行は持たない。
+ ;; 表札(has_actor)を出さない板は :deco/actor を持たない = actor も鍵も無い。
+ :deco/slug        {:db/valueType :db.type/string :db/unique :db.unique/identity}
+ :deco/actor       {:db/valueType :db.type/ref :db/unique :db.unique/identity} ;; {slug}-deco の Group actor
+ :deco/kind        {:db/valueType :db.type/keyword} ;; :thread :talk
+ :deco/local-only? {:db/valueType :db.type/boolean} ;; 外の網に出さない
+ :deco/created-by  {:db/valueType :db.type/ref}
+ :deco/created-at  {:db/valueType :db.type/long}
+ :deco/topic       {:db/valueType :db.type/string}
+ :deco/topic-by    {:db/valueType :db.type/ref}
+ :deco/topic-at    {:db/valueType :db.type/long}
+ :deco/follower    {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many} ;; 追う actor。配送先は actor の inbox から
+ :deco-pref/user    {:db/valueType :db.type/ref}
+ :deco-pref/deco    {:db/valueType :db.type/ref}
+ :deco-pref/uniq    {:db/valueType :db.type/tuple
+                     :db/tupleAttrs [:deco-pref/user :deco-pref/deco]
+                     :db/unique :db.unique/identity}
+ :deco-pref/seen-at {:db/valueType :db.type/long}
+ :deco-pref/notify  {:db/valueType :db.type/keyword}
+ ;; 板の上の投稿(deco_notes の残り)。title/content の言語別は :content/* の行にする
+ :object/deco             {:db/valueType :db.type/ref}
+ :object/deco-local-only? {:db/valueType :db.type/boolean}
+ :object/as-article?      {:db/valueType :db.type/boolean}
+ :object/place            {:db/valueType :db.type/string} ;; JSON(場所。問い合わせない塊)
+
+ ;; ── リレー
+ :relay/actor           {:db/valueType :db.type/string :db/unique :db.unique/identity} ;; relay の actor URI
+ :relay/inbox           {:db/valueType :db.type/string}
+ :relay/state           {:db/valueType :db.type/keyword}
+ :relay/follow-actor    {:db/valueType :db.type/string}
+ :relay/follow-activity {:db/valueType :db.type/string}
+ :relay/created-by      {:db/valueType :db.type/ref}
+
+ ;; ── 運営の記録
+ :feedback/sid        {:db/valueType :db.type/long :db/unique :db.unique/identity}
+ :feedback/body       {:db/valueType :db.type/string}
+ :feedback/screen     {:db/valueType :db.type/string}
+ :feedback/lang       {:db/valueType :db.type/string}
+ :feedback/version    {:db/valueType :db.type/string}
+ :feedback/user       {:db/valueType :db.type/ref}
+ :feedback/handled-at {:db/valueType :db.type/long}
+ :feedback/handled-by {:db/valueType :db.type/ref}
+ :feedback/created-at {:db/valueType :db.type/long}
+ :audit/action        {:db/valueType :db.type/keyword}
+ :audit/admin         {:db/valueType :db.type/ref}
+ :audit/target        {:db/valueType :db.type/ref}
+ :audit/target-domain {:db/valueType :db.type/string}
+ :audit/reason        {:db/valueType :db.type/string}
+ :audit/meta          {:db/valueType :db.type/string} ;; JSON
+ :audit/at            {:db/valueType :db.type/long}
+ ;; maintenance_runs: done/failed は何度も更新する。書き込みは間引く(token/used-at と同じ理由)
+ :maint/sid        {:db/valueType :db.type/long :db/unique :db.unique/identity}
+ :maint/name       {:db/valueType :db.type/string}
+ :maint/mode       {:db/valueType :db.type/keyword}
+ :maint/state      {:db/valueType :db.type/keyword}
+ :maint/stage      {:db/valueType :db.type/string}
+ :maint/total      {:db/valueType :db.type/long}
+ :maint/done       {:db/valueType :db.type/long}
+ :maint/failed     {:db/valueType :db.type/long}
+ :maint/last-error {:db/valueType :db.type/string}
+ :maint/summary    {:db/valueType :db.type/string} ;; JSON
+ :maint/started-at {:db/valueType :db.type/long}
+ :maint/finished-at {:db/valueType :db.type/long}
 
  ;; ───────── FEP-f799 配送のお休み(docs/DELIVERY_SUSPENSION.md) ─────────
  ;; ref は持たない(掃除の「ref はすべて分類済み」の対象外)。キーは文字列で指す。

@@ -30,7 +30,7 @@ does **only** its own job:
 | --- | --- | --- | --- |
 | Transport | `api/capabilities/`, `elixir/web/` controllers | HTTP parsing, status codes, content-type, pagination params | business rules, queries, visibility |
 | Verify | inbox signature verify, `Router` bearer auth | *who is speaking* | parsing the payload it guards |
-| Normalize | `bun/handlers/inbox.ts` parsers, `decode_*_attrs` | raw bytes → typed instruction/attrs | DB access, side effects |
+| Normalize | `SukhiFedi.Fedi.Inbox` parsers, `decode_*_attrs` | raw bytes → typed instruction/attrs | DB access, side effects |
 | Context | `elixir/lib/sukhi_fedi/*.ex` (Notes, Social, Timelines, …) | business rules, authorization, queries | HTTP shapes, JSON rendering |
 | Schema | `schema/*.ex` changesets | field validation, coercion, **sanitization** | queries, network |
 | Egress | `UrlGuard`, delivery worker, fedify sign | *who we speak to* | building the payload it sends |
@@ -51,7 +51,7 @@ The inbox is the model for any untrusted entry point
    (`ap/instructions.ex:96`) refuses inline data whose claimed actor
    lives elsewhere. Forwarded activities get the narrow path only
    (independent re-fetch), never the trusting one.
-3. **Classify at the edge, once** — `bun/handlers/inbox.ts` turns raw
+3. **Classify at the edge, once** — `SukhiFedi.Fedi.Inbox` turns raw
    JSON-LD into a small typed *instruction*. Everything after the
    classifier handles instructions, not raw maps. Deep code never
    re-digs into remote JSON "just to grab one more field" — if a

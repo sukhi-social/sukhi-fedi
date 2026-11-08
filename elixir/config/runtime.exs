@@ -351,7 +351,10 @@ if config_env() == :prod do
 
   config :sukhi_fedi, :nats,
     host: System.get_env("NATS_HOST", "127.0.0.1"),
-    port: String.to_integer(System.get_env("NATS_PORT", "4222"))
+    port: String.to_integer(System.get_env("NATS_PORT", "4222")),
+    # NATS_ENABLED=false: run without NATS at all (single-BEAM `combined`
+    # release only). docs/ENV.md.
+    enabled: System.get_env("NATS_ENABLED", "true") not in ["0", "false", "off", "no"]
 
   # Cookie-signing key for the admin web UI session. Must be stable
   # across deploys — rotating invalidates every logged-in admin

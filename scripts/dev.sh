@@ -8,7 +8,7 @@
 # Brings up, in this order:
 #
 #   1. PGlite — Postgres compiled to WASM, served over the wire protocol
-#      by bun (the same thing scripts/test-pglite.sh uses for tests).
+#      by node (the same thing scripts/test-pglite.sh uses for tests).
 #      Persisted in .pglite-dev/, so your accounts and posts survive a
 #      restart. Delete that directory to start from nothing.
 #   2. nats-server (plain core), *if* it is on your PATH.
@@ -58,11 +58,11 @@ command -v node >/dev/null 2>&1 || {
   echo "→ node is needed for the embedded Postgres (mise install, or https://nodejs.org)" >&2
   exit 1
 }
-[ -d "$ROOT/bun/node_modules" ] || (cd "$ROOT/bun" && pnpm install)
+[ -d "$ROOT/pglite/node_modules" ] || (cd "$ROOT/pglite" && pnpm install)
 
 echo "→ PGlite on 127.0.0.1:$PGLITE_PORT  (data: ${PGLITE_DATA#"$ROOT"/})"
-( cd "$ROOT/bun" && PGLITE_PORT="$PGLITE_PORT" PGLITE_DATA="$PGLITE_DATA" \
-    exec node --import @oxc-node/core/register services/test_db.ts >/dev/null 2>&1 ) &
+( cd "$ROOT/pglite" && PGLITE_PORT="$PGLITE_PORT" PGLITE_DATA="$PGLITE_DATA" \
+    exec node server.mjs >/dev/null 2>&1 ) &
 pids+=("$!")
 wait_for_port "$PGLITE_PORT" "PGlite"
 

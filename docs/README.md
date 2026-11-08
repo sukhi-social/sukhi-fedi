@@ -54,7 +54,6 @@ We would rather say so than hand you a machine translation; if you can help, ple
 | Swapping small static fixes without a release | [`static-override.ja.md`](static-override.ja.md) (ja) |
 | Correcting data that went in wrong | [`data-correction.ja.md`](data-correction.ja.md) (ja) |
 | Backups | [`../infra/backup/README.md`](../infra/backup/README.md) (ja) |
-| Provisioning on OCI (Terraform) | [`../infra/terraform-x64-freetier/README.md`](../infra/terraform-x64-freetier/README.md) (ja) |
 
 ## 4. Building it
 

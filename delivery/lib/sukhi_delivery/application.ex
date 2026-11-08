@@ -13,7 +13,6 @@ defmodule SukhiDelivery.Application do
         SukhiDelivery.Cache.Ets,
         # Pull Federation counters, folded into pull_stats in batches.
         {SukhiShared.PullStats, repo: SukhiDelivery.Repo},
-        {Gnat.ConnectionSupervisor, nats_connection_settings()},
         # Outbound HTTP pool for remote inbox POSTs. Tune via
         # `sukhi_delivery_pool_utilization` (stays near 1.0 → scale up).
         # Sizing comes from `:finch_pool` (see runtime.exs).
@@ -36,8 +35,19 @@ defmodule SukhiDelivery.Application do
           SukhiDelivery.Outbox.Relay
         ]
 
+    children = nats_children() ++ children
+
     opts = [strategy: :one_for_one, name: SukhiDelivery.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # Delivery's own NATS connection exists only to ask the fedify service
+  # for translations (FedifyClient). When that service is in this VM (the
+  # `combined` release names it), there is nothing to connect to.
+  defp nats_children do
+    if SukhiDelivery.Delivery.FedifyClient.local_service(),
+      do: [],
+      else: [{Gnat.ConnectionSupervisor, nats_connection_settings()}]
   end
 
   defp nats_connection_settings do

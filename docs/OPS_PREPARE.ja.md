@@ -23,7 +23,7 @@
   最初は、**メモリ 1 GB 以上、ディスク 20 GB 以上**だと、余裕をもって試せる(目安。実際の必要量は未計測)。
 - OS は、更新が長く続く安定版を。Fedora / RHEL 系(Rocky など)か、Debian / Ubuntu の LTS。
   本番の箱は Rocky(`build-on-box.sh` のユーザー名から)。
-- OCI での用意は Terraform と cloud-init が `infra/terraform*/` にある(`infra/terraform-x64-freetier/README.md`)。
+- 箱の用意は手で行う(Terraform は外した。以前の `infra/terraform*/` は git の履歴にある)。
 
 **確かめ:** `uname -m`(arm64 か x86_64 か)。使う image がその構成に出ているか、見ておく
 (`combined` は今、arm64 の `sha-` タグのみ。RUNTIME.ja.md §6)。

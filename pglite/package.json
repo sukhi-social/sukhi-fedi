@@ -1,0 +1,18 @@
+{
+  "name": "sukhi-pglite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Embedded Postgres (PGlite) for `make dev` and `make test-pglite`. Goes away with PostgreSQL.",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.4.6",
+    "@electric-sql/pglite-socket": "^0.1.6"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@10.28.2"
+}

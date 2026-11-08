@@ -6,7 +6,6 @@ defmodule SukhiFedi.Web.InboxController do
 
   alias SukhiFedi.AP.Ingest
   alias SukhiFedi.Web.SignedRequest
-  alias SukhiFedi.Schema.Account
 
   # FEP-8fcf Collection-Synchronization format:
   #   collectionId="<uri>", url="<uri>", digest="<hex>"
@@ -112,14 +111,10 @@ defmodule SukhiFedi.Web.InboxController do
   defp sign_as_for(conn) do
     domain = Application.get_env(:sukhi_fedi, :domain) || conn.host
 
-    with username when is_binary(username) <- conn.path_params["name"],
-         %Account{private_key_jwk: priv, public_key_jwk: pub} when not is_nil(priv) <-
-           SukhiFedi.Accounts.by_local_username(username) do
-      %{
-        keyId: "https://#{domain}/users/#{username}#main-key",
-        privateJwk: priv,
-        publicJwk: pub
-      }
+    with username when is_binary(username) <- conn.path_params["name"] do
+      username
+      |> SukhiFedi.Accounts.by_local_username()
+      |> SukhiFedi.Keys.identity(domain)
     else
       _ -> nil
     end

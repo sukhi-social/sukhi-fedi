@@ -10,7 +10,6 @@ defmodule SukhiDelivery.Outbox.Fanout do
 
   alias SukhiDelivery.Delivery.{FedifyClient, Worker}
   alias SukhiDelivery.PullFederation
-  alias SukhiDelivery.Schema.Account
 
   @doc false
   def translate_and_fanout(object_type, payload, actor_uri, activity_id, inboxes, opts \\ []) do
@@ -96,40 +95,8 @@ defmodule SukhiDelivery.Outbox.Fanout do
   # bun would fall back to generating an in-memory Ed25519 keypair
   # whose signature can't be verified against the actor's published
   # publicKeyPem — that mismatch is what hackers.pub was choking on.
-  defp inject_signing_for(payload, actor_uri)
-       when is_map(payload) and is_binary(actor_uri) do
-    domain = SukhiDelivery.Config.domain!()
-    expected_prefix = "https://#{domain}/users/"
-
-    if String.starts_with?(actor_uri, expected_prefix) do
-      username = String.replace_prefix(actor_uri, expected_prefix, "")
-
-      case SukhiDelivery.Accounts.by_local_username(username) do
-        %Account{private_key_jwk: jwk} = account when is_map(jwk) ->
-          payload
-          |> Map.put(:privateKeyJwk, jwk)
-          |> Map.put(:keyId, "#{actor_uri}#main-key")
-          |> put_ed25519_signing(account, actor_uri)
-
-        _ ->
-          payload
-      end
-    else
-      payload
-    end
-  end
+  defp inject_signing_for(payload, actor_uri) when is_map(payload) and is_binary(actor_uri),
+    do: Map.merge(payload, SukhiDelivery.Keys.payload_fields(actor_uri))
 
   defp inject_signing_for(payload, _), do: payload
-
-  # The Ed25519 key signs a FEP-8b32 Object Integrity Proof alongside
-  # the RSA LD-sig. The keyId must match the `assertionMethod` Multikey
-  # id ActorJson publishes, or receivers can't resolve the proof.
-  defp put_ed25519_signing(payload, %Account{ed25519_private_key_jwk: jwk}, actor_uri)
-       when is_map(jwk) do
-    payload
-    |> Map.put(:ed25519PrivateKeyJwk, jwk)
-    |> Map.put(:ed25519KeyId, "#{actor_uri}#ed25519-key")
-  end
-
-  defp put_ed25519_signing(payload, _account, _actor_uri), do: payload
 end

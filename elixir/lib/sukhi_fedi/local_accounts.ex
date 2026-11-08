@@ -13,17 +13,14 @@ defmodule SukhiFedi.LocalAccounts do
     3. insert the account row with `domain: nil` and `password_hash`
 
   If any step fails the whole transaction rolls back, so a failed
-  insert won't leave a half-spent invite. Keypair generation uses the
-  same `NodeinfoMonitor.KeyGen` helper that seeds bot actors, since
-  the shape (`%{public_pem, public_jwk, private_jwk}`) matches what
-  the AP actor controller already publishes.
+  insert won't leave a half-spent invite. The keypair comes from
+  `SukhiFedi.Keys.new_attrs/0`, the one place a local actor's keys are made.
   """
 
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Multi
-  alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
-  alias SukhiFedi.{InviteCodes, OAuth, Repo}
+  alias SukhiFedi.{InviteCodes, Keys, OAuth, Repo}
   alias SukhiFedi.Schema.{Account, AdminAudit, OauthApp, Session}
 
   require Logger
@@ -52,19 +49,17 @@ defmodule SukhiFedi.LocalAccounts do
           | {:error, {:validation, map()}}
   def create(attrs) when is_map(attrs) do
     with {:ok, normalized} <- normalize(attrs),
-         {:ok, hash} <- maybe_hash_password(normalized.password),
-         keys = KeyGen.generate() do
-      account_attrs = %{
-        username: normalized.username,
-        display_name: normalized.display_name || normalized.username,
-        email: normalized.email,
-        password_hash: hash,
-        public_key_pem: keys.public_pem,
-        public_key_jwk: keys.public_jwk,
-        private_key_jwk: keys.private_jwk,
-        ed25519_private_key_jwk: keys.ed25519_private_jwk,
-        ed25519_public_multibase: keys.ed25519_public_multibase
-      }
+         {:ok, hash} <- maybe_hash_password(normalized.password) do
+      account_attrs =
+        Map.merge(
+          %{
+            username: normalized.username,
+            display_name: normalized.display_name || normalized.username,
+            email: normalized.email,
+            password_hash: hash
+          },
+          Keys.new_attrs()
+        )
 
       changeset =
         %Account{}
@@ -123,19 +118,16 @@ defmodule SukhiFedi.LocalAccounts do
     display_name = Keyword.get(opts, :display_name) || username
 
     with {:ok, hash} <- hash_password(password) do
-      keys = KeyGen.generate()
-
-      attrs = %{
-        username: username,
-        display_name: display_name,
-        email: Keyword.get(opts, :email),
-        password_hash: hash,
-        public_key_pem: keys.public_pem,
-        public_key_jwk: keys.public_jwk,
-        private_key_jwk: keys.private_jwk,
-        ed25519_private_key_jwk: keys.ed25519_private_jwk,
-        ed25519_public_multibase: keys.ed25519_public_multibase
-      }
+      attrs =
+        Map.merge(
+          %{
+            username: username,
+            display_name: display_name,
+            email: Keyword.get(opts, :email),
+            password_hash: hash
+          },
+          Keys.new_attrs()
+        )
 
       %Account{}
       |> Account.changeset_local(attrs)
@@ -168,19 +160,11 @@ defmodule SukhiFedi.LocalAccounts do
       (attrs["username"] || attrs[:username] || "") |> String.trim() |> String.downcase()
 
     display_name = trim_or_nil(attrs["display_name"] || attrs[:display_name]) || username
-    keys = KeyGen.generate()
-
     changeset =
       %Account{}
-      |> Account.changeset_local(%{
-        username: username,
-        display_name: display_name,
-        public_key_pem: keys.public_pem,
-        public_key_jwk: keys.public_jwk,
-        private_key_jwk: keys.private_jwk,
-        ed25519_private_key_jwk: keys.ed25519_private_jwk,
-        ed25519_public_multibase: keys.ed25519_public_multibase
-      })
+      |> Account.changeset_local(
+        Map.merge(%{username: username, display_name: display_name}, Keys.new_attrs())
+      )
       # put_change, not cast: an ordinary signup can't declare itself a bot.
       |> Ecto.Changeset.put_change(:is_bot, true)
 

@@ -49,11 +49,10 @@
         onclick={() => lightbox = m.url}
         aria-label={m.description || $t('status.imageZoom')}
       >
-        <!-- リモート画像はプロキシに avif/webp 変換を頼む。ライトボックスも
+        <!-- リモート画像はプロキシに webp 変換を頼む。ライトボックスも
              同じ URL を使うので、二枚目の転送は起きない。 -->
         <picture>
           {#if v}
-            <source srcset={v.avif} type="image/avif" />
             <source srcset={v.webp} type="image/webp" />
           {/if}
           <img src={m.preview_url || m.url} alt={m.description || ''} loading="lazy" />
@@ -96,7 +95,6 @@
   >
     <picture>
       {#if v}
-        <source srcset={v.avif} type="image/avif" />
         <source srcset={v.webp} type="image/webp" />
       {/if}
       <img src={lightbox} alt="" />

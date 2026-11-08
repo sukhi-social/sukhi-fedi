@@ -37,7 +37,7 @@ setup:  ## fetch every project's dependencies
 	@command -v nats-server >/dev/null 2>&1 || echo "note: nats-server is missing — 'make dev' runs without streaming (brew install nats-server nats)"
 	for d in elixir delivery api combined; do (cd $$d && $(RUN) mix deps.get); done
 	cd web && $(RUN) pnpm install
-	cd bun && $(RUN) pnpm install
+	cd pglite && $(RUN) pnpm install
 	cd web-natadeco && $(RUN) pnpm install
 
 # ── Running it locally ──────────────────────────────────────────────────────

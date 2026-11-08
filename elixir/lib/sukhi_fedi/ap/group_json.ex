@@ -65,7 +65,7 @@ defmodule SukhiFedi.AP.GroupJson do
       "indexable" => true,
       "endpoints" => %{"sharedInbox" => "https://#{domain}/inbox"},
       "publicKey" => %{
-        "id" => "#{actor_uri}#main-key",
+        "id" => SukhiShared.Keys.main_key_id(actor_uri),
         "owner" => actor_uri,
         "publicKeyPem" => deco.public_key_pem || ""
       }
@@ -94,7 +94,7 @@ defmodule SukhiFedi.AP.GroupJson do
        when is_binary(mb) and mb != "" do
     Map.put(map, "assertionMethod", [
       %{
-        "id" => "#{actor_uri}#ed25519-key",
+        "id" => SukhiShared.Keys.ed25519_key_id(actor_uri),
         "type" => "Multikey",
         "controller" => actor_uri,
         "publicKeyMultibase" => mb
