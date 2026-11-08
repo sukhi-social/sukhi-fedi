@@ -10,7 +10,7 @@ defmodule SukhiShared.ActorJson do
   reads fields off the account, so it works on either app's `Account`.
   """
 
-  alias SukhiShared.Capability
+  alias SukhiShared.{Capability, Keys}
 
   @spec actor_uri(String.t(), map() | String.t()) :: String.t()
   def actor_uri(domain, %{username: u}), do: actor_uri(domain, u)
@@ -76,7 +76,7 @@ defmodule SukhiShared.ActorJson do
       "indexable" => account.indexable || false,
       "endpoints" => Map.merge(%{"sharedInbox" => "https://#{domain}/inbox"}, Capability.endpoints(domain)),
       "publicKey" => %{
-        "id" => "#{actor_uri}#main-key",
+        "id" => Keys.main_key_id(actor_uri),
         "owner" => actor_uri,
         "publicKeyPem" => account.public_key_pem || ""
       }
@@ -169,7 +169,7 @@ defmodule SukhiShared.ActorJson do
        when is_binary(mb) and mb != "" do
     Map.put(map, "assertionMethod", [
       %{
-        "id" => "#{actor_uri}#ed25519-key",
+        "id" => Keys.ed25519_key_id(actor_uri),
         "type" => "Multikey",
         "controller" => actor_uri,
         "publicKeyMultibase" => mb

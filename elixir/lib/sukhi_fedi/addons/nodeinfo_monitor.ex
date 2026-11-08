@@ -19,7 +19,6 @@ defmodule SukhiFedi.Addons.NodeinfoMonitor do
 
   alias SukhiFedi.{Repo, Notes}
   alias SukhiFedi.Schema.{Account, MonitoredInstance, NodeinfoSnapshot}
-  alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
 
   @doc """
   Register a domain to monitor. Upserts the bot Account and ensures a
@@ -65,20 +64,14 @@ defmodule SukhiFedi.Addons.NodeinfoMonitor do
         {:ok, existing}
 
       nil ->
-        keys = KeyGen.generate()
-
         %Account{
           username: username_for(domain),
           display_name: domain,
           summary: "NodeInfo monitor bot for #{domain}",
-          public_key_jwk: keys.public_jwk,
-          private_key_jwk: keys.private_jwk,
-          public_key_pem: keys.public_pem,
-          ed25519_private_key_jwk: keys.ed25519_private_jwk,
-          ed25519_public_multibase: keys.ed25519_public_multibase,
           is_bot: true,
           monitored_domain: domain
         }
+        |> struct!(SukhiFedi.Keys.new_attrs())
         |> repo.insert()
     end
   end

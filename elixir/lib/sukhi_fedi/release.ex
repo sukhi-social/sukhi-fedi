@@ -340,21 +340,19 @@ defmodule SukhiFedi.Release do
     do_seed = fn ->
       case SukhiFedi.Accounts.by_local_username(username) do
         nil ->
-          keys = SukhiFedi.Addons.NodeinfoMonitor.KeyGen.generate()
-
           %SukhiFedi.Schema.Account{}
-          |> Ecto.Changeset.change(%{
-            username: username,
-            display_name: display_name,
-            summary: summary,
-            is_bot: true,
-            monitored_domain: monitored_domain,
-            public_key_pem: keys.public_pem,
-            public_key_jwk: keys.public_jwk,
-            private_key_jwk: keys.private_jwk,
-            ed25519_private_key_jwk: keys.ed25519_private_jwk,
-            ed25519_public_multibase: keys.ed25519_public_multibase
-          })
+          |> Ecto.Changeset.change(
+            Map.merge(
+              %{
+                username: username,
+                display_name: display_name,
+                summary: summary,
+                is_bot: true,
+                monitored_domain: monitored_domain
+              },
+              SukhiFedi.Keys.new_attrs()
+            )
+          )
           |> SukhiFedi.Repo.insert!()
 
           :created

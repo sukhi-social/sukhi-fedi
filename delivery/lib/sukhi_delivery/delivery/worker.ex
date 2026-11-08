@@ -26,7 +26,7 @@ defmodule SukhiDelivery.Delivery.Worker do
   import Ecto.Query
 
   alias SukhiDelivery.{Repo, Delivery.SigSpec}
-  alias SukhiDelivery.Schema.{Object, Account, DeliveryReceipt}
+  alias SukhiDelivery.Schema.{Object, DeliveryReceipt}
   alias SukhiDelivery.Delivery.FollowersSync
   alias SukhiShared.DeliverySuspension.{Cache, Gate, Policy}
   alias SukhiShared.{HttpSignature, JWK}
@@ -357,12 +357,12 @@ defmodule SukhiDelivery.Delivery.Worker do
   defp sign_request(nil, _inbox, _body, _spec), do: :skip
 
   defp sign_request(actor_uri, inbox_url, body, spec) do
-    case get_private_key_jwk(actor_uri) do
+    case SukhiDelivery.Keys.http_private_jwk(actor_uri) do
       nil ->
         :skip
 
       jwk ->
-        key_id = "#{actor_uri}#main-key"
+        key_id = SukhiShared.Keys.main_key_id(actor_uri)
 
         with {:ok, private_key} <- JWK.private_key(jwk) do
           {:ok, HttpSignature.sign_post(inbox_url, body, private_key, key_id, spec: spec)}
@@ -370,40 +370,6 @@ defmodule SukhiDelivery.Delivery.Worker do
           _ -> :skip
         end
     end
-  end
-
-  defp get_private_key_jwk(actor_uri) when is_binary(actor_uri) do
-    username =
-      actor_uri
-      |> URI.parse()
-      |> Map.get(:path, "")
-      |> String.split("/")
-      |> List.last()
-
-    case SukhiDelivery.Accounts.by_local_username(username) do
-      %Account{private_key_jwk: jwk} when not is_nil(jwk) -> jwk
-      # `{slug}-deco` は板の actor。鍵は accounts ではなく decos が
-      # 自分で持っている ── 板の Announce は板自身が署名する。
-      _ -> deco_private_key_jwk(username)
-    end
-  end
-
-  defp get_private_key_jwk(_), do: nil
-
-  @deco_suffix "-deco"
-
-  defp deco_private_key_jwk(username) do
-    if String.ends_with?(username, @deco_suffix) do
-      slug = String.trim_trailing(username, @deco_suffix)
-
-      case SukhiDelivery.Repo.get_by(SukhiDelivery.Schema.Deco, slug: slug) do
-        %{private_key_jwk: jwk} when not is_nil(jwk) -> jwk
-        _ -> nil
-      end
-    end
-  rescue
-    # deco addon の無い鯖には decos 表が無い。
-    _ -> nil
   end
 
   defp already_delivered?(nil, _inbox_url), do: false

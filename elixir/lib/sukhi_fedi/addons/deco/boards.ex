@@ -20,7 +20,6 @@ defmodule SukhiFedi.Addons.Deco.Boards do
 
   alias SukhiFedi.Repo
   alias SukhiFedi.Addons.Deco.View
-  alias SukhiFedi.Addons.NodeinfoMonitor.KeyGen
   alias SukhiFedi.Notes.Create, as: NotesCreate
   alias SukhiFedi.Schema.{Account, Deco, DecoNote, DecoPref, Note, Tag}
 
@@ -49,7 +48,9 @@ defmodule SukhiFedi.Addons.Deco.Boards do
     Enum.map(decos, fn d ->
       d
       |> View.deco(Map.get(counts, d.id, 0))
-      |> Map.merge(Map.get(marks, d.id, %{minding: false, unread: false, notify: "participating"}))
+      |> Map.merge(
+        Map.get(marks, d.id, %{minding: false, unread: false, notify: "participating"})
+      )
     end)
   end
 
@@ -239,7 +240,6 @@ defmodule SukhiFedi.Addons.Deco.Boards do
     |> Repo.insert(on_conflict: [set: set], conflict_target: [:account_id, :deco_id])
   end
 
-
   @spec get_deco(String.t()) :: {:ok, map()} | {:error, :not_found}
   def get_deco(slug) when is_binary(slug) do
     case Repo.get_by(Deco, slug: String.downcase(String.trim(slug))) do
@@ -256,16 +256,9 @@ defmodule SukhiFedi.Addons.Deco.Boards do
     end
   end
 
+  # attrs here are string-keyed (they merge into the request's params)
   defp generated_keys do
-    keys = KeyGen.generate()
-
-    %{
-      "public_key_pem" => keys.public_pem,
-      "public_key_jwk" => keys.public_jwk,
-      "private_key_jwk" => keys.private_jwk,
-      "ed25519_private_key_jwk" => keys.ed25519_private_jwk,
-      "ed25519_public_multibase" => keys.ed25519_public_multibase
-    }
+    Map.new(SukhiFedi.Keys.new_attrs(), fn {k, v} -> {Atom.to_string(k), v} end)
   end
 
   @doc """

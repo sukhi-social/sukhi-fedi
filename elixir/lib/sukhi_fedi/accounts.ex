@@ -89,17 +89,7 @@ defmodule SukhiFedi.Accounts do
         limit: 1
       )
 
-    case Repo.one(query) do
-      %Account{username: u, private_key_jwk: priv, public_key_jwk: pub} ->
-        %{
-          keyId: "https://#{SukhiFedi.Config.domain!()}/users/#{u}#main-key",
-          privateJwk: priv,
-          publicJwk: pub
-        }
-
-      nil ->
-        nil
-    end
+    SukhiFedi.Keys.identity(Repo.one(query), SukhiFedi.Config.domain!())
   end
 
   @doc """
