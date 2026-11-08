@@ -8,8 +8,8 @@ defmodule SukhiShared.DeliverySuspension.Cache do
   graph store (`SukhiFedi.Fedi.DeliverySuspension.Store`), writes here after
   the store has taken a write, and rebuilds this table from the store when it
   starts, so a restart changes nothing: the same inbox rests until the same
-  time. Only *active* notices are kept; a cancelled one is dropped, because it
-  is never in effect.
+  time. Only *active, believed* notices are kept; a cancelled or withdrawn one is
+  dropped, because it is never in effect.
 
   Reads go straight to ETS from any process and answer `[]` when the table is
   not there. That is the whole story for a delivery node that is not in the
@@ -84,19 +84,22 @@ defmodule SukhiShared.DeliverySuspension.Cache do
   end
 
   @impl GenServer
-  def handle_call({:put, %Notice{status: :active} = notice}, _from, state) do
-    :ets.insert(@table, {key(notice), notice})
-    {:reply, :ok, state}
-  end
-
   def handle_call({:put, %Notice{} = notice}, _from, state) do
-    :ets.delete(@table, key(notice))
+    if keep?(notice),
+      do: :ets.insert(@table, {key(notice), notice}),
+      else: :ets.delete(@table, key(notice))
+
     {:reply, :ok, state}
   end
 
   def handle_call({:replace, notices}, _from, state) do
     :ets.delete_all_objects(@table)
-    for %Notice{status: :active} = n <- notices, do: :ets.insert(@table, {key(n), n})
+    for n <- notices, keep?(n), do: :ets.insert(@table, {key(n), n})
     {:reply, :ok, state}
   end
+
+  # Only what could put a delivery on hold: active, and believed (a notice
+  # whose control went away is withdrawn: `accepted_at` is nil).
+  defp keep?(%Notice{status: :active, accepted_at: %DateTime{}}), do: true
+  defp keep?(%Notice{}), do: false
 end

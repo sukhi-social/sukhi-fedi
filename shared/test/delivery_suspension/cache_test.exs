@@ -67,6 +67,18 @@ defmodule SukhiShared.DeliverySuspension.CacheTest do
       assert [] = Cache.all()
     end
 
+    test "a withdrawn notice (not accepted) is dropped, and comes back when it is accepted again" do
+      Cache.put(notice([]))
+      Cache.put(notice(accepted_at: nil))
+      assert [] = Cache.all()
+
+      Cache.put(notice([]))
+      assert [%Notice{}] = Cache.all()
+
+      Cache.replace([notice(accepted_at: nil)])
+      assert [] = Cache.all()
+    end
+
     test "replace/1 is the rebuild: it keeps the active ones and forgets the rest" do
       Cache.put(notice(id: "https://social.example/suspensions/old"))
 

@@ -456,6 +456,11 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Receiver do
         {:write, cancel(%{known | revision: max(known.revision, notice.revision)}, ctx.now),
          false}
 
+      # Withdrawn (`Recheck`: the link to the target went away): no longer
+      # believed, but remembered. Taken again only through the ordinary check.
+      known.accepted_at == nil and notice.revision >= known.revision ->
+        {:write, settle(notice, known, ctx.now), true}
+
       notice.revision < known.revision ->
         {:noop, :stale}
 

@@ -160,17 +160,26 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
 
   @spec get_evidence(atom(), String.t(), String.t()) :: {:ok, evidence()} | :none
   def get_evidence(kind, target, controller) when is_atom(kind) do
+    # Not `get-else`: dtlv answers a `get-else` query again from memory after
+    # the value it read has been rewritten (seen with the row below: the second
+    # attempt's `failure` did not show). Plain clauses are read each time, so
+    # the row is read as (attribute, value) pairs and folded here.
     q =
-      "[:find ?v ?a ?f :where [?e :dsevidence/kind #{Edn.literal(kind)}]" <>
+      "[:find ?a ?v :where [?e :dsevidence/kind #{Edn.literal(kind)}]" <>
         " [?e :dsevidence/target #{Edn.literal(target)}]" <>
         " [?e :dsevidence/controller #{Edn.literal(controller)}]" <>
-        " [(get-else $ ?e :dsevidence/verified-at 0) ?v]" <>
-        " [(get-else $ ?e :dsevidence/attempted-at 0) ?a]" <>
-        " [(get-else $ ?e :dsevidence/failure :none) ?f]]"
+        " [?e ?a ?v]]"
 
     case Graph.query(q) do
-      {:ok, [[v, a, f] | _]} ->
-        {:ok, %{verified_at: from_micros(v), attempted_at: from_micros(a), failure: failure(f)}}
+      {:ok, [_ | _] = pairs} ->
+        row = Map.new(pairs, fn [a, v] -> {a, v} end)
+
+        {:ok,
+         %{
+           verified_at: from_micros(row[":dsevidence/verified-at"]),
+           attempted_at: from_micros(row[":dsevidence/attempted-at"]),
+           failure: failure(row[":dsevidence/failure"])
+         }}
 
       _ ->
         :none
