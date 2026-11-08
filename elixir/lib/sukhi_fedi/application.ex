@@ -31,7 +31,7 @@ defmodule SukhiFedi.Application do
         SukhiFedi.Graph.children(),
         # FEP-f799: the delivery worker's copy of the resting notices (needs the graph).
         SukhiFedi.Fedi.DeliverySuspension.children(),
-        {Gnat.ConnectionSupervisor, nats_connection_settings()},
+        nats_connection(),
         SukhiFedi.Cache.Ets,
         # Finch powers outbound HTTP from the federation fetcher and the
         # nodeinfo-monitor addon. Outbound ActivityPub delivery lives on
@@ -49,7 +49,7 @@ defmodule SukhiFedi.Application do
         # Bun sidecar. It shares the `fedify-workers` queue group with any
         # Bun replica still running, so cutover is "stop the bun container".
         # After Cache.Ets (key cache) and Finch (remote fetch).
-        {Gnat.ConsumerSupervisor, fedi_consumer_settings()},
+        nats_fedi_service(),
         {Oban, [name: SukhiFedi.Oban] ++ SukhiFedi.Queue.oban_config()},
         # Records one host-resource row per interval into metric_samples so
         # the series accrues for offline analysis. :ignore (no-op) unless
@@ -65,7 +65,7 @@ defmodule SukhiFedi.Application do
         # (wt-relay, x64) publishes over NATS, for the /admin/system page. After
         # the Gnat connection above; subscribes lazily and retries if NATS isn't
         # up yet, so it never blocks boot.
-        SukhiFedi.WtRelayTelemetry
+        nats_wt_telemetry()
       ])
 
     children = core_children ++ SukhiFedi.Addon.Registry.children() ++ [endpoint()]
@@ -115,6 +115,24 @@ defmodule SukhiFedi.Application do
      plug: SukhiFedi.Web.Router,
      port: 4000,
      thousand_island_options: [transport_options: [reuseport: true]]}
+  end
+
+  # NATS is optional (SukhiFedi.Config.nats_enabled?/0): off, none of these
+  # children exist, and the callers that publish already tolerate no :gnat.
+  defp nats_connection do
+    if SukhiFedi.Config.nats_enabled?(),
+      do: [{Gnat.ConnectionSupervisor, nats_connection_settings()}],
+      else: []
+  end
+
+  defp nats_fedi_service do
+    if SukhiFedi.Config.nats_enabled?(),
+      do: [{Gnat.ConsumerSupervisor, fedi_consumer_settings()}],
+      else: []
+  end
+
+  defp nats_wt_telemetry do
+    if SukhiFedi.Config.nats_enabled?(), do: [SukhiFedi.WtRelayTelemetry], else: []
   end
 
   defp fedi_consumer_settings do

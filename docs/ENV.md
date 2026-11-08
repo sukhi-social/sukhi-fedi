@@ -95,6 +95,7 @@ what to set on a small box.
 |---|---|---|---|
 | `NATS_HOST` | no | `127.0.0.1` | gateway/delivery only. Compose: `nats`. Kamal: `sukhi-fedi-nats`. |
 | `NATS_PORT` | no | `4222` | gateway/delivery only. |
+| `NATS_ENABLED` | no | `true` | gateway only. `false`/`0`/`off`: no NATS connection, no `fedify.*` service, no WT telemetry subscription, and no startup NATS check. **Only for the single-BEAM `combined` release**, where delivery calls the fedify service in-process (the release sets `:sukhi_delivery, :fedify_service`) and a new post reaches the streaming feeds by a direct call. What stops: the WebTransport edge (it reads `stream.*` from NATS), and any gateway/delivery pair in separate BEAMs. With NATS on, `combined` still needs no NATS connection of its own for delivery. |
 | `METRICS_PORT` | no | `4001` | delivery only. Prometheus scrape port for delivery worker metrics. |
 
 ## Media storage — S3 / rustfs (gateway)

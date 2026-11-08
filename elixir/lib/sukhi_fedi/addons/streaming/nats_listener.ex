@@ -9,6 +9,17 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
 
   @subject "stream.new_post"
 
+  @doc """
+  The same fan-out a `stream.new_post` message triggers, without NATS. For
+  the single-BEAM `combined` release run with `NATS_ENABLED=false`; the
+  payload takes the JSON round trip a NATS message would have, so the feeds
+  see the same shape either way.
+  """
+  @spec fan_out(map(), String.t()) :: :ok
+  def fan_out(object, actor_id) when is_map(object) and is_binary(actor_id) do
+    GenServer.cast(__MODULE__, {:fan_out, JSON.encode!(%{object: object, actor_id: actor_id})})
+  end
+
   @impl true
   def init(_) do
     # Subscribing in init/1 meant this listener could take the whole
@@ -25,7 +36,16 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
   end
 
   @impl true
-  def handle_continue(:subscribe, state), do: {:noreply, try_subscribe(state)}
+  def handle_continue(:subscribe, state) do
+    # NATS off: nothing to subscribe to; posts arrive by fan_out/2.
+    if SukhiFedi.Config.nats_enabled?(),
+      do: {:noreply, try_subscribe(state)},
+      else: {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:fan_out, body}, state),
+    do: handle_info({:msg, %{topic: @subject, body: body}}, state)
 
   defp try_subscribe(%{subscribed: true} = state), do: state
 
@@ -86,6 +106,7 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
 
     if local_actor?(actor_id) do
       Registry.broadcast(:local, event)
+
       # WebTransport エッジ(karutte)は別ノードで in-process Registry を見られないので、
       # 共有 feed も NATS subject に出す。karutte が stream.local を sub して全接続へ。
       nats_pub("stream.local", object)
@@ -117,7 +138,8 @@ defmodule SukhiFedi.Addons.Streaming.NatsListener do
 
   # karutte が受ける per-feed subject へ。best-effort（NATS が無くても投稿は落とさない）。
   defp nats_pub(subject, object) do
-    Gnat.pub(:gnat, subject, JSON.encode!(object))
+    if SukhiFedi.Config.nats_enabled?(), do: Gnat.pub(:gnat, subject, JSON.encode!(object))
+    :ok
   rescue
     _ -> :ok
   catch

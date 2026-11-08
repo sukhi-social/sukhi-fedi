@@ -124,9 +124,14 @@ defmodule SukhiFedi.Release do
         "routes=#{length(SukhiShared.InstanceConfig.routes(config) || [])}"
     )
 
-    Logger.info("runtime_connection_check_start service=nats")
-    check_nats!()
-    Logger.info("runtime_connection_check_complete service=nats")
+    if SukhiFedi.Config.nats_enabled?() do
+      Logger.info("runtime_connection_check_start service=nats")
+      check_nats!()
+      Logger.info("runtime_connection_check_complete service=nats")
+    else
+      Logger.info("runtime_connection_check_skipped service=nats reason=disabled")
+    end
+
     :ok
   end
 

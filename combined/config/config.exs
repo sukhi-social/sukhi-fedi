@@ -11,3 +11,7 @@ import Config
 import_config "../../elixir/config/config.exs"
 import_config "../../delivery/config/config.exs"
 import_config "../../api/config/config.exs"
+
+# The fedify service (SukhiFedi.Fedi.Service) is in this very VM, so the
+# delivery side calls it directly instead of over NATS to itself.
+config :sukhi_delivery, :fedify_service, SukhiFedi.Fedi.Service

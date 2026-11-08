@@ -67,7 +67,9 @@ defmodule SukhiFedi.Streaming do
   Publish a freshly-created post to the `stream.new_post` NATS subject. The
   gateway's own `NatsListener` consumes it and fans out to the `:local` /
   `:home` streaming feeds (SSE/WS) *and* to the per-feed NATS subjects that the
-  WebTransport edge (karutte) subscribes to.
+  WebTransport edge (karutte) subscribes to. Through NATS so that every
+  gateway replica sees it. With NATS off (`NATS_ENABLED=false`, one BEAM) there
+  is only one listener, so it is called directly.
 
   `object` is the already-rendered Mastodon Status (the api owns the views, so
   it renders and hands it here); `actor_id` is the author's AP actor URI
@@ -76,10 +78,17 @@ defmodule SukhiFedi.Streaming do
   """
   @spec publish_new_post(map(), String.t()) :: :ok
   def publish_new_post(object, actor_id) when is_binary(actor_id) do
-    Gnat.pub(:gnat, "stream.new_post", JSON.encode!(%{object: object, actor_id: actor_id}))
+    if SukhiFedi.Config.nats_enabled?() do
+      Gnat.pub(:gnat, "stream.new_post", JSON.encode!(%{object: object, actor_id: actor_id}))
+    else
+      SukhiFedi.Addons.Streaming.NatsListener.fan_out(object, actor_id)
+    end
+
     :ok
   rescue
     _ -> :ok
+  catch
+    :exit, _ -> :ok
   end
 
   defp render_and_push(account_id, notif) do
@@ -112,10 +121,12 @@ defmodule SukhiFedi.Streaming do
   # NATS へ一発。streaming は任意の addon なので、落ちても投稿は落とさない
   # (`publish_new_post/2` と同じ約束)。
   defp nats_pub(subject, payload) do
-    Gnat.pub(:gnat, subject, JSON.encode!(payload))
+    if SukhiFedi.Config.nats_enabled?(), do: Gnat.pub(:gnat, subject, JSON.encode!(payload))
     :ok
   rescue
     _ -> :ok
+  catch
+    :exit, _ -> :ok
   end
 
   defp plugin_node, do: Application.get_env(:sukhi_fedi, :plugin_nodes, []) |> List.first()
