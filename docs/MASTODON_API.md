@@ -278,6 +278,14 @@ parked in OPEN_QUESTIONS Q5.
 | GET    | `/.well-known/webfinger` | `acct:` and `?resource=` URI form both accepted. |
 | GET    | `/.well-known/nodeinfo` + `/nodeinfo/2.1` | Mastodon-flavoured. |
 
+Who runs the server is visible the Mastodon way. `contact_account` (v1) and
+`contact.account` (v2) hold the contact person (`INSTANCE_CONTACT`, else the
+oldest local admin), rendered as an ordinary Account. Every local admin's
+Account carries `roles: [{"id": "admin", "name": "Admin", "color": ""}, …]`
+in front of any badges an admin handed out; it is derived from the admin flag,
+never stored, and a remote account never wears it. Like Mastodon, nothing about
+roles is put in the ActivityPub actor.
+
 ## Gaps
 
 Tracked in [`TODO.md`](../TODO.md) and [`OPEN_QUESTIONS.md`](../OPEN_QUESTIONS.md):

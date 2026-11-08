@@ -10,6 +10,30 @@ defmodule SukhiApi.Views.MastodonAccountTest do
     Map.merge(%{id: 3, username: "kuro", domain: nil, avatar_url: nil, banner_url: nil}, attrs)
   end
 
+  describe "the admin badge" do
+    test "a local admin wears Admin in front of the badges they were handed" do
+      out =
+        MastodonAccount.render(
+          account(%{is_admin: true, roles: [%{"name" => "Moderator", "color" => "#e5484d"}]})
+        )
+
+      assert out.roles == [
+               %{id: "admin", name: "Admin", color: ""},
+               %{id: "0", name: "Moderator", color: "#e5484d"}
+             ]
+    end
+
+    test "an ordinary person, or one with is_admin missing, wears none" do
+      assert MastodonAccount.render(account(%{is_admin: false})).roles == []
+      assert MastodonAccount.render(account(%{})).roles == []
+    end
+
+    test "a remote account never wears it, whatever its row says" do
+      out = MastodonAccount.render(account(%{domain: "far.example", is_admin: true}))
+      assert out.roles == []
+    end
+  end
+
   describe "remote profile images go through the proxy" do
     test "avatar and header are rewritten with a ?v= cache buster" do
       out =

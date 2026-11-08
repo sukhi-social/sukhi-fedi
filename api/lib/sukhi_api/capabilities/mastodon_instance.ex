@@ -58,7 +58,7 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
       approval_required: invite_required?(),
       invites_enabled: true,
       stats: %{user_count: 0, status_count: 0, domain_count: 0},
-      contact_account: nil,
+      contact_account: contact_account(),
       rules: []
     }
 
@@ -124,7 +124,7 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
         approval_required: invite_required?(),
         message: nil
       },
-      contact: %{email: "", account: nil},
+      contact: %{email: "", account: contact_account()},
       rules: []
     }
 
@@ -152,6 +152,21 @@ defmodule SukhiApi.Capabilities.MastodonInstance do
     case SukhiApi.GatewayRpc.run(SukhiFedi.Addons.WebPush, :server_key, []) do
       {:ok, key} when is_binary(key) and key != "" -> key
       _ -> nil
+    end
+  end
+
+  # The person the server names as its contact (Mastodon's contact_account):
+  # who runs the place, so anyone — on this server or another — can see who
+  # to ask. The gateway decides who it is (`Accounts.site_contact/0`); here it
+  # is only rendered. Nobody to name, or a gateway that cannot be asked,
+  # is `nil`, which is what the document said before.
+  defp contact_account do
+    case SukhiApi.GatewayRpc.run(SukhiFedi.Accounts, :site_contact, []) do
+      {:ok, %{account: account, counts: counts}} ->
+        SukhiApi.Views.MastodonAccount.render(account, counts)
+
+      _ ->
+        nil
     end
   end
 

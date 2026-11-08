@@ -119,6 +119,7 @@ path takes its credentials, region and bucket from the same config.
 | Var | Default | Notes |
 |---|---|---|
 | `INVITE_REQUIRED` | `true` | `false` lets anyone register. A mailbox is still verified either way. |
+| `INSTANCE_CONTACT` | oldest local admin | A local username (with or without `@`) shown as the server's contact person: `contact_account` in `/api/v1/instance` and `contact.account` in `/api/v2/instance`, the way Mastodon's "contact username" works. Unset, or naming nobody here → the oldest local admin; no admin → `null`. |
 | `JOIN_GREETER` | — | The name shown on the "ask to join" form as the person who looks at applications (`くろ`). Unset → a plain "the person who looks after this place" in each language. See [`JOIN.md`](JOIN.md). |
 | `JOIN_CHECK_DAYS` | every day | Comma list of `mon,tue,wed,thu,fri,sat,sun`: the days it is fine to look at applications. The form and the receipt mail say "Thursday (in 3 days)" from this. |
 | `JOIN_UTC_OFFSET_HOURS` | `9` | Where the day line falls for `JOIN_CHECK_DAYS`. |

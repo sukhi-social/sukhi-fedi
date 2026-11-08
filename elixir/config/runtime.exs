@@ -57,6 +57,12 @@ config :sukhi_fedi,
        :invite_required,
        System.get_env("INVITE_REQUIRED", "true") != "false"
 
+# Who the server shows as the person to reach (Mastodon's "contact account"
+# in /api/v1,v2/instance). Unset → the oldest local admin, so a server
+# whose admin never set this still shows a person rather than nobody.
+#   INSTANCE_CONTACT=kuro   — a local username, without the @
+config :sukhi_fedi, :instance_contact, System.get_env("INSTANCE_CONTACT")
+
 # Which bundled /terms and /privacy set to serve, when the instance config
 # names no legal.dir of its own. No default: an instance must name the set
 # (LEGAL_FLAVOR), or the gateway refuses to start.
