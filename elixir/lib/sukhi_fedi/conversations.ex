@@ -188,16 +188,22 @@ defmodule SukhiFedi.Conversations do
 
   defp last_note_per_conversation(convo_ids, limit, opts, viewer_id) do
     # Take the newest note per conversation_ap_id, then page by note id.
-    sub =
-      from n in Note,
-        where: n.conversation_ap_id in ^convo_ids,
-        group_by: n.conversation_ap_id,
-        select: %{cid: n.conversation_ap_id, max_id: max(n.id)}
+    #
+    # Two steps, not `Note JOIN subquery`. On the Datalevin store a join to a
+    # subquery cannot narrow the root table, so it reads every row of `notes`
+    # and joins in memory — about 17 s at 5,000 notes, however few DMs the
+    # viewer has — and the API node gave up at 5 s. Fetching the newest ids
+    # first lets the second read be `id IN (…)`, which does narrow.
+    max_ids =
+      Repo.all(
+        from n in Note,
+          where: n.conversation_ap_id in ^convo_ids,
+          group_by: n.conversation_ap_id,
+          select: %{cid: n.conversation_ap_id, max_id: max(n.id)}
+      )
+      |> Enum.map(& &1.max_id)
 
-    base =
-      from n in Note,
-        join: m in subquery(sub),
-        on: m.max_id == n.id
+    base = from n in Note, where: n.id in ^max_ids
 
     base
     |> maybe_max_id(opts[:max_id])
