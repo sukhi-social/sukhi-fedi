@@ -1,6 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # sukhi
 
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/sukhi-social/sukhi-fedi?utm_source=badge)
+
 A federated (ActivityPub) social server built to be calm: a place where you can
 leave a few words, and drop by now and then, without hurry.
 [sukhi.social](https://sukhi.social) runs on this software.
