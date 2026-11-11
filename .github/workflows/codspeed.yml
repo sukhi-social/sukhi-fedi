@@ -4,6 +4,7 @@
 # html``, time words, the timeline shuffle, status cards), measured under
 # CPU simulation so the numbers hold still between runs. The benchmarks
 # live in web-next/bench/ and run with `pnpm bench` (vitest bench).
+# The `elixir` job below is the Elixir counterpart (walltime; see there).
 name: codspeed
 
 on:
@@ -46,3 +47,48 @@ jobs:
           mode: simulation
           working-directory: web-next
           run: pnpm bench
+
+  # The Elixir side: pure paths (HTTP signatures, JCS hash, Markdown and the
+  # HTML scrubber) through Benchee, in walltime mode, because simulation has
+  # no Elixir support. Walltime needs CodSpeed's own runner (the label below
+  # is theirs, not GitHub's) and shows real time, so it is only as steady as
+  # that machine. The benchmarks live in elixir/bench/ (library:
+  # sukhi-social/benchee_codspeed).
+  elixir:
+    name: Run Elixir benchmarks
+    runs-on: codspeed-macro
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+
+      - name: Cache deps and builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            elixir/deps
+            elixir/_build
+          key: codspeed-elixir-${{ runner.os }}-${{ hashFiles('elixir/mix.lock') }}
+          restore-keys: |
+            codspeed-elixir-${{ runner.os }}-
+
+      - name: Dependencies and compile
+        working-directory: elixir
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+          mix compile
+
+      # `+JPperf true` writes the BEAM's perf map, so the flame graph shows
+      # function names instead of addresses.
+      - name: Run benchmarks
+        uses: CodSpeedHQ/action@v5
+        with:
+          mode: walltime
+          working-directory: elixir
+          run: ELIXIR_ERL_OPTIONS="+JPperf true" mix run --no-start bench/pure_bench.exs

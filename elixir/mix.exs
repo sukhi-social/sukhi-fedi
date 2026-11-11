@@ -127,6 +127,15 @@ defmodule SukhiFedi.MixProject do
       # the release, so serving it at runtime can't fail.
       {:earmark, "~> 1.4"},
 
+      # Benchmarks (elixir/bench/), measured by CodSpeed in walltime mode.
+      # benchee_codspeed is not on Hex yet, so it comes from GitHub, pinned to
+      # a commit like `ojak` above. Dev only: it never reaches the release.
+      {:benchee, "~> 1.3", only: :dev, runtime: false},
+      {:benchee_codspeed,
+       github: "sukhi-social/benchee_codspeed",
+       ref: "a8d26f51667606b020fe6389c5047bb868ce8ed5",
+       only: :dev,
+       runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:bypass, "~> 2.1", only: :test},
       {:mox, "~> 1.0", only: :test}
