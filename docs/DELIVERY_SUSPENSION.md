@@ -5,7 +5,7 @@
 **読む人の困りごと(仮説):** 相手が止まっている間に、こちらの配送が失敗を重ねて諦めてしまうこと。また、だれかが他人の宛先を「お休み」にして、配送を止められてしまうこと。
 
 > FEP-f799 は DRAFT です。プロパティ名は変わるかもしれないので、名前は `SukhiShared.DeliverySuspension.Notice` の一か所にまとめてあります。
-> 見通しと段ごとの計画は #116(子 issue #156〜#162)。受け取り・制御の確認・配送の保留まで通っています。配送の応答の Link ヘッダーからの取得も通っています。告げる側(段5)は、お知らせを作って署名するところまでです(下の「告げる側」)(下の「いまどこまで」)。
+> 見通しと段ごとの計画は #116(子 issue #156〜#162)。受け取り・制御の確認・配送の保留まで通っています。配送の応答の Link ヘッダーからの取得も通っています。告げる側(段5)は、作って署名して、ピアへ配るところまで通っています。眠っている間に静的に答える nginx の道だけが残っています(下の「告げる側」)(下の「いまどこまで」)。
 
 ## 守っている約束
 
@@ -114,6 +114,7 @@ mix sukhi.suspension.prepare --account ops --minutes 60 --out ./suspension \
 | `send/<slug>.create.json` | お知らせを運ぶ公開 `Create` ひとつ。中身はピアごとに変えない | 休み始めるときにピアへ送る |
 | `held/<slug>.cancel.json` | **先に署名した取り消し**(同じお知らせ、revision を上げて `status: cancelled`) | 作業が終わるまで**公開しない** |
 | `held/<slug>.undo.json` | `Create` を指す `Undo` | 終わったあとに送る |
+| `public/control/<パス>.json` | **制御の文書**(下) | 眠っている間も答えられる場所に置く |
 
 - `endTime` は、見込みの 1.5 倍(`--margin`)。ただし方針の最長(48 時間)は超えない。ピアは `endTime` で自分から手を放すので、作業が長引いても足りるし、早く終わったら取り消しで終える。
 - 取り消しは最終です。revision に関係なく有効なので、お知らせを延ばしたあとでも、先に署名した取り消しがそのまま使えます(`Publisher.extend/3` と `update_activity/3`。延ばすのは `endTime` だけ。方針の最長を超えるものは作らない)。
@@ -121,9 +122,34 @@ mix sukhi.suspension.prepare --account ops --minutes 60 --out ./suspension \
 - 署名は `Oip.sign/4`(eddsa-jcs-2022)。**渡された鍵が、そのアクターが公開している鍵と同じか**を、公開側の値と照らしてから署名します(違えば何も作りません)。作ったお知らせは、ピアが読むのと同じ形(`Notice.parse/2`)で読み戻して、断られるものは出しません。
 - テストでは、これを別の sukhi の `Receiver` に渡して受理されること、先着の `Undo` が預かられて後着の `Create` が復活しないこと、取り消しのあとに同じ `Create` を再送しても復活しないことを確かめています。
 
-配るときの順番と速さは `Spread.schedule/2`(純粋)が決めます。ピアの順番はランダム、1 秒の窓に `per_second + 1` 通まで。同時数の上限は、配る仕事を走らせるキューのワーカー数です。
+### 眠っている間も見える「制御の文書」
 
-**まだ**: 静的に置くための nginx の道(アクターの `inbox` / `inboxOf` / `deliveryController` / `controlledOrigin` / WebFinger をアプリが眠っているあいだも見えるようにする)、休み中の `503` + `Retry-After` + `Link`、そして Create / Undo を実際にピアへ送る仕事は、段5の後半です。
+ピアは、お知らせを受けるときだけでなく、**効いている間も1時間ごとに**制御を読み直します(`Recheck`)。アプリが眠っていると、そのとき actor も inbox も WebFinger も答えられません。答えられないだけなら「読めなかった」で済みますが(お知らせはそのまま効く)、誤解のもとなので、必要な文書を先に作って静的に置きます(`Publisher.controls/2`)。
+
+- 個別 inbox: actor(`inbox`)と、inbox のコレクション(`inboxOf`)
+- 共有 inbox: actor(`endpoints.sharedInbox`)と、コレクション(`deliveryController`)。`--inbox-kind shared` 相当は `inbox_kind: :shared`
+- origin: WebFinger(`subject` が origin、`deliveryController` の link がひとつ)と、actor(`controlledOrigin`)
+- actor には `assertionMethod` の鍵も入れる(こちらの proof を、あとからでも確かめられるように)
+
+載せるのは確認が読むメンバーと鍵だけです。眠っている間の代わりで、アプリが戻ったら本物の答えに戻ります。テストでは、これを**本物の `Control.verify/3`** に読ませて、3つの場合すべてで確認できることを見ています。
+
+### 配る
+
+```sh
+# 休み始める(アプリを止める直前)
+bin/sukhi_delivery rpc 'SukhiDelivery.Release.announce_suspension("/srv/sukhi/send/m1.create.json")'
+# 終わったあと
+bin/sukhi_delivery rpc 'SukhiDelivery.Release.announce_suspension("/srv/sukhi/held/m1.undo.json")'
+```
+
+`SukhiDelivery.Delivery.Announce` が、事前署名したアクティビティを**そのまま**、ピアごとに `Delivery.Worker` のジョブにします(中身は変えず、ピアの一覧は載せない)。
+
+- ピアは、すでにやりとりしている**リモートのホストごとに1つ**の inbox(自分の host は除く)。`:inboxes` で指定もできる。
+- 時刻は `SukhiShared.DeliverySuspension.Spread.schedule/2`。順番はランダム、1つのピアにつき1つの枠、1秒に始まるのは `per_second + 1` 通まで(既定5)。ジョブは `scheduled_at` を持つふつうの配送なので、再試行・バックオフ・**同時に走る数の上限(`delivery` キューのワーカー数)**はいつもどおり。
+- `DeliverySuspension` の配送は、お知らせがあっても保留されません(`Gate.exempt?/1`)。休んでいるピアにも、告げる側は後回しにされません。
+- 取り消しは、先に署名した `held/<slug>.cancel.json` を公開の場所に置きかえ(`public/suspensions/<slug>.json`)、`Undo` を配ります。`Update` で運びたいときは `Publisher.update_activity/3`。
+
+**まだ**: 眠っている間に `public/control/…` と `public/suspensions/…` を nginx が静的に返す道(アプリが答えないとき、文書があればそれを返す)、休み中の `503` に `Link` を付けること、配る仕事を実機で通すこと。nginx は本物で確かめる必要があるので、別の変更にします。
 
 ## 記録するもの(`schema.edn`)
 
@@ -146,8 +172,9 @@ mix sukhi.suspension.prepare --account ops --minutes 60 --out ./suspension \
 | 3 | 配送への組み込み(保留・免除・再開・ETS) | merge 済み(#168) |
 | 4 | 制御の確認(`Fetch` `Control` `Recheck`)・取り下げ | merge 済み(#184) |
 | 4 の後半 | 配送の応答の Link ヘッダーから通知を取りにいく(ヒント) | この変更 |
-| 5 の前半 | 告げる側の芯(`Publisher`・`Spread`・`mix sukhi.suspension.prepare`) | この変更 |
-| 5 の後半 | 静的に置く nginx の道・休み中の 503 / `Link`・配る仕事 | 次 |
+| 5 の前半 | 告げる側の芯(`Publisher`・`mix sukhi.suspension.prepare`) | merge 済み(#188) |
+| 5 の中 | 眠っている間の制御の文書・配る仕事(`Announce`・`Spread`) | この変更 |
+| 5 の後半 | nginx で静的に返す道・休み中の 503 に `Link` | 次 |
 | 6 | 管理画面と telemetry | 後 |
 
 初版の範囲は段0〜3(段4で実際に休むようになりました)。宛先ごとの同時数、容量上限の記録、`Retry-After` は後回しです。

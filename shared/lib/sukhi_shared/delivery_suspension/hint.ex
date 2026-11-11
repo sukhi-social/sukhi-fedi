@@ -20,11 +20,16 @@ defmodule SukhiShared.DeliverySuspension.Hint do
 
   # Draft name, in one place.
   @rel "https://w3id.org/fep/f799#deliverySuspension"
+  @rel_controller "https://w3id.org/fep/f799#deliveryController"
   @max_url_bytes 2048
 
   @doc "The relation that names a resting notice."
   @spec rel() :: String.t()
   def rel, do: @rel
+
+  @doc "The WebFinger relation that names an origin's delivery controller."
+  @spec rel_controller() :: String.t()
+  def rel_controller, do: @rel_controller
 
   @doc """
   The notice URL a response points to, or `:none`. `headers` is a map of
