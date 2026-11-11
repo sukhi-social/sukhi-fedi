@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-defmodule SukhiFedi.Fedi.DeliverySuspension.Spread do
+defmodule SukhiShared.DeliverySuspension.Spread do
   @moduledoc """
   When to tell each peer, so that "we are back" (the cancellation) and
   "we are resting" (the Create) do not arrive as one wave (docs/DELIVERY_SUSPENSION.md).

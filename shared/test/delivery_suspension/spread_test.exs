@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-defmodule SukhiFedi.Fedi.DeliverySuspension.SpreadTest do
+defmodule SukhiShared.DeliverySuspension.SpreadTest do
   use ExUnit.Case, async: true
 
-  alias SukhiFedi.Fedi.DeliverySuspension.Spread
+  alias SukhiShared.DeliverySuspension.Spread
 
   @peers for n <- 1..200, do: "https://peer#{n}.example/inbox"
 

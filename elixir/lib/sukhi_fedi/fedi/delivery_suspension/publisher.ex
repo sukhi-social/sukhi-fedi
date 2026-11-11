@@ -35,7 +35,7 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Publisher do
   """
 
   alias SukhiFedi.Fedi.Oip
-  alias SukhiShared.DeliverySuspension.{Notice, Policy}
+  alias SukhiShared.DeliverySuspension.{Hint, Notice, Policy}
   alias SukhiShared.{JWK, Keys}
 
   @public "https://www.w3.org/ns/activitystreams#Public"
@@ -58,6 +58,8 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Publisher do
     * `:now` — a `DateTime`
     * `:slug` — names the files and ids (default: random)
     * `:summary`, `:url` — what people read (optional)
+    * `:inbox_kind` — for an `{:inbox, url}` target, `:personal` (default) or
+      `:shared`: which of the actor's inboxes it is
     * `:margin`, `:policy` (optional)
   """
   @spec prepare(keyword()) :: {:ok, map()} | {:error, term()}
@@ -85,6 +87,7 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Publisher do
            Oip.sign(cancelled(notice), private_key, key_id, created: iso(now)),
          create = create(ids, controller, active),
          undo = undo(ids, controller),
+         controls = controls(opts, controller),
          :ok <- parses?(active, policy),
          :ok <- parses?(cancel, policy) do
       {:ok,
@@ -94,7 +97,8 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Publisher do
          create: create,
          undo: undo,
          ends_at: end_time,
-         files: files(slug, active, cancel, create, undo)
+         controls: controls,
+         files: files(slug, active, cancel, create, undo, controls)
        }}
     end
   end
@@ -190,8 +194,11 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Publisher do
     }
   end
 
-  defp files(slug, notice, cancel, create, undo) do
-    %{
+  defp files(slug, notice, cancel, create, undo, controls) do
+    control_files =
+      Map.new(controls, fn {path, document} -> {"public/control#{path}.json", json(document)} end)
+
+    Map.merge(control_files, %{
       # served while resting
       "public/suspensions/#{slug}.json" => json(notice),
       # held back until the work is done
@@ -199,8 +206,74 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Publisher do
       "held/#{slug}.undo.json" => json(undo),
       # sent to peers when the resting starts
       "send/#{slug}.create.json" => json(create)
-    }
+    })
   end
+
+  @doc """
+  The documents a peer reads to confirm that the controller speaks for the
+  target (`Control`, spec §7), as `%{url_path => map}` — they are what has to
+  be answerable **while the application sleeps**, so they are made now and
+  served as static files:
+
+    * the controller's actor, with the member that points at the target
+      (`inbox` / `endpoints.sharedInbox` / `controlledOrigin`) and its
+      `assertionMethod` key, so a proof of ours can still be checked;
+    * for an inbox, the inbox collection with `inboxOf` (personal) or
+      `deliveryController` (shared);
+    * for an origin, the WebFinger answer (`/.well-known/webfinger`) with the
+      one `deliveryController` link.
+
+  Only the members the check reads, plus the key. They stand in for the live
+  documents for the length of the rest; the application's own answer comes
+  back when it does.
+  """
+  @spec controls(keyword(), String.t()) :: %{String.t() => map()}
+  def controls(opts, controller) do
+    key = %{
+      "id" => Keys.ed25519_key_id(controller),
+      "type" => "Multikey",
+      "controller" => controller,
+      "publicKeyMultibase" => Keyword.fetch!(opts, :public_multibase)
+    }
+
+    actor = %{
+      "@context" => [
+        "https://www.w3.org/ns/activitystreams",
+        "https://w3id.org/security/multikey/v1"
+      ],
+      "id" => controller,
+      "type" => "Person",
+      "assertionMethod" => [key]
+    }
+
+    case Keyword.fetch!(opts, :target) do
+      {:origin, origin} ->
+        %{
+          path_of(controller) => Map.put(actor, "controlledOrigin", [origin]),
+          "/.well-known/webfinger" => %{
+            "subject" => origin,
+            "links" => [%{"rel" => Hint.rel_controller(), "href" => controller}]
+          }
+        }
+
+      {:inbox, inbox} ->
+        case Keyword.get(opts, :inbox_kind, :personal) do
+          :personal ->
+            %{
+              path_of(controller) => Map.put(actor, "inbox", inbox),
+              path_of(inbox) => %{"id" => inbox, "inboxOf" => controller}
+            }
+
+          :shared ->
+            %{
+              path_of(controller) => Map.put(actor, "endpoints", %{"sharedInbox" => inbox}),
+              path_of(inbox) => %{"id" => inbox, "deliveryController" => controller}
+            }
+        end
+    end
+  end
+
+  defp path_of(url), do: URI.parse(url).path
 
   # ── checks ───────────────────────────────────────────────────────────────
 

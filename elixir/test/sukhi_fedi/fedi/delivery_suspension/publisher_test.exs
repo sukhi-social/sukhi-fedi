@@ -5,7 +5,9 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.PublisherTest do
   # ends it without being brought back by anything.
   use SukhiFedi.GraphCase
 
-  alias SukhiFedi.Fedi.DeliverySuspension.{Publisher, Receiver, Store}
+  alias SukhiFedi.Fedi.DeliverySuspension.{Control, Publisher, Receiver, Store}
+  alias SukhiFedi.SuspensionNet, as: Net
+  alias SukhiShared.DeliverySuspension.Notice
   alias SukhiShared.JWK
 
   @domain "rest.example"
@@ -89,12 +91,14 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.PublisherTest do
       assert made.undo["type"] == "Undo"
     end
 
-    test "the files: the notice is public, the rest waits", c do
+    test "the files: the notice and the control documents are public, the rest waits", c do
       {:ok, made} = prepare(c)
 
       assert Enum.sort(Map.keys(made.files)) == [
                "held/m1.cancel.json",
                "held/m1.undo.json",
+               "public/control/.well-known/webfinger.json",
+               "public/control/users/ops.json",
                "public/suspensions/m1.json",
                "send/m1.create.json"
              ]
@@ -205,6 +209,65 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.PublisherTest do
 
       too_far = DateTime.add(@now, 49 * 3600, :second)
       assert {:error, :longer_than_allowed} = Publisher.extend(made.notice, too_far, opts)
+    end
+  end
+
+  describe "the control documents, answerable while the application sleeps" do
+    # what the static files say, as the web a peer would read, checked by the
+    # same `Control` that decides whether to believe a notice
+    defp static_web(made) do
+      base = "https://#{@domain}"
+
+      # nginx ignores the query when it serves a file, so the answer is the same for any `resource`
+      for {path, document} <- made.controls,
+          url <- [base <> path, base <> path <> "?resource=" <> URI.encode_www_form(@origin)],
+          into: %{} do
+        {url, Net.json(document, type: "application/activity+json")}
+      end
+    end
+
+    defp confirms(made, target_kind, target) do
+      notice = %Notice{
+        id: "https://rest.example/suspensions/m1",
+        controller: @ops,
+        target_kind: target_kind,
+        target: target,
+        revision: 1,
+        published: @now
+      }
+
+      Control.verify(notice, @now, http: Net.http(static_web(made)))
+    end
+
+    test "an origin: WebFinger and the actor's controlledOrigin", c do
+      {:ok, made} = prepare(c)
+      assert :ok = confirms(made, :origin, @origin)
+      assert Map.has_key?(made.controls, "/.well-known/webfinger")
+    end
+
+    test "a personal inbox: the actor's inbox, and inboxOf", c do
+      inbox = "https://rest.example/users/ops/inbox"
+      {:ok, made} = prepare(c, target: {:inbox, inbox})
+      assert :ok = confirms(made, :inbox, inbox)
+    end
+
+    test "a shared inbox: sharedInbox, and deliveryController (not inboxOf)", c do
+      shared = "https://rest.example/inbox"
+      {:ok, made} = prepare(c, target: {:inbox, shared}, inbox_kind: :shared)
+      assert :ok = confirms(made, :inbox, shared)
+      assert made.controls["/inbox"]["deliveryController"] == @ops
+      refute Map.has_key?(made.controls["/inbox"], "inboxOf")
+    end
+
+    test "they ride in the files, as static documents the notice's key is in", c do
+      {:ok, made} = prepare(c)
+
+      assert "public/control/users/ops.json" in Map.keys(made.files)
+      assert "public/control/.well-known/webfinger.json" in Map.keys(made.files)
+
+      actor = Jason.decode!(made.files["public/control/users/ops.json"])
+      assert [%{"type" => "Multikey", "publicKeyMultibase" => mb}] = actor["assertionMethod"]
+      assert mb == c.multibase
     end
   end
 end
