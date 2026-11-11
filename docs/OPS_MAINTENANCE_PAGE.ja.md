@@ -56,6 +56,7 @@ nginx が読める場所に、箱の側のユーザー(`sukhi`)が書く置き�
 
 ```sh
 sudo install -d -o sukhi -g sukhi -m 755 /srv/sukhi-maintenance /srv/sukhi-maintenance/www
+sudo -u sukhi touch /srv/sukhi-maintenance/link.map   # nginx が読む Link の在り処(空でよい。§8)
 # SELinux が有効なとき(Rocky / Fedora)
 sudo semanage fcontext -a -t httpd_sys_content_t '/srv/sukhi-maintenance(/.*)?'
 sudo restorecon -R /srv/sukhi-maintenance
@@ -117,6 +118,7 @@ sudo nginx -t && sudo systemctl reload nginx
 - アプリ自身が返した 4xx / 5xx(例: 受付停止の 503、ある投稿の 500)は、そのまま通る(`proxy_intercept_errors` は既定の off のまま)。
   「このリクエストだけ失敗した」と「サーバーが落ちている」を混ぜない。頁にするのは、旗・nodeinfo の診断・nginx 自身の 502/504 だけ。
 - 頁を取りに行った静的サーバーが答えない・頁のファイルが無いときは、JSON の 503 に落ちる(白紙にならない)。
+- `sukhi-maintenance.conf` は `/srv/sukhi-maintenance/link.map` を読む(§8)。**無いと nginx が立ち上がらない**(`nginx -t` が教える)ので、§2 で作っておく(空でよい。`prepare` も、無ければ作る)。
 - 置き場・診断の行き先・静的サーバーのポートを変えるなら、三つのファイルの `/srv/sukhi-maintenance`・`127.0.0.1:8082`・`127.0.0.1:8083` を書き換える(nginx は環境変数を読めない)。
 
 ## 4. 止めるとき・戻すとき(順番)
@@ -166,6 +168,7 @@ GitOps の同期([`OPS_QUADLET_GITOPS.md`](OPS_QUADLET_GITOPS.md) §3.3)が `try
 5. **自動で戻る(JS)は入れていない。** 開いたままの頁が勝手に動かないように。「ひらきなおしてください」と言う。
 6. **アプリ側の受付停止との合わせ込み**(別の仕事)。受付停止中の 503 は、nginx では頁にしない(アプリのものがそのまま通る)。人にも頁を見せたいなら、
    受付停止の側が `on` を呼ぶのが一番ふつうの形。
+8. **FEP-f799 の道(§8)は、本物の nginx で確かめた(CI の `maintenance-page`)が、実機では未確認。** 最初は §8 の手順を、テストの相手を立てて手で。
 7. 言語は、イタリア語・ドイツ語・フランス語を足すときに、`locales/maintenance.ts` にも一行ずつ(`ENGLISH_VOICE.md` の末尾)。
 
 ## 7. 確かめ方
@@ -181,3 +184,54 @@ cd web-next && pnpm test # 頁の中身(文字だけにする・エスケープ�
 certbot の道は止めない / 頁が一枚も無くても JSON の 503 /
 nodeinfo だけが壊れたとき(= 条件)に頁になる・nodeinfo が 404 なら動いているとみなす・アプリ自身の 5xx は通る・
 nodeinfo も落ちているときは正直な 503(古い答えは返さない)・静的サーバーは頁のファイルしか返さない。
+
+## 8. 休むと告げる(FEP-f799)ときの、眠っている間の答え
+
+連合の相手に「しばらく休みます」と告げる仕組み([`DELIVERY_SUSPENSION.md`](DELIVERY_SUSPENSION.md))のうち、**アプリが眠っている間も答えなければならない部分**を、この nginx が受け持つ。
+告げる側のお知らせと確認用の文書は、作業の前に作って署名しておく(眠っている間は、アプリも秘密鍵もいらない)。
+
+### 眠っている間に、nginx が答えるもの
+
+| 来た要求 | 返すもの |
+| --- | --- |
+| `GET`/`HEAD`(人の窓ではない)で、用意した文書の URL | **200**。その URL の文書(`www/doc/<URL の道>.json`)。`Cache-Control: no-store` |
+| 同じ URL への `POST`(inbox への配送) | **503** + `Retry-After` + `Link`。文書があっても、受け取る責任を持てないものに 2xx は返さない |
+| 用意していない URL・人の窓(`Accept: text/html`) | これまでどおり(頁か JSON の 503)。`Link` が付く |
+| `/.well-known/webfinger?resource=<origin>` | 用意した答え。`acct:` などほかの `resource` には答えない(503) |
+
+用意した文書が答えるのは、休みのあいだだけ ─ アプリが起きていれば、要求はアプリに通るので、この文書には届かない。
+道に使える文字は `A-Za-z0-9._~@/-` だけ(静的サーバーへ渡す URL を守るため)。
+
+### 置く・外す
+
+```sh
+# 作業の前に、鍵のある環境で一度(秘密鍵はここでだけ使う)
+mix sukhi.suspension.prepare --account ops --minutes 60 --out ./suspension
+
+# 休み始めるとき(頁に切り替えるのと同じころ)
+sukhi-maintenance notice put ./suspension
+sukhi-maintenance on --why update --about 60      # 旗を立てる(§4)
+# そのあと、ピアに告げる(DELIVERY_SUSPENSION.md の「配る」)
+
+# 終わったあと
+sukhi-maintenance off
+sukhi-maintenance notice cancel ./suspension      # 先に署名した取り消しに置きかえ、Link を外す
+# そのあと、Undo を配る
+```
+
+- `notice put` は、`public/control/…` を `www/doc/…` へ、`public/suspensions/<slug>.json` を `www/doc/suspensions/<slug>.json` へ置く
+  (一時ファイルに書いてから rename。nginx が書きかけを読まない)。
+- 503 に添える `Link: <お知らせ>; rel="https://w3id.org/fep/f799#deliverySuspension"` は、`link.map` に一行書いて持たせる
+  (nginx は設定の読み直しでしか変数の元を替えられない)。**書いたあとに nginx の読み直しが要る。**
+  `SUKHI_NGINX_RELOAD="sudo systemctl reload nginx"` を環境に置けば、スクリプトが走らせる。無ければ案内だけ出る。
+  読み直す前の `Link` は付かないだけで、ほかは動く(`Link` は相手が通知を探すための近道で、通知は告げる側から届いてもいる)。
+- 書く URL は、お知らせの `id` を検めたもの(`https://<host>/suspensions/<slug>`、英数字と `.:-_/` だけ)。ほかの形は書かない。
+- 相手は `Link` の先を**ヒントとして**読む(権威ではない)。そこで読んだ文書も、ふつうのお知らせと同じく制御を確かめられるまで何も止めない。
+- `notice cancel` は、制御の文書の代わりを下げる(起きたら本物の答えに戻る)。取り消しのお知らせは残す(取り消しは最終)。
+
+### 確かめ方
+
+`make test-nginx` が、本物の nginx で次を見る: 文書が 200 で返る(GET・HEAD・既定の `Accept: */*`)/ 同じ URL への POST は 503 / 人の窓は文書でなく 503 /
+用意していない道・おかしな文字は 503 / WebFinger は origin のときだけ / アプリが起きていれば文書でなくアプリの答え /
+`link.map` を書いて読み直すと 503 に `Link` が付き、200 の文書には付かない / 静的サーバーは文書を読むだけ(POST は 403)。
+`make test-maintenance` は `notice put` / `cancel` を通す。
