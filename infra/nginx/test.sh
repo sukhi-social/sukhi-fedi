@@ -32,6 +32,8 @@ sub() {
       -e 's#valid 200 5s#valid 200 1s#' -e 's#valid 500 501 502 503 504 2s#valid 500 501 502 503 504 1s#' "$1"
 }
 for f in sukhi-maintenance.conf sukhi-maintenance-gate.inc sukhi-maintenance-server.inc; do sub "$here/$f" > "$root/conf/$f"; done
+# Link の在り処(空でよい。一度作っておく)。
+: > "$maint/link.map"
 grep -q 'valid 200 1s' "$root/conf/sukhi-maintenance-server.inc" || { echo "test setup: server.inc changed shape"; exit 1; }
 
 # 偽のアプリ。
@@ -83,6 +85,12 @@ CONF
 
 for l in ja ko en; do echo "<html lang=$l>page-$l</html>" > "$maint/www/maintenance.$l.html"; done
 echo "secret" > "$maint/www/notes.txt"
+# 眠っている間も答える文書(URL の道 + .json)。本物は mix sukhi.suspension.prepare が作り、scripts/sukhi-maintenance が置く。
+mkdir -p "$maint/www/doc/users" "$maint/www/doc/.well-known" "$maint/www/doc/suspensions"
+echo '{"id":"https://rest.example/users/ops","type":"Person","note":"stand-in-actor"}' > "$maint/www/doc/users/ops.json"
+echo '{"subject":"https://rest.example","links":[{"rel":"https://w3id.org/fep/f799#deliveryController","href":"https://rest.example/users/ops"}]}' > "$maint/www/doc/.well-known/webfinger.json"
+echo '{"id":"https://rest.example/inbox","deliveryController":"https://rest.example/users/ops"}' > "$maint/www/doc/inbox.json"
+echo '{"id":"https://rest.example/suspensions/m1","type":"DeliverySuspension","note":"stand-in-notice"}' > "$maint/www/doc/suspensions/m1.json"
 mkdir -p "$root/acme/.well-known/acme-challenge"; echo ok-acme > "$root/acme/.well-known/acme-challenge/t"
 
 "$nginx" -c "$root/nginx.conf" -e "$root/logs/error.log"
@@ -102,6 +110,12 @@ check() {
   printf '%s' "$out" | grep -Eq -- "$body" || ok=0
   if [ "$hdr" != - ]; then printf '%s' "$out" | grep -Eiq -- "$hdr" || ok=0; fi
   if [ $ok = 1 ]; then echo "ok   $name"; else echo "FAIL $name (got $got)"; printf '%s\n' "$out" | sed 's/^/     /'; fail=1; fi
+}
+# absent NAME HEADER curl-args… : そのヘッダーが付いていない
+absent() {
+  local name="$1" hdr="$2"; shift 2
+  local out; out="$(curl -s -i --max-time 8 "$@")"
+  if printf '%s' "$out" | grep -Eiq -- "^$hdr:"; then echo "FAIL $name"; printf '%s\n' "$out" | sed 's/^/     /'; fail=1; else echo "ok   $name"; fi
 }
 settle() { sleep 2.5; }   # 診断の置き(1 秒。nginx の時計は秒の粒)が切れるのを待つ
 
@@ -134,8 +148,42 @@ check "flag: webfinger is an honest 503"     503 'unavailable' 'retry-after: 300
 check "flag: nodeinfo is an honest 503, not a kept answer" 503 'unavailable' 'application/json' "$base/nodeinfo/2.0"
 check "flag: image request"   503 'unavailable' 'application/json' -H 'Accept: image/avif,image/*' "$base/uploads/a.png"
 check "flag: certbot's path is not stopped" 200 'ok-acme' - "$base/.well-known/acme-challenge/t"
+
+echo "# 旗が立っている: 眠っている間も、制御の文書とお知らせには 2xx で答える(FEP-f799)"
+AP='Accept: application/activity+json'
+check "doc: the actor is answered from the prepared file" 200 'stand-in-actor' 'content-type: application/json' -H "$AP" "$base/users/ops"
+absent "doc: a 200 carries no Retry-After" 'retry-after' -H "$AP" "$base/users/ops"
+check "doc: no-store"        200 'stand-in-actor' 'cache-control: no-store' -H "$AP" "$base/users/ops"
+check "doc: HEAD"            200 '.' 'content-type: application/json' -I -H "$AP" "$base/users/ops"
+check "doc: a plain Accept (*/*) is a machine too" 200 'stand-in-actor' - "$base/users/ops"
+check "doc: the notice itself"       200 'stand-in-notice' - -H "$AP" "$base/suspensions/m1"
+check "doc: WebFinger for the origin" 200 'deliveryController' - -H 'Accept: application/jrd+json' "$base/.well-known/webfinger?resource=https%3A%2F%2Frest.example"
+check "doc: WebFinger for an acct: is not answered with the origin's" 503 'unavailable' 'retry-after: 300' -H 'Accept: application/jrd+json' "$base/.well-known/webfinger?resource=acct%3Abob%40rest.example"
+check "doc: WebFinger without resource is not answered" 503 'unavailable' - -H 'Accept: application/jrd+json' "$base/.well-known/webfinger"
+check "doc: POST to the inbox is still a 503 (the document is there, we are not receiving)" 503 'unavailable' 'retry-after: 300' -X POST -d '{}' "$base/inbox"
+check "doc: GET of the same inbox URL is the collection" 200 'deliveryController' - -H "$AP" "$base/inbox"
+check "doc: a browser at that URL does not get the JSON document" 503 'unavailable' 'retry-after: 300' -H "$B" "$base/users/ops"
+check "doc: a path with no prepared file is an honest 503" 503 'unavailable' 'retry-after: 300' -H "$AP" "$base/users/nobody"
+check "doc: odd characters are never passed on" 503 'unavailable' - -H "$AP" "$base/users/ops%20x"
+check "doc: a directory-like path is a 503" 503 'unavailable' - -H "$AP" "$base/users/"
+check "doc: the prepared file's name is not a way in" 503 'unavailable' - -H "$AP" "$base/users/ops.json"
 rm "$maint/on"
 check "flag removed: app again"  200 'app says hi' - "$base/"
+check "app up: the app answers, not the stand-in" 200 'app says hi' - -H "$AP" "$base/users/ops"
+
+echo "# Link: 休みのお知らせの在り処(link.map を書いて、nginx に読み直させる)"
+touch "$maint/on"
+absent "no Link while link.map is empty (machine)" 'link' -H "$AP" "$base/users/nobody"
+LINK='<https://rest.example/suspensions/m1>; rel="https://w3id.org/fep/f799#deliverySuspension"'
+printf '"~^" '"'"'%s'"'"';\n' "$LINK" > "$maint/link.map"
+"$nginx" -c "$root/nginx.conf" -e "$root/logs/error.log" -s reload; sleep 1.5
+check "Link on the machine 503"   503 'unavailable' 'link: <https://rest.example/suspensions/m1>; rel="https://w3id.org/fep/f799#deliverySuspension"' -H "$AP" "$base/users/nobody"
+check "Link on the inbox POST"    503 'unavailable' 'link: <https://rest.example/suspensions/m1>' -X POST -d '{}' "$base/inbox"
+check "Link on the page 503"      503 'page-ja' 'link: <https://rest.example/suspensions/m1>' -H "$B" "$base/"
+absent "a 200 document carries no Link" 'link' -H "$AP" "$base/users/ops"
+rm "$maint/on"
+check "flag removed: no Link on the app's own answer" 200 'app says hi' - "$base/"
+absent "app up: no Link" 'link' "$base/"
 
 echo "# nodeinfo だけが壊れている(アプリは他には答える): それが「落ちている」の条件"
 touch "$root/nodeinfo-5xx"; settle
@@ -164,11 +212,18 @@ check "down: browser gets the page"  503 'page-ja' 'retry-after: 300' -H "$B" "$
 check "down: machine gets JSON"      503 'unavailable' 'application/json' "$base/api/v1/timelines/public"
 check "down: nodeinfo says it is down" 503 'unavailable' 'retry-after: 300' "$base/nodeinfo/2.0"
 check "down: POST gets JSON"         503 'unavailable' 'application/json' -X POST -d x "$base/inbox"
+check "down: the control document is still answered" 200 'stand-in-actor' - -H "$AP" "$base/users/ops"
+check "down: the notice is still answered" 200 'stand-in-notice' - -H "$AP" "$base/suspensions/m1"
+check "down: the Link is on the 503" 503 'unavailable' 'link: <https://rest.example/suspensions/m1>' "$base/api/v1/timelines/public"
 
 echo "# 静的サーバー"
 check "static server serves the page files"  200 'page-ja' - "$static/maintenance.ja.html"
 check "static server serves nothing else"    404 '.' - "$static/notes.txt"
 check "static server: no directory listing"  404 '.' - "$static/"
+check "static server serves a prepared document" 200 'stand-in-actor' - "$static/doc/users/ops.json"
+check "static server: no document, no file"  404 '.' - "$static/doc/users/nobody.json"
+check "static server: documents are read-only" 403 '.' - -X POST -d x "$static/doc/users/ops.json"
+check "static server: only .json under /doc" 404 '.' - "$static/doc/notes.txt"
 
 echo "# 頁を一度も用意していない"
 rm "$maint/www/maintenance."*.html

@@ -9,6 +9,8 @@
 #                                                   # 止める前の公開投稿を写し、頁を作って、旗を立てる
 #   sukhi-maintenance off                           # 旗を下ろし、写しを消す
 #   sukhi-maintenance status                        # 旗・理由・頁・写しの有無
+#   sukhi-maintenance notice put    DIR             # FEP-f799: 用意した文書を置き、Link の在り処を書く(DIR = mix sukhi.suspension.prepare の --out)
+#   sukhi-maintenance notice cancel DIR             # 先に署名した取り消しに置きかえ、Link を外す
 #
 #   --why W       update | backup | migration | repair   (頁に、一行の理由が載る。無ければ載らない)
 #   --about MIN   戻る見込み(分)。頁には「半刻ほど」のようにゆるく出る。無ければ「まだ決まっていません」
@@ -32,9 +34,11 @@
 #   SUKHI_CONTAINER_CLI   podman | docker                     (podman があれば podman)
 #   SUKHI_MAINT_URL       on / off のあと、ここへ問い合わせて確かめる(例 https://sukhi.example/)。無ければ確かめない
 #   SUKHI_LANG            ja | en                             (ja when $LANG starts with ja, else en)
+#   SUKHI_NGINX_RELOAD    notice のあと、Link を載せるために走らせる読み直し(例 "sudo systemctl reload nginx")。無ければ案内だけ
 #
 # 置き場は、一度だけ root が作る(nginx が読めるように):
 #   sudo install -d -o sukhi -g sukhi -m 755 /srv/sukhi-maintenance /srv/sukhi-maintenance/www
+#   touch /srv/sukhi-maintenance/link.map     (nginx が読む Link の在り処。空でよい。prepare も、無ければ作る)
 #   (SELinux: sudo semanage fcontext -a -t httpd_sys_content_t '/srv/sukhi-maintenance(/.*)?' && sudo restorecon -R /srv/sukhi-maintenance)
 # Not yet run on a real box.
 
@@ -44,6 +48,8 @@ umask 022
 DIR="${SUKHI_MAINT_DIR:-/srv/sukhi-maintenance}"
 WWW="$DIR/www"
 FLAG="$DIR/on"
+LINKMAP="$DIR/link.map"
+REL="https://w3id.org/fep/f799#deliverySuspension"
 CONTAINER="${SUKHI_WEB_CONTAINER:-sukhi-web-next}"
 URL="${SUKHI_MAINT_URL:-}"
 LANGS=(ja ko en)
@@ -89,6 +95,19 @@ t() {
       badwhy)    printf '--why は update, backup, migration, repair のどれかです' ;;
       badabout)  printf '--about は分の数です (例: --about 30)' ;;
       nodir)     printf '置き場がありません: %s (docs §2 の install を一度だけ)' "$1" ;;
+      n_put)     printf 'お知らせを置きました: %s(文書 %s 件)' "$1" "$2" ;;
+      n_link)    printf '503 に添える Link を書きました: %s' "$1" ;;
+      n_reload)  printf '次: nginx を読み直してください(Link を載せるため)。例: sudo systemctl reload nginx' ;;
+      n_reloaded) printf 'nginx を読み直しました' ;;
+      n_reloadfail) printf 'nginx を読み直せませんでした (%s)。Link は、読み直したあとに載ります' "$1" ;;
+      n_cancel)  printf '取り消しに置きかえました: %s' "$1" ;;
+      n_unlink)  printf 'Link を外しました(読み直したあとに外れます)' ;;
+      n_nodir)   printf 'DIR がありません、または中身が違います: %s(mix sukhi.suspension.prepare の --out を渡してください)' "$1" ;;
+      n_one)     printf 'お知らせがひとつではありません (%s 件): %s/public/suspensions' "$1" "$2" ;;
+      n_badid)   printf 'お知らせの id が読み取れません、または形が違います: %s' "$1" ;;
+      n_nohold)  printf '先に署名した取り消しがありません: %s' "$1" ;;
+      s_notice)  printf 'お知らせ %s' "$1" ;;
+      usage_notice) printf '使いかた: sukhi-maintenance notice put DIR | cancel DIR' ;;
       *) printf '%s' "$k" ;;
     esac
   else
@@ -123,6 +142,19 @@ t() {
       badwhy)    printf -- '--why must be update, backup, migration or repair' ;;
       badabout)  printf -- '--about is a number of minutes (e.g. --about 30)' ;;
       nodir)     printf 'no such directory: %s (run the install in docs §2 once)' "$1" ;;
+      n_put)     printf 'notice put in place: %s (%s documents)' "$1" "$2" ;;
+      n_link)    printf 'wrote the Link for the 503: %s' "$1" ;;
+      n_reload)  printf 'next: reload nginx so the Link is sent. e.g. sudo systemctl reload nginx' ;;
+      n_reloaded) printf 'nginx reloaded' ;;
+      n_reloadfail) printf 'could not reload nginx (%s). The Link is sent once it is reloaded' "$1" ;;
+      n_cancel)  printf 'replaced with the cancellation: %s' "$1" ;;
+      n_unlink)  printf 'removed the Link (it goes away once nginx is reloaded)' ;;
+      n_nodir)   printf 'no such directory, or not the expected contents: %s (pass the --out of mix sukhi.suspension.prepare)' "$1" ;;
+      n_one)     printf 'expected exactly one notice (found %s) in %s/public/suspensions' "$1" "$2" ;;
+      n_badid)   printf 'cannot read the notice id, or it has an unexpected shape: %s' "$1" ;;
+      n_nohold)  printf 'no pre-signed cancellation: %s' "$1" ;;
+      s_notice)  printf 'notice   %s' "$1" ;;
+      usage_notice) printf 'usage: sukhi-maintenance notice put DIR | cancel DIR' ;;
       *) printf '%s' "$k" ;;
     esac
   fi
@@ -180,6 +212,7 @@ probe() {
 
 cmd_prepare() {
   check_dir
+  [ -e "$LINKMAP" ] || : > "$LINKMAP"
   tmp="$(mktemp -d)"
   printf '{"items":[]}\n' > "$tmp/items.json"
   render_all "$tmp/items.json" || exit 1
@@ -278,9 +311,90 @@ cmd_status() {
   else
     say s_off
   fi
+  if [ -s "$LINKMAP" ]; then say s_notice "$(sed -n "s/^[^<]*<\\([^>]*\\)>.*/\\1/p" "$LINKMAP" | head -1)"; fi
   local have=0 l
   for l in "${LANGS[@]}"; do [ -s "$WWW/maintenance.$l.html" ] && have=$((have + 1)); done
   if [ "$have" -eq "${#LANGS[@]}" ]; then say s_pages "${LANGS[*]}"; else say s_nopages; fi
+}
+
+# ── FEP-f799: 眠っている間も答える文書 ────────────────────────────────
+# mix sukhi.suspension.prepare が作った DIR から、nginx の静的サーバーが返すものを置く。
+#   DIR/public/control/<URL の道>.json   →  www/doc/<URL の道>.json    (制御の文書: actor・inbox・WebFinger)
+#   DIR/public/suspensions/<slug>.json   →  www/doc/suspensions/<slug>.json  (お知らせ)
+# 置き方は頁と同じ(同じ場所に書いてから rename。書きかけを nginx が読まない)。
+
+# install_doc SRC DEST: 一時ファイルに写して rename する
+install_doc() {
+  mkdir -p "$(dirname "$2")"
+  cp "$1" "$2.new" && mv -f "$2.new" "$2"
+}
+
+# reload_nginx: 設定を読み直す(Link の在り処は、読み直したあとに効く)。環境にコマンドがあれば走らせ、無ければ案内だけ。
+reload_nginx() {
+  if [ -n "${SUKHI_NGINX_RELOAD:-}" ]; then
+    if sh -c "$SUKHI_NGINX_RELOAD" >"$tmp/reload.out" 2>&1; then say n_reloaded
+    else warn n_reloadfail "$(head -1 "$tmp/reload.out" 2>/dev/null || true)"; fi
+  else
+    say n_reload
+  fi
+}
+
+# the_notice DIR: public/suspensions の中のお知らせがひとつだけであることを確かめ、slug を書く
+the_notice() {
+  local dir="$1" files n
+  [ -d "$dir/public/suspensions" ] || die 1 n_nodir "$dir"
+  files=("$dir"/public/suspensions/*.json)
+  n=0; [ -e "${files[0]}" ] && n=${#files[@]}
+  [ "$n" -eq 1 ] || die 1 n_one "$n" "$dir"
+  basename "${files[0]}" .json
+}
+
+# notice_url FILE SLUG: お知らせの id(https://HOST/suspensions/SLUG)を取り出して確かめる
+notice_url() {
+  local url
+  url="$(grep -o "\"id\": *\"https://[^\"]*/suspensions/$2\"" "$1" | head -1 | sed 's/^"id": *"//; s/"$//')" || true
+  printf '%s' "$url" | grep -Eq '^https://[A-Za-z0-9.:-]+/suspensions/[A-Za-z0-9_-]+$' || die 1 n_badid "$1"
+  printf '%s' "$url"
+}
+
+cmd_notice() {
+  local what="${1:-}" dir="${2:-}"
+  [ $# -eq 2 ] || die 2 usage_notice
+  check_dir
+  [ -d "$dir" ] || die 1 n_nodir "$dir"
+  tmp="$(mktemp -d)"
+  local slug url f n=0
+  case "$what" in
+    put)
+      slug="$(the_notice "$dir")"
+      url="$(notice_url "$dir/public/suspensions/$slug.json" "$slug")"
+      if [ -d "$dir/public/control" ]; then
+        while IFS= read -r f; do
+          install_doc "$f" "$WWW/doc/${f#"$dir"/public/control/}"; n=$((n + 1))
+        done < <(find "$dir/public/control" -type f -name '*.json')
+      fi
+      install_doc "$dir/public/suspensions/$slug.json" "$WWW/doc/suspensions/$slug.json"; n=$((n + 1))
+      say n_put "$url" "$n"
+      # nginx の map の一行。ここに書くのは、検めた URL だけ(英数字と . : - _ と /)。
+      printf '"~^" '"'"'<%s>; rel="%s"'"'"';\n' "$url" "$REL" > "$LINKMAP.new" || die 1 noflag "$DIR"
+      mv -f "$LINKMAP.new" "$LINKMAP"
+      say n_link "$url"
+      reload_nginx
+      ;;
+    cancel)
+      slug="$(the_notice "$dir")"
+      f="$dir/held/$slug.cancel.json"
+      [ -s "$f" ] || die 1 n_nohold "$f"
+      install_doc "$f" "$WWW/doc/suspensions/$slug.json"
+      say n_cancel "$WWW/doc/suspensions/$slug.json"
+      # 制御の文書は、眠っている間の代わり。起きたら本物の答えに戻るので、置いたものは下げる(お知らせは、取り消しのまま残す)。
+      find "$WWW/doc" -mindepth 1 -maxdepth 1 ! -name suspensions -exec rm -rf {} + 2>/dev/null || true
+      : > "$LINKMAP.new" && mv -f "$LINKMAP.new" "$LINKMAP"
+      say n_unlink
+      reload_nginx
+      ;;
+    *) die 2 usage_notice ;;
+  esac
 }
 
 sub="${1:-}"; [ $# -eq 0 ] || shift
@@ -289,5 +403,6 @@ case "$sub" in
   on)      cmd_on "$@" ;;
   off)     cmd_off ;;
   status)  cmd_status ;;
+  notice)  cmd_notice "$@" ;;
   *)       die 2 usage ;;
 esac
