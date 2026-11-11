@@ -5,7 +5,7 @@
 **読む人の困りごと(仮説):** 相手が止まっている間に、こちらの配送が失敗を重ねて諦めてしまうこと。また、だれかが他人の宛先を「お休み」にして、配送を止められてしまうこと。
 
 > FEP-f799 は DRAFT です。プロパティ名は変わるかもしれないので、名前は `SukhiShared.DeliverySuspension.Notice` の一か所にまとめてあります。
-> 見通しと段ごとの計画は #116(子 issue #156〜#162)。受け取り・制御の確認・配送の保留まで通っています。配送の応答の Link ヘッダーからの取得も通っています。告げる側(段5)はまだです(下の「いまどこまで」)。
+> 見通しと段ごとの計画は #116(子 issue #156〜#162)。受け取り・制御の確認・配送の保留まで通っています。配送の応答の Link ヘッダーからの取得も通っています。告げる側(段5)は、お知らせを作って署名するところまでです(下の「告げる側」)(下の「いまどこまで」)。
 
 ## 守っている約束
 
@@ -97,6 +97,34 @@
 
 telemetry: `[:sukhi_delivery, :suspension, :hint]`(渡した)、`[:sukhi_fedi, :delivery_suspension, :hint]`(gateway で受けた結果)。
 
+## 告げる側(段5の前半)
+
+sukhi 自身がメンテナンスの前に「ちょっと休むね」を告げる側です。**作業の前に全部作って署名しておく**ので、眠っているあいだはアプリも秘密鍵もいりません。
+
+```sh
+mix sukhi.suspension.prepare --account ops --minutes 60 --out ./suspension \
+  --summary "メンテナンスです。1時間ほど。" --url https://example.tld/status
+```
+
+`SukhiFedi.Fedi.DeliverySuspension.Publisher.prepare/1` が、次を作ります(書くだけで、送りも公開もしません)。
+
+| ファイル | 中身 | いつ使うか |
+| --- | --- | --- |
+| `public/suspensions/<slug>.json` | お知らせ(revision 1、`active`)。署名つき | 眠っているあいだ読める場所に置く |
+| `send/<slug>.create.json` | お知らせを運ぶ公開 `Create` ひとつ。中身はピアごとに変えない | 休み始めるときにピアへ送る |
+| `held/<slug>.cancel.json` | **先に署名した取り消し**(同じお知らせ、revision を上げて `status: cancelled`) | 作業が終わるまで**公開しない** |
+| `held/<slug>.undo.json` | `Create` を指す `Undo` | 終わったあとに送る |
+
+- `endTime` は、見込みの 1.5 倍(`--margin`)。ただし方針の最長(48 時間)は超えない。ピアは `endTime` で自分から手を放すので、作業が長引いても足りるし、早く終わったら取り消しで終える。
+- 取り消しは最終です。revision に関係なく有効なので、お知らせを延ばしたあとでも、先に署名した取り消しがそのまま使えます(`Publisher.extend/3` と `update_activity/3`。延ばすのは `endTime` だけ。方針の最長を超えるものは作らない)。
+- 書くのは、人が読む一行(`summary`、200字まで)と、状況のページ(`url`)だけ。私的な運用の詳細は載せません。
+- 署名は `Oip.sign/4`(eddsa-jcs-2022)。**渡された鍵が、そのアクターが公開している鍵と同じか**を、公開側の値と照らしてから署名します(違えば何も作りません)。作ったお知らせは、ピアが読むのと同じ形(`Notice.parse/2`)で読み戻して、断られるものは出しません。
+- テストでは、これを別の sukhi の `Receiver` に渡して受理されること、先着の `Undo` が預かられて後着の `Create` が復活しないこと、取り消しのあとに同じ `Create` を再送しても復活しないことを確かめています。
+
+配るときの順番と速さは `Spread.schedule/2`(純粋)が決めます。ピアの順番はランダム、1 秒の窓に `per_second + 1` 通まで。同時数の上限は、配る仕事を走らせるキューのワーカー数です。
+
+**まだ**: 静的に置くための nginx の道(アクターの `inbox` / `inboxOf` / `deliveryController` / `controlledOrigin` / WebFinger をアプリが眠っているあいだも見えるようにする)、休み中の `503` + `Retry-After` + `Link`、そして Create / Undo を実際にピアへ送る仕事は、段5の後半です。
+
 ## 記録するもの(`schema.edn`)
 
 | 表 | 属性 | 中身 |
@@ -118,6 +146,8 @@ telemetry: `[:sukhi_delivery, :suspension, :hint]`(渡した)、`[:sukhi_fedi, :
 | 3 | 配送への組み込み(保留・免除・再開・ETS) | merge 済み(#168) |
 | 4 | 制御の確認(`Fetch` `Control` `Recheck`)・取り下げ | merge 済み(#184) |
 | 4 の後半 | 配送の応答の Link ヘッダーから通知を取りにいく(ヒント) | この変更 |
-| 5 以降 | 告げる側、管理画面 | 後 |
+| 5 の前半 | 告げる側の芯(`Publisher`・`Spread`・`mix sukhi.suspension.prepare`) | この変更 |
+| 5 の後半 | 静的に置く nginx の道・休み中の 503 / `Link`・配る仕事 | 次 |
+| 6 | 管理画面と telemetry | 後 |
 
 初版の範囲は段0〜3(段4で実際に休むようになりました)。宛先ごとの同時数、容量上限の記録、`Retry-After` は後回しです。
