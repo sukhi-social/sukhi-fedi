@@ -189,4 +189,68 @@ defmodule SukhiDelivery.Queue.SqliteQueueTest do
 
     assert [{"7", "available", 1}] = rows
   end
+
+  describe "a suspension hint in a response (FEP-f799)" do
+    alias SukhiDelivery.Delivery.Worker
+
+    @inbox "https://rest.example/inbox"
+    @notice "https://rest.example/suspensions/1"
+    @rel "https://w3id.org/fep/f799#deliverySuspension"
+
+    setup do
+      # the gateway's Oban is where the hint goes; under `store: :datalevin` it
+      # is `SukhiFedi.Oban`. Here it is a Lite instance that drains nothing.
+      Application.put_env(:sukhi_delivery, :store, :datalevin)
+      on_exit(fn -> Application.delete_env(:sukhi_delivery, :store) end)
+
+      start_supervised!(
+        {Oban,
+         name: SukhiFedi.Oban, engine: Oban.Engines.Lite, repo: QueueRepo, queues: [], plugins: []}
+      )
+
+      :ok
+    end
+
+    defp hint_jobs do
+      import Ecto.Query
+
+      from(j in Oban.Job, where: j.worker == "SukhiFedi.Fedi.DeliverySuspension.Hint")
+      |> QueueRepo.all()
+    end
+
+    defp answer(status \\ 202, link),
+      do: {:ok, %{status: status, headers: %{"link" => [link]}, body: ""}}
+
+    test "the address is passed to the gateway, once for a server that says it every time" do
+      for _ <- 1..3 do
+        assert :ok =
+                 Worker.pass_on_suspension_hint(answer("<#{@notice}>; rel=\"#{@rel}\""), @inbox)
+      end
+
+      assert [
+               %Oban.Job{
+                 queue: "suspension_hint",
+                 args: %{"url" => @notice, "inbox_url" => @inbox}
+               }
+             ] =
+               hint_jobs()
+    end
+
+    test "any status can carry it, and a server error still points" do
+      assert :ok =
+               Worker.pass_on_suspension_hint(
+                 answer(503, "<#{@notice}>; rel=\"#{@rel}\""),
+                 @inbox
+               )
+
+      assert [_] = hint_jobs()
+    end
+
+    test "no hint, no job; a transport error is no hint" do
+      assert :none = Worker.pass_on_suspension_hint({:ok, %{status: 202, headers: %{}}}, @inbox)
+      assert :none = Worker.pass_on_suspension_hint(answer("<#{@notice}>; rel=\"next\""), @inbox)
+      assert :none = Worker.pass_on_suspension_hint({:error, :timeout}, @inbox)
+      assert [] = hint_jobs()
+    end
+  end
 end

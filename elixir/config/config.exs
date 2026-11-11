@@ -25,6 +25,8 @@ config :sukhi_fedi, Oban,
     monitor: 5,
     inbound_archive: 10,
     outbound_archive: 10,
+    # FEP-f799: a delivery's Link header points at a resting notice; fetch it.
+    suspension_hint: 2,
     publish: 5,
     preview: 3,
     backfill: 2,
