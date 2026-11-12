@@ -7,9 +7,19 @@ A federated (ActivityPub) social server built to be calm: a place where you can
 leave a few words, and drop by now and then, without hurry.
 [sukhi.social](https://sukhi.social) runs on this software.
 
-*(sukhi is made for Japan mainly. The screens are in Japanese, Korean and English. Some of
-the operator guides under [`docs/`](docs/README.md) are in Japanese; the table of
-contents says which.)*
+> [!NOTE]
+> sukhi is made for Japan mainly. The screens are in Japanese, Korean and English. Some of
+> the operator guides under [`docs/`](docs/README.md) are in Japanese; the table of
+> contents says which.
+
+## Where would you like to go?
+
+| You are… | Start here |
+|---|---|
+| 👀 just looking | [about.sukhi.social](https://about.sukhi.social) |
+| ✍️ going to use it | [`docs/USING.md`](docs/USING.md) ([日本語](docs/USING.ja.md)) |
+| 🏠 going to run your own | [`docs/OPERATIONS.ja.md`](docs/OPERATIONS.ja.md) (Japanese) |
+| 🔧 going to try it, or change it | [Try it](#4-building-it) below, then [`docs/DEVELOPING.md`](docs/DEVELOPING.md) |
 
 ## 1. What kind of place it is
 
@@ -27,12 +37,13 @@ takes a few things on itself, ahead of you:
 
 And a few promises we have made, which the screens have not fully caught up with yet:
 
-- **Quieting things is as easy to find as blocking or reporting.**
-- **Leaving is as easy as joining.** No reason asked. No attempt to keep you.
+- [ ] **Quieting things is as easy to find as blocking or reporting.**
+- [ ] **Leaving is as easy as joining.** No reason asked. No attempt to keep you.
 
-None of this is a technical limit. Every item is something we could do and
-**chose to hold back**; the room it saves goes to keeping the server light and
-long-lived. The thinking is in [`docs/KINDNESS.md`](docs/KINDNESS.md).
+> [!NOTE]
+> None of this is a technical limit. Every item is something we could do and
+> **chose to hold back**; the room it saves goes to keeping the server light and
+> long-lived. The thinking is in [`docs/KINDNESS.md`](docs/KINDNESS.md).
 
 sukhi federates with the ActivityPub world: Mastodon, Misskey and others. It
 speaks the Mastodon client API, so apps such as Elk, Phanpy, Ivory and Tusky work.
@@ -52,15 +63,32 @@ Anyone can run sukhi. A server is also something you keep **in trust** for other
 people, so there is no hurry. If you don't have the hands for it, there is a path
 without running one (we are thinking about small communities inside sukhi.social).
 
+> [!WARNING]
+> The operator guides are in **Japanese only**; there is no English version yet.
+
 - The way in is [`docs/OPERATIONS.ja.md`](docs/OPERATIONS.ja.md): prepare, first
-  start, daily care, in that order. **The operator guides are in Japanese only; there
-  is no English version yet.**
+  start, daily care, in that order.
 - [`docs/CARING_FOR_YOUR_SERVER.ja.md`](docs/CARING_FOR_YOUR_SERVER.ja.md) (Japanese) is how
   to look after it without being frightened.
-- To just try it on your own machine: "Run it locally" in
-  [`docs/DEVELOPING.md`](docs/DEVELOPING.md). `make dev` alone starts it, no Docker.
+- To just try it on your own machine, no Docker: [Building it](#4-building-it) below.
 
 ## 4. Building it
+
+The lightest first step is the pages, on a fake gateway, so nothing else has to run:
+
+```bash
+cd web-next && pnpm install && pnpm run dev:mock   # http://localhost:5174, already signed in
+```
+
+And the whole server, on your machine, no Docker:
+
+```bash
+make dev                                            # http://localhost:4000
+```
+
+> [!TIP]
+> Today the store is **Datalevin** and the pages are **web-next**; production runs on Podman.
+> `make dev` still starts on Postgres (PGlite). [`docs/DEVELOPING.md`](docs/DEVELOPING.md) says how to use Datalevin instead.
 
 Design, specifications, environment variables and tests: the table of contents is
 [`docs/README.md`](docs/README.md). If you are unsure where to start:
