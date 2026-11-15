@@ -108,9 +108,10 @@ document.addEventListener("alpine:init", () => {
 
   // 書く欄の手助け: 絵文字をカーソルに入れる / @ のあとの名前の候補(サーバが小さな HTML で返す)。
   // 候補は、押したときだけ入る。勝手には入れない。
-  Alpine.data("composeAssist", ({ cw = false, draft = "" } = {}) => ({
+  // 添付(整える・回す・切る・貼る・alt)は media.js の部品を、そのまま混ぜる。
+  Alpine.data("composeAssist", ({ cw = false, draft = "", s = {} } = {}) => ({
+    ...window.sukhiMedia.mediaMixin(s),
     cw,
-    files: [],
     hits: "",
     restored: false,
     // 書きかけ(記事の題と本文)。この端末の localStorage にだけ置く ── 送らない。

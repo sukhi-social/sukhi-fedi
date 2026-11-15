@@ -15,6 +15,7 @@ import { setMe } from '../session.ts';
 import { delayWords } from '../time.ts';
 import { isAdmin, type Account } from '../types.ts';
 import { layout } from '../views/layout.ts';
+import { cropSpec } from '../views/media.ts';
 import { avatar } from '../views/parts.ts';
 import { nameOf } from '../views/account.ts';
 import { failText, needMe } from './shared.ts';
@@ -133,13 +134,15 @@ async function settingsPage(ctx: Ctx, me: Account, v: Values, error?: string, st
           <label class="stack-tight">
             <span>${t('settings.avatarNow')}</span>
             ${avatar(me.avatar, nameOf(me), 'avatar avatar-lg')}
-            <input type="file" name="avatar" accept="image/*" />
+            <input type="file" name="avatar" accept="image/*" data-crop="${cropSpec(t, 'avatar')}" />
+            <img class="avatar avatar-lg" data-crop-preview hidden alt="" />
           </label>
 
           <label class="stack-tight">
             <span>${t('settings.headerNow')}</span>
             ${showHeader ? html`<img class="profile-header" src="${me.header}" alt="" />` : ''}
-            <input type="file" name="header" accept="image/*" />
+            <input type="file" name="header" accept="image/*" data-crop="${cropSpec(t, 'header')}" />
+            <img class="profile-header" data-crop-preview hidden alt="" />
             <small class="muted">${t('settings.avatarKeep')}</small>
           </label>
         </section>

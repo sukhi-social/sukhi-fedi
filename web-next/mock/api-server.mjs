@@ -36,6 +36,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
 
   // 予約投稿(お預かり)だけは、覚えておく ── 四半刻の見直しの余白を、画面で試すため。
   const scheduled = [];
+  let mediaSeq = 0;
   // 新着が「届いた」かどうか(画面で帯を試すため)。POST /__mock/fresh で立つ。
   let freshArrived = false;
   // 翻訳が失敗するか(画面で試すため)。POST /__mock/translate?fail=busy で立つ。
@@ -206,8 +207,20 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
     let json = null;
     try { json = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { /* JSON でない */ }
 
+    // 画像の置き場(POST /api/v1/media)。届いた名前・大きさ・alt を、requestLog に「media 名前 大きさ alt」と残す(テストが見る)。
+    if (pathname === '/api/v1/media' && method === 'POST') {
+      const f = await new Request('http://localhost/', { method: 'POST', headers: { 'content-type': req.headers['content-type'] ?? '' }, body: Buffer.concat(chunks) }).formData();
+      const file = f.get('file');
+      const description = String(f.get('description') ?? '');
+      const bad = !file || typeof file === 'string' || file.size > 8 * 1024 * 1024;
+      const id = `m${++mediaSeq}`;
+      if (!bad) requestLog.push(`media ${file.name} ${file.size} ${description}`);
+      res.writeHead(bad ? 422 : 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(bad ? { error: 'invalid_media' } : { id, type: 'image', url: `http://localhost/uploads/${id}`, preview_url: `http://localhost/uploads/${id}`, description: description || null }));
+      return;
+    }
     if (pathname === '/api/v1/statuses' && method === 'POST' && json?.scheduled_at) {
-      const s = { id: `sch${scheduled.length + 1}`, scheduled_at: json.scheduled_at, params: { text: json.status, poll: json.poll ?? null, title: json.title ?? null, as_article: json.as_article ?? null, spoiler_text: json.spoiler_text ?? null, visibility: json.visibility ?? null } };
+      const s = { id: `sch${scheduled.length + 1}`, scheduled_at: json.scheduled_at, params: { text: json.status, media_ids: json.media_ids ?? null, poll: json.poll ?? null, title: json.title ?? null, as_article: json.as_article ?? null, spoiler_text: json.spoiler_text ?? null, visibility: json.visibility ?? null } };
       scheduled.push(s);
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(s));

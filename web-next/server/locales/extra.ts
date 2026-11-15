@@ -148,7 +148,20 @@ export const jaExtra = {
   'compose.pollD7': '7 日',
   'compose.pollNeedTwo': '投票の選択肢は、二つ以上にしてくださいね。',
   'status.reactAdd': 'リアクションをつける',
-  'compose.emoji': '絵文字'
+  'compose.emoji': '絵文字',
+  'compose.altLabel': '画像の説明',
+  'compose.altPlaceholder': '説明を書く(任意)',
+  'compose.rotateL': '左に回す',
+  'compose.rotateR': '右に回す',
+  'compose.crop': '切り抜く',
+  'compose.preparing': '整えています…',
+  'compose.maxFiles': '画像は {max} 枚までです。',
+  'compose.pasted': '画像を貼り付けました({n}/{max})',
+  'compose.prepFailed': 'この画像は、うまく読めませんでした。そのまま送ります。',
+  'compose.pasteHint': '貼り付け(Ctrl/⌘+V)やドラッグでも、画像を足せます。',
+  'crop.postTitle': '画像を切り抜く',
+  'crop.keep': 'そのまま使う(動きを残す)',
+  'crop.original': '元の比率'
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -297,7 +310,20 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'compose.pollD7': '7일',
   'compose.pollNeedTwo': '투표 선택지는 두 개 이상으로 해 주세요.',
   'status.reactAdd': '리액션 달기',
-  'compose.emoji': '이모지'
+  'compose.emoji': '이모지',
+  'compose.altLabel': '이미지 설명',
+  'compose.altPlaceholder': '설명 쓰기 (선택)',
+  'compose.rotateL': '왼쪽으로 돌리기',
+  'compose.rotateR': '오른쪽으로 돌리기',
+  'compose.crop': '자르기',
+  'compose.preparing': '다듬고 있어요…',
+  'compose.maxFiles': '이미지는 {max}장까지예요.',
+  'compose.pasted': '이미지를 붙여 넣었어요 ({n}/{max})',
+  'compose.prepFailed': '이 이미지는 잘 읽지 못했어요. 그대로 보낼게요.',
+  'compose.pasteHint': '붙여넣기(Ctrl/⌘+V)나 끌어다 놓기로도 이미지를 더할 수 있어요.',
+  'crop.postTitle': '이미지 자르기',
+  'crop.keep': '그대로 쓰기 (움직임 유지)',
+  'crop.original': '원래 비율'
 };
 
 // English. The voice is described in docs/ENGLISH_VOICE.md: plain, warm, in no hurry.
@@ -447,5 +473,18 @@ export const enExtra: Record<keyof typeof jaExtra, string> = {
   'compose.pollD7': '7 days',
   'compose.pollNeedTwo': 'A poll needs at least two choices.',
   'status.reactAdd': 'Add a reaction',
-  'compose.emoji': 'Emoji'
+  'compose.emoji': 'Emoji',
+  'compose.altLabel': 'Image description',
+  'compose.altPlaceholder': 'Describe it (optional)',
+  'compose.rotateL': 'Rotate left',
+  'compose.rotateR': 'Rotate right',
+  'compose.crop': 'Crop',
+  'compose.preparing': 'Getting it ready…',
+  'compose.maxFiles': 'Up to {max} images.',
+  'compose.pasted': 'Pasted an image ({n}/{max})',
+  'compose.prepFailed': 'Couldn’t read this image, so it’s sent as it is.',
+  'compose.pasteHint': 'You can also paste (Ctrl/⌘+V) or drag images in.',
+  'crop.postTitle': 'Crop image',
+  'crop.keep': 'Use as it is (keep the animation)',
+  'crop.original': 'Original'
 };

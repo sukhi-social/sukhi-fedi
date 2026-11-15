@@ -107,6 +107,7 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
   <script src="${assetUrl('/assets/vendor/unpoly/unpoly.min.js')}"></script>
   <script src="${assetUrl('/assets/js/app.js')}"></script>
   <script defer src="${assetUrl('/assets/js/pwa.js')}"></script>
+  <script type="module" src="${assetUrl('/assets/js/media.js')}"></script>
   <script defer src="${assetUrl('/assets/vendor/alpine/cdn.min.js')}"></script>
 </head>
 <body>

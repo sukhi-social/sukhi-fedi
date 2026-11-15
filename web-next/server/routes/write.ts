@@ -13,6 +13,7 @@ import { delayWords, timeWords } from '../time.ts';
 import type { Account, Notification, NotificationType, Poll, Relationship, Status } from '../types.ts';
 import { layout } from '../views/layout.ts';
 import { avatar } from '../views/parts.ts';
+import { mediaStrings, MAX_ATTACHMENTS } from '../views/media.ts';
 import { followButton, nameHtml, nameOf, profileActions, requestButtons } from '../views/account.ts';
 import { pollBlock, statusCard } from '../views/status.ts';
 import { byCategory, customEmojis } from '../customEmojis.ts';
@@ -175,7 +176,7 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
             <a class="tab" href="/compose?kind=article" aria-current="${article ? 'true' : null}">${t('compose.kindArticle')}</a>
           </nav>`
         : ''}
-      <form class="composer composer-page ${article ? 'composer-article' : ''}" method="post" action="/compose" enctype="multipart/form-data" x-data="composeAssist({ cw: ${String(!!v.values?.spoiler)}, draft: '${article ? 'article' : ''}' })" ${article ? raw('@input.debounce.400ms="save()" @submit="sent()"') : ''}>
+      <form class="composer composer-page ${article ? 'composer-article' : ''}" method="post" action="/compose" enctype="multipart/form-data" x-data="composeAssist({ cw: ${String(!!v.values?.spoiler)}, draft: '${article ? 'article' : ''}', s: ${JSON.stringify(mediaStrings(t))} })" @paste.document="onPaste($event)" @dragover.window="onDragOver($event)" @drop.window="onDrop($event)" ${article ? raw('@input.debounce.400ms="save()" @submit="sent()"') : ''}>
         ${article ? html`<input type="hidden" name="kind" value="article" />` : ''}
         ${replyId ? html`<input type="hidden" name="in_reply_to_id" value="${replyId}" />` : ''}
         ${quoteId ? html`<input type="hidden" name="quote_id" value="${quoteId}" />` : ''}
@@ -203,7 +204,7 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
 
         <label class="stack-tight ${article ? 'article-body' : ''}">
           <span class="visually-hidden">${t('compose.bodyLabel')}</span>
-          <textarea name="status" class="grows" rows="${article ? 14 : 6}" required ${article ? '' : raw('autofocus')} x-ref="body" @input.debounce.250ms="suggest()" placeholder="${article ? t('compose.articlePlaceholder') : replyTo ? t('compose.placeholderReply') : t('compose.placeholderNew')}">${text}</textarea>
+          <textarea name="status" class="grows" rows="${article ? 14 : 6}" required ${article ? '' : raw('autofocus :required="items.length === 0"')} x-ref="body" @input.debounce.250ms="suggest()" placeholder="${article ? t('compose.articlePlaceholder') : replyTo ? t('compose.placeholderReply') : t('compose.placeholderNew')}">${text}</textarea>
         </label>
         ${article ? html`<p class="composer-hint">${t('compose.articleHint')}</p>` : ''}
         <div class="suggest-host" x-show="hits" x-cloak x-html="hits" @click="pick($event)"></div>
@@ -253,15 +254,39 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
 
         <div class="composer-row">
           <label class="chip">${t('compose.addImage')}
-            <input type="file" name="files" accept="image/*,video/*,audio/*" multiple hidden @change="files = [...$event.target.files].map((f) => f.name)" />
+            <input type="file" name="files" x-ref="files" accept="image/*,video/*,audio/*" multiple hidden @change="onFiles($event)" />
           </label>
           <label class="stack-tight">
             <span class="visually-hidden">${t('compose.visLabel')}</span>
             <select name="visibility">${visLabels.filter(([val]) => !(article && val === 'direct')).map(([val, label]) => html`<option value="${val}" ${val === vis ? raw('selected') : ''}>${label}</option>`)}</select>
           </label>
-          <button type="submit" class="btn primary px-6 py-2">${article ? t('compose.submitArticle') : t('compose.submit')}</button>
+          <button type="submit" class="btn primary px-6 py-2" :disabled="notReady()">${article ? t('compose.submitArticle') : t('compose.submit')}</button>
         </div>
-        <ul class="composer-files" x-show="files.length" x-cloak><template x-for="name in files"><li class="muted" x-text="name"></li></template></ul>
+        <p class="composer-hint paste-hint">${t('compose.pasteHint')}</p>
+        <p class="composer-hint" x-show="busy > 0" x-cloak>${t('compose.preparing')}</p>
+        <p class="composer-hint" role="status" aria-live="polite" x-show="note" x-cloak x-text="note"></p>
+        <ul class="media-cards" x-show="items.length" x-cloak>
+          <template x-for="(it, i) in items" :key="it.id">
+            <li class="media-card" :class="{ 'media-over': it.over }">
+              <img class="media-thumb" x-show="it.thumb" :src="it.thumb" alt="" />
+              <span class="media-thumb media-thumb-file muted text-sm" x-show="!it.thumb" x-text="it.name"></span>
+              <div class="media-card-body stack-tight">
+                <p class="muted text-sm" x-text="it.label"></p>
+                <p class="media-over-note" role="alert" x-show="it.over" x-cloak>${t('settings.fileTooLarge')}</p>
+                <label class="stack-tight">
+                  <span class="visually-hidden">${t('compose.altLabel')}</span>
+                  <input type="text" name="alt" x-model="it.alt" maxlength="1500" placeholder="${t('compose.altPlaceholder')}" />
+                </label>
+                <div class="media-actions">
+                  <button type="button" class="chip" x-show="it.editable" @click="rotate(i, -1)" aria-label="${t('compose.rotateL')}" title="${t('compose.rotateL')}">↺</button>
+                  <button type="button" class="chip" x-show="it.editable" @click="rotate(i, 1)" aria-label="${t('compose.rotateR')}" title="${t('compose.rotateR')}">↻</button>
+                  <button type="button" class="chip" x-show="it.editable" @click="cropItem(i)">${t('compose.crop')}</button>
+                  <button type="button" class="chip" @click="remove(i)">${t('compose.removeMedia')}</button>
+                </div>
+              </div>
+            </li>
+          </template>
+        </ul>
         <p class="composer-hint">${config.postDelayMin > 0 ? t('compose.queuedHint', { when }) : ''}</p>
       </form>
 
@@ -304,7 +329,15 @@ route('POST', '/compose', async (ctx) => {
   const view = (error: string): Promise<Reply> =>
     composePage(ctx, me, { values, kind: article ? 'article' : 'note', replyId: str('in_reply_to_id') || undefined, quoteId: str('quote_id') || undefined, error }, 422);
 
-  if (!text) return view(t('feedback.empty'));
+  // alt は、ファイルと同じ順で並んで届く。0 バイトを捨てる前に組にする(捨てたあとだと、添字がずれる)。
+  const alts = f.getAll('alt').map((x) => String(x).trim());
+  const files = f
+    .getAll('files')
+    .map((file, i) => ({ file, alt: alts[i] ?? '' }))
+    .filter((x): x is { file: File; alt: string } => x.file instanceof File && x.file.size > 0)
+    .slice(0, MAX_ATTACHMENTS);
+  // 画像があれば、本文は空でもいい(記事は、文章がすべてなので別)。
+  if (!text && (article || !files.length)) return view(t('feedback.empty'));
   if (article && !title) return view(t('compose.needTitle'));
   // 記事は、指名だけの形(direct)にしない ── それは「ふたりの部屋」の道。画面には出さないので、来たら断る
   // (黙って公開に替えると、閉じたつもりの文章が開いてしまう)。
@@ -316,12 +349,12 @@ route('POST', '/compose', async (ctx) => {
   if (filled.length === 1) return view(t('compose.pollNeedTwo'));
 
   try {
-    // 画像は、先に gateway へ(四枚まで)。
+    // 画像は、先に gateway へ(四枚まで)。alt があれば description として添える。
     const mediaIds: string[] = [];
-    const files = f.getAll('files').filter((x): x is File => x instanceof File && x.size > 0).slice(0, 4);
-    for (const file of files) {
+    for (const { file, alt } of files) {
       const fd = new FormData();
       fd.set('file', file);
+      if (alt) fd.set('description', alt);
       const m = await gwJson<{ id: string }>(ctx, 'POST', '/api/v1/media', { form: fd });
       mediaIds.push(m.id);
     }
