@@ -34,7 +34,34 @@ details.boost:not([open]) > .status { display: none; }
 .timeline-filter summary { cursor: pointer; display: inline-block; }
 .filter-form { display: flex; flex-direction: column; gap: var(--space-2); padding-block: var(--space-2); }
 .filter-check { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
-.composer-files { list-style: none; padding: 0; }
+
+/* 書く欄の添付: 一枚ごとのカード(サムネ・大きさ・alt・回す/切る/外す)。 */
+.composer-hint { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+@media (hover: none) { .paste-hint { display: none; } } /* 貼る・落とすは、キーボードとマウスの話。タッチでは出さない */
+.media-cards { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-3); }
+.media-card { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3); border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); }
+.media-card.media-over { border-color: var(--color-danger); }
+.media-thumb { flex: none; width: 5.5rem; height: 5.5rem; object-fit: cover; border-radius: var(--radius-sm); background: var(--color-border); }
+.media-thumb-file { display: grid; place-items: center; padding: var(--space-1); overflow: hidden; overflow-wrap: anywhere; text-align: center; }
+.media-card-body { flex: 1; min-width: 0; display: grid; gap: var(--space-2); }
+.media-card-body p { margin: 0; }
+.media-card-body input[type='text'] { width: 100%; }
+.media-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.media-over-note { color: var(--color-danger); font-size: var(--text-sm); }
+
+/* 切り抜きの窓(<dialog>)。枠の中で画を動かし、見えている範囲が、出来上がり。 */
+.crop-dialog { margin: auto; padding: var(--space-4); border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); max-width: min(26rem, 94vw); }
+.crop-dialog::backdrop { background: var(--color-scrim); }
+.crop-dialog[open] { display: grid; gap: var(--space-3); justify-items: center; }
+.crop-title { margin: 0; font-weight: 600; }
+.crop-ratios { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center; }
+.crop-frame { position: relative; overflow: hidden; touch-action: none; cursor: grab; background: var(--color-border); border-radius: var(--radius-sm); outline-offset: 2px; }
+.crop-frame:active { cursor: grabbing; }
+.crop-frame img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; }
+.crop-zoom { display: block; width: 100%; }
+.crop-zoom input { width: 100%; }
+.crop-hint { margin: 0; text-align: center; }
+.crop-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; width: 100%; }
 .held { margin-block-start: var(--space-8); }
 .held-item { padding-block: var(--space-3); border-block-end: 1px solid var(--color-border); }
 .held-text { white-space: pre-wrap; overflow-wrap: anywhere; }
