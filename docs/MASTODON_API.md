@@ -129,6 +129,28 @@ outbox; remote-target follows ride the `sns.outbox.follow.requested`
 path and flip to `accepted` when the remote's `Accept(Follow)`
 returns through the inbox.
 
+## Groups
+
+Joining a remote group (a Bonfire `Group` actor, say) is a membership, kept
+apart from a follow: a follower reads, a member may post. The paths are the
+ones Bonfire's draft groups API names, so a client written for it reaches
+sukhi the same way. `:id` is the group's account id, as for `follow`.
+
+| Method | Path | Scope |
+| ------ | ---- | ----- |
+| POST   | `/api/v1-bonfire/groups/:id/{join,leave}` | write:follows |
+
+Both answer with the `Relationship`, which carries `group: {member, role}`
+once a membership exists (absent for any other account).
+
+- **join** also follows the group — a member who can't see the group's posts
+  has little to be a member of — then sends `Join`. Until the group's
+  `Accept` comes back, `requested` is true and `group.member` is false; a
+  `Reject` deletes the membership. A local account is refused (422).
+- **leave** deletes the membership and sends `Leave`. The follow stays;
+  `unfollow` is the separate choice. Leaving a group you aren't in is a
+  200, as `unfollow` is.
+
 ## Timelines
 
 | Method | Path | Scope |

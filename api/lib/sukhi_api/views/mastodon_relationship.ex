@@ -18,16 +18,33 @@ defmodule SukhiApi.Views.MastodonRelationship do
         requested: bool,
         domain_blocking: bool,
         endorsed: bool,
-        note: String
+        note: String,
+        group: %{member: bool, role: String | nil}   # optional, see below
       }
 
   Missing keys default to `false`/`""`.
+
+  `group` is Bonfire's group extension. The key is rendered only when the
+  viewer has a membership row with the target (`Social.list_relationships/2`
+  leaves it `nil` otherwise), so a Relationship for an ordinary account
+  stays exactly Mastodon's.
   """
 
   alias SukhiApi.Views.Id
 
   @spec render(map()) :: map()
   def render(rel) when is_map(rel) do
+    base = render_base(rel)
+
+    # Bonfire's group extension: `group: {member, role}`, present for a group
+    # the viewer has a membership row with and absent for everything else.
+    case rel[:group] do
+      %{member: member, role: role} -> Map.put(base, :group, %{member: member, role: role})
+      _ -> base
+    end
+  end
+
+  defp render_base(rel) do
     %{
       id: Id.encode(rel.id),
       following: !!rel[:following],

@@ -70,6 +70,40 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
 
   def follow(_, _), do: :missing_fields
 
+  # Join / Leave a remote group. Same shape as `follow/2`: the member signs,
+  # the group's inbox receives. The Join's id hangs off the membership row
+  # (`/joins/<id>`), so an `Accept(Join)` that echoes only that id can be
+  # matched back to the row; the Leave's id is the Join's plus `/leave`.
+  def join(%{"member_uri" => member_uri, "group_id" => group_id} = p, mode) do
+    case follower_uri_to_account(member_uri) do
+      nil ->
+        :no_actor
+
+      %{actor_uri: actor_uri} ->
+        case Repo.get(Account, group_id) do
+          nil ->
+            :no_followee
+
+          group ->
+            {group_uri, group_inbox} = followee_endpoints(group)
+            join_id = "https://#{SukhiDelivery.Config.domain!()}/joins/#{p["membership_id"]}"
+
+            case mode do
+              :create ->
+                payload = %{actor: actor_uri, object: group_uri, activityId: join_id}
+                translate_and_fanout("join", payload, actor_uri, join_id, [group_inbox])
+
+              :undo ->
+                leave_id = join_id <> "/leave"
+                payload = %{actor: actor_uri, object: group_uri, activityId: leave_id}
+                translate_and_fanout("leave", payload, actor_uri, leave_id, [group_inbox])
+            end
+        end
+    end
+  end
+
+  def join(_, _), do: :missing_fields
+
   def like(%{"account_id" => account_id, "note_ap_id" => note_ap_id} = p, mode) do
     case actor_for(account_id) do
       nil ->

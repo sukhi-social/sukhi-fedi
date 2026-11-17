@@ -37,6 +37,8 @@ defmodule SukhiDelivery.Outbox.Fanout do
   defp extract_body(result, "dm", _opts), do: Map.get(result, "note", result)
   defp extract_body(result, "delete", _opts), do: Map.get(result, "delete", result)
   defp extract_body(result, "follow", _opts), do: Map.get(result, "follow", result)
+  defp extract_body(result, "join", _opts), do: Map.get(result, "join", result)
+  defp extract_body(result, "leave", _opts), do: Map.get(result, "leave", result)
   defp extract_body(result, "quote_request", _opts), do: Map.get(result, "quoteRequest", result)
   defp extract_body(result, "announce", _opts), do: Map.get(result, "announce", result)
   defp extract_body(result, "like", _opts), do: Map.get(result, "like", result)

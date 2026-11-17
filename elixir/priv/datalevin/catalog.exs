@@ -1912,6 +1912,37 @@
     ],
     pk: ["id"]
   },
+  "group_memberships" => %{
+    columns: [
+      %{
+        default: "nextval('group_memberships_id_seq'::regclass)",
+        name: "id",
+        type: "bigint",
+        null: false
+      },
+      %{default: nil, name: "member_uri", type: "text", null: false},
+      %{default: nil, name: "group_id", type: "bigint", null: false},
+      %{default: "'pending'::text", name: "state", type: "text", null: false},
+      %{default: "now()", name: "created_at", type: "timestamp without time zone", null: false}
+    ],
+    unique: [
+      %{
+        name: "group_memberships_member_uri_group_id_index",
+        keys: [col: "member_uri", col: "group_id"],
+        where: []
+      }
+    ],
+    fks: [
+      %{
+        name: "group_memberships_group_id_fkey",
+        columns: ["group_id"],
+        on_delete: :none,
+        ref_columns: ["id"],
+        ref_table: "accounts"
+      }
+    ],
+    pk: ["id"]
+  },
   "webauthn_credentials" => %{
     columns: [
       %{

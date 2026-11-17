@@ -9,6 +9,7 @@ defmodule SukhiFedi.AP.Instructions do
 
     * `Instructions.Follows`   — Follow / Accept(Follow) / relay
       Accept+Reject / Undo(Follow)
+    * `Instructions.Memberships` — Accept/Reject of a `Join` we sent a group
     * `Instructions.Quotes`    — FEP-044f QuoteRequest (auto-approve →
       QuoteAuthorization) + Accept/Reject of our outbound request
     * `Instructions.DMs`       — non-public Create(Note) → conversations
@@ -31,6 +32,7 @@ defmodule SukhiFedi.AP.Instructions do
     DMs,
     Extract,
     Follows,
+    Memberships,
     Migrations,
     Mirror,
     Pins,
@@ -67,6 +69,7 @@ defmodule SukhiFedi.AP.Instructions do
       DMs.maybe_handle_dm(object_data)
       Follows.maybe_handle_relay_reply(object_data)
       Follows.maybe_handle_follow_accept(object_data)
+      Memberships.maybe_handle_join_reply(object_data)
       Mirror.maybe_mirror_create_note(object_data)
       # FEP-044f: the quoted author accepted (or rejected) our outbound
       # QuoteRequest. Accept carries the stamp we echo on the note; Reject
