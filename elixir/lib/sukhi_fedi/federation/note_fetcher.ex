@@ -41,8 +41,19 @@ defmodule SukhiFedi.Federation.NoteFetcher do
   # HTTP-signed for Mastodon Secure Mode / Misskey auth-fetch-required
   # peers. The `notes` table is the cache — `fetch_and_mirror/1` checks
   # it first — so the Bun hop only happens on a genuine miss.
+  #
+  # An id can name an *activity*: a group's FEP-1b12 `Announce{Create}` points
+  # at the Create, not the note. An activity is not a note, and mirroring it
+  # would store an empty row under the activity's id — refuse it here, where
+  # the document first arrives.
+  @activity_types ~w(Create Update Delete Announce Like EmojiReact Undo Follow
+                     Accept Reject Add Remove Move Block Flag Join Leave)
+
   defp fetch_object(uri) do
     case FedifyClient.fetch(uri, SukhiFedi.Accounts.signing_identity()) do
+      {:ok, %{"document" => %{"type" => type}}} when type in @activity_types ->
+        {:error, {:not_a_note, type}}
+
       {:ok, %{"document" => doc}} when is_map(doc) -> {:ok, doc}
       {:ok, other} -> {:error, {:unexpected_fetch_result, other}}
       {:error, _} = err -> err

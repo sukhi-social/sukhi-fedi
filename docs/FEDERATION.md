@@ -18,7 +18,7 @@
 | Aspect | Behaviour | Where |
 | --- | --- | --- |
 | Object/activity model | Mastodon-compatible AS2 + ActivityPub | `fedi/builders.ex` |
-| Activity types emitted | `Create` (Note/vote/dm), `Follow`, `Accept`, `Announce`, `Like`, emoji-react-as-`Like`, `Undo`, `Delete`, `Add`, `Remove` | `builders.ex:56-67` |
+| Activity types emitted | `Create` (Note/vote/dm), `Follow`, `Join`, `Leave`, `Accept`, `Announce`, `Like`, emoji-react-as-`Like`, `Undo`, `Delete`, `Add`, `Remove` | `builders.ex:56-67` |
 | Activity types accepted | `Follow` (special reply shape) + `Announce Create Update Delete Like EmojiReact Undo Accept Reject Move Block Flag Add Remove`; anything else is `ignore`d | `fedi/inbox.ex:31-48` |
 | `@context` (egress) | one shared context: AS2 + `security/v1` + `security/data-integrity/v1` + a small compatibility map (`toot:`, `misskey:`, `sensitive`, `Hashtag`, `Emoji`, `_misskey_content`, `_misskey_quote`, `quoteUrl`) | `builders.ex:32-49` |
 | Transport idempotency | receive: `objects.ap_id` unique + `on_conflict: :nothing`; send: `delivery_receipts(activity_id, inbox_url)` unique, checked before every POST | `delivery/.../worker.ex:43,332-340` |

@@ -84,6 +84,8 @@ defmodule SukhiFedi.Fedi.Builders do
   def build("vote", p), do: vote(p)
   def build("dm", p), do: dm(p)
   def build("follow", p), do: follow(p)
+  def build("join", p), do: membership("Join", "join", p)
+  def build("leave", p), do: membership("Leave", "leave", p)
   def build("quote_request", p), do: quote_request(p)
   def build("announce", p), do: announce(p)
   def build("like", p), do: like(p)
@@ -274,6 +276,24 @@ defmodule SukhiFedi.Fedi.Builders do
 
     with {:ok, signed} <- sign_and_prove(p, activity) do
       {:ok, %{"follow" => signed}}
+    end
+  end
+
+  # Join / Leave a group: addressed to the group alone, the object its bare
+  # id (a `Join` whose object is embedded is one some servers drop). This is
+  # the shape Bonfire's `activity_pub` library sends and expects back.
+  defp membership(type, key, p) do
+    activity = %{
+      "@context" => @context,
+      "id" => p["activityId"],
+      "type" => type,
+      "actor" => p["actor"],
+      "to" => [p["object"]],
+      "object" => p["object"]
+    }
+
+    with {:ok, signed} <- sign_and_prove(p, activity) do
+      {:ok, %{key => signed}}
     end
   end
 

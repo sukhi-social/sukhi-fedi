@@ -11,6 +11,8 @@ defmodule SukhiDelivery.Outbox.Consumer do
       sns.outbox.follow.requested   → Bun `follow` translator → followee inbox
       sns.outbox.quote.requested    → `quote_request` (FEP-044f)→ quoted author inbox
       sns.outbox.follow.undone      → Bun `undo` (Follow)     → followee inbox
+      sns.outbox.join.requested     → `join`  (Join)          → group inbox
+      sns.outbox.join.undone        → `leave` (Leave)         → group inbox
       sns.outbox.like.created       → Bun `like` translator   → note author + relays
       sns.outbox.like.undone        → Bun `undo` (Like)       → note author
       sns.outbox.reaction.created   → Bun `emoji_react`       → note author + relays
@@ -85,6 +87,8 @@ defmodule SukhiDelivery.Outbox.Consumer do
   def dispatch("sns.outbox.quote.requested", p), do: Notes.quote_requested(p)
   def dispatch("sns.outbox.follow.requested", p), do: Social.follow(p, :create)
   def dispatch("sns.outbox.follow.undone", p), do: Social.follow(p, :undo)
+  def dispatch("sns.outbox.join.requested", p), do: Social.join(p, :create)
+  def dispatch("sns.outbox.join.undone", p), do: Social.join(p, :undo)
   def dispatch("sns.outbox.like.created", p), do: Social.like(p, :create)
   def dispatch("sns.outbox.like.undone", p), do: Social.like(p, :undo)
   def dispatch("sns.outbox.reaction.created", p), do: Social.reaction(p, :create)

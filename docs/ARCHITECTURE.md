@@ -396,6 +396,8 @@ sns.<context>.<aggregate>.<op>[.<variant>]
 | `sns.outbox.note.deleted`          | pub       | `Notes.delete_note/2`                       | `Outbox.Consumer` → fan-out  |
 | `sns.outbox.follow.requested`      | pub       | `Social.request_follow/2`                   | `Outbox.Consumer` → fan-out  |
 | `sns.outbox.follow.undone`         | pub       | `Social.unfollow/2`                         | `Outbox.Consumer` → fan-out  |
+| `sns.outbox.join.requested`        | pub       | `Social.join_group/2`                       | `Outbox.Consumer` → `Join` to the group |
+| `sns.outbox.join.undone`           | pub       | `Social.leave_group/2`                      | `Outbox.Consumer` → `Leave` to the group |
 | `sns.outbox.actor.updated`         | pub       | `Accounts.update_credentials/2`             | `Outbox.Consumer` → Update(Person) (inline; no Bun) |
 | `sns.outbox.like.created`          | pub       | `Notes.favourite/2`                         | `Outbox.Consumer` → fan-out  |
 | `sns.outbox.like.undone`           | pub       | `Notes.unfavourite/2`                       | `Outbox.Consumer` → fan-out  |
@@ -514,6 +516,7 @@ Implemented call sites (all reachable from the api plugin node via
 - `SukhiFedi.Notes.reblog/2`, `unreblog/2`            → `sns.outbox.announce.{created,undone}`
 - `SukhiFedi.Notes.pin/2`, `unpin/2`                  → `sns.outbox.{add,remove}.created`
 - `SukhiFedi.Social.request_follow/2`, `unfollow/2`   → `sns.outbox.follow.{requested,undone}`
+- `SukhiFedi.Social.join_group/2`, `leave_group/2`    → `sns.outbox.join.{requested,undone}`
 - `SukhiFedi.Accounts.update_credentials/2`           → `sns.outbox.actor.updated`
 - `SukhiFedi.OAuth.register_app/1`                    → `sns.outbox.oauth.app_registered`
 
@@ -916,6 +919,7 @@ shapes from `api/lib/sukhi_api/views/`.
 | `OAuth`                          | `GET /oauth/authorize` (HTML form), `POST /oauth/authorize`, `POST /oauth/token` (auth code / refresh / client_credentials), `POST /oauth/revoke`                                                                                                                                                                                                       |
 | `MastodonAccounts`               | `verify_credentials`, `update_credentials`, `lookup`, `relationships`, `:id`, `:id/statuses`, `:id/followers`, `:id/following`                                                                                                                                                                                                                          |
 | `MastodonFollows`                | `:id/follow`, `:id/unfollow`                                                                                                                                                                                                                                                                                                                            |
+| `BonfireGroups`                  | `POST /api/v1-bonfire/groups/:id/join`, `POST /api/v1-bonfire/groups/:id/leave` (Bonfire's draft groups API; join also follows) |
 | `MastodonStatuses`               | `POST /api/v1/statuses`, `GET /:id`, `DELETE /:id`, `GET /:id/context`                                                                                                                                                                                                                                                                                  |
 | `MastodonInteractions` (PR3.5)   | `:id/{favourite,unfavourite,reblog,unreblog,bookmark,unbookmark,pin,unpin}`, `GET /api/v1/{bookmarks,favourites}`                                                                                                                                                                                                                                       |
 | `MastodonTimelines`              | `GET /api/v1/timelines/home`, `GET /api/v1/timelines/public`                                                                                                                                                                                                                                                                                            |

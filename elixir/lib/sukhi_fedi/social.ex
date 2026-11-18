@@ -10,7 +10,7 @@ defmodule SukhiFedi.Social do
   alias Ecto.Multi
   alias SukhiFedi.{Outbox, Repo}
   alias SukhiFedi.Addons.Moderation
-  alias SukhiFedi.Schema.{Account, AccountNote, Follow}
+  alias SukhiFedi.Schema.{Account, AccountNote, Follow, GroupMembership}
 
   # ── reads ─────────────────────────────────────────────────────────────────
 
@@ -316,6 +316,103 @@ defmodule SukhiFedi.Social do
     end
   end
 
+  # ── join / leave a group ─────────────────────────────────────────────────
+
+  @doc """
+  Local user `member` asks to join the remote group account `group_id`.
+
+  Joining also follows, as Bonfire's own API does: a member who can't see
+  the group's posts has little to be a member of. The follow goes first
+  (`request_follow/2`, idempotent); then the membership is stored
+  `pending` and `sns.outbox.join.requested` is enqueued. The row flips to
+  `accepted` when the group's `Accept(Join)` arrives through the inbox
+  (`AP.Instructions.Memberships`), or is deleted on `Reject`.
+
+  A local account has no `Join` to send, so it is refused (`:not_remote`).
+  Idempotent: a duplicate join returns the existing row.
+  """
+  @spec join_group(Account.t(), integer()) ::
+          {:ok, GroupMembership.t()} | {:error, :not_found | :not_remote | term()}
+  def join_group(%Account{} = member, group_id) when is_integer(group_id) do
+    case Repo.get(Account, group_id) do
+      nil ->
+        {:error, :not_found}
+
+      %Account{domain: nil} ->
+        {:error, :not_remote}
+
+      %Account{} = group ->
+        actor_uri = local_actor_uri(member)
+
+        with {:ok, _follow} <- request_follow(member, group.id) do
+          case existing_membership(actor_uri, group.id) do
+            nil -> insert_membership_with_outbox(actor_uri, group)
+            %GroupMembership{} = m -> {:ok, m}
+          end
+        end
+    end
+  end
+
+  defp insert_membership_with_outbox(actor_uri, %Account{id: group_id}) do
+    Multi.new()
+    |> Multi.insert(
+      :membership,
+      GroupMembership.changeset(%GroupMembership{}, %{
+        member_uri: actor_uri,
+        group_id: group_id,
+        state: "pending"
+      })
+    )
+    |> Outbox.enqueue_multi(
+      :outbox_event,
+      "sns.outbox.join.requested",
+      "group_membership",
+      & &1.membership.id,
+      &membership_payload/1
+    )
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{membership: m}} -> {:ok, m}
+      {:error, _step, reason, _} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Local user `member` leaves the group `group_id` (or cancels a join the
+  group hasn't answered). Deletes the membership and emits
+  `sns.outbox.join.undone`, which the delivery node sends as `Leave`.
+
+  The follow is left alone: leaving and unfollowing are two choices, and
+  `unfollow/2` is the second.
+  """
+  @spec leave_group(Account.t(), integer()) ::
+          {:ok, GroupMembership.t()} | {:error, :not_found | term()}
+  def leave_group(%Account{} = member, group_id) when is_integer(group_id) do
+    case existing_membership(local_actor_uri(member), group_id) do
+      nil ->
+        {:error, :not_found}
+
+      %GroupMembership{} = m ->
+        Multi.new()
+        |> Multi.delete(:membership, m)
+        |> Outbox.enqueue_multi(
+          :outbox_event,
+          "sns.outbox.join.undone",
+          "group_membership",
+          & &1.membership.id,
+          &membership_payload/1
+        )
+        |> Repo.transaction()
+        |> case do
+          {:ok, %{membership: deleted}} -> {:ok, deleted}
+          {:error, _step, reason, _} -> {:error, reason}
+        end
+    end
+  end
+
+  defp membership_payload(%{membership: m}),
+    do: %{membership_id: m.id, member_uri: m.member_uri, group_id: m.group_id}
+
   # ── relationships ────────────────────────────────────────────────────────
 
   @doc """
@@ -389,15 +486,27 @@ defmodule SukhiFedi.Social do
       # federated). One query, id-keyed, so the render stays a map lookup.
       note_map = account_notes_for(viewer.id, target_ids)
 
+      # Group membership beside following: one query for the whole batch.
+      membership_set =
+        from(m in GroupMembership,
+          where: m.member_uri == ^actor_uri and m.group_id in ^target_ids,
+          select: {m.group_id, m.state}
+        )
+        |> Repo.all()
+        |> Map.new()
+
       Enum.map(target_ids, fn id ->
         state = Map.get(following_set, id)
+        membership = Map.get(membership_set, id)
         muting? = MapSet.member?(muting_set, id)
         domain = Map.get(target_domain, id)
 
         %{
           id: id,
           following: state == "accepted",
-          requested: state == "pending",
+          # A join the group hasn't answered is a request, like a follow's.
+          requested: state == "pending" or membership == "pending",
+          group: group_relationship(membership),
           followed_by: MapSet.member?(followed_by_set, id),
           showing_reblogs: true,
           notifying: false,
@@ -455,6 +564,17 @@ defmodule SukhiFedi.Social do
   defp existing_follow(actor_uri, target_id) do
     Repo.get_by(Follow, follower_uri: actor_uri, followee_id: target_id)
   end
+
+  defp existing_membership(actor_uri, group_id) do
+    Repo.get_by(GroupMembership, member_uri: actor_uri, group_id: group_id)
+  end
+
+  # Bonfire's Relationship carries `group: {member, role}` for a group; ours
+  # only appears once there is a membership row to report on. A pending join
+  # is not yet a member (`requested` says it is waiting).
+  defp group_relationship(nil), do: nil
+  defp group_relationship("accepted"), do: %{member: true, role: "member"}
+  defp group_relationship(_pending), do: %{member: false, role: nil}
 
   defp load_target_uris(target_ids) do
     domain = SukhiFedi.Config.domain!()

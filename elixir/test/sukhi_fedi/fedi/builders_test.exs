@@ -284,6 +284,27 @@ defmodule SukhiFedi.Fedi.BuildersTest do
     assert :ok = LdSignature.verify(follow, FediGolden.public_key())
   end
 
+  test "join / leave: addressed to the group, object is the group's bare id, signature holds" do
+    group = "https://bonfire.test/pub/group/libs"
+
+    for {type, key, ap_type, id} <- [
+          {"join", "join", "Join", "https://sukhi.test/joins/1"},
+          {"leave", "leave", "Leave", "https://sukhi.test/joins/1/leave"}
+        ] do
+      activity =
+        build!(type, %{"actor" => FediGolden.actor(), "object" => group, "activityId" => id})[key]
+
+      assert activity["type"] == ap_type
+      assert activity["id"] == id
+      assert activity["actor"] == FediGolden.actor()
+      # Bonfire's activity_pub library reads the group off `object` and
+      # delivers by `to`; it wants the bare id, not an embedded actor.
+      assert activity["object"] == group
+      assert activity["to"] == [group]
+      assert :ok = LdSignature.verify(activity, FediGolden.public_key())
+    end
+  end
+
   test "quote_request: FEP-044f shape, LD signature round-trips" do
     result =
       build!("quote_request", %{

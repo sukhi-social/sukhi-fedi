@@ -47,6 +47,11 @@ defmodule SukhiDelivery.Outbox.ConsumerTest do
       assert :missing_fields = Consumer.dispatch("sns.outbox.follow.requested", %{})
     end
 
+    test "join.requested / join.undone are routed, and missing fields → :missing_fields" do
+      assert :missing_fields = Consumer.dispatch("sns.outbox.join.requested", %{})
+      assert :missing_fields = Consumer.dispatch("sns.outbox.join.undone", %{})
+    end
+
     test "like.created missing fields → :missing_fields" do
       assert :missing_fields = Consumer.dispatch("sns.outbox.like.created", %{})
     end

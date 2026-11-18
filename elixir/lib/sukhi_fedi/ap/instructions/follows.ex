@@ -265,8 +265,8 @@ defmodule SukhiFedi.AP.Instructions.Follows do
 
   We match on the inner Follow's `actor` (= our local actor URI) and
   `object` (= remote followee URI, which maps to a shadow Account).
-  If the Accept embeds only the Follow's URI (a string), we skip —
-  we don't currently persist the outbound Follow's AP id.
+  If the Accept carries only the Follow's id (a string), the clause below
+  finds our row by it — the id is `https://<us>/follows/<row id>`.
   """
   def maybe_handle_follow_accept(%{
         "type" => "Accept",
@@ -286,6 +286,30 @@ defmodule SukhiFedi.AP.Instructions.Follows do
       SukhiFedi.Federation.OutboxBackfill.enqueue(followee_uri)
 
       :ok
+    else
+      _ -> :ok
+    end
+  end
+
+  # The Accept names our Follow only by the id we gave it
+  # (`https://<us>/follows/<id>`, see `Handlers.Social.follow/2`) — some
+  # servers echo the id, not the activity. We know the row, so rebuild the
+  # embedded shape from it and take the clause above. Here the answer's own
+  # `actor` must be the followee: the id alone proves nothing about who says it.
+  def maybe_handle_follow_accept(%{"type" => "Accept", "object" => follow_id, "actor" => actor})
+      when is_binary(follow_id) do
+    prefix = "https://#{SukhiFedi.Config.domain!()}/follows/"
+
+    with true <- String.starts_with?(follow_id, prefix),
+         {id, ""} <- follow_id |> String.replace_prefix(prefix, "") |> Integer.parse(),
+         %Follow{follower_uri: follower_uri, followee_id: followee_id} <- Repo.get(Follow, id),
+         %Account{actor_uri: followee_uri} when is_binary(followee_uri) <-
+           Repo.get(Account, followee_id),
+         ^followee_uri <- Extract.extract_uri(actor) do
+      maybe_handle_follow_accept(%{
+        "type" => "Accept",
+        "object" => %{"type" => "Follow", "actor" => follower_uri, "object" => followee_uri}
+      })
     else
       _ -> :ok
     end
