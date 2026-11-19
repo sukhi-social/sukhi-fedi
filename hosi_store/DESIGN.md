@@ -284,3 +284,22 @@ write 1 回 約 8 ms(まとめて書けば 1 件 約 0.5 ms)・id で 1 件読�
 **見つかった不具合**: follow の通知の key が `"follow::<from>"` で、宛先が入っていなかった。同じ人が 2 人目をフォローすると、通知が unique 違反になり、write 全体が断られて `:already` と返った。key の note の場所に、フォローされた人を入れた(`undo_ops` も、followee を渡す)。test 1 本(2 人をフォロー)を足した。
 
 **決まったこと(2026-11-19 nyanrus)**: author の並びは投稿時刻(`object/published`)順でいい。ページ送りの目印は今は id のまま(`place_of` で引き直す)。限界が見えたら、そのとき考え直す。
+
+## 12. sukhi の Postgres から写す(2026-11-19)
+
+like だけを切り替えようとして見つかったこと: sukhi では like は `reactions` の行(account_id・note_id・emoji ⭐)で、
+投稿(`notes`)も人(`accounts`)も Postgres にある。spike の like は、投稿と人が hosigraph にあることが前提なので、
+切り替えの前に、その 2 つを写す道が要る。`ImportPg`(手でやる・やり直せる)がそれ:
+
+- `actors/3` → `notes/3` → `verify/3` の順。人の IRI は、ここの人は `https://<domain>/users/<username>`、
+  リモートは `actor_uri`(sukhi の `Graph.Project.actor_iri` と同じ規則)。投稿の IRI は `ap_id`。
+- 運ぶもの: 人(IRI・username・host・local?)、投稿(IRI・作者・published〔µs〕・local?・visibility・
+  表示する HTML〔`content_html`、無ければ `content`: `Note.html/1` と同じ〕・返信先と root)。
+- 運ばないもの: tags・mentions・media・poll・CW・boost・follow・pin・通知。それぞれ別の段。
+- 親が `notes` に無い返信は、そこが thread の頭になり、`in-reply-to` は付けない。visibility が知らない値なら
+  いちばん狭い `:direct`(広く見せる側には倒さない)。
+- 投稿の索引(id・IRI・親の IRI)は走る間メモリに持つ。数百万件の規模は想定していない。
+- 試した所: 親のほうが大きい id の thread(深さの順に書く。壊すと test が落ちる)・やり直し・作者が無い投稿と
+  `ap_id` が無い投稿(`missing` に名前が出る。人を写してもう一度走らせれば直る)。
+- まだ: like の元の行を `MigrateLikes` の `(note_iri, actor_iri)` に合わせる view(`reactions` ⨝ `notes` ⨝ `accounts`)、
+  新しく作られる人と投稿を両方に書く道(sukhi 側の Multi に足す)、本物の sukhi の DB での試走。
