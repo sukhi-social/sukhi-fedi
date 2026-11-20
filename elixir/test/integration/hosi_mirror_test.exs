@@ -10,6 +10,8 @@ if Code.ensure_loaded?(SukhiFedi.HosiMirror.Server) do
 
     use SukhiFedi.IntegrationCase, async: false
 
+    import ExUnit.CaptureLog
+
     @moduletag :integration
     # needs the `dtlv` binary, which hosigraph runs on
     @moduletag :dtlv
@@ -106,6 +108,118 @@ if Code.ensure_loaded?(SukhiFedi.HosiMirror.Server) do
 
       assert %{gone: 1} = Server.sync_now()
       assert Notes.find(db, "https://sukhi.test/notes/1") == nil
+    end
+
+    describe "the like view, asked of hosigraph too" do
+      setup do
+        # the server is started by hand here, so the mirror's own switch is set too (`enabled?/0`)
+        Application.put_env(:sukhi_fedi, :hosi_mirror, true)
+        Application.put_env(:sukhi_fedi, :hosi_shadow, true)
+
+        on_exit(fn ->
+          Application.delete_env(:sukhi_fedi, :hosi_mirror)
+          Application.delete_env(:sukhi_fedi, :hosi_shadow)
+        end)
+      end
+
+      # the comparing is done in the server, a little after: asking for its state waits for that
+      defp settle, do: :sys.get_state(GenServer.whereis(Server))
+
+      defp people_and_post do
+        alice = Repo.insert!(%Account{username: "alice"})
+        bob = Repo.insert!(%Account{username: "bob", domain: "remote.test", actor_uri: "https://remote.test/users/bob"})
+        note = Repo.insert!(%Note{account_id: alice.id, content: "hello", ap_id: "https://sukhi.test/notes/1", visibility: "public"})
+        {bob, note}
+      end
+
+      defp favourite(account, note),
+        do: Repo.insert!(%Reaction{account_id: account.id, note_id: note.id, emoji: SukhiFedi.Notes.favourite_emoji()})
+
+      # what the page shows: the count, and whether `viewer` favourited, as the store says
+      defp view(viewer, note) do
+        {SukhiFedi.Notes.counts_for_notes([note.id])[note.id].favourites,
+         SukhiFedi.Notes.viewer_flags_many(viewer.id, [note.id])[note.id].favourited}
+      end
+
+      test "when they agree there is nothing to say, and the answer is the store's" do
+        {bob, note} = people_and_post()
+        favourite(bob, note)
+        Server.sync_now()
+
+        log = capture_log(fn -> assert {1, true} = view(bob, note); settle() end)
+        refute log =~ "like shadow"
+      end
+
+      test "a favourite not followed yet is a difference, told by kind and way, without a post's id" do
+        {bob, note} = people_and_post()
+        Server.sync_now()
+        favourite(bob, note)
+
+        log = capture_log(fn -> assert {1, true} = view(bob, note); settle() end)
+        assert log =~ "like shadow (favourites): 1 of 1 posts differ (hosigraph higher 0, lower 1)"
+        assert log =~ "like shadow (favourited): 1 of 1 posts differ (hosigraph higher 0, lower 1)"
+
+        # (the log also has Ecto's own SQL lines, which carry the values)
+        shadow = log |> String.split("\n") |> Enum.filter(&(&1 =~ "like shadow")) |> Enum.join("\n")
+        refute shadow =~ note.ap_id
+        refute shadow =~ Integer.to_string(note.id)
+      end
+
+      test "a favourite taken back and not swept yet is hosigraph higher" do
+        {bob, note} = people_and_post()
+        like = favourite(bob, note)
+        Server.sync_now()
+        Repo.delete!(like)
+
+        log = capture_log(fn -> assert {0, false} = view(bob, note); settle() end)
+        assert log =~ "like shadow (favourites): 1 of 1 posts differ (hosigraph higher 1, lower 0)"
+        assert log =~ "like shadow (favourited): 1 of 1 posts differ (hosigraph higher 1, lower 0)"
+      end
+
+      test "a post hosigraph does not have is counted apart from a difference" do
+        {bob, note} = people_and_post()
+
+        log = capture_log(fn -> assert {0, false} = view(bob, note); settle() end)
+        assert log =~ "like shadow (favourites): 0 of 1 posts differ (hosigraph higher 0, lower 0), 1 not in hosigraph"
+      end
+
+      test "nobody looking is not asked about" do
+        {_bob, note} = people_and_post()
+        Server.sync_now()
+
+        log = capture_log(fn -> assert %{} = SukhiFedi.Notes.viewer_flags_many(nil, [note.id]); settle() end)
+        refute log =~ "like shadow"
+      end
+
+      test "a server that is behind drops the notes instead of piling them up" do
+        {bob, note} = people_and_post()
+        Server.sync_now()
+        favourite(bob, note)
+        pid = GenServer.whereis(Server)
+        answer = %{note.id => %{favourites: 1}}
+
+        log =
+          capture_log(fn ->
+            :sys.suspend(pid)
+            for _ <- 1..80, do: Server.shadow(:favourites, [[note.id]], answer)
+            :sys.resume(pid)
+            settle()
+          end)
+
+        # each one that was kept says that it differs (the store has 1, hosigraph 0)
+        kept = length(Regex.scan(~r/like shadow \(favourites\)/, log))
+        assert kept in 1..79
+      end
+
+      test "when it is not asked for, hosigraph is not asked" do
+        Application.put_env(:sukhi_fedi, :hosi_shadow, false)
+        {bob, note} = people_and_post()
+        Server.sync_now()
+        favourite(bob, note)
+
+        log = capture_log(fn -> assert {1, true} = view(bob, note); settle() end)
+        refute log =~ "like shadow"
+      end
     end
 
     test "what hosi_store calls a favourite is what sukhi calls one" do

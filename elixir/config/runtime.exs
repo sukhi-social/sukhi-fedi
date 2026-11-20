@@ -294,6 +294,12 @@ if System.get_env("SUKHI_HOSI_MIRROR") in ["1", "true"] do
   config :sukhi_fedi, :hosi_mirror, true
 end
 
+# ...and asks it the like view too, to compare with the store's answer and log when they differ
+# (needs SUKHI_HOSI_MIRROR). The answer on screen is still the store's.
+if System.get_env("SUKHI_HOSI_SHADOW") in ["1", "true"] do
+  config :sukhi_fedi, :hosi_shadow, true
+end
+
 # Let the public and tag timelines pick their posts from the graph
 # (SukhiFedi.Graph.Timelines). Only meaningful with SUKHI_GRAPH.
 if System.get_env("SUKHI_GRAPH_READ") in ["1", "true"] do

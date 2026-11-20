@@ -14,15 +14,31 @@ if Code.ensure_loaded?(SukhiHosi.Tail) do
 
     require Logger
 
-    alias SukhiFedi.HosiMirror.RepoSource
+    alias SukhiFedi.HosiMirror.{LikeShadow, RepoSource}
 
     @tick :timer.seconds(2)
     @sweep_every :timer.seconds(10)
+    # how many shadow notes may wait for this process; past that they are dropped (a shadow is not worth a queue)
+    @shadow_queue 50
 
     def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
     @doc "Run one round now, in the caller's wait (what a tick does; tests call it)."
     def sync_now(server \\ __MODULE__), do: GenServer.call(server, :sync, :timer.minutes(5))
+
+    @doc """
+    Leave `answer` (the store's, for `kind`/`args`) to be compared with hosigraph's, in this process
+    and a little later (`LikeShadow`). Returns at once; when this process is behind (a long round),
+    the note is dropped.
+    """
+    def shadow(kind, args, answer) do
+      with pid when is_pid(pid) <- GenServer.whereis(__MODULE__),
+           {:message_queue_len, n} when n < @shadow_queue <- Process.info(pid, :message_queue_len) do
+        GenServer.cast(pid, {:shadow, kind, args, answer})
+      end
+
+      :ok
+    end
 
     @impl true
     def init(opts) do
@@ -48,6 +64,20 @@ if Code.ensure_loaded?(SukhiHosi.Tail) do
     def handle_call(:sync, _from, state) do
       {report, state} = run_round(state, true)
       {:reply, report, state}
+    end
+
+    @impl true
+    def handle_cast({:shadow, kind, args, answer}, %{db: db, domain: domain} = state) do
+      LikeShadow.compare(db, domain, kind, args, answer)
+      {:noreply, state}
+    rescue
+      e ->
+        Logger.warning("hosi mirror: like shadow failed: #{Exception.message(e)}")
+        {:noreply, state}
+    catch
+      :exit, reason ->
+        Logger.warning("hosi mirror: like shadow failed: #{inspect(reason)}")
+        {:noreply, state}
     end
 
     @impl true

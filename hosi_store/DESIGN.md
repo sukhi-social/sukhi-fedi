@@ -342,6 +342,15 @@ outbox を追うのと同じ考え方: sukhi の store の書き方は変えず�
 - **store が真実**: sweep は、store に無いものを hosigraph から外す。ある種類の書き込みを hosigraph に移すとき(like を hosigraph に
   直接書く、投稿を hosigraph に直接書く)、hosigraph にしか無いそれが「消えた」に見える。移す前にその種類の追いかけ(と sweep の
   該当部分)を止める。store を丸ごと空にする(DB を作り直す)と、hosigraph の投稿も窓ごとに全部外れていく。
+- **like の view を読む(shadow)**: `Notes.like_view(db, iris, viewer_iri)` が「投稿ごとの ⭐ の数」と「見ている人が押したか」を、
+  IRI の一括で 1 回ずつの読み(id を引く・投稿を引く)で答える。gateway の `SukhiFedi.Notes.counts_for_notes` と `viewer_flags_many`
+  (status を描く 2 つの読み。api が RPC で呼ぶ)は、答えを今まで通り store から返したまま、同じ問いを hosigraph にも向けて比べる
+  (`SUKHI_HOSI_SHADOW`、既定は off)。比べるのは `HosiMirror.Server` の中: hosigraph は書く側と同じ process で読む
+  (dtlv は読み書きが重なると落ちるので)。呼び元は cast を 1 つ置いて返り、Server の待ちが 50 を超えたら置かずに捨てる。
+  log には、種類・食いちがった投稿の数と向き・hosigraph に無い数・問いの hash だけを出す(id は出さない)。
+  **hosigraph を主にしない理由**: 追いかけは store の少しあと(tick 2 秒、like は投稿待ちで最大 60 秒)なので、⭐ を押した直後の
+  返事の `favourited` が `false` になる。主にするのは like の書き込みも移すとき(§5 の (i))。
+  まだ向けていない読み: 自分の ⭐ 一覧、誰が ⭐ したか、1 件ずつの `counts_for_note` / `viewer_flags`、⭐ 以外の reaction。
 - **追いかけないもの**: 編集、follow、boost、⭐ 以外の reaction。hosigraph を読む側がまだ無いので、古いものを読む人は居ない。
 - like を切り替えたあと(like の書き込みが hosigraph に直接行くようになったあと)は、様子が変わる。作られた直後の投稿に like が
   来ても、追いかけが次の回を待つ間は hosigraph に投稿が無い。直接書く側が、無ければ `Copy` で写してから書く(来た場所で写す)。

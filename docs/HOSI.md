@@ -21,7 +21,7 @@ changes, so a failure here is logged and never reaches the one who posted. A rou
 fails is tried again on the next tick; where it got to is kept in hosigraph, and it moves
 only past what is written.
 
-**Nothing reads from hosigraph yet.** What is on screen still comes from the store.
+**What is on screen still comes from the store.** hosigraph is read only to be compared with it, and only for the like view (see below).
 
 ## Turning it on
 
@@ -31,6 +31,7 @@ Off by default, in two ways. Both are needed.
 |---|---|---|
 | build | `SUKHI_HOSI=1` | compiles `hosi_store/` in (`elixir/mix.exs`). Needs a checkout of `sukhi-social/hosigraph` (`HOSIGRAPH_EX` points at its `hosigraph-ex`, which builds or downloads libhosi). Changing it needs `mix compile --force`: mix does not see an env change. |
 | run | `SUKHI_HOSI_MIRROR=1` | starts the follower. Without the build, it does nothing. |
+| run | `SUKHI_HOSI_SHADOW=1` | also asks hosigraph the like view, to compare (below). Needs the follower. |
 
 Where it keeps its files: `SUKHI_HOSI_DIR` (default `<DATALEVIN_DIR>/hosi`), on the
 `dtlv` that `DATALEVIN_BIN` names. See [`ENV.md`](ENV.md).
@@ -65,6 +66,36 @@ Not followed: edits, follows, boosts, any other reaction.
 A person or post already in hosigraph is left alone (they are looked up by IRI), so a round that
 stopped halfway is repaired by the next one.
 
+## Comparing the like view
+
+With `SUKHI_HOSI_SHADOW=1`, the two reads behind a status (`Notes.counts_for_notes`: how many
+favourited it; `Notes.viewer_flags_many`: did the viewer) are also asked of hosigraph. The answer
+is the store's, always. The mirror compares the two a moment later in its own process (hosigraph
+is read where it is written, never at the same time), and drops the comparison when it is 50
+behind: a shadow is not worth a queue.
+
+It says nothing when they agree. When they differ, one line:
+
+```
+like shadow (favourites): 2 of 20 posts differ (hosigraph higher 1, lower 1), 3 not in hosigraph, question hash 1234567
+```
+
+The kind (`favourites` or `favourited`), how many posts differ and which way, how many posts
+hosigraph does not have (an `info` line when that is all there is), and a hash of the question:
+never the ids, which are people's posts. A quiet log means the ones asked agree; it does not
+say how many were asked.
+
+A difference that lasts a few seconds is not a fault: a favourite is followed a tick later
+(2 seconds), or waits for its post (up to 60); a favourite taken back stays in hosigraph until the
+sweep passes it (posts ÷ 200 × 10 seconds). One that stays is worth a look.
+
+Not asked yet: the viewer's list of favourites, who favourited a post, the per-post
+`counts_for_note` and `viewer_flags`, any reaction but the favourite.
+
+hosigraph is not the answer for this because it is a little behind: the reply to a favourite
+says `favourited`, and a reader that has just favourited must see `true`. That is for when the
+writes move too.
+
 ## Checking it
 
 ```bash
@@ -76,8 +107,8 @@ SUKHI_HOSI=1 HOSIGRAPH_EX=…/hosigraph-ex DATALEVIN_BIN=…/dtlv \
   scripts/test-pglite.sh test/integration/hosi_mirror_test.exs
 ```
 
-`hosi_store/`'s own tests (`mix test` there) cover the copying, the cursors and the three ways a
-post can be passed over.
+`hosi_store/`'s own tests (`mix test` there) cover the copying, the cursors, the three ways a
+post can be passed over, and what the like view reads (`Notes.like_view/3`).
 
 ## Read next
 

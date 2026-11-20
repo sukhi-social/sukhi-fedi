@@ -8,7 +8,7 @@ defmodule SukhiHosi.Notes do
   likes are the values of `object/liked-by`, and the count is how many there are.
   """
 
-  alias SukhiHosi.{Actors, Notifications, Store}
+  alias SukhiHosi.{Actors, Copy, Notifications, Store}
 
   @doc """
   The ops of an object, so that a local post and an incoming one are made the same way.
@@ -258,4 +258,21 @@ defmodule SukhiHosi.Notes do
   end
 
   def find(db, iri), do: Store.lookup(db, :"object/id", iri)
+
+  @doc """
+  What the like view of a status shows, for these posts (by IRI) as `viewer_iri` (a person's IRI, or
+  nil) sees them: `%{iri => %{count: how many like it, mine: does the viewer}}`. A post that
+  hosigraph does not have is not in the answer (it is not "no likes"). One read for the posts' ids
+  and one for the posts, however many there are.
+  """
+  def like_view(db, iris, viewer_iri \\ nil) do
+    {found, ids} = db |> Copy.ids_of(:"object/id", iris) |> Map.to_list() |> Enum.unzip()
+    # a viewer hosigraph does not know likes nothing there (nil is no one's id)
+    viewer = viewer_iri && Actors.find(db, viewer_iri)
+
+    for {iri, e} <- Enum.zip(found, Store.entities(db, ids)), into: %{} do
+      likers = Map.get(e, :"object/liked-by", [])
+      {iri, %{count: length(likers), mine: viewer in likers}}
+    end
+  end
 end
