@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SpikeTest do
   use ExUnit.Case, async: false
   @moduletag :needs_dtlv

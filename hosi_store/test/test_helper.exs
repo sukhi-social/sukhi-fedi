@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 dtlv =
   System.get_env("HOSI_DTLV") ||
     "/private/tmp/claude-501/-Users-nyanrus--claude-spares-spare-WALasA/97f5f6c9-1e2f-41fc-9719-9bb419ac3841/scratchpad/dtlv-bin/dtlv"

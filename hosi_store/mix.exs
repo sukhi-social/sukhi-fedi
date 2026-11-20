@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiHosi.MixProject do
   use Mix.Project
 
