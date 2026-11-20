@@ -30,7 +30,7 @@ defmodule SukhiHosi.ImportPg do
   Running it again is safe: what is already there (by IRI) is counted as `already` and left alone.
   """
 
-  alias SukhiHosi.{Notes, Store}
+  alias SukhiHosi.Copy
 
   @batch 200
 
@@ -49,50 +49,19 @@ defmodule SukhiHosi.ImportPg do
       Postgrex.query!(pg, "SELECT id, username, domain, actor_uri FROM accounts WHERE id > $1 ORDER BY id LIMIT $2", [after_id, batch])
 
     if rows == [] do
-      %{report | skipped: Enum.reverse(report.skipped)}
+      report
     else
-      {known, skipped} =
-        rows
-        |> Enum.map(fn [id, name, host, uri] -> {id, name, host, iri_of(domain, name, host, uri)} end)
-        |> Enum.split_with(fn {_, _, _, iri} -> iri != nil end)
-
-      present = ids_of(db, :"actor/id", Enum.map(known, &elem(&1, 3)))
-      {have, todo} = known |> Enum.uniq_by(&elem(&1, 3)) |> Enum.split_with(fn {_, _, _, iri} -> Map.has_key?(present, iri) end)
-
-      if todo != [] do
-        {:ok, _} = Hosi.write(db, todo |> Enum.with_index(1) |> Enum.flat_map(fn {{_, name, host, iri}, n} -> actor_ops(n, name, host, iri) end))
-      end
+      r = Copy.actors(db, for([id, u, d, uri] <- rows, do: %{id: id, username: u, domain: d, actor_uri: uri}), domain)
 
       report = %{
-        copied: report.copied + length(todo),
-        already: report.already + length(have),
-        skipped: Enum.reverse(for({id, _, _, _} <- skipped, do: {id, :no_iri}), report.skipped)
+        copied: report.copied + r.copied,
+        already: report.already + r.already,
+        skipped: report.skipped ++ r.skipped
       }
 
       [last | _] = List.last(rows)
       actors_loop(db, pg, domain, batch, last, report)
     end
-  end
-
-  defp iri_of(domain, name, nil, _uri), do: "https://#{domain}/users/#{name}"
-  defp iri_of(_domain, _name, _host, uri) when is_binary(uri) and uri != "", do: uri
-  defp iri_of(_, _, _, _), do: nil
-
-  defp actor_ops(n, name, nil, iri) do
-    [
-      [:create, [:tmp, n], :"actor/id", iri],
-      [:create, [:tmp, n], :"actor/username", name],
-      [:create, [:tmp, n], :"actor/local?", true]
-    ]
-  end
-
-  defp actor_ops(n, name, host, iri) do
-    [
-      [:create, [:tmp, n], :"actor/id", iri],
-      [:create, [:tmp, n], :"actor/username", name],
-      [:create, [:tmp, n], :"actor/host", host],
-      [:create, [:tmp, n], :"actor/local?", false]
-    ]
   end
 
   @doc """
@@ -107,21 +76,19 @@ defmodule SukhiHosi.ImportPg do
 
     {order, no_iri} = thread_order(pg)
 
-    {report, _} =
-      order
-      |> Enum.chunk_by(fn {depth, _id} -> depth end)
-      |> Enum.flat_map(fn same_depth -> Enum.chunk_every(same_depth, batch) end)
-      |> Enum.reduce({%{copied: 0, already: 0, missing: Enum.map(no_iri, &{&1, :no_ap_id})}, nil}, fn chunk, {report, _} ->
-        {write_notes(db, pg, people, Enum.map(chunk, &elem(&1, 1)), report), nil}
-      end)
-
-    %{report | missing: Enum.reverse(report.missing)}
+    order
+    |> Enum.chunk_by(fn {depth, _id} -> depth end)
+    |> Enum.flat_map(fn same_depth -> Enum.chunk_every(same_depth, batch) end)
+    |> Enum.reduce(%{copied: 0, already: 0, missing: Enum.map(no_iri, &{&1, :no_ap_id})}, fn chunk, report ->
+      r = db |> Copy.notes(read_notes(pg, people, Enum.map(chunk, &elem(&1, 1))))
+      %{copied: report.copied + r.copied, already: report.already + r.already, missing: report.missing ++ r.missing}
+    end)
   end
 
   # account id => IRI, for every account that has one
   defp people(pg, domain) do
     %{rows: rows} = Postgrex.query!(pg, "SELECT id, username, domain, actor_uri FROM accounts", [])
-    for [id, name, host, uri] <- rows, iri = iri_of(domain, name, host, uri), into: %{}, do: {id, iri}
+    for [id, name, host, uri] <- rows, iri = Copy.iri_of(domain, name, host, uri), into: %{}, do: {id, iri}
   end
 
   # `{[{depth, id}], [id without ap_id]}`: the posts in the order they can be written, parents first
@@ -150,7 +117,7 @@ defmodule SukhiHosi.ImportPg do
     end
   end
 
-  defp write_notes(db, pg, people, ids, report) do
+  defp read_notes(pg, people, ids) do
     %{rows: rows} =
       Postgrex.query!(
         pg,
@@ -161,59 +128,13 @@ defmodule SukhiHosi.ImportPg do
         [ids]
       )
 
-    notes =
-      for [id, account_id, ap_id, content, content_html, visibility, domain, created_at, parent_iri] <- rows do
-        %{
-          id: id,
-          author_iri: Map.get(people, account_id),
-          iri: ap_id,
-          html: if(is_binary(content_html) and content_html != "", do: content_html, else: content || ""),
-          visibility: visibility(visibility),
-          local?: is_nil(domain),
-          published: DateTime.to_unix(created_at, :microsecond),
-          parent_iri: parent_iri
-        }
-      end
-
-    present = ids_of(db, :"object/id", Enum.map(notes, & &1.iri))
-    authors = ids_of(db, :"actor/id", Enum.flat_map(notes, &if(&1.author_iri, do: [&1.author_iri], else: [])))
-    parents = ids_of(db, :"object/id", Enum.flat_map(notes, &if(&1.parent_iri, do: [&1.parent_iri], else: [])))
-
-    {have, rest} = Enum.split_with(notes, &Map.has_key?(present, &1.iri))
-    {todo, missing} = Enum.split_with(rest, &Map.has_key?(authors, &1.author_iri))
-
-    if todo != [] do
-      ops =
-        todo
-        |> Enum.with_index(1)
-        |> Enum.flat_map(fn {n, i} ->
-          opts = [
-            db: db,
-            published: n.published,
-            local?: n.local?,
-            visibility: n.visibility,
-            in_reply_to: Map.get(parents, n.parent_iri)
-          ]
-
-          Notes.object_ops(i, Map.fetch!(authors, n.author_iri), n.iri, n.html, opts)
-        end)
-
-      {:ok, _} = Hosi.write(db, ops)
+    for [id, account_id, ap_id, content, content_html, visibility, domain, created_at, parent_iri] <- rows do
+      Copy.note(
+        %{id: id, ap_id: ap_id, content: content, content_html: content_html, visibility: visibility, domain: domain, created_at: created_at, in_reply_to_ap_id: parent_iri},
+        Map.get(people, account_id)
+      )
     end
-
-    %{
-      copied: report.copied + length(todo),
-      already: report.already + length(have),
-      missing: Enum.reverse(for(n <- missing, do: {n.id, :no_author}), report.missing)
-    }
   end
-
-  # sukhi says "public" | "unlisted" | "followers" | "private" | "direct"; anything else is the
-  # narrowest, so a post is never shown to more people than it was written for
-  defp visibility("public"), do: :public
-  defp visibility("unlisted"), do: :unlisted
-  defp visibility(v) when v in ["followers", "private"], do: :followers
-  defp visibility(_), do: :direct
 
   @doc """
   Look at both sides, for a person to read before the switch: `accounts` and `notes` are how many
@@ -225,8 +146,8 @@ defmodule SukhiHosi.ImportPg do
     people = people(pg, domain)
     %{rows: notes} = Postgrex.query!(pg, "SELECT id, ap_id FROM notes WHERE ap_id IS NOT NULL AND ap_id <> ''", [])
 
-    have_actors = ids_of(db, :"actor/id", Map.values(people))
-    have_notes = ids_of(db, :"object/id", Enum.map(notes, fn [_, iri] -> iri end))
+    have_actors = Copy.ids_of(db, :"actor/id", Map.values(people))
+    have_notes = Copy.ids_of(db, :"object/id", Enum.map(notes, fn [_, iri] -> iri end))
 
     absent =
       for({id, iri} <- people, not Map.has_key?(have_actors, iri), do: {:account, id}) ++
@@ -239,14 +160,5 @@ defmodule SukhiHosi.ImportPg do
       notes_found: map_size(have_notes),
       absent: Enum.sort(absent)
     }
-  end
-
-  # %{value => hosigraph id} for the entities that have one of `values` as `attr` (an identity)
-  defp ids_of(_db, _attr, []), do: %{}
-
-  defp ids_of(db, attr, values) do
-    db
-    |> Store.rows("[:find ?v ?e :in $ [?v ...] :where [?e :#{attr} ?v]]", [[:coll, Enum.uniq(values)]])
-    |> Map.new(fn [v, e] -> {v, e} end)
   end
 end

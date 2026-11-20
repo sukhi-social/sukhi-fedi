@@ -308,3 +308,23 @@ like だけを切り替えようとして見つかったこと: sukhi では lik
   現れない(その投稿は `ImportPg.notes` が `:no_ap_id` で名前を出す)。`actor_uri` の無いリモートの人の like は
   `missing` に `{note_iri, nil}` で出る。
 - まだ: 新しく作られる人と投稿を両方に書く道(sukhi 側の Multi に足す)、like の切り替え(config)、本物の sukhi の DB での試走。
+
+## 13. 両書き: sukhi の store を追いかける(2026-11-20)
+
+「新しく作られる人と投稿を両方に書く」は、書く道(Multi)に手を入れず、**追いかける**形にした。`Graph.Local` が
+outbox を追うのと同じ考え方: sukhi の store の書き方は変えず、前回の id より後ろを読んで hosigraph に写す。
+どの道で作られた投稿(local の API・inbox・deco・backfill)も、id で一度は通るので、道ごとに hook を足さずに済む。
+
+- `Copy`: 人と投稿を hosigraph に書く、ただ一つの場所(`ImportPg` も `Tail` も呼ぶ)。IRI で探すので、あるものは触らない。
+- `Source`: 元の読み口の約束(`{module, arg}`)。sukhi の `Repo` は PostgreSQL にも Datalevin にも向く(`SUKHI_STORE`)ので、
+  生の SQL ではなく、sukhi-fedi 側が `Repo` 越しに読む module を渡す。`Source.Postgres` は裸の Postgres 用(test と手でやる時)。
+- `Tail.sync/3`: 1 回分。人 → 投稿の順。cursor は hosigraph の中(`relay/name` = `tail:accounts` / `tail:notes`)。
+  cursor は、それより前を書き終えてから動かす。書くのは IRI で冪等なので、途中で止まっても次で直る。
+- 投稿が cursor に追い越されないための 3 つ: (1) 作者: 無ければ source に聞いて先に写す。source にも無い作者(消えた人の
+  投稿)だけ `:no_author` と名前を出して諦める。(2) IRI: local の投稿は `ap_id` 無しで入って直後に付く。無くて 60 秒未満なら、
+  そこで止まって次の回に待つ。それより古ければ `:no_ap_id` と名前を出して諦める。(3) 返信が親より先: 同じ回に居れば親が先。
+  親が後の回なら、返信は thread の頭のまま(書き直さない)。
+- **追いかけないもの**: 編集と削除(sukhi の store で消えても hosigraph には残る)、follow・boost・like など。hosigraph を読む側が
+  まだ無いので、古いものを読む人は居ない。like を切り替える前に、削除と like の追いかけが要る。
+- like の切り替えの前に、もう一つ: 作られた直後の投稿に like が来ても、追いかけが次の回を待つ間 hosigraph に投稿が無い。
+  like の側で、無ければ `Copy` で写してから書く(来た場所で写す)。
