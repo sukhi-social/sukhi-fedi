@@ -26,6 +26,20 @@ defmodule SukhiHosi.Source.Postgres do
     do: q(conn, "SELECT #{@note} FROM notes WHERE id = ANY($1) ORDER BY id", [ids], &note/1)
 
   @impl true
+  def notes_by_ap_ids(conn, ap_ids),
+    do: q(conn, "SELECT #{@note} FROM notes WHERE ap_id = ANY($1) ORDER BY id", [ap_ids], &note/1)
+
+  @impl true
+  def likes_of_notes(conn, note_ids, emoji) do
+    q(
+      conn,
+      "SELECT id, account_id, note_id FROM reactions WHERE note_id = ANY($1) AND emoji = $2 ORDER BY id",
+      [note_ids, emoji],
+      fn [id, account_id, note_id] -> %{id: id, account_id: account_id, note_id: note_id} end
+    )
+  end
+
+  @impl true
   def likes_after(conn, after_id, limit, emoji) do
     q(
       conn,

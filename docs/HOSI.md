@@ -50,9 +50,17 @@ nowhere (`:no_author`); a local post that is still without its `ap_id` (waits up
 seconds, then `:no_ap_id`); a like whose post is not in hosigraph yet (waits up to 60 seconds,
 then `:no_note`, in `likes_missing`).
 
-Not followed: edits, deletes, a like taken back, follows, boosts, any other reaction. A post
-deleted in the store stays in hosigraph, and so does a like taken back. Switching likes over
-needs those followed first.
+What leaves the store is taken out of hosigraph by a sweep, the last step of a round: a post that
+is gone from the store, and a favourite that was taken back. It looks at one window of the posts
+hosigraph has (the newest first, 200 a time), asks the store which of them it still has and who
+still likes them, and takes the rest away. It runs at most every 10 seconds, not on each 2-second
+tick; a pass over every post takes (posts ÷ 200) × 10 seconds. A post taken away is a delete, not
+an erase: its facts stay in the log.
+
+The store is the truth for what is followed. When a kind of write moves to hosigraph, stop
+following that kind first, or what only hosigraph has would look gone.
+
+Not followed: edits, follows, boosts, any other reaction.
 
 A person or post already in hosigraph is left alone (they are looked up by IRI), so a round that
 stopped halfway is repaired by the next one.

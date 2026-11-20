@@ -318,7 +318,7 @@ outbox を追うのと同じ考え方: sukhi の store の書き方は変えず�
 - `Copy`: 人と投稿と like を hosigraph に書く、ただ一つの場所(`ImportPg`・`MigrateLikes`・`Tail` が呼ぶ)。IRI で探すので、あるものは触らない。
 - `Source`: 元の読み口の約束(`{module, arg}`)。sukhi の `Repo` は PostgreSQL にも Datalevin にも向く(`SUKHI_STORE`)ので、
   生の SQL ではなく、sukhi-fedi 側が `Repo` 越しに読む module を渡す。`Source.Postgres` は裸の Postgres 用(test と手でやる時)。
-- `Tail.sync/3`: 1 回分。人 → 投稿 → like の順。cursor は hosigraph の中(`relay/name` = `tail:accounts` / `tail:notes` / `tail:likes`)。
+- `Tail.sync/3`: 1 回分。人 → 投稿 → like → sweep の順。cursor は hosigraph の中(`relay/name` = `tail:accounts` / `tail:notes` / `tail:likes` / `tail:sweep`)。
   cursor は、それより前を書き終えてから動かす。書くのは IRI で冪等なので、途中で止まっても次で直る。
 - 投稿が cursor に追い越されないための 3 つ: (1) 作者: 無ければ source に聞いて先に写す。source にも無い作者(消えた人の
   投稿)だけ `:no_author` と名前を出して諦める。(2) IRI: local の投稿は `ap_id` 無しで入って直後に付く。無くて 60 秒未満なら、
@@ -328,8 +328,21 @@ outbox を追うのと同じ考え方: sukhi の store の書き方は変えず�
   待つ(投稿を書くのは notes の段だけ。like の側で「無ければ写す」をすると、順番(返信の親が先)を崩す)。60 秒たっても投稿が
   無い、または source にも無い like は、`likes_missing` に `{like_id, :no_note | :no_ap_id}` で名前を出して諦める。reactor に IRI が
   無ければ `:no_iri`。
-- **追いかけないもの**: 編集と削除(sukhi の store で消えても hosigraph には残る)、取り消された like、follow・boost など。
-  hosigraph を読む側がまだ無いので、古いものを読む人は居ない。like を切り替える前に、削除と取り消しの追いかけが要る。
+- **sweep(消えたものを外す)**: 消された行には、id より後ろを読む cursor からは何も見えない。そこで逆から見る: hosigraph が
+  持っている投稿を `object/published` の新しい順に `batch` 件(窓。`Hosi.highest`)取り、source に「この IRI のうち、まだ在るのは」
+  (`notes_by_ap_ids`)と「この投稿の ⭐ は誰から」(`likes_of_notes`)を聞く。返ってこない投稿は `Notes.forget_many_ops`
+  (`Notes.delete` と同じ retract。配るための outbox の行は書かない: 配るのは store 側の削除がもう済ませている)。store に
+  無い ⭐ は `object/liked-by` から外す。窓は `tail:sweep` が覚える(最後に残った投稿の id)。`batch` より短い窓は一周の終わりで、
+  cursor を 0(いちばん新しい所)に戻す。
+  - hosigraph を先に読み、store をあとで読む。間に作られた like を「取り消された」と見ないため。
+  - source が答えられない時は例外にする(空を返さない)。空は「全部消えた」と読まれて、全部外してしまう。
+  - 外したものは log には残る(retract。Erase は別の重い操作)。
+  - 間隔: Server は 10 秒に 1 回(`sweep_every`)と、`sync_now` の時に回す。2 秒の tick ごとには回さない(store に窓ごと 2 回聞くので)。
+    1 回で窓 1 つ(`batch` 既定 200)なので、N 件の投稿が一周するのは N/200 回 × 10 秒。例えば 1 万件で約 8 分。**計算で、測っていない**。
+- **store が真実**: sweep は、store に無いものを hosigraph から外す。ある種類の書き込みを hosigraph に移すとき(like を hosigraph に
+  直接書く、投稿を hosigraph に直接書く)、hosigraph にしか無いそれが「消えた」に見える。移す前にその種類の追いかけ(と sweep の
+  該当部分)を止める。store を丸ごと空にする(DB を作り直す)と、hosigraph の投稿も窓ごとに全部外れていく。
+- **追いかけないもの**: 編集、follow、boost、⭐ 以外の reaction。hosigraph を読む側がまだ無いので、古いものを読む人は居ない。
 - like を切り替えたあと(like の書き込みが hosigraph に直接行くようになったあと)は、様子が変わる。作られた直後の投稿に like が
   来ても、追いかけが次の回を待つ間は hosigraph に投稿が無い。直接書く側が、無ければ `Copy` で写してから書く(来た場所で写す)。
-  そのときは like の追いかけを止める(hosigraph にだけある like を、追いかけが「無い」と見なさないために)。
+  そのときは like の追いかけと sweep の like の部分を止める(hosigraph にだけある like を、追いかけが「無い」と見なさないために)。

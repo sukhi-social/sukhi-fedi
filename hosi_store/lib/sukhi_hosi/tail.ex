@@ -7,7 +7,7 @@ defmodule SukhiHosi.Tail do
   gives it to `Copy`. Like `Graph.Local`, it follows the store; it never changes what the store
   does, so a lost or repeated round does no damage.
 
-  The cursors are in hosigraph (`relay/name` `tail:accounts`, `tail:notes` and `tail:likes`), so they move with
+  The cursors are in hosigraph (`relay/name` `tail:accounts`, `tail:notes`, `tail:likes` and `tail:sweep`), so they move with
   the data they describe. A cursor is moved only after what is before it is written, and writing
   is by IRI (what is there is left alone), so a round that stops half way is made good by the next.
 
@@ -30,20 +30,34 @@ defmodule SukhiHosi.Tail do
   still not there after `grace:` seconds, or is not in the source at all, is given up on and named
   in `likes_missing`. Only favourites are followed (`Copy.favourite/0`).
 
-  Only what is *new* is followed: a post that is edited or deleted in sukhi's store, and a like
-  taken back, are not changed here (`Notes.delete_ops` is how a delete is written, and no one calls
-  it from here yet). Until hosigraph is read from, nothing reads what is stale.
+  A row that is deleted leaves nothing for a cursor on ids to see, so what left the store is found
+  the other way: each round (`sweep: true`) looks at one window of the posts hosigraph has, newest
+  first, and asks the source which of them it still has (`notes_by_ap_ids`) and who still likes
+  them (`likes_of_notes`). A post it does not have is taken away (`Notes.forget_many_ops`: what
+  `Notes.delete` writes, without the line for the relay, which was told when the delete was made);
+  so is a like it does not have. The cursor `tail:sweep` is where the window ended; a window shorter
+  than `batch` ends a pass, and the next starts from the newest. A source that cannot answer raises (see
+  `SukhiHosi.Source`), and then nothing is taken away. What is taken away stays in the log
+  (`Notes.delete` is a delete, not an erase).
+
+  This takes the store to be the truth for what it follows. When a kind of write moves to hosigraph
+  (a like made there, a post made there), what only hosigraph has would look gone: stop following
+  that kind before it does.
+
+  What is not followed at all: edits, follows, boosts, and every reaction but the favourite.
+  Until hosigraph is read from, nothing reads what is stale.
   """
 
-  alias SukhiHosi.{Copy, Store}
+  alias SukhiHosi.{Copy, Notes, Store}
 
   @batch 200
   @grace_s 60
 
   @doc """
   One round. `source` is `{module, arg}` (`SukhiHosi.Source`); `domain:` (required) is this server's.
-  Returns `%{actors: n, notes: n, likes: n, missing: [{note_id, reason}], likes_missing: [{like_id, reason}],
-  skipped: [{account_id, reason}]}` (the numbers are how many were written this round).
+  `sweep: false` leaves out the last step, the sweep (above). Returns `%{actors: n, notes: n, likes: n,
+  missing: [{note_id, reason}], likes_missing: [{like_id, reason}], skipped: [{account_id, reason}],
+  gone: n, unliked: n}` (the numbers are how many were written this round).
   """
   def sync(db, source, opts) do
     domain = Keyword.fetch!(opts, :domain)
@@ -54,6 +68,7 @@ defmodule SukhiHosi.Tail do
     people = people(db, source, domain, batch, %{actors: 0, skipped: []})
     notes = notes(db, source, domain, batch, grace, now, %{notes: 0, missing: []})
     likes = likes(db, source, domain, batch, grace, now, %{likes: 0, missing: []})
+    swept = if Keyword.get(opts, :sweep, true), do: sweep(db, source, domain, batch), else: %{gone: 0, unliked: 0}
 
     %{
       actors: people.actors,
@@ -61,7 +76,9 @@ defmodule SukhiHosi.Tail do
       likes: likes.likes,
       missing: notes.missing,
       likes_missing: likes.missing,
-      skipped: people.skipped
+      skipped: people.skipped,
+      gone: swept.gone,
+      unliked: swept.unliked
     }
   end
 
@@ -166,6 +183,75 @@ defmodule SukhiHosi.Tail do
   end
 
   defp stamped?(row), do: is_binary(row.ap_id) and row.ap_id != ""
+
+  # One window of the posts hosigraph has, newest first (`Hosi.highest` over `object/published`): a
+  # post the store no longer has is taken away, and so is a like of a post it still has that the
+  # store no longer has. The cursor (`tail:sweep`) is the last post of the window that stayed (0: the
+  # newest). A window shorter than `batch` is the end of a pass: the cursor goes back to 0, so the
+  # next round starts again from the newest.
+  #
+  # hosigraph is read before the store is. A like that is in hosigraph was in the store when it was
+  # copied, so one the store does not have now was taken back; the other way round, a like made
+  # between the two reads would look like one taken back.
+  defp sweep(db, {mod, arg}, domain, batch) do
+    {cursor, at} = cursor(db, "tail:sweep")
+    {:ok, page} = Hosi.highest(db, :"object/published", batch, sweep_after(db, at))
+
+    if page == [] do
+      if at != 0, do: move(db, cursor, at, 0)
+      %{gone: 0, unliked: 0}
+    else
+      ids = Enum.map(page, & &1.id)
+      posts = for {id, %{"object/id": [iri | _], "object/attributed-to": [author | _]} = e} <- Enum.zip(ids, Store.entities(db, ids)), do: {id, iri, author, e}
+
+      alive = arg |> mod.notes_by_ap_ids(for({_, iri, _, _} <- posts, do: iri)) |> Map.new(&{&1.ap_id, &1.id})
+      {here, gone} = Enum.split_with(posts, fn {_, iri, _, _} -> Map.has_key?(alive, iri) end)
+
+      forgotten = Notes.forget_many_ops(db, for({id, _, author, _} <- gone, do: {id, author}))
+      unliked = untaken_likes(db, {mod, arg}, domain, here, alive)
+      ops = forgotten ++ unliked
+      if ops != [], do: {:ok, _} = Hosi.write(db, ops)
+
+      next =
+        case {length(page) < batch, List.last(here)} do
+          {true, _} -> 0
+          {false, {id, _, _, _}} -> id
+          {false, nil} -> at
+        end
+
+      if next != at, do: move(db, cursor, at, next)
+
+      %{gone: length(gone), unliked: length(unliked)}
+    end
+  end
+
+  # `[after: place]` for the post the cursor is at; from the newest if it is 0 or that post is gone
+  defp sweep_after(_db, 0), do: []
+
+  defp sweep_after(db, id) do
+    case Store.entities(db, [id]) do
+      [%{"object/published": [at | _]}] -> [after: %{val: at, id: id}]
+      _ -> []
+    end
+  end
+
+  # the ops that take off the likes the store no longer has, for the posts of `here` (`{id, iri, author, entity}`)
+  defp untaken_likes(_db, _source, _domain, [], _alive), do: []
+
+  defp untaken_likes(db, {mod, arg}, domain, here, alive) do
+    likes = mod.likes_of_notes(arg, for({_, iri, _, _} <- here, do: Map.fetch!(alive, iri)), Copy.favourite())
+    accounts = mod.accounts_by_ids(arg, likes |> Enum.map(& &1.account_id) |> Enum.uniq())
+    iri = for a <- accounts, i = Copy.iri_of(domain, a.username, a.domain, a.actor_uri), into: %{}, do: {a.id, i}
+    people = Copy.ids_of(db, :"actor/id", Map.values(iri))
+
+    # note id (the store's) => the people (hosigraph's) who still like it
+    kept = Enum.group_by(likes, & &1.note_id, &Map.get(people, Map.get(iri, &1.account_id)))
+
+    for {id, i, _, e} <- here,
+        person <- Map.get(e, :"object/liked-by", []),
+        person not in Map.get(kept, Map.fetch!(alive, i), []),
+        do: [:delete, id, :"object/liked-by", [:ref, person]]
+  end
 
   # the rows up to the first one that has no `ap_id` and is too young to give up on
   defp take_ready(rows, grace, now) do

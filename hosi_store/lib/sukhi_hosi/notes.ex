@@ -161,14 +161,29 @@ defmodule SukhiHosi.Notes do
   def delete_ops(db, note, actor) do
     with {:ok, e} <- owned(db, note, actor) do
       iri = e |> Map.fetch!(:"object/id") |> hd()
-      [me] = Store.entities(db, [actor])
-      attached = fn attr -> db |> Store.rows("[:find ?x :in $ ?n :where [?x #{attr} ?n]]", [[:scalar, note]]) |> List.flatten() end
-
-      {:ok,
-       Store.retract_ops_many(db, [note | attached.(":activity/object") ++ attached.(":notification/note")]) ++
-         if(note in Map.get(me, :"actor/pinned", []), do: [[:delete, actor, :"actor/pinned", [:ref, note]]], else: []) ++
-         outbox_ops("Delete", note, actor, iri)}
+      {:ok, forget_ops(db, note, actor) ++ outbox_ops("Delete", note, actor, iri)}
     end
+  end
+
+  @doc """
+  The ops of `delete_ops/3` without the line for the relay: the post, the boosts of it and the
+  notifications about it go, and so does its place on its author's profile. For a post that is
+  already gone from the store it was copied from (`Tail`): there is no one to tell, the delete was
+  told when it was made.
+  """
+  def forget_ops(db, note, author), do: forget_many_ops(db, [{note, author}])
+
+  @doc "`forget_ops/3` for many `{note, author}`, with one read of each kind for all of them."
+  def forget_many_ops(_db, []), do: []
+
+  def forget_many_ops(db, pairs) do
+    notes = Enum.map(pairs, &elem(&1, 0))
+    authors = pairs |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
+    pinned = authors |> then(&Store.entities(db, &1)) |> Enum.zip(authors) |> Map.new(fn {e, a} -> {a, MapSet.new(Map.get(e, :"actor/pinned", []))} end)
+    attached = fn attr -> db |> Store.rows("[:find ?x :in $ [?n ...] :where [?x #{attr} ?n]]", [[:coll, notes]]) |> List.flatten() end
+
+    Store.retract_ops_many(db, notes ++ attached.(":activity/object") ++ attached.(":notification/note")) ++
+      for({n, a} <- pairs, MapSet.member?(Map.fetch!(pinned, a), n), do: [:delete, a, :"actor/pinned", [:ref, n]])
   end
 
   @doc "`actor` features their post on their profile. The relay is told (`Add`). `:already` if it is."

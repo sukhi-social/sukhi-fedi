@@ -5,6 +5,9 @@ if Code.ensure_loaded?(SukhiHosi.Tail) do
     Opens hosigraph and, every `@tick`, runs one round of `SukhiHosi.Tail` over `SukhiFedi.Repo`.
     A round that fails (hosigraph or the store is down, a row it cannot read) is logged and tried
     again on the next tick: the cursors are in hosigraph and only move past what is written.
+
+    The last step of a round, the sweep (what left the store), is the one that looks at what is
+    already there, so it runs at most every `@sweep_every`, not on each tick.
     """
 
     use GenServer
@@ -14,6 +17,7 @@ if Code.ensure_loaded?(SukhiHosi.Tail) do
     alias SukhiFedi.HosiMirror.RepoSource
 
     @tick :timer.seconds(2)
+    @sweep_every :timer.seconds(10)
 
     def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
@@ -29,15 +33,26 @@ if Code.ensure_loaded?(SukhiHosi.Tail) do
       Process.flag(:trap_exit, true)
       {:ok, db} = SukhiHosi.Store.start_link(dir: dir, dtlv: bin)
       schedule(Keyword.get(opts, :tick, @tick))
-      {:ok, %{db: db, domain: Keyword.get_lazy(opts, :domain, &SukhiFedi.Config.domain!/0), tick: Keyword.get(opts, :tick, @tick)}}
+
+      {:ok,
+       %{
+         db: db,
+         domain: Keyword.get_lazy(opts, :domain, &SukhiFedi.Config.domain!/0),
+         tick: Keyword.get(opts, :tick, @tick),
+         sweep_every: Keyword.get(opts, :sweep_every, @sweep_every),
+         swept_at: nil
+       }}
     end
 
     @impl true
-    def handle_call(:sync, _from, state), do: {:reply, run_round(state), state}
+    def handle_call(:sync, _from, state) do
+      {report, state} = run_round(state, true)
+      {:reply, report, state}
+    end
 
     @impl true
     def handle_info(:tick, state) do
-      _ = run_round(state)
+      {_report, state} = run_round(state, false)
       schedule(state.tick)
       {:noreply, state}
     end
@@ -52,12 +67,16 @@ if Code.ensure_loaded?(SukhiHosi.Tail) do
       :exit, _ -> :ok
     end
 
-    defp run_round(%{db: db, domain: domain}) do
-      SukhiHosi.Tail.sync(db, {RepoSource, nil}, domain: domain)
+    # `force?`: the sweep too, whatever the time (what a caller of `sync_now` asks for)
+    defp run_round(%{db: db, domain: domain} = state, force?) do
+      now = System.monotonic_time(:millisecond)
+      sweep? = force? or state.swept_at == nil or now - state.swept_at >= state.sweep_every
+      report = SukhiHosi.Tail.sync(db, {RepoSource, nil}, domain: domain, sweep: sweep?)
+      {report, if(sweep?, do: %{state | swept_at: now}, else: state)}
     rescue
       e ->
         Logger.warning("hosi mirror: round failed: #{Exception.message(e)}")
-        {:error, e}
+        {{:error, e}, state}
     end
 
     defp schedule(:infinity), do: :ok

@@ -1,4 +1,18 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+defmodule TailTest.CannotAnswer do
+  # a source that is down when it is asked which posts are still there
+  @behaviour SukhiHosi.Source
+  alias SukhiHosi.Source.Postgres
+
+  defdelegate accounts_after(arg, after_id, limit), to: Postgres
+  defdelegate accounts_by_ids(arg, ids), to: Postgres
+  defdelegate notes_after(arg, after_id, limit), to: Postgres
+  defdelegate notes_by_ids(arg, ids), to: Postgres
+  defdelegate likes_after(arg, after_id, limit, emoji), to: Postgres
+  defdelegate likes_of_notes(arg, ids, emoji), to: Postgres
+  def notes_by_ap_ids(_arg, _iris), do: raise("the store is not answering")
+end
+
 defmodule TailTest do
   use ExUnit.Case, async: false
   @moduletag :needs_dtlv
@@ -193,5 +207,104 @@ defmodule TailTest do
 
     assert %{likes: 0, likes_missing: [{^l1, :no_iri}]} = sync(c)
     assert liked_by(c.db, "https://sukhi.test/notes/1") == []
+  end
+
+  test "a post that left the store is taken away, and the others stay; asking again changes nothing", c do
+    alice = account(c.pg, "alice")
+    n1 = note(c.pg, alice, "https://sukhi.test/notes/1")
+    note(c.pg, alice, "https://sukhi.test/notes/2")
+    assert %{notes: 2} = sync(c)
+
+    Postgrex.query!(c.pg, "DELETE FROM notes WHERE id = $1", [n1])
+    assert %{gone: 1, unliked: 0} = sync(c)
+    assert Notes.find(c.db, "https://sukhi.test/notes/1") == nil
+    assert Notes.find(c.db, "https://sukhi.test/notes/2")
+
+    assert %{gone: 0, unliked: 0} = sync(c)
+  end
+
+  test "the sweep can be left out of a round, and the next one that has it takes the post away", c do
+    alice = account(c.pg, "alice")
+    n1 = note(c.pg, alice, "https://sukhi.test/notes/1")
+    sync(c)
+
+    Postgrex.query!(c.pg, "DELETE FROM notes WHERE id = $1", [n1])
+    assert %{gone: 0} = sync(c, sweep: false)
+    assert Notes.find(c.db, "https://sukhi.test/notes/1")
+    assert %{gone: 1} = sync(c)
+  end
+
+  test "a like taken back is taken off the post; the ones kept stay", c do
+    alice = account(c.pg, "alice")
+    bob = account(c.pg, "bob", "remote.test", "https://remote.test/users/bob")
+    n1 = note(c.pg, alice, "https://sukhi.test/notes/1")
+    l1 = like(c.pg, bob, n1)
+    like(c.pg, alice, n1)
+    assert %{likes: 2} = sync(c)
+
+    Postgrex.query!(c.pg, "DELETE FROM reactions WHERE id = $1", [l1])
+    assert %{gone: 0, unliked: 1} = sync(c)
+    assert liked_by(c.db, "https://sukhi.test/notes/1") == [Actors.find(c.db, "https://sukhi.test/users/alice")]
+
+    assert %{unliked: 0} = sync(c)
+  end
+
+  test "a post that left the store leaves its author's profile too", c do
+    alice = account(c.pg, "alice")
+    n1 = note(c.pg, alice, "https://sukhi.test/notes/1")
+    sync(c)
+    me = Actors.find(c.db, "https://sukhi.test/users/alice")
+    post = Notes.find(c.db, "https://sukhi.test/notes/1")
+    :ok = Notes.pin(c.db, post, me)
+    assert Notes.pinned(c.db, me) == [post]
+
+    Postgrex.query!(c.pg, "DELETE FROM notes WHERE id = $1", [n1])
+    assert %{gone: 1} = sync(c)
+    assert Notes.pinned(c.db, me) == []
+  end
+
+  test "the sweep goes a window at a time, newest first, and starts again at the end", c do
+    alice = account(c.pg, "alice")
+    n1 = note(c.pg, alice, "https://sukhi.test/notes/1")
+    note(c.pg, alice, "https://sukhi.test/notes/2")
+    note(c.pg, alice, "https://sukhi.test/notes/3")
+    sync(c)
+
+    Postgrex.query!(c.pg, "DELETE FROM notes WHERE id = $1", [n1])
+    # the oldest is the last window: 3, then 2, then 1 (gone)
+    assert [%{gone: 0}, %{gone: 0}, %{gone: 1}] = for _ <- 1..3, do: sync(c, batch: 1)
+    assert cursor(c.db, "tail:sweep") != 0
+
+    # the window after is empty: the pass is over, and the next starts from the newest
+    assert %{gone: 0} = sync(c, batch: 1)
+    assert cursor(c.db, "tail:sweep") == 0
+  end
+
+  test "a window shorter than the batch is the end of the pass: the next one starts from the newest", c do
+    alice = account(c.pg, "alice")
+    note(c.pg, alice, "https://sukhi.test/notes/1")
+    note(c.pg, alice, "https://sukhi.test/notes/2")
+    n3 = note(c.pg, alice, "https://sukhi.test/notes/3")
+    sync(c)
+
+    # 3 and 2, then 1 alone: that window is short, so the pass is over
+    assert [%{gone: 0}, %{gone: 0}] = for _ <- 1..2, do: sync(c, batch: 2)
+    assert cursor(c.db, "tail:sweep") == 0
+
+    # a post newer than where the last window ended is seen at once, not after another pass
+    Postgrex.query!(c.pg, "DELETE FROM notes WHERE id = $1", [n3])
+    assert %{gone: 1} = sync(c, batch: 2)
+  end
+
+  test "a source that cannot answer takes nothing away", c do
+    alice = account(c.pg, "alice")
+    note(c.pg, alice, "https://sukhi.test/notes/1")
+    sync(c)
+
+    assert_raise RuntimeError, ~r/not answering/, fn ->
+      Tail.sync(c.db, {TailTest.CannotAnswer, c.pg}, domain: @domain)
+    end
+
+    assert Notes.find(c.db, "https://sukhi.test/notes/1")
   end
 end

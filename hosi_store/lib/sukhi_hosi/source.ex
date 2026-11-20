@@ -8,6 +8,10 @@ defmodule SukhiHosi.Source do
 
   A source is `{module, arg}`: every callback takes `arg` first (a connection, or nothing).
 
+  A callback that cannot answer **raises**; it does not answer with an empty list instead. `Tail`
+  takes a post that `notes_by_ap_ids` does not return, and a like that `likes_of_notes` does not,
+  to be gone from the store, and takes it away from hosigraph.
+
   Rows are maps with the columns of sukhi's tables as keys (`accounts`: `id username domain
   actor_uri`; `notes`: `id account_id ap_id content content_html visibility domain created_at
   in_reply_to_ap_id`, `created_at` a `DateTime`; `reactions`: `id account_id note_id`), in order of `id`.
@@ -36,6 +40,10 @@ defmodule SukhiHosi.Source do
   @callback accounts_by_ids(arg :: term(), ids :: [integer()]) :: [account()]
   @doc "The notes with these ids (those that exist)."
   @callback notes_by_ids(arg :: term(), ids :: [integer()]) :: [note()]
+  @doc "The notes with these `ap_id`s (those that exist)."
+  @callback notes_by_ap_ids(arg :: term(), ap_ids :: [String.t()]) :: [note()]
+  @doc "The reactions that carry `emoji` on these notes."
+  @callback likes_of_notes(arg :: term(), note_ids :: [integer()], emoji :: String.t()) :: [like()]
   @doc "The reactions that carry `emoji` with `id` above `after_id`, at most `limit`, oldest first."
   @callback likes_after(arg :: term(), after_id :: integer(), limit :: pos_integer(), emoji :: String.t()) :: [like()]
 end
