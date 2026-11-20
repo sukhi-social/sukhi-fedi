@@ -288,6 +288,12 @@ if System.get_env("SUKHI_GRAPH") in ["1", "true"] do
   config :sukhi_fedi, :graph, true
 end
 
+# hosigraph beside the store (SukhiFedi.HosiMirror): copies the new people and posts into it.
+# Only when the build has it (SUKHI_HOSI=1 at compile time); SUKHI_HOSI_DIR / DATALEVIN_BIN say where.
+if System.get_env("SUKHI_HOSI_MIRROR") in ["1", "true"] do
+  config :sukhi_fedi, :hosi_mirror, true
+end
+
 # Let the public and tag timelines pick their posts from the graph
 # (SukhiFedi.Graph.Timelines). Only meaningful with SUKHI_GRAPH.
 if System.get_env("SUKHI_GRAPH_READ") in ["1", "true"] do

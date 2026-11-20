@@ -29,6 +29,8 @@ defmodule SukhiFedi.Application do
         SukhiFedi.Queue.children(),
         # The graph store beside it (SUKHI_GRAPH=1): its own dtlv and the mirror queue.
         SukhiFedi.Graph.children(),
+        # hosigraph beside the store (SUKHI_HOSI=1 build, SUKHI_HOSI_MIRROR=1 start); nothing otherwise.
+        SukhiFedi.HosiMirror.children(),
         # FEP-f799: the delivery worker's copy of the resting notices (needs the graph).
         SukhiFedi.Fedi.DeliverySuspension.children(),
         nats_connection(),

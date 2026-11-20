@@ -69,6 +69,8 @@ what to set on a small box.
 | `SUKHI_GRAPH_TTL_FOLLOWED_DAYS` / `SUKHI_GRAPH_TTL_OTHER_DAYS` | no | `90` / `14` | How long a remote object stays after it was last received or touched (followed authors / everyone else). |
 | `SUKHI_GRAPH_SWEEP_LIMIT` | no | `2000` | Candidates examined per sweep run. |
 | `SUKHI_GRAPH_SIZE_BUDGET_MB` | no | unset | Over this size on disk, the sweep halves both TTLs for that run. |
+| `SUKHI_HOSI_MIRROR` | no | off | `1`/`true`: copy the new people and posts of the store into hosigraph (`SukhiFedi.HosiMirror`). Only does anything in a build made with `SUKHI_HOSI=1` (a build-time switch, not read at runtime). docs/HOSI.md. |
+| `SUKHI_HOSI_DIR` | no | `<DATALEVIN_DIR>/hosi` | Where hosigraph keeps its files. It runs on the `dtlv` that `DATALEVIN_BIN` names. |
 | `SUKHI_RAW_BACKEND` | no | `sqlite` | datalevin mode: where large originals (`raw`) go: `sqlite` (a table in the queue file) or `s3` (S3-compatible, same credentials as media). |
 | `SUKHI_RAW_INLINE_MAX` | no | `4096` | datalevin mode: bytes of `raw` kept on the entity itself; larger is stored as a pointer. |
 | `SUKHI_RAW_GRACE_S` | no | `86400` | datalevin mode: how old an unreferenced blob must be before GC may delete it. |
