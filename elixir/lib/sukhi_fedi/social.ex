@@ -7,6 +7,7 @@ defmodule SukhiFedi.Social do
 
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias Ecto.Multi
   alias SukhiFedi.{Outbox, Repo}
   alias SukhiFedi.Addons.Moderation
@@ -183,7 +184,7 @@ defmodule SukhiFedi.Social do
     do: {:error, :self_follow}
 
   def request_follow(%Account{} = follower, target_id) when is_integer(target_id) do
-    case Repo.get(Account, target_id) do
+    case Accounts.get(target_id) do
       nil ->
         {:error, :not_found}
 
@@ -243,9 +244,6 @@ defmodule SukhiFedi.Social do
     |> case do
       {:ok, %{follow: f}} ->
         if local_target? do
-          # no outbox row for a local pair; tell the graph directly
-          SukhiFedi.Graph.Local.changed({:follow, f.id, f.follower_uri})
-
           SukhiFedi.Notifications.create(%{
             account_id: target.id,
             from_account_id: follower_id,
@@ -278,7 +276,7 @@ defmodule SukhiFedi.Social do
         {:error, :not_found}
 
       %Follow{} = f ->
-        target = Repo.get(Account, target_id)
+        target = Accounts.get(target_id)
         local_target? = match?(%Account{domain: nil}, target)
 
         multi = Multi.new() |> Multi.delete(:follow, f)
@@ -307,7 +305,6 @@ defmodule SukhiFedi.Social do
         |> Repo.transaction()
         |> case do
           {:ok, %{follow: f}} ->
-            if local_target?, do: SukhiFedi.Graph.Local.changed({:follow, f.id, f.follower_uri})
             {:ok, f}
 
           {:error, _step, reason, _} ->
@@ -334,7 +331,7 @@ defmodule SukhiFedi.Social do
   @spec join_group(Account.t(), integer()) ::
           {:ok, GroupMembership.t()} | {:error, :not_found | :not_remote | term()}
   def join_group(%Account{} = member, group_id) when is_integer(group_id) do
-    case Repo.get(Account, group_id) do
+    case Accounts.get(group_id) do
       nil ->
         {:error, :not_found}
 

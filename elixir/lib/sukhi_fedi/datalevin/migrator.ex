@@ -4,9 +4,8 @@ defmodule SukhiFedi.Datalevin.Migrator do
   Brings a Datalevin store forward to what this release reads, once, before
   the application serves anything (`Release.migrate_all/0`).
 
-  There are two stores to bring forward: `:main` (`DATALEVIN_DIR`, the
-  Ecto-shaped one) and `:graph` (`DATALEVIN_DIR/graph`, with `SUKHI_GRAPH=1`).
-  Each keeps a `SukhiFedi.Datalevin.Manifest`; this module decides from it.
+  The store to bring forward is `:main` (`DATALEVIN_DIR`, the Ecto-shaped
+  one). It keeps a `SukhiFedi.Datalevin.Manifest`; this module decides from it.
 
   For one store:
 
@@ -41,7 +40,7 @@ defmodule SukhiFedi.Datalevin.Migrator do
 
   require Logger
 
-  alias SukhiFedi.Datalevin.{Catalog, Client, Config, Manifest, Migration, SchemaDiff, SchemaFile}
+  alias SukhiFedi.Datalevin.{Catalog, Client, Config, Manifest, Migration, SchemaDiff}
   alias SukhiFedi.Datalevin.Migration.Ctx
 
   @type schema :: SchemaDiff.schema()
@@ -64,26 +63,12 @@ defmodule SukhiFedi.Datalevin.Migrator do
 
   # ------------------------------------------------------------------ stores
 
-  @doc "The stores this node runs: `:main`, and `:graph` when `SUKHI_GRAPH` is on."
+  @doc "The stores this node runs: `:main`."
   @spec specs(Config.t()) :: [spec()]
   def specs(base \\ Config.current()) do
     root = base.premigrate_dir || Path.join(Path.dirname(base.dir), "datalevin-premigrate")
 
-    main = spec(:main, base, Catalog.dtlv_schema(), root)
-
-    graph =
-      if SukhiFedi.Graph.enabled?(),
-        do: [
-          spec(
-            :graph,
-            %{base | dir: Path.join(base.dir, "graph")},
-            SchemaFile.to_dtlv(SchemaFile.read()),
-            root
-          )
-        ],
-        else: []
-
-    [main | graph]
+    [spec(:main, base, Catalog.dtlv_schema(), root)]
   end
 
   @spec spec(store(), Config.t(), schema(), String.t()) :: spec()
@@ -193,7 +178,7 @@ defmodule SukhiFedi.Datalevin.Migrator do
   def explain({:unmigrated, drift}, spec) do
     "datalevin #{spec.name} schema changed in a way that needs a migration " <>
       "(#{SchemaDiff.describe(drift)}) and none is pending for #{spec.config.dir}. " <>
-      "Write one: `mix sukhi.datalevin.gen.migration NAME --store #{spec.name}`."
+      "Write one: `mix sukhi.datalevin.gen.migration NAME`."
   end
 
   def explain({:pending, pending}, spec) do
@@ -365,8 +350,7 @@ defmodule SukhiFedi.Datalevin.Migrator do
     end
   end
 
-  # No data yet: nothing in the directory but our own files (and, for the
-  # main store, the graph's subdirectory).
+  # No data yet: nothing in the directory but our own files.
   defp fresh?(spec) do
     case File.ls(spec.config.dir) do
       {:ok, entries} -> entries -- ignorable(spec) == []
@@ -375,10 +359,7 @@ defmodule SukhiFedi.Datalevin.Migrator do
     end
   end
 
-  defp ignorable(spec) do
-    own = [Manifest.file_name(), Manifest.file_name() <> ".tmp"]
-    if spec.name == :main, do: ["graph" | own], else: own
-  end
+  defp ignorable(_spec), do: [Manifest.file_name(), Manifest.file_name() <> ".tmp"]
 
   # ----------------------------------------------------------------- applying
 
@@ -503,7 +484,7 @@ defmodule SukhiFedi.Datalevin.Migrator do
   defp backup!(spec, version) do
     src = spec.config.dir
 
-    skip = [Manifest.file_name() <> ".tmp" | if(spec.name == :main, do: ["graph"], else: [])]
+    skip = [Manifest.file_name() <> ".tmp"]
 
     keep =
       case File.ls(src) do

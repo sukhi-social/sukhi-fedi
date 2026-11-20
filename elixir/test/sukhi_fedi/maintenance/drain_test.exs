@@ -92,10 +92,7 @@ defmodule SukhiFedi.Maintenance.DrainTest do
     Keyword.merge(
       [
         root: Path.join(dir, "backups"),
-        datalevin?: true,
         config: %Config{dir: Path.join(dir, "datalevin"), bin: "sh"},
-        graph_dir: nil,
-        queue_dbs: [],
         cmd: fn _exe, args ->
           if "copy" in args, do: File.mkdir_p!(List.last(args))
           {"ok", 0}

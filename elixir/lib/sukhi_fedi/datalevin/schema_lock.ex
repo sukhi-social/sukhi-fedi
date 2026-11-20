@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Datalevin.SchemaLock do
   @moduledoc """
-  `priv/datalevin/schema.lock.json`: the Datalevin schema of both stores as
+  `priv/datalevin/schema.lock.json`: the Datalevin schema of the store as
   the last release shipped it, and the newest migration it shipped with.
 
   The schema is derived (`priv/datalevin/catalog.exs` from the SQL
-  migrations, `schema.edn` by hand), so changing it is a one-line diff that
+  migrations), so changing it is a one-line diff that
   nobody reads as "this alters what is on disk". The lock makes it a
   reviewable diff of its own, and makes the one dangerous kind of change
   loud while the change is still a pull request:
@@ -20,12 +20,12 @@ defmodule SukhiFedi.Datalevin.SchemaLock do
   The file is one attribute per line, so the diff reads as the change.
   """
 
-  alias SukhiFedi.Datalevin.{Catalog, Migrator, SchemaDiff, SchemaFile}
+  alias SukhiFedi.Datalevin.{Catalog, Migrator, SchemaDiff}
 
-  @stores [:main, :graph]
+  @stores [:main]
 
   @type entry :: %{version: non_neg_integer(), schema: SchemaDiff.schema()}
-  @type t :: %{main: entry(), graph: entry()}
+  @type t :: %{main: entry()}
 
   @doc "The lock as the code computes it now."
   @spec current(keyword()) :: t()
@@ -36,10 +36,6 @@ defmodule SukhiFedi.Datalevin.SchemaLock do
       main: %{
         version: Migrator.latest_version(:main, migrations),
         schema: Catalog.dtlv_schema()
-      },
-      graph: %{
-        version: Migrator.latest_version(:graph, migrations),
-        schema: SchemaFile.to_dtlv(SchemaFile.read())
       }
     }
   end
@@ -98,7 +94,7 @@ defmodule SukhiFedi.Datalevin.SchemaLock do
           do: [],
           else: [
             "#{store}: #{SchemaDiff.describe(diff)}. The data under these attributes needs " <>
-              "a migration: `mix sukhi.datalevin.gen.migration NAME --store #{store}`, " <>
+              "a migration: `mix sukhi.datalevin.gen.migration NAME`, " <>
               "then run this again."
           ]
       end)

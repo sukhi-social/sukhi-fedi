@@ -32,4 +32,6 @@ config/tls/
 analysis/Manifest.toml
 
 # Local dev sidecars (make dev)
-.pglite-dev/
+.pgrust-dev/
+.pgrust/
+.datalevin-dev/

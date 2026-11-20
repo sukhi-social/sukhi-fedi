@@ -4,8 +4,8 @@ defmodule SukhiFedi.Datalevin.Adapter do
   The Ecto adapter callbacks for the Datalevin store.
 
   Not registered with Ecto directly: `SukhiFedi.Store.Adapter` is, and hands
-  each call here when the store is Datalevin. Every function therefore takes
-  the same arguments the `Ecto.Adapter.*` callback of that name does.
+  each call here. Every function therefore takes the same arguments the
+  `Ecto.Adapter.*` callback of that name does.
 
   Reads go through `Query`, writes through `Writer`; this module only
   translates between Ecto's calling convention and theirs.

@@ -26,6 +26,6 @@ HOSI_DTLV=/path/to/dtlv mix test                  # one dtlv process per call
 HOSI_BACKEND=jvm HOSI_JAR=/path/to/datalevin-standalone.jar mix test   # a JVM that stays (JDK 21)
 ```
 
-The tests that need PostgreSQL start the embedded PGlite from `../pglite` (`pnpm install` there
-first); without node or its packages they are left out. `HOSI_PG_PORT=5432` uses a real
-Postgres, which the two `:concurrent_pg` tests need.
+The tests that need PostgreSQL start a throwaway pgrust server (`../scripts/pgrust-serve.sh`, which
+fetches pgrust the first time); if it does not come up they are left out, and a line says why.
+`HOSI_PG_PORT=5432` uses a Postgres you already have instead.

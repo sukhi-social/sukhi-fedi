@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Datalevin.Catalog do
   @moduledoc """
-  What the SQL schema says, as data the Datalevin store can use.
+  The schema of the business tables, as data the Datalevin store can use.
 
-  Read from `priv/datalevin/catalog.exs`, a snapshot `mix sukhi.datalevin.catalog`
-  takes of a migrated Postgres. The store never reads migrations itself.
+  Read from `priv/datalevin/catalog.exs`, which is edited by hand: a column
+  that goes away or changes type needs a Datalevin migration
+  (docs/DATALEVIN_MIGRATIONS.md).
 
-  Each table is `%{columns, pk, unique, fks}`; see the mix task for the shape.
+  Each table is `%{columns, pk, unique, fks}`: `columns` are
+  `%{name, type, null, default}`, `unique` are `%{name, keys, where}`, `fks`
+  are `%{name, columns, ref_table, ref_columns, on_delete}`.
   Column and table names are strings here — the Ecto side speaks atoms, and
   `attr/2` is the single place a pair becomes a Datalevin attribute.
   """
@@ -37,8 +40,7 @@ defmodule SukhiFedi.Datalevin.Catalog do
   def table!(name) do
     table(name) ||
       raise ArgumentError,
-            "table #{inspect(name)} is not in priv/datalevin/catalog.exs " <>
-              "(run `mix sukhi.migrate && mix sukhi.datalevin.catalog`)"
+            "table #{inspect(name)} is not in priv/datalevin/catalog.exs"
   end
 
   @doc "The Datalevin attribute (an atom) of a column."

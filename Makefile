@@ -4,7 +4,7 @@
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev dev-web ui-lab test test-shared test-elixir test-delivery test-api test-web check-specs \
-        test-pglite test-e2e check check-presets env-audit script-tests need-tsubaki up down preflight \
+        test-pgrust test-e2e check check-presets env-audit script-tests need-tsubaki up down preflight \
         push-static push-styles clear-static static-status \
         push-natadeco natadeco-images
 
@@ -37,7 +37,6 @@ setup:  ## fetch every project's dependencies
 	@command -v nats-server >/dev/null 2>&1 || echo "note: nats-server is missing — 'make dev' runs without streaming (brew install nats-server nats)"
 	for d in elixir delivery api combined; do (cd $$d && $(RUN) mix deps.get); done
 	cd web && $(RUN) pnpm install
-	cd pglite && $(RUN) pnpm install
 	cd web-natadeco && $(RUN) pnpm install
 
 # ── Running it locally ──────────────────────────────────────────────────────
@@ -88,12 +87,13 @@ test-nginx:  ## the maintenance-page nginx rules, on a real nginx
 test-maintenance:  ## scripts/sukhi-maintenance, with a fake container tool (needs Node 22+)
 	@bash scripts/sukhi-maintenance_test.sh
 
-# The DB-backed integration suite, against an embedded PGlite Postgres —
-# no Docker. Extra args pass through to `mix test`:
-#   make test-pglite
-#   make test-pglite ARGS="test/integration/social_test.exs:97"
-test-pglite:  ## DB integration tests on embedded PGlite (no Docker)
-	@bash scripts/test-pglite.sh $(ARGS)
+# The DB-backed integration suite, against a pgrust server (a PostgreSQL-
+# compatible binary the script fetches once) — no Docker. Extra args pass
+# through to `mix test`:
+#   make test-pgrust
+#   make test-pgrust ARGS="test/integration/social_test.exs:97"
+test-pgrust:  ## DB integration tests on pgrust (no Docker)
+	@bash scripts/test-pgrust.sh $(ARGS)
 
 # Cross-browser smoke for the SPA (Chromium + Firefox) via Playwright.
 # Builds the SPA and runs the flow in web/e2e against `vite preview`.

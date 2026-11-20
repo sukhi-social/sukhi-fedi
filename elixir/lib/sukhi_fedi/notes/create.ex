@@ -9,6 +9,7 @@ defmodule SukhiFedi.Notes.Create do
 
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias Ecto.Multi
   alias SukhiFedi.Notes.{Ids, Read}
   alias SukhiFedi.{Notifications, Outbox, Repo}
@@ -317,7 +318,7 @@ defmodule SukhiFedi.Notes.Create do
   defp quoted_author_inbox(quote_ap_id) do
     case Repo.get_by(Note, ap_id: quote_ap_id) do
       %Note{account_id: aid} ->
-        case Repo.get(Account, aid) do
+        case Accounts.get(aid) do
           %Account{inbox_url: inbox} when is_binary(inbox) and inbox != "" -> inbox
           %Account{actor_uri: uri} when is_binary(uri) and uri != "" -> uri <> "/inbox"
           _ -> nil
@@ -459,14 +460,14 @@ defmodule SukhiFedi.Notes.Create do
   # するので domain は自分のもの ── 取り込んだ note がここを通ることは
   # ない(出前は自分の投稿だけ)。
   defp author_handle(%Note{} = n) do
-    case SukhiFedi.Repo.get(Account, n.account_id) do
+    case Accounts.get(n.account_id) do
       %Account{username: u} -> "@#{u}@#{SukhiFedi.Config.domain!()}"
       nil -> nil
     end
   end
 
   defp author_uri(%Note{} = n) do
-    case SukhiFedi.Repo.get(Account, n.account_id) do
+    case Accounts.get(n.account_id) do
       %Account{username: u} -> SukhiFedi.AP.ActorJson.actor_uri(u)
       nil -> nil
     end

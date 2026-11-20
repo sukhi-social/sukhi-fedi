@@ -25,6 +25,7 @@ defmodule SukhiFedi.AP.Instructions.Migrations do
 
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias Ecto.Multi
   alias SukhiFedi.AP.Instructions.{Extract, Resolve}
   alias SukhiFedi.{Outbox, Repo}
@@ -40,7 +41,7 @@ defmodule SukhiFedi.AP.Instructions.Migrations do
   def maybe_handle_move(%{"type" => "Move", "actor" => old, "target" => target}) do
     with old_uri when is_binary(old_uri) <- Extract.extract_uri(old),
          new_uri when is_binary(new_uri) <- Extract.extract_object_id(target),
-         %Account{id: old_id} = old_account <- Repo.get_by(Account, actor_uri: old_uri),
+         %Account{id: old_id} = old_account <- Accounts.by_actor_uri(old_uri),
          {:ok, %Account{} = new_account} <- Resolve.resolve_or_ingest_actor(new_uri),
          true <- bidirectional_consent?(old_uri, new_account) do
       # The Move is the authoritative "I have moved" signal, signed by old.

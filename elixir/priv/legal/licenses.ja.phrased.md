@@ -39,7 +39,7 @@ Bandit · Plug · Req · Finch · Oban · Hammer · undici
 
 違う​環境の​あいだで​話すための、​親切で​頼れる​通り道を​作ってくれて​ありがとう。
 
-PostgreSQL · Ecto · NATS · rustfs · PGlite
+PostgreSQL · Ecto · NATS · rustfs · pgrust
 
 <h2 id="security">セキュリティ</h2>
 

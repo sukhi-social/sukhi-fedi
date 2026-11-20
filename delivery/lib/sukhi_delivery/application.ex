@@ -21,15 +21,13 @@ defmodule SukhiDelivery.Application do
          pools: %{
            default: Application.get_env(:sukhi_delivery, :finch_pool, size: 50, count: 4)
          }}
-        # SQLite delivery queue (DELIVERY_QUEUE=sqlite); empty otherwise. Starts
-        # before the Postgres Oban so enqueues never find the queue missing.
       ] ++
+        # The queue connection, its tables, then Oban: the relay below
+        # enqueues as soon as it starts, so the queue has to be there first.
         SukhiDelivery.Queue.children() ++
-        SukhiDelivery.Queue.postgres_children() ++
         [
-          # Transactional Outbox relay: turns `outbox` rows (written by the
-          # gateway) into Oban dispatch jobs — the job insert and the row's
-          # flip to `published` share one transaction. The job then runs
+          # Outbox relay: turns `outbox` rows (written by the
+          # gateway) into Oban dispatch jobs. The job then runs
           # FedifyClient.translate → Worker fan-out; routing lives in
           # SukhiDelivery.Outbox.Consumer.
           SukhiDelivery.Outbox.Relay

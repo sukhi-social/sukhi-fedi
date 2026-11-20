@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Fedi.DeliverySuspension.PublisherTest do
   # The telling side: what sukhi signs before its maintenance is what another
-  # sukhi's Receiver takes (real `dtlv`), and the cancellation it holds back
+  # sukhi's Receiver takes (real PostgreSQL), and the cancellation it holds back
   # ends it without being brought back by anything.
-  use SukhiFedi.GraphCase
+  use SukhiFedi.IntegrationCase, async: false
+
+  @moduletag :integration
 
   alias SukhiFedi.Fedi.DeliverySuspension.{Control, Publisher, Receiver, Store}
   alias SukhiFedi.SuspensionNet, as: Net

@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Fedi.DeliverySuspension.UpkeepTest do
   # The gateway's half of the delivery worker's cache: filled on accept,
-  # rebuilt from the store on start, trimmed by the sweep. Real `dtlv`.
-  use SukhiFedi.GraphCase
+  # rebuilt from the store on start, trimmed by the sweep. Real PostgreSQL.
+  use SukhiFedi.IntegrationCase, async: false
+
+  @moduletag :integration
 
   alias SukhiFedi.Fedi.DeliverySuspension.{Receiver, Upkeep}
   alias SukhiShared.DeliverySuspension.{Cache, Gate, Policy}

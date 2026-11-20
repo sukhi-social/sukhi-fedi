@@ -31,6 +31,10 @@ export LEGAL_FLAVOR=sukhi
 export METRICS_TOKEN=bench-metrics
 export DB_POOL_SIZE="${DB_POOL_SIZE:-10}"
 export LOAD_TOKEN_FILE="$OUT/$LABEL.token"
+# The head checkout keeps its business data in a Datalevin directory (it needs
+# `dtlv`); the base checkout (main, on Postgres) ignores this.
+export DATALEVIN_DIR="$OUT/$LABEL.datalevin"
+rm -rf "$DATALEVIN_DIR"
 
 psql -h localhost -U postgres -c 'DROP DATABASE IF EXISTS sukhi_fedi_dev' -c 'CREATE DATABASE sukhi_fedi_dev'
 

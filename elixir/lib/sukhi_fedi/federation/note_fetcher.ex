@@ -15,6 +15,7 @@ defmodule SukhiFedi.Federation.NoteFetcher do
   origin server.
   """
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.AP.{Emojis, MediaIngest, Published}
   alias SukhiFedi.AP.Instructions.Extract
   alias SukhiFedi.{Polls, Repo}
@@ -66,7 +67,7 @@ defmodule SukhiFedi.Federation.NoteFetcher do
         {:error, :no_actor}
 
       uri ->
-        case Repo.get_by(Account, actor_uri: uri) do
+        case Accounts.by_actor_uri(uri) do
           %Account{} = a ->
             {:ok, a}
 

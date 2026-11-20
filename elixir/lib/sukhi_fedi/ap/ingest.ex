@@ -68,12 +68,12 @@ defmodule SukhiFedi.AP.Ingest do
 
   # FEP-f799 control activities (a `DeliverySuspension` notice and its Undo)
   # are taken here, not classified: the fedify parse does not know them, and
-  # whether one is believed is `DeliverySuspension.Receiver`'s decision. It
-  # needs the graph store (its tables live there); without it the activity
-  # goes the ordinary way. A rejection is answered with a plain 400 - the
-  # reason goes to telemetry, not to the sender.
+  # whether one is believed is `DeliverySuspension.Receiver`'s decision. When
+  # FEP-f799 is switched off the activity goes the ordinary way. A rejection
+  # is answered with a plain 400 - the reason goes to telemetry, not to the
+  # sender.
   defp suspension(raw_json, signer_host, opts) do
-    if SukhiFedi.Graph.enabled?() do
+    if SukhiFedi.Fedi.DeliverySuspension.enabled?() do
       case SukhiFedi.Fedi.DeliverySuspension.Receiver.handle(raw_json,
              signer_host: signer_host,
              raw_body: opts[:raw_body]
@@ -99,25 +99,11 @@ defmodule SukhiFedi.AP.Ingest do
     case FedifyClient.inbox(payload) do
       {:ok, instruction} ->
         Instructions.execute(instruction, signer_host, author_signed?)
-        mirror(raw_json, author_signed?, opts)
         :accepted
 
       {:error, reason} ->
         {:error, {:parse, reason}}
     end
-  end
-
-  # A side copy into the graph store (SUKHI_GRAPH=1). Queued, ordered, and
-  # never able to change the answer given to the sender.
-  defp mirror(raw_json, author_signed?, opts) do
-    if SukhiFedi.Graph.enabled?() do
-      SukhiFedi.Graph.Mirror.admit(raw_json,
-        author_signed?: author_signed?,
-        raw_body: opts[:raw_body]
-      )
-    end
-
-    :ok
   end
 
   # FEP-8b32 verdict, and the one place it is read:

@@ -24,13 +24,12 @@ flowchart LR
     A([Mastodon apps]) --> G
     O([other servers]) -- "ActivityPub" --> G
     W -- "/api/v1" --> G["gateway + delivery + api<br/>(one BEAM)"]
-    G == "SUKHI_STORE=datalevin" ==> D[("Datalevin<br/>a dtlv child process")]
-    G --> Q[("SQLite<br/>job queue")]
-    G -. "the old default" .-> P[("PostgreSQL")]
+    G == "the data" ==> D[("Datalevin<br/>a dtlv child process")]
+    G --> Q[("PostgreSQL<br/>job queues")]
 ```
 
-* **Thick arrow**: where the data lives now. The `dtlv` binary runs as a child of the BEAM, over a pipe. One database, one writer.
-* **Dotted arrow**: the default when `SUKHI_STORE` is not set, kept so that nothing breaks. [`DATALEVIN.md`](DATALEVIN.md) says what differs.
+* **Thick arrow**: where the data lives. The `dtlv` binary runs as a child of the BEAM, over a pipe. One database, one writer. [`DATALEVIN.md`](DATALEVIN.md) says what differs from a SQL database.
+* **Thin arrow**: the job queues and the raw bodies, in PostgreSQL.
 * The whole design is in [`ARCHITECTURE.md`](ARCHITECTURE.md) (long; read it when you want to, not before).
 
 ## Pick a way in
@@ -64,9 +63,9 @@ pnpm test
 make dev        # http://localhost:4000
 ```
 
-`make dev` starts an embedded Postgres (PGlite: Postgres compiled to WASM, run by node, kept in `.pglite-dev/`),
-runs the migrations, and boots gateway + delivery + api as **one BEAM** with an IEx shell.
-Nothing to install beyond the toolchain in `mise.toml` (`mise trust` once) and node.
+`make dev` starts a [pgrust](https://pgrust.com) server (a PostgreSQL-compatible server; the first run fetches it into `.pgrust/`,
+and its data is kept in `.pgrust-dev/`), runs the migrations, and boots gateway + delivery + api as **one BEAM** with an IEx shell.
+Nothing to install beyond the toolchain in `mise.toml` (`mise trust` once).
 
 To get a first account, from the IEx shell it drops you into:
 
@@ -75,20 +74,17 @@ SukhiFedi.Release.create_admin("you", "a-long-passphrase")
 ```
 
 > [!IMPORTANT]
-> `make dev` starts on **Postgres (PGlite)**, not on Datalevin. To use Datalevin, set `SUKHI_STORE=datalevin` and put
-> the `dtlv` binary on the `PATH` (or point `DATALEVIN_BIN` at it); the `DB_*` variables are then unused.
-> What changes, and the list of what does not work, is in [`DATALEVIN.md`](DATALEVIN.md); every variable is in [`ENV.md`](ENV.md).
+> `make dev` keeps the data in Datalevin (`.datalevin-dev/`) and the job queues in pgrust (`.pgrust-dev/`). It needs
+> the `dtlv` binary on the `PATH` (or `DATALEVIN_BIN` pointing at it).
+> What differs from a SQL database, and the list of what does not work, is in [`DATALEVIN.md`](DATALEVIN.md); every variable is in [`ENV.md`](ENV.md).
 
 <details>
-<summary><b>NATS, and why PGlite has one connection</b></summary>
+<summary><b>NATS</b></summary>
 
 <br>
 
 NATS carries streaming and the outbound-federation relay. `make dev` starts `nats-server` when it is on the `PATH`, and says so when it is not
 (`brew install nats-server nats`). Without it the app still runs; streaming and outbound federation are simply off.
-
-PGlite runs on a single connection on purpose: its socket multiplexer breaks Postgrex inside transactions, so a wider pool can read but not post.
-Point `DB_PORT` at a real Postgres for the full thing. See `scripts/dev.sh`.
 
 </details>
 
@@ -132,7 +128,7 @@ For a real deploy, see [`OPERATIONS.ja.md`](OPERATIONS.ja.md).
 
 ```bash
 make test          # every layer's unit tests (elixir / delivery / api / web)
-make test-pglite   # the DB integration suite, on embedded PGlite — no Docker
+make test-pgrust   # the DB integration suite, on pgrust — no Docker
 make test-e2e      # cross-browser SPA smoke (Playwright)
 make check         # linters and type checks
 ```
@@ -155,7 +151,7 @@ cd elixir && MIX_ENV=test mix sukhi.migrate && mix test --only integration
 | **Delivery** | The outbox relay, the Oban delivery and federation queues, outbound inbox POSTs |
 | **web-next** | The pages people read. Unpoly + Alpine.js; calls the gateway's `/api/v1` and builds HTML |
 | **web-natadeco** | natadeco.com's own frontend, for the `deco` board addon. A second site running this server, not a second server |
-| **Datalevin** | Where the data lives now (`SUKHI_STORE=datalevin`); the job queue goes to SQLite |
+| **Datalevin** | Where the data lives; the job queues and raw bodies are in PostgreSQL |
 | **NATS** | `stream.*` pub/sub. No JetStream, nothing durable |
 | **Anubis** | A proof-of-work gate in front of the gateway: challenges HTML navigation, lets federation, the API and static files through |
 | **PromEx** | Prometheus metrics at `/metrics` |

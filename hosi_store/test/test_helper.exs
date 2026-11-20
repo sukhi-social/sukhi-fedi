@@ -15,41 +15,87 @@ have? = if backend[:jvm], do: File.exists?(java) and File.exists?(jar), else: Fi
 
 Application.put_env(:sukhi_hosi, :backend, backend)
 
-# PostgreSQL for the feeder and the markers: the PGlite that sukhi-fedi's own DB tests use (Postgres in
-# WASM, over the wire protocol), started from ../pglite (server.mjs; `pnpm install` there first); without node or its packages those tests
-# are left out. PGlite serves one connection to many and mixes their messages, so what needs two
-# connections at once (`:concurrent_pg`) runs only against a real Postgres: HOSI_PG_PORT=5432 mix test.
+# PostgreSQL for the feeder and the markers: a throwaway pgrust server (a PostgreSQL-compatible
+# binary; scripts/pgrust-serve.sh at the repo root fetches it the first time and runs it on this
+# port). If it does not come up, the tests that need it are left out and a line says why.
+# HOSI_PG_PORT=5432 uses a Postgres you already have instead (database HOSI_PG_DB).
 real_pg = System.get_env("HOSI_PG_PORT")
-pglite = Path.expand("../pglite", File.cwd!())
-node = System.find_executable("node")
 pg_port = if real_pg, do: String.to_integer(real_pg), else: 15_700 + :rand.uniform(200)
 
+defmodule PgrustServer do
+  @moduledoc "scripts/pgrust-serve.sh as a child of the test run; it is stopped, and waited for, when the suite ends."
+
+  # The first run fetches pgrust (about 30 MB), so waiting is generous; it stops as soon as the script has ended.
+  @tries 900
+
+  def start(port_number) do
+    serve = Path.expand("../scripts/pgrust-serve.sh", File.cwd!())
+    bash = System.find_executable("bash")
+
+    cond do
+      bash == nil -> {false, "no bash on the PATH"}
+      not File.exists?(serve) -> {false, "#{serve} is missing"}
+      true -> run(bash, serve, port_number)
+    end
+  end
+
+  defp run(bash, serve, port_number) do
+    port =
+      Port.open({:spawn_executable, bash}, [
+        :binary,
+        :exit_status,
+        :stderr_to_stdout,
+        {:args, [serve, to_string(port_number)]}
+      ])
+
+    {:os_pid, os_pid} = Port.info(port, :os_pid)
+
+    ExUnit.after_suite(fn _ ->
+      System.cmd("kill", [to_string(os_pid)])
+      # it stops the server and removes the cluster; let it, before the VM goes
+      Enum.any?(1..50, fn _ ->
+        {_, status} = System.cmd("kill", ["-0", to_string(os_pid)], stderr_to_stdout: true)
+        status != 0 or (Process.sleep(100) && false)
+      end)
+    end)
+
+    wait(port, port_number, [], @tries)
+  end
+
+  defp wait(_port, _n, out, 0), do: {false, "did not come up in time\n" <> IO.iodata_to_binary(Enum.reverse(out))}
+
+  defp wait(port, n, out, tries) do
+    receive do
+      {^port, {:data, data}} ->
+        wait(port, n, [data | out], tries)
+
+      {^port, {:exit_status, status}} ->
+        {false, "the script ended (#{status})\n" <> IO.iodata_to_binary(Enum.reverse(out))}
+    after
+      0 ->
+        case :gen_tcp.connect(~c"127.0.0.1", n, []) do
+          {:ok, s} ->
+            :gen_tcp.close(s)
+            {true, ""}
+
+          _ ->
+            Process.sleep(200)
+            wait(port, n, out, tries - 1)
+        end
+    end
+  end
+end
+
 have_pg? =
-  real_pg != nil or
-    (node != nil and File.dir?(Path.join(pglite, "node_modules/@electric-sql/pglite")) and
-       (
-         port =
-           Port.open({:spawn_executable, node}, [
-             :binary,
-             :exit_status,
-             {:cd, pglite},
-             {:env, [{~c"PGLITE_PORT", ~c"#{pg_port}"}]},
-             {:args, ["server.mjs"]}
-           ])
+  if real_pg do
+    true
+  else
+    {ok?, why} = PgrustServer.start(pg_port)
+    if not ok?, do: IO.puts(:stderr, "pgrust did not start, so the tests that need PostgreSQL are left out: " <> why)
+    ok?
+  end
 
-         {:os_pid, os_pid} = Port.info(port, :os_pid)
-         ExUnit.after_suite(fn _ -> System.cmd("kill", [to_string(os_pid)]) end)
-
-         Enum.any?(1..100, fn _ ->
-           case :gen_tcp.connect(~c"127.0.0.1", pg_port, []) do
-             {:ok, s} -> :gen_tcp.close(s) && true
-             _ -> Process.sleep(100) && false
-           end
-         end)
-       ))
-
-# One pool for the whole run: PGlite serves one connection to many, and a pool per test leaves
-# closed sockets behind that the next one trips over.
+# One pool for the whole run.
 if have_pg? do
   {:ok, _} = SukhiHosi.Pg.start_link(port: pg_port, name: SpikePg)
   SukhiHosi.Pg.migrate!(SpikePg)
@@ -57,7 +103,7 @@ end
 
 exclude =
   if(have?, do: [], else: [:needs_dtlv]) ++ if(backend[:jvm], do: [], else: [:concurrent_read]) ++
-    if(have_pg?, do: [], else: [:needs_pg]) ++ if(real_pg, do: [], else: [:concurrent_pg])
+    if(have_pg?, do: [], else: [:needs_pg])
 
 ExUnit.start(exclude: exclude)
 

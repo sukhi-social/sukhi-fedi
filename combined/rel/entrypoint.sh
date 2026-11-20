@@ -80,11 +80,10 @@ if [ "${ERLANG_COOKIE:-${RELEASE_COOKIE:-}}" = "sukhi_fedi_dev_cookie" ]; then
   exit 1
 fi
 
-if [ "${SUKHI_STORE:-postgres}" = "datalevin" ]; then
-  check_data_dir
-else
-  echo "[entrypoint] store=${SUKHI_STORE:-postgres} (persistent directory check skipped)"
-fi
+# The business data is in Datalevin; PostgreSQL holds the job queues.
+require_env DB_USER
+require_env DB_PASS
+check_data_dir
 
 check_instance_config
 

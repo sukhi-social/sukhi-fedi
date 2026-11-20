@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Fedi.DeliverySuspension.ReceiverTest do
-  # Real `dtlv` (GraphCase): the store is part of what is under test.
-  use SukhiFedi.GraphCase
+  # Real PostgreSQL (IntegrationCase): the store is part of what is under test.
+  use SukhiFedi.IntegrationCase, async: false
+
+  @moduletag :integration
 
   alias SukhiFedi.Fedi.Oip
   alias SukhiShared.JWK
@@ -72,20 +74,13 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.ReceiverTest do
       assert {%{effective_start: ^start}, _} = held()
     end
 
-    test "what is stored is what the gate reads, and reads back the same after a restart" do
+    test "what is stored is what the gate reads, and reads back the same" do
       assert {:ok, :accepted} = recv(create())
       {:ok, before} = Store.all_notices()
       policy = Policy.default()
 
       assert Gate.suspended?("https://b.example/inbox", @now, before, policy)
       refute Gate.suspended?("https://c.example/inbox", @now, before, policy)
-
-      # the dtlv child dies and the supervisor reopens the same directory
-      pid = Process.whereis(Graph.client())
-      ref = Process.monitor(pid)
-      Process.exit(pid, :kill)
-      assert_receive {:DOWN, ^ref, _, _, _}
-      wait_for_client(pid)
 
       assert {:ok, ^before} = Store.all_notices()
     end
@@ -498,19 +493,4 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.ReceiverTest do
 
   @doc false
   def forward(_event, _measure, meta, parent), do: send(parent, {:telemetry, meta})
-
-  # the supervisor restarts the child under the same name
-  defp wait_for_client(old_pid, tries \\ 100) do
-    case Process.whereis(Graph.client()) do
-      pid when is_pid(pid) and pid != old_pid ->
-        :ok
-
-      _ when tries > 0 ->
-        Process.sleep(100)
-        wait_for_client(old_pid, tries - 1)
-
-      _ ->
-        flunk("graph client did not come back")
-    end
-  end
 end

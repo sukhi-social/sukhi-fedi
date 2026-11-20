@@ -58,14 +58,13 @@ scripts/sukhi-drain.sh open            # やめる。キューを再開して受
 | 配信の仕事(相手ごとに 1 件) | **待たない。キューを止める** | キューに残ったまま控えに入り、再起動後に再開する。落ちている相手を待つと何時間もかかる |
 | Oban のキュー全部(gateway と delivery) | 止める | 動いている仕事が 0 になるまで待つ |
 | Pull Federation の取り込み(puller) | 新しく始めない | 走っている分は終わるまで待つ |
-| Oban の cron、メトリクスの採取、graph の写し、Pull の統計の書き出し | **止めない** | ユーザーのデータではなく、控えにも影響しない(`dtlv copy` も `VACUUM INTO` も、使っているデータベースで一貫した写しを取れる) |
+| Oban の cron、メトリクスの採取、hosigraph の写し、Pull の統計の書き出し | **止めない** | ユーザーのデータではなく、控えにも影響しない(`dtlv copy` も `VACUUM INTO` も、使っているデータベースで一貫した写しを取れる) |
 
 ## 4. 控えに入るもの(`SUKHI_BACKUP_DIR`、既定 `/var/lib/sukhi/backups/<UTC 時刻>/`)
 
 | 中身 | 取り方 |
 |---|---|
 | `datalevin/`(`DATALEVIN_DIR`) | `dtlv -d <src> copy <dest>`。使用中でも取れる、と `dtlv` 自身のヘルプにある |
-| `datalevin/graph/`(`SUKHI_GRAPH=1` のとき) | 同じ。もう一つの `dtlv` の環境なので別に取る |
 | `datalevin/.sukhi-store.json` | ファイルコピー(カタログの指紋。復元後の起動検査が読む) |
 | `queue.db` / `delivery_queue.db` | SQLite の `VACUUM INTO`。**ファイルを直接コピーしない** |
 | `backup-manifest.json` | 既存の控えの目録(`Release.write_datalevin_backup_manifest!`)。復元後の検査がそのまま読む |
@@ -103,7 +102,7 @@ scripts/sukhi-drain.sh open            # やめる。キューを再開して受
 
 1. 古い書き手を止める(`systemctl --user stop sukhi-gateway`)。現在の `datalevin/` `queue.db` `delivery_queue.db` は、消さずに脇へ退ける。
 2. 控えの `datalevin/` を `DATALEVIN_DIR` に、`queue.db` を `SUKHI_QUEUE_DB` の位置に、`delivery_queue.db` を `DELIVERY_QUEUE_DB` に戻す。
-   `datalevin/graph/` は入れ子のまま `DATALEVIN_DIR/graph` へ。持ち主は元と同じ(`sukhi`)。
+   持ち主は元と同じ(`sukhi`)。
 3. 控えの `backup-manifest.json` を `/var/lib/sukhi/backup-manifest.json` に置き、起動前に検査する:
    `podman run --rm … combined eval 'SukhiFedi.Release.check_datalevin_backup_manifest!()'`(DATALEVIN.md の「Switching an existing instance」と同じ)。
    カタログの指紋が違えば、起動が断られる。

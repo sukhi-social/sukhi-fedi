@@ -1,28 +1,26 @@
 # Datalevin store
 
-`SUKHI_STORE=datalevin` keeps the business data in
-[Datalevin](https://github.com/juji-io/datalevin) instead of Postgres.
-Postgres stays the default and the path the rest of the docs describe.
-This one is switched by an environment variable at start; no rebuild.
+The business data is kept in [Datalevin](https://github.com/juji-io/datalevin).
+It is the only store: PostgreSQL holds the job queues (Oban) and the raw
+bodies, and nothing else.
 
 Read `docs/ARCHITECTURE.md` first. This page only covers what changes.
 
 ## What it is
 
 - `SukhiFedi.Repo` still looks like an Ecto repo. Its adapter
-  (`SukhiFedi.Store.Adapter`) hands each call to Postgres or to
-  `SukhiFedi.Datalevin.Adapter`, chosen once at boot. Application code does
-  not know which.
+  (`SukhiFedi.Store.Adapter`) hands each call to
+  `SukhiFedi.Datalevin.Adapter`. Application code reads and writes it as it
+  would Ecto.
 - A Datalevin row is one entity; each column is an attribute
   `:"table/column"`. Types, defaults, unique indexes and foreign keys come
-  from `elixir/priv/datalevin/catalog.exs`, a snapshot of the migrated
-  Postgres schema. Regenerate it after a migration:
-  `mix sukhi.datalevin.catalog` (needs a migrated Postgres).
+  from `elixir/priv/datalevin/catalog.exs`, which is edited by hand;
+  a change to it goes with a migration (`DATALEVIN_MIGRATIONS.md`).
 - The `dtlv` binary runs as a child of the BEAM over a pipe
   (`dtlv mcp -w`), one database, one writer. A reader never waits for the
   writer.
-- Oban keeps its jobs in SQLite (`SUKHI_QUEUE_DB`) in this mode, the same
-  engine the delivery service already uses.
+- Oban keeps its jobs in PostgreSQL (`DB_*`), one `oban_jobs` table for the
+  gateway's and the delivery node's queues.
 
 ## Queries are Datalog, not SQL translated row by row
 
@@ -60,13 +58,11 @@ Whatever you pick, a transaction here is **not crash-atomic** (below).
 ## Recommended values for a 0.5 OCPU / 512 MB box
 
 ```
-SUKHI_STORE=datalevin
 DATALEVIN_DURABILITY=strict
 DATALEVIN_XMX=96m            # 64m works for light use; uncapped costs ~230 MB more
 DATALEVIN_MAP_SIZE_MB=1024   # raise before the data approaches it
 DATALEVIN_WAL_RETENTION_MB=256
 DATALEVIN_WAL_RETENTION_HOURS=24
-SUKHI_QUEUE_SYNCHRONOUS=normal   # if losing the last job insert on power loss is fine
 ```
 
 Measured on this machine (the cloud dev box; a slow disk will move the
@@ -99,11 +95,10 @@ Be careful with this list; it is the honest part.
 - **Raw SQL** (`Repo.query!`) does not work, so the code that runs on both
   stores is written as Ecto queries. That is done for the pull federation,
   `SukhiShared.PullStats` and `SukhiShared.PeerCapabilities` (the shared
-  library now depends on Ecto, which every node already has). Still raw SQL,
-  and Postgres-only: `Maintenance.RebuildRemoteNotes` (a one-off repair task),
-  and `mix sukhi.datalevin.catalog` (which reads Postgres on purpose).
-  `Maintenance.RebuildRemoteNoteIds` is plain Ecto and runs on both stores.
-- **Oban's tables are in SQLite, not in `Repo`.** Code that reads `oban_jobs`
+  library now depends on Ecto, which every node already has). The two
+  repair tasks, `Maintenance.RebuildRemoteNotes` and
+  `Maintenance.RebuildRemoteNoteIds`, are plain Ecto too.
+- **Oban's tables are in PostgreSQL, not in `Repo`.** Code that reads `oban_jobs`
   goes through `SukhiFedi.Queue.repo/0` (the delivery status, the server
   activity page and the metrics do). Jobs are not in the same store as the
   business rows.
@@ -126,14 +121,10 @@ Be careful with this list; it is the honest part.
 
 ## Where the test suite stands
 
-`SUKHI_STORE=datalevin mix test --only integration`: **843 of 851 pass**
-(Postgres, `make test-pglite`: 848; the same 3 fail on both, and on main).
-About 2.8 minutes. The 5 that fail only here:
-
-| Count | Why |
-|---|---|
-| 3 | `RebuildRemoteNotes`: the one-off repair task is raw SQL, and its test leans on a Postgres trigger |
-| 2 | `AdminAudits`: the audit table is append-only by a Postgres trigger |
+`make test-pgrust` (Datalevin for the data, pgrust for the job queues):
+**970 passed, 12 skipped** (the skipped ones need S3 or NATS), plus the
+delivery node's queue tests. `scripts/test-pgrust.sh` and `docs/TESTING.md`
+say how to run it.
 
 ## The web app (`web/`)
 
@@ -146,36 +137,31 @@ follow, favourite, boost, bookmark, reply, DM, delete. The three requests
 that fail on both stores are not store related: `/api/wt` (WebTransport is
 not configured), `/api/i/notes/drafts` (404) and `PUT .../react/:emoji`.
 
-It does need the release's prod runtime config to be read on Datalevin too:
-`elixir/config/runtime.exs` once skipped every prod-only setting
-(`plugin_nodes`, `secret_key_base`, NATS, the admission gate, the Oban
-queues) when `SUKHI_STORE=datalevin`, so `/api/v1/*` answered 503 for the SPA
-and for everyone else.
+## A new instance
 
-## A new instance on Datalevin alone
-
-Nothing else is needed: no Postgres, no `DB_*`. Run the **combined** release
-(gateway, delivery and api in one BEAM) with `SUKHI_STORE=datalevin`. Datalevin
-has one writer, so the delivery node cannot be a separate process; it joins the
-store the gateway started (`SukhiDelivery.Store.Adapter`, `owner?: false`).
+Run the **combined** release (gateway, delivery and api in one BEAM) with a
+PostgreSQL for the job queues (`DB_*`; `DB_USER` and `DB_PASS` are required).
+Datalevin has one writer, so the delivery node cannot be a separate process; it
+joins the store the gateway started (`SukhiDelivery.Store.Adapter`,
+`owner?: false`).
 
     docker compose -f docker-compose.yml -f docker-compose.combined.yml \
                    -f docker-compose.datalevin.yml up -d
 
+What the delivery half does:
+
 What changes for the delivery half:
 
-- **Queues.** Every Oban queue (`delivery`, `federation`, `push`,
-  `outbox_dispatch`) runs on the SQLite Lite engine (`SukhiDelivery.QueueOban`,
-  file `DELIVERY_QUEUE_DB`); `DELIVERY_QUEUE=sqlite` is implied, and the queue
-  handover from Postgres is skipped. Web Push jobs are inserted there too
-  (`:push_oban`). Jobs for the gateway's own queues (`outbound_archive`) go to
-  `SukhiFedi.Oban`.
-- **Outbox relay.** No `LISTEN/NOTIFY` and no row lock: it polls every 2 s.
+- **Queues.** `SukhiDelivery.Oban` runs the `delivery`, `federation`, `push`
+  and `outbox_dispatch` queues on PostgreSQL, in the same `oban_jobs` table as
+  the gateway's own queues (`SukhiFedi.Oban`); each node runs only the queues
+  its config names.
+- **Outbox relay.** It polls every 2 s (no `LISTEN/NOTIFY`, no row lock).
 - **Pull Federation** (`pull_log`, `pull_heads`, `pull_peers`) uses plain
   statements (`SukhiDelivery.PullFederation.Peers`, `Log`), the same on both
   stores.
-- **Migrations.** The schema is derived (`priv/datalevin/catalog.exs`,
-  `schema.edn`) and a new attribute needs nothing. `migrate_all` runs the
+- **Migrations.** The schema is derived (`priv/datalevin/catalog.exs`)
+  and a new attribute needs nothing. `migrate_all` runs the
   versioned Datalevin migrations for what that does not cover
   ([DATALEVIN_MIGRATIONS.md](DATALEVIN_MIGRATIONS.md)).
 - **Image.** `dtlv` is only published as a glibc build and the runtime image is
@@ -191,16 +177,17 @@ What changes for the delivery half:
 
 ## Switching an existing instance
 
-There is no Postgres-to-Datalevin conversion tool yet. An existing Datalevin
-store can be brought into a matching release by restoring the complete
-`DATALEVIN_DIR` (including `graph/` when enabled), `SUKHI_QUEUE_DB`, and
-`DELIVERY_QUEUE_DB`. If `SUKHI_RAW_BACKEND=sqlite`, raw blobs are in the queue
-SQLite file; if it is `s3`, restore the configured raw bucket/prefix too.
+There is no conversion tool from the earlier PostgreSQL store yet. An existing
+Datalevin store can be brought into a matching release by restoring the
+complete `DATALEVIN_DIR` and the PostgreSQL
+database that holds the job queues and `raw_blobs` (dump it yourself:
+`Maintenance.Backup` does not cover it). If `SUKHI_RAW_BACKEND=s3`, restore the
+configured raw bucket/prefix too.
 Restore the mounted `/etc/sukhi/instance.json`, keep `DOMAIN` and signing
 secrets stable, and stop the old writer before copying files.
 
 On first successful open, the release writes
-`DATALEVIN_DIR/.sukhi-store.json` (and `graph/.sukhi-store.json`) with the
+`DATALEVIN_DIR/.sukhi-store.json` with the
 migrations the data has been through and the schema it was last opened with.
 A schema that only gained attributes opens as it is; a removed or changed
 attribute needs a migration, and without one startup is refused rather than
@@ -215,7 +202,7 @@ podman exec <gateway-container> /app/bin/combined eval \
   'SukhiFedi.Release.write_datalevin_backup_manifest!()'
 ```
 
-The resulting `backup-manifest.json` lists the data directory, graph directory,
+The resulting `backup-manifest.json` lists the data directory,
 queue files, raw backend, instance config path, catalog fingerprint and
 migration version. It
 does not contain secrets or copy any data.
@@ -230,5 +217,5 @@ podman exec <gateway-container> /app/bin/combined eval \
 
 The check refuses data from a newer release than this one (an older one is
 migrated forward when it starts), mismatched data paths, or missing
-queue/graph directories. It does not test S3 credentials or perform a
+queue directories. It does not test S3 credentials or perform a
 Postgres import.

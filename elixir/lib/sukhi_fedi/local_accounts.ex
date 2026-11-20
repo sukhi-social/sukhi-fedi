@@ -19,6 +19,7 @@ defmodule SukhiFedi.LocalAccounts do
 
   import Ecto.Query, only: [from: 2]
 
+  alias SukhiFedi.Accounts
   alias Ecto.Multi
   alias SukhiFedi.{InviteCodes, Keys, OAuth, Repo}
   alias SukhiFedi.Schema.{Account, AdminAudit, OauthApp, Session}
@@ -216,7 +217,7 @@ defmodule SukhiFedi.LocalAccounts do
   @spec rotate_bot_token(integer(), integer()) ::
           {:ok, %{account: Account.t(), token: String.t()}} | {:error, :not_found | term()}
   def rotate_bot_token(admin_id, bot_id) when is_integer(admin_id) and is_integer(bot_id) do
-    with %Account{is_bot: true, domain: nil} = bot <- Repo.get(Account, bot_id),
+    with %Account{is_bot: true, domain: nil} = bot <- Accounts.get(bot_id),
          %OauthApp{} = app <- Repo.get_by(OauthApp, owner_account_id: bot.id) do
       Multi.new()
       |> Multi.run(:revoked, fn _repo, _ -> {:ok, OAuth.revoke_account_tokens(bot.id)} end)
@@ -623,7 +624,7 @@ defmodule SukhiFedi.LocalAccounts do
   # there's no verified address to mail (passwordless accounts always
   # have one, but a half-set-up account may not yet).
   defp notify_new_device(account_id, ip) do
-    case Repo.get(Account, account_id) do
+    case Accounts.get(account_id) do
       %Account{email_verified_at: %DateTime{}, email: email} = account when is_binary(email) ->
         _ = SukhiFedi.Auth.LoginNotice.deliver(account, ip)
         :ok

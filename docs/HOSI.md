@@ -102,9 +102,9 @@ writes move too.
 # The mirror is off in a default build:
 mix test test/sukhi_fedi/hosi_mirror_test.exs
 
-# One round, Repo → hosigraph (PGlite + dtlv):
+# One round, Repo → hosigraph (pgrust + dtlv):
 SUKHI_HOSI=1 HOSIGRAPH_EX=…/hosigraph-ex DATALEVIN_BIN=…/dtlv \
-  scripts/test-pglite.sh test/integration/hosi_mirror_test.exs
+  scripts/test-pgrust.sh test/integration/hosi_mirror_test.exs
 ```
 
 `hosi_store/`'s own tests (`mix test` there) cover the copying, the cursors, the three ways a

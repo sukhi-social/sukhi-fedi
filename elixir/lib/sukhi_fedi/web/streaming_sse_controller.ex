@@ -19,7 +19,7 @@ defmodule SukhiFedi.Web.StreamingSseController do
   comment heartbeat every 30s keeps idle proxies from dropping it and
   lets us notice a client that has gone away (the chunk write fails).
 
-  The bearer is verified here directly — the gateway shares Postgres, so
+  The bearer is verified here directly — the gateway shares the store, so
   no round-trip to a plugin node (same as the WebSocket entry point).
   """
 

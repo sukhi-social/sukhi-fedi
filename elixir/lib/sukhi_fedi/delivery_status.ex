@@ -247,9 +247,8 @@ defmodule SukhiFedi.DeliveryStatus do
     |> counts_by_key(& &1)
   end
 
-  # Jobs live in Postgres, plus any extra queue store configured under
-  # `:extra_job_repos` (the SQLite delivery queue in a combined release).
-  # Counts for the same state are added across stores.
+  # Jobs live in the queue database (`Queue.job_repos/0`). Counts for the
+  # same state are added across the repos it names.
   defp counts_by_key(query, key_fun) do
     SukhiFedi.Queue.job_repos()
     |> Enum.flat_map(& &1.all(query))

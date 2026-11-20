@@ -2,9 +2,8 @@
 defmodule SukhiFedi.HosiMirror do
   @moduledoc """
   hosigraph beside the store: the people and posts that are new in `SukhiFedi.Repo` are copied into
-  it, a little after (`hosi_store/`, `SukhiHosi.Tail`). Like `SukhiFedi.Graph.Local` it follows the
-  store and never changes a path that writes to it, so a failure here is logged and does not reach
-  a user. What is on screen still comes from the store; hosigraph is read only to be compared
+  it, a little after (`hosi_store/`, `SukhiHosi.Tail`). It follows the store and never changes a
+  path that writes to it, so a failure here is logged and does not reach a user. What is on screen still comes from the store; hosigraph is read only to be compared
   with it (`shadow/3`).
 
   Off by default, and in two ways: the code is compiled in only when the build is asked for it

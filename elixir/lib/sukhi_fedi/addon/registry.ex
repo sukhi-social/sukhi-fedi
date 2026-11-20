@@ -78,13 +78,6 @@ defmodule SukhiFedi.Addon.Registry do
   @spec nats_subscriptions() :: [SukhiFedi.Addon.nats_sub()]
   def nats_subscriptions, do: Enum.flat_map(all(), & &1.nats_subscriptions())
 
-  @spec migrations_paths() :: [Path.t()]
-  def migrations_paths do
-    all()
-    |> Enum.map(& &1.migrations_path())
-    |> Enum.reject(&is_nil/1)
-  end
-
   @spec verify_abi!() :: :ok
   def verify_abi! do
     for addon <- all() do

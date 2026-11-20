@@ -1,22 +1,20 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import Config
 
-# Connection is env-overridable so the same dev setup runs against a
-# docker-compose Postgres (the defaults) or against PGlite — Postgres
-# compiled to WASM, no Docker daemon needed. `make dev` takes the PGlite
-# path; see scripts/dev.sh.
-config :sukhi_fedi, SukhiFedi.Repo,
+# The queue database's connection is env-overridable so the same dev setup
+# runs against a docker-compose Postgres (the defaults) or against the pgrust
+# server `make dev` starts (no Docker daemon needed; see scripts/dev.sh).
+# (The accounts, `AccountRepo`, and the queue, `QueueRepo`, share it; the rest
+# of the business data is Datalevin.)
+db = [
   database: "sukhi_fedi_dev",
   port: String.to_integer(System.get_env("DB_PORT", "5432")),
   show_sensitive_data_on_connection_error: true,
-  pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
-  # The same two bends config/test.exs makes for PGlite, and for the
-  # same reasons (see docs/TESTING.md): its socket multiplexer mishandles
-  # *named* prepared statements, and the migration lock takes a second
-  # connection that deadlocks against the migrating one. Both are
-  # harmless against a real Postgres — a single dev migrator never races.
-  prepare: :unnamed,
-  migration_lock: false
+  pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10"))
+]
+
+config :sukhi_fedi, SukhiFedi.QueueRepo, db
+config :sukhi_fedi, SukhiFedi.AccountRepo, db
 
 # Stable dev value so the admin session cookie keeps working across
 # `iex -S mix` restarts. NEVER use this in prod — prod reads from
@@ -35,19 +33,3 @@ config :sukhi_fedi, :admin_session_secure, false
 config :sukhi_fedi, :nats,
   host: System.get_env("NATS_HOST", "127.0.0.1"),
   port: String.to_integer(System.get_env("NATS_PORT", "4222"))
-
-# PGlite is one Postgres that its socket server multiplexes client
-# connections onto, and that multiplexing breaks Postgrex — a write
-# lands as `no function clause matching in
-# Postgrex.Protocol.handle_msg/3` on `{:msg_command_complete, "BEGIN"}`.
-# scripts/dev.sh keeps the pool at 1 for that reason, but Oban still
-# opens a *second* connection of its own outside the pool
-# (`Oban.Peers.Database` over `Postgrex.SimpleConnection`, for leader
-# election), and that one breaks the same way.
-#
-# So on the PGlite path Oban runs the way config/test.exs runs it:
-# jobs execute inline at insert, no queues, no plugins, no notifier.
-# Point DB_PORT at a real Postgres and drop PGLITE to get them back.
-if System.get_env("PGLITE") == "1" do
-  config :sukhi_fedi, Oban, testing: :inline
-end

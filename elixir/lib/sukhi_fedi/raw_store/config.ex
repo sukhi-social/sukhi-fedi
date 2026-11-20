@@ -4,13 +4,13 @@ defmodule SukhiFedi.RawStore.Config do
   The knobs of `SukhiFedi.RawStore`, read in one place. `from_env/1` takes a
   map so tests need no real environment.
 
-      SUKHI_RAW_BACKEND     sqlite (default) | s3
+      SUKHI_RAW_BACKEND     postgres (default) | s3
       SUKHI_RAW_INLINE_MAX  bytes kept on the entity itself (default 4096)
       SUKHI_RAW_GRACE_S     age before an unreferenced blob may be collected (default 86400)
       SUKHI_RAW_BUCKET      s3 only: bucket (default: S3_BUCKET, then "media")
   """
 
-  defstruct backend: SukhiFedi.RawStore.SQLite,
+  defstruct backend: SukhiFedi.RawStore.Postgres,
             backend_opts: [],
             inline_max: 4096,
             grace_s: 86_400
@@ -63,16 +63,16 @@ defmodule SukhiFedi.RawStore.Config do
   end
 
   defp backend(env) do
-    case Map.get(env, "SUKHI_RAW_BACKEND", "sqlite") do
-      "sqlite" ->
-        {:ok, SukhiFedi.RawStore.SQLite, []}
+    case Map.get(env, "SUKHI_RAW_BACKEND", "postgres") do
+      "postgres" ->
+        {:ok, SukhiFedi.RawStore.Postgres, []}
 
       "s3" ->
         bucket = env["SUKHI_RAW_BUCKET"] || env["S3_BUCKET"] || "media"
         {:ok, SukhiFedi.RawStore.S3, [bucket: bucket]}
 
       other ->
-        {:error, "SUKHI_RAW_BACKEND must be sqlite or s3, got #{inspect(other)}"}
+        {:error, "SUKHI_RAW_BACKEND must be postgres or s3, got #{inspect(other)}"}
     end
   end
 

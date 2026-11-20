@@ -10,6 +10,7 @@ defmodule SukhiFedi.Web.ViewerController do
   import Plug.Conn
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.Addons.NodeinfoMonitor
   alias SukhiFedi.Addons.NodeinfoMonitor.NodeinfoFetcher
   alias SukhiFedi.{Repo, Schema.Account}
@@ -49,7 +50,7 @@ defmodule SukhiFedi.Web.ViewerController do
          domain <- normalize_domain(raw),
          true <- valid_domain?(domain),
          {:ok, snap} <- NodeinfoFetcher.fetch(domain) do
-      status = if Repo.get_by(Account, monitored_domain: domain), do: :already_exists, else: :created
+      status = if Accounts.by_monitored_domain(domain), do: :already_exists, else: :created
 
       case NodeinfoMonitor.register_and_record(domain, snap) do
         {:ok, _mi, account} ->

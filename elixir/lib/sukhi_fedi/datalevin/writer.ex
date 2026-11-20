@@ -13,7 +13,9 @@ defmodule SukhiFedi.Datalevin.Writer do
       `unique_constraint/3` in changesets keeps working;
     * `ON CONFLICT` (`:nothing`, replace, update query);
     * column defaults: sequences, `snowflake_id()`, `now()`, literals;
-    * `ON DELETE CASCADE` / `SET NULL`.
+    * `ON DELETE CASCADE` / `SET NULL`;
+    * append-only tables (`admin_audits`): a row is written once and never
+      updated or deleted.
 
   Not enforced: foreign keys on insert, `NOT NULL`, check constraints.
 
@@ -31,6 +33,10 @@ defmodule SukhiFedi.Datalevin.Writer do
   alias SukhiFedi.Datalevin.{Catalog, Engine, Eval, Ids, Lock, Types}
 
   @undo_key {__MODULE__, :undo}
+
+  # Rows here are written once. Every update and delete (single, bulk, and a
+  # cascade) goes through `update_row/6` or `delete_row/3`, which refuse.
+  @append_only ~w(admin_audits)
 
   # ---------------------------------------------------------- transactions
 
@@ -324,6 +330,8 @@ defmodule SukhiFedi.Datalevin.Writer do
 
   @doc false
   def update_row(table, t, eid, old, new, returning) do
+    append_only!(table)
+
     case conflicts(table, t, new, eid) do
       [{name, _, _} | _] ->
         {:invalid, [unique: name]}
@@ -337,6 +345,11 @@ defmodule SukhiFedi.Datalevin.Writer do
         {:ok, Enum.map(returning, &{&1, Map.get(new, &1)})}
     end
   end
+
+  defp append_only!(table) when table in @append_only,
+    do: raise(ArgumentError, "#{table} is append-only: its rows are never updated or deleted")
+
+  defp append_only!(_table), do: :ok
 
   @doc "Apply `new` over a row already fetched (for `update_all`); unique-checked."
   def replace(table, eid, old, new) do
@@ -369,6 +382,8 @@ defmodule SukhiFedi.Datalevin.Writer do
   @doc "Delete a fetched row, following `ON DELETE` of the foreign keys that point at it."
   @spec delete_row(String.t(), integer(), Engine.row()) :: :ok | {:invalid, keyword()}
   def delete_row(table, eid, old) do
+    append_only!(table)
+
     Lock.run(fn ->
       refs = Catalog.referencing(table)
 

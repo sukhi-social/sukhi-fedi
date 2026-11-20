@@ -14,9 +14,10 @@
 #   maintenance-page  the nginx rules on a real nginx, and the switch script
 #                  (docs/OPS_MAINTENANCE_PAGE.ja.md); web-next's own part is in `web-next`
 #   elixir-unit    make test-shared / -elixir / -api / -delivery (no DB)
-#   elixir-pglite  make test-pglite: compile with warnings as errors,
-#                  migrate, and run the DB integration suite on embedded PGlite
-#                  (with dtlv installed, so the Datalevin graph tests run too)
+#   elixir-pgrust  make test-pgrust: compile with warnings as errors,
+#                  migrate, and run the integration suite: the business data
+#                  in a throwaway Datalevin directory (dtlv installed), the
+#                  job queues on a pgrust server (scripts/lib/pgrust.sh)
 name: test
 
 on:
@@ -29,10 +30,10 @@ on:
       - "shared/**"
       - "delivery/**"
       - "combined/**"
-      - "pglite/**"
+      - "scripts/lib/pgrust.sh"
       - "mise.toml"
       - "Makefile"
-      - "scripts/test-pglite.sh"
+      - "scripts/test-pgrust.sh"
       - "scripts/sukhi-maintenance*"
       - "infra/nginx/**"
       - ".github/workflows/test.yml"
@@ -47,10 +48,10 @@ on:
       - "shared/**"
       - "delivery/**"
       - "combined/**"
-      - "pglite/**"
+      - "scripts/lib/pgrust.sh"
       - "mise.toml"
       - "Makefile"
-      - "scripts/test-pglite.sh"
+      - "scripts/test-pgrust.sh"
       - "scripts/sukhi-maintenance*"
       - "infra/nginx/**"
       - ".github/workflows/test.yml"
@@ -158,7 +159,7 @@ jobs:
 
       - run: make test-shared test-elixir test-api test-delivery
 
-  elixir-pglite:
+  elixir-pgrust:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -175,8 +176,8 @@ jobs:
           path: |
             elixir/deps
             elixir/_build
-          key: pglite-${{ runner.os }}-${{ hashFiles('elixir/mix.lock') }}
-          restore-keys: pglite-${{ runner.os }}-
+          key: pgrust-${{ runner.os }}-${{ hashFiles('elixir/mix.lock') }}
+          restore-keys: pgrust-${{ runner.os }}-
 
       - name: Hex and rebar
         run: mix local.hex --force && mix local.rebar --force
@@ -187,9 +188,8 @@ jobs:
           MIX_ENV: test
         run: mix deps.get
 
-      # The graph tests (:dtlv) drive a real Datalevin, which is the active
-      # store, so the job installs the binary rather than skipping them. Same
-      # release and checksum as combined/Dockerfile; keep them in step.
+      # Datalevin is the store, so every integration test needs the binary.
+      # Same release and checksum as combined/Dockerfile; keep them in step.
       - name: Install dtlv
         env:
           DTLV_VERSION: 1.2.10
@@ -204,8 +204,16 @@ jobs:
 
       # The suite logs every SQL query, so the failure list drowns in the job
       # log; keep a copy and print just the failures when the run goes red.
-      - run: make test-pglite 2>&1 | tee "$RUNNER_TEMP/pglite.log"; exit "${PIPESTATUS[0]}"
+      # pgrust is fetched by the script, checked against the checksum pinned in
+      # scripts/lib/pgrust.sh; keep the download between runs.
+      - name: Cache pgrust
+        uses: actions/cache@v4
+        with:
+          path: .pgrust
+          key: pgrust-bin-${{ runner.os }}-${{ hashFiles('scripts/lib/pgrust.sh') }}
+
+      - run: make test-pgrust 2>&1 | tee "$RUNNER_TEMP/pgrust.log"; exit "${PIPESTATUS[0]}"
 
       - name: Failed tests
         if: failure()
-        run: grep -aE -A8 '^ +[0-9]+\) test ' "$RUNNER_TEMP/pglite.log" | head -400 || true
+        run: grep -aE -A8 '^ +[0-9]+\) test ' "$RUNNER_TEMP/pgrust.log" | head -400 || true

@@ -6,16 +6,15 @@
 > **Reader's problem (hypothesis):** "I changed a column, or I am upgrading
 > a server. Will the data still open? What do I have to do?"
 
-Applies to `SUKHI_STORE=datalevin`. Postgres keeps its own migrations
-(`priv/repo/migrations`).
+Applies to the store (Datalevin). PostgreSQL holds only the job queues and
+the raw bodies; Oban's migration runs from its own version at boot.
 
 ## What happens on an upgrade
 
 The container entrypoint runs `Release.migrate_all/0` before anything serves.
-With Datalevin that is `SukhiFedi.Datalevin.Migrator`, once for the main store
-(`DATALEVIN_DIR`) and once for the graph store (`DATALEVIN_DIR/graph`, with
-`SUKHI_GRAPH=1`). Each store keeps `.sukhi-store.json` beside its data: the
-migrations it has been through, and the schema it was last opened with.
+With Datalevin that is `SukhiFedi.Datalevin.Migrator`, for the store in
+`DATALEVIN_DIR`. It keeps `.sukhi-store.json` beside its data: the migrations
+it has been through, and the schema it was last opened with.
 
 | The store is… | What the release does |
 | --- | --- |
@@ -59,7 +58,7 @@ to watch it, or to migrate before switching traffic over.
    ```
    `state=pending` lists the versions that will run. `state=error` says why
    it will not (newer data, a missing migration).
-3. **Back up** the whole `DATALEVIN_DIR` (including `graph/`). The migrator
+3. **Back up** the whole `DATALEVIN_DIR`. The migrator
    copies it too, but a copy you made yourself is the one you chose.
 4. **Run:**
    ```sh
@@ -82,8 +81,7 @@ You need one only when the schema loses or changes an attribute, or old rows
 need a value the new code expects. A new column needs none.
 
 ```sh
-mix sukhi.datalevin.gen.migration drop_old_flag            # main store
-mix sukhi.datalevin.gen.migration backfill_sid --store graph
+mix sukhi.datalevin.gen.migration drop_old_flag
 ```
 
 That writes `lib/sukhi_fedi/datalevin/migrations/v<time>_<name>.ex`:
@@ -132,13 +130,12 @@ Rules:
 
 ## The lock: catching it in the pull request
 
-`priv/datalevin/schema.lock.json` is the schema of both stores as the last
+`priv/datalevin/schema.lock.json` is the schema as the last
 change left it (one attribute per line, so the diff reads as the change), plus
 the newest migration's version.
 
 ```sh
-mix sukhi.datalevin.catalog   # after SQL migrations, as before
-mix sukhi.datalevin.lock      # record it
+mix sukhi.datalevin.lock      # record it, after editing the catalog
 ```
 
 - A **new attribute** is recorded as is.
@@ -149,12 +146,12 @@ mix sukhi.datalevin.lock      # record it
 
 ## What this does not do
 
-- It does not convert Postgres to Datalevin (`DATALEVIN.md`, "Switching an
-  existing instance").
+- It does not convert a PostgreSQL store to Datalevin (`DATALEVIN.md`,
+  "Switching an existing instance").
 - It cannot undo: going back means restoring the copy in
   `datalevin-premigrate/` or a backup, then starting the older release.
-- It does not copy the SQLite queues or the raw store; only the Datalevin
-  directory it migrates.
+- It does not copy PostgreSQL (the job queues and raw bodies); only the
+  Datalevin directory it migrates.
 - The manifest is a file beside the data, not a record inside it. Restore a
   directory whole; a `data.mdb` copied alone has no history, and is taken as
   a store from before migrations existed (every migration runs, harmlessly).

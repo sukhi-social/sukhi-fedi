@@ -18,7 +18,7 @@ defmodule SukhiFedi.Datalevin.Migration do
 
   ## When one is needed
 
-  The schema itself is derived (`Catalog`, `SchemaFile`), so **a new
+  The schema itself is derived (`Catalog`), so **a new
   attribute needs no migration**: the store opens with it and rows that
   lack it read as `nil`. A migration is for what that does not cover:
 
@@ -37,7 +37,7 @@ defmodule SukhiFedi.Datalevin.Migration do
       half-migrated data must finish the job and change nothing else.
       `Ops` is written that way: it asks what is still to do.
     * **Single store.** `store: :main` is the Ecto-shaped database
-      (`DATALEVIN_DIR`), `store: :graph` the graph (`DATALEVIN_DIR/graph`).
+      (`DATALEVIN_DIR`).
     * **Open with the old shape.** While `up/1` runs, the store is open with
       the schema it had *before* this release plus the new attributes, so a
       removed attribute can still be read. Say what else `up/1` needs in
@@ -49,7 +49,7 @@ defmodule SukhiFedi.Datalevin.Migration do
 
   alias SukhiFedi.Datalevin.Migration.Ctx
 
-  @type store :: :main | :graph
+  @type store :: :main
 
   @doc "Do the work. Returns `:ok`; raise to stop."
   @callback up(Ctx.t()) :: :ok
@@ -69,8 +69,8 @@ defmodule SukhiFedi.Datalevin.Migration do
     unless is_integer(version) and version > 0,
       do: raise(ArgumentError, "migration version must be a positive integer, got #{inspect(version)}")
 
-    unless store in [:main, :graph],
-      do: raise(ArgumentError, "migration store must be :main or :graph, got #{inspect(store)}")
+    unless store == :main,
+      do: raise(ArgumentError, "migration store must be :main, got #{inspect(store)}")
 
     quote do
       @behaviour SukhiFedi.Datalevin.Migration

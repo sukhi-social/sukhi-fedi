@@ -88,7 +88,7 @@ make dev                                            # http://localhost:4000
 
 > [!TIP]
 > Today the store is **Datalevin** and the pages are **web-next**; production runs on Podman.
-> `make dev` still starts on Postgres (PGlite). [`docs/DEVELOPING.md`](docs/DEVELOPING.md) says how to use Datalevin instead.
+> `make dev` runs on Datalevin too, with the job queues on a pgrust server it starts for you; [`docs/DEVELOPING.md`](docs/DEVELOPING.md) has the details.
 
 Design, specifications, environment variables and tests: the table of contents is
 [`docs/README.md`](docs/README.md). If you are unsure where to start:

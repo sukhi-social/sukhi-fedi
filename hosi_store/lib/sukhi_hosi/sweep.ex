@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiHosi.Sweep do
   @moduledoc """
-  Capacity cleanup of *remote* posts, as in `Graph.Sweep`. Never touched: remote actors, local
+  Capacity cleanup of *remote* posts. Never touched: remote actors, local
   posts, follows. A remote post is **kept** if any of these holds, each worked out from the
   graph on every run (a stored flag has to be taken off again, and forgetting leaves something
   that can never be swept):

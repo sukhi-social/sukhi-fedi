@@ -117,7 +117,7 @@ FROM scratch AS cache-warm
 COPY --from=spa-deps /spa/package.json /spa-deps
 COPY --from=deps /repo/combined/mix.exs /deps
 
-# ── dtlv (SUKHI_STORE=datalevin) ──────────────────────────────────────────
+# ── dtlv ────────────────────────────────────────────────────────────────────
 # The Datalevin store runs `dtlv` as a child of the BEAM. Only releases built
 # for glibc are published, and the runtime image is Alpine (musl). Two things
 # were tried and failed on arm64, which is what production runs:
@@ -131,7 +131,7 @@ COPY --from=deps /repo/combined/mix.exs /deps
 # the shared libraries it needs, the release is pinned per architecture and
 # checked, and /usr/local/bin/dtlv is a wrapper that `exec`s the real binary
 # through that loader (no extra process stays). Only `dtlv` sees this glibc;
-# the BEAM stays on musl. Ignored unless SUKHI_STORE=datalevin.
+# the BEAM stays on musl.
 #
 # Checked on an arm64 box: `dtlv mcp -w` opens a database (created: true) from
 # an Alpine container this way. The amd64 path is not exercised.

@@ -3,7 +3,7 @@ defmodule SukhiFedi.AP.ExtractContentTest do
   use ExUnit.Case, async: true
 
   # Pure function, no DB — but the repo's local runner is
-  # `make test-pglite` (`--only integration`), so tag it to ride along.
+  # `make test-pgrust` (`--only integration`), so tag it to ride along.
   @moduletag :integration
 
   alias SukhiFedi.AP.Instructions.Extract

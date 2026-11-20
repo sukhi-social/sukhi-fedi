@@ -49,7 +49,6 @@ We would rather say so than hand you a machine translation; if you can help, ple
 | Every environment variable | [`ENV.md`](ENV.md) |
 | Where Datalevin keeps data, and its settings | [`DATALEVIN.md`](DATALEVIN.md) |
 | Upgrading a Datalevin store; writing a migration | [`DATALEVIN_MIGRATIONS.md`](DATALEVIN_MIGRATIONS.md) |
-| Moving the delivery queue to SQLite | [`DELIVERY_QUEUE_MIGRATION.ja.md`](DELIVERY_QUEUE_MIGRATION.ja.md) (ja) |
 | The bot gate (Anubis) | [`anubis.ja.md`](anubis.ja.md) (ja) |
 | Swapping small static fixes without a release | [`static-override.ja.md`](static-override.ja.md) (ja) |
 | Correcting data that went in wrong | [`data-correction.ja.md`](data-correction.ja.md) (ja) |

@@ -37,7 +37,8 @@ defmodule SukhiFedi.Translate do
   `media_attachments`), so any Mastodon client can read it.
   """
 
-  alias SukhiFedi.{HotCache, HTML, Notes, Repo}
+  alias SukhiFedi.Accounts
+  alias SukhiFedi.{HotCache, HTML, Notes}
   alias SukhiFedi.Schema.Account
   alias SukhiFedi.Translate.{DeepL, Gate, Key, LibreTranslate}
 
@@ -72,7 +73,7 @@ defmodule SukhiFedi.Translate do
 
   def status(%{id: viewer_id}, note_id, target, opts) when is_integer(viewer_id) do
     auto? = Keyword.get(opts, :auto, false) == true
-    account = Repo.get(Account, viewer_id)
+    account = Accounts.get(viewer_id)
 
     with {:ok, target} <- target(target),
          :ok <- consent(account, auto?),

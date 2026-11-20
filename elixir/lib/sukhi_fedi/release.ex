@@ -5,19 +5,12 @@ defmodule SukhiFedi.Release do
 
       bin/sukhi_fedi eval 'SukhiFedi.Release.migrate_all()'
 
-  Walks `priv/repo/migrations/core/` and each enabled addon's
-  `migrations_path/0`, in that order.
+  Runs the versioned Datalevin migrations (`SukhiFedi.Datalevin.Migrator`,
+  docs/DATALEVIN_MIGRATIONS.md). `Mix.Tasks.Sukhi.Migrate` routes through
+  `migrate_all/0`, so dev gets the same gate.
 
-  Before applying anything, `migrate_all/0` runs `check_migration_sanity/0`,
-  which refuses to migrate against a schema this release can't reason about
-  (an unapplied migration sitting *below* one already applied — an
-  out-of-order history that `:up` `all: true` would silently skip over).
-  `Mix.Tasks.Sukhi.Migrate` routes through `migrate_all/0`, so dev gets the
-  same gate.
-
-  With `SUKHI_STORE=datalevin` the same entry point runs the versioned
-  Datalevin migrations instead (`SukhiFedi.Datalevin.Migrator`,
-  docs/DATALEVIN_MIGRATIONS.md).
+  PostgreSQL holds the job queues only; Oban's tables are created when the
+  application boots (`SukhiFedi.Queue.Migrate`), not here.
   """
 
   require Logger
@@ -27,22 +20,14 @@ defmodule SukhiFedi.Release do
   def migrate_all do
     load_app()
 
-    if SukhiFedi.Store.datalevin?() do
-      # The Datalevin schema is derived (priv/datalevin/catalog.exs,
-      # schema.edn) and installed when the store opens; what needs doing is
-      # the versioned migrations, a store new or old, and a check that it
-      # opens (SukhiFedi.Datalevin.Migrator). The job queue creates its own
-      # SQLite tables at boot (docs/DATALEVIN.md).
-      Logger.info("store_init_start store=datalevin")
-      migrate_datalevin!()
-      Logger.info("store_init_complete store=datalevin")
-      :ok
-    else
-      Logger.info("migration_start store=postgres")
-      migrate_postgres()
-      Logger.info("migration_complete store=postgres")
-      :ok
-    end
+    # The Datalevin schema is derived (priv/datalevin/catalog.exs)
+    # and installed when the store opens; what needs doing is the versioned
+    # migrations, a store new or old, and a check that it opens
+    # (SukhiFedi.Datalevin.Migrator).
+    Logger.info("store_init_start store=datalevin")
+    migrate_datalevin!()
+    Logger.info("store_init_complete store=datalevin")
+    :ok
   end
 
   @doc """
@@ -77,11 +62,7 @@ defmodule SukhiFedi.Release do
       "store" => "datalevin",
       "data_dir" => config.dir,
       "data_dir_manifest" => SukhiFedi.Datalevin.Manifest.path(config),
-      "graph_dir" => Path.join(config.dir, "graph"),
-      "queue_db" => System.get_env("SUKHI_QUEUE_DB", "/var/lib/sukhi/queue.db"),
-      "delivery_queue_db" =>
-        System.get_env("DELIVERY_QUEUE_DB", "/var/lib/sukhi/delivery_queue.db"),
-      "raw_backend" => System.get_env("SUKHI_RAW_BACKEND", "sqlite"),
+      "raw_backend" => System.get_env("SUKHI_RAW_BACKEND", "postgres"),
       "raw_bucket" => System.get_env("SUKHI_RAW_BUCKET") || System.get_env("S3_BUCKET"),
       "instance_config" => SukhiShared.InstanceConfig.path(),
       "catalog_sha256" =>
@@ -108,9 +89,10 @@ defmodule SukhiFedi.Release do
   @doc """
   Verify the external services needed before the HTTP endpoint is opened.
 
-  Postgres is verified by `migrate_all/0`; Datalevin is opened above. NATS
-  still needs an explicit protocol check because its supervisor retries
-  asynchronously during a normal application boot.
+  Datalevin is opened by `migrate_all/0`. PostgreSQL (the job queues) and NATS
+  need an explicit check because their supervisors retry asynchronously during
+  a normal application boot, and a refused connection there would read as a
+  crash loop rather than as a missing service.
   """
   def check_runtime_connections! do
     config = SukhiShared.InstanceConfig.load()
@@ -124,6 +106,10 @@ defmodule SukhiFedi.Release do
         "routes=#{length(SukhiShared.InstanceConfig.routes(config) || [])}"
     )
 
+    Logger.info("runtime_connection_check_start service=postgres")
+    check_postgres!()
+    Logger.info("runtime_connection_check_complete service=postgres")
+
     if SukhiFedi.Config.nats_enabled?() do
       Logger.info("runtime_connection_check_start service=nats")
       check_nats!()
@@ -135,30 +121,31 @@ defmodule SukhiFedi.Release do
     :ok
   end
 
-  defp migrate_postgres do
-    check_migration_sanity()
+  # One connection, one `SELECT 1`, with the settings the queue will use.
+  defp check_postgres! do
+    config = Application.get_env(@app, SukhiFedi.QueueRepo, [])
+    host = Keyword.get(config, :hostname, "localhost")
+    port = Keyword.get(config, :port, 5432)
+    keys = [:hostname, :port, :database, :username, :password, :ssl, :ssl_opts]
 
-    paths = migration_paths()
+    {:ok, _} = Application.ensure_all_started(:postgrex)
+    {:ok, conn} = Postgrex.start_link(Keyword.take(config, keys))
 
-    for repo <- repos() do
-      Logger.info("migration_start repo=#{inspect(repo)}")
+    try do
+      case Postgrex.query(conn, "SELECT 1", []) do
+        {:ok, _} ->
+          Logger.info("startup_connection_ok service=postgres endpoint=#{host}:#{port}")
+          :ok
 
-      {:ok, _, _} =
-        Ecto.Migrator.with_repo(repo, fn repo ->
-          Ecto.Migrator.run(repo, paths, :up, all: true)
-        end)
-
-      Logger.info("migration_complete repo=#{inspect(repo)}")
+        {:error, reason} ->
+          raise "postgres connection failed endpoint=#{host}:#{port}; check " <>
+                  "`podman logs <postgres-container>` and `nc -vz #{host} #{port}` " <>
+                  "as the sukhi user; startup stopped and existing data was not changed: " <>
+                  Exception.message(reason)
+      end
+    after
+      GenServer.stop(conn)
     end
-  rescue
-    error ->
-      host = System.get_env("DB_HOST", "localhost")
-      port = System.get_env("DB_PORT", "5432")
-
-      raise "postgres migration failed endpoint=#{host}:#{port}; check " <>
-              "`podman logs <postgres-container>` and `nc -vz #{host} #{port}` " <>
-              "as the sukhi user; startup stopped and existing data was not changed: " <>
-              Exception.message(error)
   end
 
   defp migrate_datalevin! do
@@ -222,85 +209,6 @@ defmodule SukhiFedi.Release do
   end
 
   defp recv_nats_pong(_socket, _buffer, 0), do: {:error, :no_pong}
-
-  @doc """
-  Refuse to migrate against an out-of-order schema. For each repo, over the
-  exact same path set `migrate_all/0` uses, ask Ecto which migrations are
-  applied vs pending; if any pending (`:down`) migration sits *below* the
-  highest applied (`:up`) version, raise listing the offending versions.
-
-  Such a state means the database carries history this release can't account
-  for — a migration was applied out of order, or this release is missing one
-  that ran below its newest. `:up` with `all: true` would happily run the
-  stragglers without complaint, leaving the schema in an order no release
-  reasoned about. Better to stop, loudly.
-  """
-  def check_migration_sanity do
-    load_app()
-
-    if SukhiFedi.Store.datalevin?(), do: :ok, else: check_postgres_sanity()
-  end
-
-  defp check_postgres_sanity do
-    paths = migration_paths()
-
-    for repo <- repos() do
-      {:ok, _, _} =
-        Ecto.Migrator.with_repo(repo, fn repo ->
-          repo
-          |> Ecto.Migrator.migrations(paths)
-          |> migrations_out_of_order()
-          |> case do
-            [] ->
-              :ok
-
-            offending ->
-              raise """
-              #{inspect(repo)}: refusing to migrate — pending migrations sit \
-              below an already-applied one. The schema's history is out of \
-              order; this release can't reason about it. Offending versions: \
-              #{Enum.join(offending, ", ")}.
-              """
-          end
-        end)
-    end
-
-    :ok
-  end
-
-  # Pending (`:down`) versions that sit below the highest applied (`:up`)
-  # one, given `Ecto.Migrator.migrations/2`'s `[{status, version, name}]`.
-  # Empty when the history is a clean prefix of applied followed by pending.
-  # Public (and DB-free) so the rule is testable in isolation; not API.
-  @doc false
-  def migrations_out_of_order(migrations) do
-    applied = for {:up, version, _name} <- migrations, do: version
-    highest_up = Enum.max(applied, fn -> nil end)
-
-    case highest_up do
-      nil ->
-        []
-
-      _ ->
-        for {:down, version, _name} <- migrations, version < highest_up, do: version
-    end
-  end
-
-  defp migration_paths do
-    [core_path() | addon_paths()]
-  end
-
-  defp core_path do
-    Application.app_dir(@app, Path.join(["priv", "repo", "migrations", "core"]))
-  end
-
-  defp addon_paths do
-    SukhiFedi.Addon.Registry.migrations_paths()
-  end
-
-  defp repos do
-    Application.fetch_env!(@app, :ecto_repos)
-  end
 
   defp load_app do
     Application.load(@app)

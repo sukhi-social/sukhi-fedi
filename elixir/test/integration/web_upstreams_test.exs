@@ -93,7 +93,7 @@ defmodule SukhiFedi.Integration.WebUpstreamsTest do
     assert conn.resp_body =~ "/etc/sukhi/instance.json"
     assert conn.resp_body =~ "SukhiFedi.Release.create_admin"
     assert conn.resp_body =~ "DATALEVIN_DIR"
-    assert conn.resp_body =~ "DELIVERY_QUEUE_DB"
+    assert conn.resp_body =~ "PostgreSQL"
     refute conn.resp_body =~ "SECRET_KEY_BASE="
   end
 

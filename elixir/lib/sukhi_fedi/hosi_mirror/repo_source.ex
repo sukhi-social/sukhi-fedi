@@ -2,8 +2,8 @@
 if Code.ensure_loaded?(SukhiHosi.Source) do
   defmodule SukhiFedi.HosiMirror.RepoSource do
     @moduledoc """
-    `SukhiHosi.Source` over `SukhiFedi.Repo`: the same Ecto queries answer whether the store is
-    PostgreSQL or Datalevin (`SUKHI_STORE`). Used as `{RepoSource, nil}`.
+    `SukhiHosi.Source` over `SukhiFedi.Repo`: plain Ecto queries against the Datalevin
+    store. Used as `{RepoSource, nil}`.
     """
 
     @behaviour SukhiHosi.Source

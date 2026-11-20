@@ -15,6 +15,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
 
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.{Notes, Notifications, Repo, Snowflake}
   alias SukhiFedi.Addons.Deco.{Boards, Federation, View}
   alias SukhiFedi.Addons.Moderation
@@ -211,7 +212,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
   end
 
   defp check_pace(account_id) do
-    with %Account{created_at: created_at} <- Repo.get(Account, account_id),
+    with %Account{created_at: created_at} <- Accounts.get(account_id),
          true <- new_account?(created_at),
          %DateTime{} = last <- last_post_at(account_id),
          true <- DateTime.diff(DateTime.utc_now(), last) < @new_account_min_gap_s do

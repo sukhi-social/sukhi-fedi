@@ -119,15 +119,9 @@ defmodule SukhiFedi.Integration.RebuildRemoteNotesTest do
     end
   end
 
-  # The `notes_remote_id_from_published` trigger overwrites `id` on any
-  # INSERT that carries an `ap_id`, so a legacy serial-id remote note can't be
-  # inserted in one go. Same route the maintenance tool takes: insert with
-  # `ap_id` NULL (id kept), then set `ap_id` by UPDATE (trigger is INSERT-only).
-  defp insert_legacy_note!(%Note{ap_id: ap_id} = note) do
-    inserted = Repo.insert!(%{note | ap_id: nil})
-    Repo.query!("UPDATE notes SET ap_id = $1 WHERE id = $2", [ap_id, inserted.id])
-    %{inserted | ap_id: ap_id}
-  end
+  # A legacy row: it keeps the serial id it was given, as the store keeps any
+  # id the caller sets.
+  defp insert_legacy_note!(%Note{} = note), do: Repo.insert!(note)
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}

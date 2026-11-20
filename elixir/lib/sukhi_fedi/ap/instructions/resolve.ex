@@ -5,6 +5,7 @@ defmodule SukhiFedi.AP.Instructions.Resolve do
   ingest on first contact) and target notes.
   """
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.AP.Instructions.Extract
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.{Account, Note}
@@ -28,7 +29,7 @@ defmodule SukhiFedi.AP.Instructions.Resolve do
         end
 
       true ->
-        case Repo.get_by(Account, actor_uri: actor_uri) do
+        case Accounts.by_actor_uri(actor_uri) do
           %Account{} = a ->
             {:ok, a}
 
