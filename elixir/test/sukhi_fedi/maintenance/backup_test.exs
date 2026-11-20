@@ -34,11 +34,8 @@ defmodule SukhiFedi.Maintenance.BackupTest do
 
     base = [
       root: Path.join(tmp, "backups"),
-      datalevin?: true,
       # `sh` is any executable that exists: the fake `cmd` never runs it.
       config: %Config{dir: data, bin: "sh", xmx: "96m"},
-      graph_dir: nil,
-      queue_dbs: [],
       cmd: cmd,
       free_bytes: fn _ -> :unknown end,
       manifest: fn path -> File.write(path, ~s({"format":1})) end,
@@ -51,10 +48,6 @@ defmodule SukhiFedi.Maintenance.BackupTest do
   defp calls(agent), do: agent |> Agent.get(& &1) |> Enum.reverse() |> Enum.map(&elem(&1, 1))
 
   describe "run/1" do
-    test "not on Postgres: that has its own dump", %{base: base} do
-      assert {:error, :not_datalevin} = Backup.run(Keyword.put(base, :datalevin?, false))
-    end
-
     test "copies the data directory, checks the copy opens, and names it by its time", %{
       tmp: tmp,
       base: base,
@@ -82,23 +75,6 @@ defmodule SukhiFedi.Maintenance.BackupTest do
 
       # complete means renamed: nothing is left half-built
       assert File.ls!(Path.join(tmp, "backups")) == ["20261105T102030Z"]
-    end
-
-    test "the graph env is copied beside it, nested as it is on disk", %{
-      tmp: tmp,
-      data: data,
-      base: base
-    } do
-      graph = Path.join(data, "graph")
-      File.mkdir_p!(graph)
-
-      assert {:ok, %{dir: dir, items: items}} = Backup.run(Keyword.put(base, :graph_dir, graph))
-
-      assert Enum.map(items, &{&1.kind, &1.path}) ==
-               [{:datalevin, "datalevin"}, {:datalevin_graph, "datalevin/graph"}]
-
-      assert File.read!(Path.join(dir, "datalevin/graph/data.mdb")) == "copied"
-      assert dir =~ tmp
     end
 
     test "a copy that fails leaves nothing that looks like a backup", %{tmp: tmp, base: base} do
@@ -168,76 +144,6 @@ defmodule SukhiFedi.Maintenance.BackupTest do
 
       assert {:ok, _} = Backup.run(Keyword.put(base, :cmd, cmd))
       assert_received {:inner, {:error, :already_running}}
-    end
-  end
-
-  describe "SQLite queues" do
-    test "VACUUM INTO and quick_check on a real file", %{tmp: tmp, base: base} do
-      src = Path.join(tmp, "queue.db")
-      {:ok, conn} = Exqlite.Sqlite3.open(src)
-
-      :ok =
-        Exqlite.Sqlite3.execute(
-          conn,
-          "CREATE TABLE oban_jobs (id INTEGER PRIMARY KEY, state TEXT)"
-        )
-
-      :ok =
-        Exqlite.Sqlite3.execute(
-          conn,
-          "INSERT INTO oban_jobs (state) VALUES ('available'), ('completed')"
-        )
-
-      Exqlite.Sqlite3.close(conn)
-
-      # the suite runs with --no-start
-      {:ok, _} = Application.ensure_all_started(:ecto_sqlite3)
-      start_supervised!({SukhiFedi.QueueRepo, database: src, pool_size: 1})
-
-      opts =
-        Keyword.merge(base,
-          queue_dbs: [{SukhiFedi.QueueRepo, src}],
-          vacuum: &Backup.vacuum_into/2
-        )
-
-      assert {:ok, %{dir: dir, items: items}} = Backup.run(opts)
-      assert %{kind: :sqlite, path: "queue.db"} = Enum.find(items, &(&1.kind == :sqlite))
-
-      {:ok, copy} = Exqlite.Sqlite3.open(Path.join(dir, "queue.db"), mode: :readonly)
-      {:ok, stmt} = Exqlite.Sqlite3.prepare(copy, "SELECT count(*) FROM oban_jobs")
-      assert {:ok, [[2]]} = Exqlite.Sqlite3.fetch_all(copy, stmt)
-      Exqlite.Sqlite3.release(copy, stmt)
-      Exqlite.Sqlite3.close(copy)
-    end
-
-    test "quick_check says ok to a database and an error to a damaged one", %{tmp: tmp} do
-      good = Path.join(tmp, "good.db")
-      {:ok, conn} = Exqlite.Sqlite3.open(good)
-      :ok = Exqlite.Sqlite3.execute(conn, "CREATE TABLE t (a INTEGER)")
-      Exqlite.Sqlite3.close(conn)
-      assert Backup.quick_check(good) == :ok
-
-      bad = Path.join(tmp, "bad.db")
-      File.write!(bad, String.duplicate("not sqlite at all, ", 400))
-      assert {:error, _} = Backup.quick_check(bad)
-    end
-
-    test "a queue file that does not check out fails the backup and cleans up", %{
-      tmp: tmp,
-      base: base
-    } do
-      opts =
-        Keyword.merge(base,
-          queue_dbs: [{SukhiFedi.QueueRepo, Path.join(tmp, "queue.db")}],
-          vacuum: fn _repo, dest ->
-            File.write!(dest, "junk")
-            :ok
-          end,
-          quick_check: fn _ -> {:error, :damaged} end
-        )
-
-      assert {:error, {:sqlite, "queue.db", :damaged}} = Backup.run(opts)
-      assert File.ls!(Path.join(tmp, "backups")) == []
     end
   end
 

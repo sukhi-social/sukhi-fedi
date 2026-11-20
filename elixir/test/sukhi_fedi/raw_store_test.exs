@@ -89,7 +89,7 @@ defmodule SukhiFedi.RawStoreTest do
 
   describe "Config.from_env/1" do
     test "defaults" do
-      assert {:ok, %Config{backend: SukhiFedi.RawStore.SQLite, inline_max: 4096, grace_s: 86_400}} =
+      assert {:ok, %Config{backend: SukhiFedi.RawStore.Postgres, inline_max: 4096, grace_s: 86_400}} =
                Config.from_env(%{})
     end
 

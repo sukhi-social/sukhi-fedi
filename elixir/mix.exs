@@ -60,16 +60,12 @@ defmodule SukhiFedi.MixProject do
       # image. Pinned to a tag: ojak-ex is young and its API may change.
       {:ojak, github: "sukhi-social/ojak-ex", tag: "v0.1.3"},
 
-      # Database
+      # Postgres for the job queues (Oban); the business data is Datalevin
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.18"},
 
       # Job queue
       {:oban, "~> 2.18"},
-
-      # Where the job queues live when the business data is in Datalevin
-      # (SUKHI_STORE=datalevin): Oban's Lite engine on a SQLite file.
-      {:ecto_sqlite3, "~> 0.17"},
 
       # NATS client
       {:gnat, "~> 1.8"},

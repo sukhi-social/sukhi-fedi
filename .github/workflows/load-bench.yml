@@ -74,6 +74,19 @@ jobs:
         working-directory: head
         run: mix local.hex --force && mix local.rebar --force
 
+      # The head checkout keeps its business data in Datalevin, which runs
+      # `dtlv`. Same release and checksum as test.yml and combined/Dockerfile.
+      - name: Install dtlv
+        env:
+          DTLV_VERSION: 1.2.10
+          DTLV_SHA256: b42c1ef4b6a9ccf2a42b21f9c576fe774ff877c15826031755f0b94a3c0df3e5
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/dtlv.zip" \
+            "https://github.com/datalevin/datalevin/releases/download/${DTLV_VERSION}/dtlv-${DTLV_VERSION}-ubuntu-22.04-amd64.zip"
+          echo "${DTLV_SHA256}  $RUNNER_TEMP/dtlv.zip" | sha256sum -c -
+          sudo unzip -j -q "$RUNNER_TEMP/dtlv.zip" dtlv -d /usr/local/bin
+          sudo chmod +x /usr/local/bin/dtlv
+
       - name: Benchmark main
         working-directory: head
         run: scripts/load/ci.sh ../base base

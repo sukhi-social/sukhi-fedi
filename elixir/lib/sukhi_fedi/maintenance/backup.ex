@@ -6,30 +6,28 @@ defmodule SukhiFedi.Maintenance.Backup do
 
       <root>/<UTC stamp>/
         datalevin/            dtlv copy of DATALEVIN_DIR   (the business data)
-        datalevin/graph/      dtlv copy of its graph env   (only with SUKHI_GRAPH)
         datalevin/.sukhi-store.json
-        queue.db              VACUUM INTO of SUKHI_QUEUE_DB
-        delivery_queue.db     VACUUM INTO of DELIVERY_QUEUE_DB (combined release)
         backup-manifest.json  the restore inventory `Release.check_datalevin_backup_manifest!/1` reads
         backup-info.json      what this run copied: sizes, versions, the door's state
 
   The directory is built as `<stamp>.partial` and renamed only after every
-  piece was copied **and read back** (`dtlv stat` on each copy, SQLite's
-  `quick_check` on each queue file), so a directory with a bare stamp is a
-  copy that opened. A failed run removes its partial and leaves nothing that
+  piece was copied **and read back** (`dtlv stat` on each copy), so a
+  directory with a bare stamp is a copy that opened. A failed run removes its partial and leaves nothing that
   looks like a backup.
 
-  Both copy tools are the ones built for a database in use: `dtlv copy`
-  ("regardless of whether it is now in use", dtlv's own help) and SQLite's
-  `VACUUM INTO`. So `run/1` works on a live server; the drain
-  (`SukhiFedi.Maintenance.Drain.backup/1`) is what makes the moment quiet.
-  A plain `cp` of these files is not a backup and is never used here.
+  The copy tool is the one built for a database in use: `dtlv copy`
+  ("regardless of whether it is now in use", dtlv's own help). So `run/1`
+  works on a live server; the drain (`SukhiFedi.Maintenance.Drain.backup/1`)
+  is what makes the moment quiet. A plain `cp` of these files is not a backup
+  and is never used here.
 
-  **Not covered** (the manifest says which applies): raw bodies when
-  `SUKHI_RAW_BACKEND=s3` (the bucket's own versioning/replication), the
-  mounted `/etc/sukhi/instance.json`, and every `podman secret` — a secret
-  copied into a backup directory would be a secret copied to every place the
-  backup goes.
+  **Not covered**: everything in PostgreSQL (the job queues, and the raw bodies
+  when `SUKHI_RAW_BACKEND=postgres`, the default; take those with the
+  database's own backup), raw bodies in S3 (the bucket's own
+  versioning/replication), the mounted `/etc/sukhi/instance.json`, and every
+  `podman secret` — a secret copied into a backup directory would be a secret
+  copied to every place the backup goes. `backup-info.json` says which raw
+  backend applied.
 
   Only one `run/1` at a time (`:global` lock); a second caller gets
   `{:error, :already_running}` at once.
@@ -59,8 +57,7 @@ defmodule SukhiFedi.Maintenance.Backup do
 
   Options (all for tests, apart from `:keep`): `:root`, `:keep` (how many
   complete backups to retain, default #{@default_keep}; `nil` keeps all),
-  `:config` (a `Datalevin.Config`), `:graph_dir`, `:queue_dbs`
-  (`[{repo, path}]`), `:cmd`, `:vacuum`, `:quick_check`, `:free_bytes`,
+  `:config` (a `Datalevin.Config`), `:cmd`, `:free_bytes`,
   `:now`, `:manifest`.
   """
   @spec run(keyword()) :: {:ok, info()} | {:error, term()}
@@ -76,33 +73,27 @@ defmodule SukhiFedi.Maintenance.Backup do
   defp locked_run(opts) do
     ctx = ctx(opts)
 
-    if ctx.datalevin? do
-      stamp = Calendar.strftime(ctx.now.(), "%Y%m%dT%H%M%SZ")
-      final = Path.join(ctx.root, stamp)
-      partial = final <> ".partial"
+    stamp = Calendar.strftime(ctx.now.(), "%Y%m%dT%H%M%SZ")
+    final = Path.join(ctx.root, stamp)
+    partial = final <> ".partial"
 
-      result =
-        with :ok <- absent(final),
-             :ok <- File.mkdir_p(partial),
-             :ok <- enough_space(ctx, partial),
-             {:ok, a} <- copy_datalevin(ctx, partial),
-             {:ok, b} <- copy_queues(ctx, partial),
-             items = a ++ b,
-             :ok <- write_manifests(ctx, partial, items),
-             :ok <- File.rename(partial, final) do
-          {:ok, %{dir: final, items: items, bytes: Enum.sum(Enum.map(items, & &1.bytes))}}
-        end
-
-      case result do
-        {:ok, info} ->
-          {:ok, Map.put(info, :pruned, prune(ctx.root, Keyword.get(opts, :keep, @default_keep)))}
-
-        {:error, _} = error ->
-          File.rm_rf(partial)
-          error
+    result =
+      with :ok <- absent(final),
+           :ok <- File.mkdir_p(partial),
+           :ok <- enough_space(ctx, partial),
+           {:ok, items} <- copy_datalevin(ctx, partial),
+           :ok <- write_manifests(ctx, partial, items),
+           :ok <- File.rename(partial, final) do
+        {:ok, %{dir: final, items: items, bytes: Enum.sum(Enum.map(items, & &1.bytes))}}
       end
-    else
-      {:error, :not_datalevin}
+
+    case result do
+      {:ok, info} ->
+        {:ok, Map.put(info, :pruned, prune(ctx.root, Keyword.get(opts, :keep, @default_keep)))}
+
+      {:error, _} = error ->
+        File.rm_rf(partial)
+        error
     end
   end
 
@@ -141,12 +132,7 @@ defmodule SukhiFedi.Maintenance.Backup do
   defp copy_datalevin(ctx, partial) do
     dest = Path.join(partial, "datalevin")
 
-    envs =
-      [{ctx.config.dir, dest, :datalevin}] ++
-        case ctx.graph_dir do
-          nil -> []
-          dir -> [{dir, Path.join(dest, "graph"), :datalevin_graph}]
-        end
+    envs = [{ctx.config.dir, dest, :datalevin}]
 
     with {:ok, exe} <- dtlv(ctx),
          {:ok, items} <- copy_envs(ctx, exe, envs, partial) do
@@ -198,50 +184,6 @@ defmodule SukhiFedi.Maintenance.Backup do
     end
   end
 
-  # ── SQLite queues ─────────────────────────────────────────────────────────
-
-  defp copy_queues(ctx, partial) do
-    Enum.reduce_while(ctx.queue_dbs, {:ok, []}, fn {repo, path}, {:ok, acc} ->
-      dest = Path.join(partial, Path.basename(path))
-
-      with :ok <- ctx.vacuum.(repo, dest),
-           :ok <- ctx.quick_check.(dest) do
-        item = %{kind: :sqlite, path: Path.basename(path), bytes: size(dest)}
-        {:cont, {:ok, acc ++ [item]}}
-      else
-        {:error, reason} -> {:halt, {:error, {:sqlite, Path.basename(path), reason}}}
-      end
-    end)
-  end
-
-  @doc false
-  def vacuum_into(repo, dest) do
-    case Ecto.Adapters.SQL.query(repo, "VACUUM INTO ?1", [dest]) do
-      {:ok, _} -> :ok
-      {:error, error} -> {:error, Exception.message(error)}
-    end
-  rescue
-    error -> {:error, Exception.message(error)}
-  end
-
-  @doc false
-  def quick_check(path) do
-    with {:ok, conn} <- Exqlite.Sqlite3.open(path, mode: :readonly) do
-      try do
-        with {:ok, stmt} <- Exqlite.Sqlite3.prepare(conn, "PRAGMA quick_check"),
-             {:ok, rows} <- Exqlite.Sqlite3.fetch_all(conn, stmt),
-             :ok <- Exqlite.Sqlite3.release(conn, stmt) do
-          case rows do
-            [["ok"]] -> :ok
-            other -> {:error, {:quick_check, other}}
-          end
-        end
-      after
-        Exqlite.Sqlite3.close(conn)
-      end
-    end
-  end
-
   # ── Manifests ─────────────────────────────────────────────────────────────
 
   defp write_manifests(ctx, partial, items) do
@@ -251,8 +193,7 @@ defmodule SukhiFedi.Maintenance.Backup do
         created_at: DateTime.to_iso8601(ctx.now.()),
         app_version: to_string(Application.spec(:sukhi_fedi, :vsn)),
         store: "datalevin",
-        raw_backend: System.get_env("SUKHI_RAW_BACKEND", "sqlite"),
-        raw_covered: System.get_env("SUKHI_RAW_BACKEND", "sqlite") == "sqlite",
+        raw_backend: System.get_env("SUKHI_RAW_BACKEND", "postgres"),
         items: items,
         intake: SukhiShared.Intake.marker(SukhiShared.Intake.status())
       }
@@ -279,7 +220,7 @@ defmodule SukhiFedi.Maintenance.Backup do
   end
 
   defp source_bytes(ctx) do
-    size(ctx.config.dir) + Enum.sum(for {_repo, path} <- ctx.queue_dbs, do: size(path))
+    size(ctx.config.dir)
   end
 
   @doc false
@@ -326,14 +267,9 @@ defmodule SukhiFedi.Maintenance.Backup do
     config = Keyword.get_lazy(opts, :config, &Config.current/0)
 
     %{
-      datalevin?: Keyword.get_lazy(opts, :datalevin?, &SukhiFedi.Store.datalevin?/0),
       root: Keyword.get_lazy(opts, :root, &root/0),
       config: config,
-      graph_dir: Keyword.get_lazy(opts, :graph_dir, fn -> graph_dir(config) end),
-      queue_dbs: Keyword.get_lazy(opts, :queue_dbs, &queue_dbs/0),
       cmd: Keyword.get(opts, :cmd, &cmd/2),
-      vacuum: Keyword.get(opts, :vacuum, &vacuum_into/2),
-      quick_check: Keyword.get(opts, :quick_check, &quick_check/1),
       free_bytes: Keyword.get(opts, :free_bytes, &free_bytes/1),
       manifest:
         Keyword.get(opts, :manifest, fn path ->
@@ -341,20 +277,6 @@ defmodule SukhiFedi.Maintenance.Backup do
         end),
       now: Keyword.get(opts, :now, fn -> DateTime.utc_now() |> DateTime.truncate(:second) end)
     }
-  end
-
-  defp graph_dir(config),
-    do: if(SukhiFedi.Graph.enabled?(), do: Path.join(config.dir, "graph"), else: nil)
-
-  # Every SQLite queue this BEAM runs: the gateway's, and delivery's when
-  # combined. Whatever file the repo is configured on, not a path guessed
-  # from an env var.
-  defp queue_dbs do
-    for repo <- SukhiFedi.Queue.job_repos(),
-        path = repo.config()[:database],
-        is_binary(path) do
-      {repo, path}
-    end
   end
 
   # One command, with an end: a copy that hangs would hang the rpc and the

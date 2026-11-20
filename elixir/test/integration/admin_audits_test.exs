@@ -39,15 +39,15 @@ defmodule SukhiFedi.Integration.AdminAuditsTest do
     assert audit.metadata["severity"] == "suspend"
   end
 
-  test "audit rows cannot be deleted (append-only trigger)" do
+  test "audit rows cannot be deleted (append-only)" do
     row = Repo.insert!(AdminAudit.changeset(%{action: "t_del", admin_account_id: 1}))
-    assert_raise Postgrex.Error, fn -> Repo.delete(row) end
+    assert_raise ArgumentError, ~r/append-only/, fn -> Repo.delete(row) end
   end
 
-  test "audit rows cannot be updated (append-only trigger)" do
+  test "audit rows cannot be updated (append-only)" do
     row = Repo.insert!(AdminAudit.changeset(%{action: "t_upd", admin_account_id: 1}))
 
-    assert_raise Postgrex.Error, fn ->
+    assert_raise ArgumentError, ~r/append-only/, fn ->
       row |> Ecto.Changeset.change(%{reason: "tampered"}) |> Repo.update()
     end
   end

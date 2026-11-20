@@ -1,64 +1,33 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Queue do
   @moduledoc """
-  Where the gateway's Oban keeps its jobs.
+  Where the gateway's Oban keeps its jobs: PostgreSQL, through
+  `SukhiFedi.QueueRepo`.
 
-  With the default store, the Oban config is used as written (`SukhiFedi.Repo`,
-  Postgres). With `SUKHI_STORE=datalevin` the same queues, cron entries and
-  plugins run on Oban's Lite engine over `SukhiFedi.QueueRepo` (SQLite, one
-  node), because the engine behind `SukhiFedi.Repo` is not a SQL database.
-  Jobs are therefore *not* in the same store as the business rows; the
-  at-least-once consequences are the ones docs/DELIVERY_QUEUE_MIGRATION.ja.md
-  already describes for the SQLite delivery queue.
+  The business rows are in Datalevin (`SukhiFedi.Repo`), so a job is never in
+  the same store as the row that caused it. A job insert and a Datalevin write
+  cannot share a transaction; callers write the row first and enqueue after,
+  and a job that runs twice must be harmless (`delivery_receipts` for sends).
+
+  The delivery node's Oban (`SukhiDelivery.Oban`) uses the same database and
+  the same `oban_jobs` table, with queues of its own; each node runs only the
+  queues named in its own config, so a job inserted here for a delivery queue
+  is picked up there.
   """
 
-  alias SukhiFedi.Store
+  @doc "Children that must start before Oban: the connection, and the tables."
+  @spec children() :: [module()]
+  def children, do: [SukhiFedi.QueueRepo, SukhiFedi.Queue.Migrate]
 
-  @doc "Children that must start before Oban: the queue file and its tables."
-  @spec children() :: [Supervisor.child_spec() | module()]
-  def children do
-    if Store.datalevin?(), do: [SukhiFedi.QueueRepo, SukhiFedi.Queue.Migrate], else: []
-  end
-
-  @doc "The repo that holds this gateway's `oban_jobs`."
+  @doc "The repo that holds `oban_jobs`."
   @spec repo() :: module()
-  def repo, do: if(Store.datalevin?(), do: SukhiFedi.QueueRepo, else: SukhiFedi.Repo)
+  def repo, do: SukhiFedi.QueueRepo
 
-  @doc "Every repo to read `oban_jobs` from: ours, and any extra queue store (the SQLite delivery queue in a combined release)."
+  @doc "Every repo to read `oban_jobs` from. One database holds every queue, so this is one repo; callers loop over a list."
   @spec job_repos() :: [module()]
-  def job_repos, do: Enum.uniq([repo() | Application.get_env(:sukhi_fedi, :extra_job_repos, [])])
+  def job_repos, do: [repo()]
 
   @doc "The keyword list `{Oban, …}` is started with."
   @spec oban_config() :: keyword()
-  def oban_config do
-    config = Application.fetch_env!(:sukhi_fedi, Oban) |> with_graph_jobs()
-
-    if Store.datalevin?(),
-      do:
-        Keyword.merge(config,
-          engine: Oban.Engines.Lite,
-          repo: SukhiFedi.QueueRepo,
-          notifier: Oban.Notifiers.PG
-        ),
-      else: config
-  end
-
-  # The graph's recurring jobs ride the existing Cron plugin, only when the graph is on.
-  defp with_graph_jobs(config) do
-    if SukhiFedi.Graph.enabled?() do
-      Keyword.update(config, :plugins, [], fn plugins ->
-        Enum.map(plugins, fn
-          {Oban.Plugins.Cron, opts} ->
-            {Oban.Plugins.Cron,
-             Keyword.update(opts, :crontab, [], &(&1 ++ SukhiFedi.Graph.Workers.crontab()))}
-
-          other ->
-            other
-        end)
-      end)
-      |> Keyword.update(:queues, [maintenance: 1], &Keyword.put_new(&1, :maintenance, 1))
-    else
-      config
-    end
-  end
+  def oban_config, do: Application.fetch_env!(:sukhi_fedi, Oban)
 end

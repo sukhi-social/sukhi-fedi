@@ -2,24 +2,35 @@
 
 Two ways to run the Elixir integration suite. Pick by what the tests touch.
 
-## Quick: PGlite (no Docker)
+## Quick: pgrust (no Docker)
 
-For the large class of tests that only need **Postgres**, run against an
-embedded [PGlite](https://pglite.dev) (Postgres compiled to WASM) exposed
-over the wire protocol — no Docker daemon, no Postgres server:
+The business data is in Datalevin and the job queues are in Postgres. The
+script gives the first a throwaway directory (**`dtlv` must be on the PATH**,
+or `DATALEVIN_BIN` must point at it) and the second a
+[pgrust](https://pgrust.com) server, a PostgreSQL 18 compatible server that
+needs no install — no Docker daemon, no Postgres server:
 
 ```bash
-make test-pglite
-make test-pglite ARGS="test/integration/social_test.exs:97"
+make test-pgrust
+make test-pgrust ARGS="test/integration/social_test.exs:97"
 # or directly, with mix-test args passed through:
-scripts/test-pglite.sh test/integration/social_test.exs
+scripts/test-pgrust.sh test/integration/social_test.exs
 ```
 
-The script starts `node pglite/server.mjs` (an in-memory PGlite
-on `127.0.0.1:15433`), runs `mix sukhi.migrate`, then `mix test --only
-integration`, and stops PGlite on exit.
+The first run fetches pgrust (about 30 MB, from pgrust.com) into `.pgrust/` and
+checks it against the checksum pinned in `scripts/lib/pgrust.sh`; after that
+it is local. `PGRUST_DIR` points at a pgrust you installed yourself, and
+`PGRUST_PORT` moves it off `15433`.
 
-**What it covers:** every test that only needs Postgres.
+The script starts pgrust on `127.0.0.1:15433` over a throwaway data directory,
+creates `sukhi_fedi_test`, runs `mix sukhi.migrate` (Datalevin) against a fresh
+`DATALEVIN_DIR`, then `mix test --only integration`, and with no arguments the
+delivery node's queue tests (`delivery/test/queue`, `--no-start`), and stops
+pgrust and removes both directories on exit. The delivery node's other
+integration test (`pull_federation/origin_test.exs`) needs the gateway's store
+in the same BEAM, so it is not run here.
+
+**What it covers:** every test that needs only Datalevin and the job queues.
 
 **What it does NOT:** tests that need NATS (streaming) or S3 (media,
 inbound_archive); those tests carry `skip: s3_skip()` and the script
@@ -27,31 +38,24 @@ sets `SKIP_S3_TESTS=1`, so they show as skipped. The script sets `DISABLE_ADDONS
 boots without NATS — streaming integration tests are skipped on this
 path. For those, use the Docker route below.
 
-### Caveats (why the config bends a little)
+### Notes
 
-PGlite is a *single* Postgres instance, multiplexed over one connection
-by `pglite-socket`. So:
+pgrust speaks the ordinary protocol, so `config/test.exs` has nothing special
+for it: a pool of ten, named prepared statements and the migration lock are
+as on any PostgreSQL. What is particular to it is in `scripts/lib/pgrust.sh`:
+it wants a bigger stack than a shell gives (the script raises the limit and
+sets `RUST_MIN_STACK`), and its Unix socket lives under `/tmp` because
+macOS's `$TMPDIR` is too long for a socket path.
 
-- **One database.** PGlite has no `CREATE DATABASE`; it serves a single
-  DB and ignores the requested name. The Repo's `database:` is therefore
-  irrelevant on this path (no `ecto.create` needed — `sukhi.migrate`
-  runs straight against it).
-- **Small pool.** `config/test.exs` reads `DB_POOL_SIZE` (the script
-  sets `5`); the socket server runs with `maxConnections=20`.
-- **Migration lock off.** The lock holds a second connection for the
-  whole run and deadlocks against the migrating connection on the
-  multiplexer, so `config/test.exs` sets `migration_lock: false`. A
-  single test migrator never races, so the lock isn't needed.
-- **No SSL.** Postgrex connects with `ssl: false` (the default).
-- **Unnamed prepared statements.** PGlite's multiplexer mishandles
-  *named* prepares (a reused plan with a different param count throws
-  `08P01 protocol_violation`), so `config/test.exs` sets
-  `prepare: :unnamed`. Harmless on real Postgres.
+- It is a beta (v0.4-beta), and builds exist for Linux and macOS (x86-64 and
+  Arm), not Windows. When a test fails here, running it on the Docker route
+  below tells a pgrust difference from a bug.
+- It is AGPL-3.0, a tool run beside the tests, not something sukhi ships.
 
 `config/test.exs` takes `DB_HOST` / `DB_PORT` / `DB_USER` /
 `DB_PASSWORD` / `DB_NAME` / `DB_POOL_SIZE` from the environment, with
 defaults (`127.0.0.1` / `15432` / `postgres` / `postgres`) that match
-**both** the Docker Postgres and PGlite.
+**both** the Docker Postgres and pgrust (which trusts local connections).
 
 ## Full: Docker Compose
 

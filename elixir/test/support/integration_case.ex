@@ -5,8 +5,11 @@ defmodule SukhiFedi.IntegrationCase do
   Support for integration tests running against a live docker-compose.test.yml
   stack.
 
+  The business data is Datalevin: it needs the `dtlv` binary and a directory
+  to open (`DATALEVIN_DIR`). The job queue is PostgreSQL.
+
   Expected services (see docker-compose.test.yml):
-    * Postgres on localhost:15432 (database: sukhi_fedi_test)
+    * Postgres on localhost:15432 (database: sukhi_fedi_test), for the queue
     * NATS on localhost:14222 (plain core — no streams to create)
     * Bun fedify NATS Micro service connected to the above NATS
 
@@ -14,9 +17,9 @@ defmodule SukhiFedi.IntegrationCase do
 
       docker compose -f docker-compose.test.yml up -d
 
-  Run integration tests:
+  Run integration tests (`make test-pgrust` does all of this without Docker):
 
-      mix test --only integration
+      DATALEVIN_DIR=$(mktemp -d) DATALEVIN_DURABILITY=nosync mix test --only integration
 
   The default `mix test` excludes the `:integration` tag so unit tests stay
   hermetic.
@@ -31,16 +34,12 @@ defmodule SukhiFedi.IntegrationCase do
     end
   end
 
-  setup tags do
-    # Use a sandbox checkout when the Repo is started (it is when
-    # `mix test --only integration` runs without `--no-start`). Falls
-    # back to a no-op if the sandbox is not in use, so tests that don't
-    # touch the DB still work.
-    if Process.whereis(SukhiFedi.Repo) do
-      if SukhiFedi.Store.datalevin?(), do: wipe_datalevin(), else: sandbox_checkout(tags)
-    end
+  setup do
+    # The stores have no sandbox: every test starts from an empty database, an
+    # empty job queue and empty account tables.
+    if Process.whereis(SukhiFedi.Repo), do: wipe()
 
-    # Sandbox rows roll back; the emoji cache must not remember them.
+    # The store was just emptied; the emoji cache must not remember it.
     SukhiFedi.CustomEmojis.clear_cache()
 
     bypass = Bypass.open()
@@ -50,40 +49,29 @@ defmodule SukhiFedi.IntegrationCase do
      mock_remote_url: "http://localhost:#{bypass.port}"}
   end
 
-  # The Datalevin store has no sandbox: every test starts from an empty
-  # database, and from an empty job queue (the jobs live in SQLite).
-  defp wipe_datalevin do
+  defp wipe do
     SukhiFedi.Datalevin.Admin.wipe!()
     SukhiFedi.QueueRepo.delete_all("oban_jobs")
-  end
 
-  defp sandbox_checkout(tags) do
-    :ok = checkout_with_retry()
-    unless tags[:async], do: Ecto.Adapters.SQL.Sandbox.mode(SukhiFedi.Repo, {:shared, self()})
-  end
-
-  # On PGlite every pooled connection shares one backend session, so one
-  # client's open sandbox transaction shows up as "already a transaction
-  # running" to the next test's BEGIN. It clears within a few ms; retry
-  # briefly. Real Postgres (a session per connection) never hits it.
-  defp checkout_with_retry(attempts \\ 20) do
-    Ecto.Adapters.SQL.Sandbox.checkout(SukhiFedi.Repo)
-  catch
-    :exit, _ when attempts > 1 ->
-      Process.sleep(25)
-      checkout_with_retry(attempts - 1)
+    # The accounts' tables: CASCADE reaches every table that points at
+    # `accounts`; the ones that point at nothing are named.
+    SukhiFedi.AccountRepo.query!("""
+    TRUNCATE accounts, join_applications, outbox, admin_audits,
+             suspension_notices, suspension_pending, suspension_evidence, suspension_cutoffs
+    RESTART IDENTITY CASCADE
+    """)
   end
 
   @doc """
   Value for `@tag skip:` / `@moduletag skip:` on tests that write to S3.
-  `scripts/test-pglite.sh` sets SKIP_S3_TESTS=1 (PGlite alone has no S3);
+  `scripts/test-pgrust.sh` sets SKIP_S3_TESTS=1 (pgrust alone has no S3);
   everywhere else this is `false` and the test runs.
 
   (A tag + `--exclude` can't do this: `--only integration` includes these
   tests, and in ExUnit an include beats an exclude.)
   """
   def s3_skip do
-    if System.get_env("SKIP_S3_TESTS") == "1", do: "needs S3 (not on PGlite)", else: false
+    if System.get_env("SKIP_S3_TESTS") == "1", do: "needs S3 (not on pgrust)", else: false
   end
 
   @doc """

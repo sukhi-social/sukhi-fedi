@@ -204,7 +204,7 @@ warning or a loud `MatchError`, never a silently-wrong branch.
   (`ap/instructions/dms.ex:157`); anything else is `false`. Inside
   the boundary, booleans are booleans.
 - **No dead clauses.** A clause the type system proves unreachable
-  is recorded drift. `scripts/test-pglite.sh` compiles with
+  is recorded drift. `scripts/test-pgrust.sh` compiles with
   `--warnings-as-errors`, so these fail the suite instead of
   scrolling past.
 - **Match every RPC result.** `GatewayRpc.call` answers `{:ok, inner}`

@@ -25,13 +25,14 @@ defmodule SukhiFedi.Application do
       List.flatten([
         SukhiFedi.PromEx,
         SukhiFedi.Repo,
-        # Oban's SQLite file when the store is Datalevin; nothing otherwise.
+        # The accounts' PostgreSQL connection and its tables.
+        SukhiFedi.AccountRepo,
+        SukhiFedi.AccountRepo.Migrate,
+        # The job queues' PostgreSQL connection, its tables, and (below) Oban.
         SukhiFedi.Queue.children(),
-        # The graph store beside it (SUKHI_GRAPH=1): its own dtlv and the mirror queue.
-        SukhiFedi.Graph.children(),
         # hosigraph beside the store (SUKHI_HOSI=1 build, SUKHI_HOSI_MIRROR=1 start); nothing otherwise.
         SukhiFedi.HosiMirror.children(),
-        # FEP-f799: the delivery worker's copy of the resting notices (needs the graph).
+        # FEP-f799: the delivery worker's copy of the resting notices (records in PostgreSQL).
         SukhiFedi.Fedi.DeliverySuspension.children(),
         nats_connection(),
         SukhiFedi.Cache.Ets,

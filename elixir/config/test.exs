@@ -5,36 +5,31 @@ import Config
 # explicitly (LEGAL_FLAVOR); there is no default there.
 config :sukhi_fedi, :legal_flavor, :sukhi
 
-# Connection is env-overridable so the same test suite runs against the
-# docker-compose Postgres (default) or the PGlite embedded DB (no Docker;
-# `make test-pglite` / `node --import tsx services/test_db.ts`). PGlite serves a
-# single connection multiplexed, so the pglite path sets DB_POOL_SIZE=1.
-# Defaults (postgres/postgres) match both the docker image and PGlite.
-config :sukhi_fedi, SukhiFedi.Repo,
+# The queue database (PostgreSQL) is env-overridable so the same test suite
+# runs against the docker-compose Postgres (default) or the pgrust server
+# `make test-pgrust` starts (no Docker). The defaults (postgres/postgres) match
+# both. The accounts (`AccountRepo`) and the queue (`QueueRepo`) share it; the
+# rest of the business data is Datalevin and needs no connection here.
+db = [
   database: System.get_env("DB_NAME", "sukhi_fedi_test"),
   username: System.get_env("DB_USER", "postgres"),
   password: System.get_env("DB_PASSWORD", "postgres"),
   hostname: System.get_env("DB_HOST", "127.0.0.1"),
   port: String.to_integer(System.get_env("DB_PORT", "15432")),
-  pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
-  # PGlite's socket multiplexer mishandles *named* prepared statements
-  # (reused plan + different param count → 08P01 protocol_violation), so
-  # use unnamed prepares. Harmless on real Postgres, just marginally
-  # slower — fine for the test path.
-  prepare: :unnamed,
-  # PGlite serves every connection from one session, so a checkout can sit
-  # behind another's work for a while; the 50ms/1s defaults drop it.
-  queue_target: 5_000,
-  queue_interval: 30_000,
-  # The migration lock takes a second connection and holds it for the
-  # whole run; on PGlite's multiplexer that deadlocks against the
-  # migrating connection. A single test migrator never races, so the
-  # lock is unnecessary here.
-  migration_lock: false
+  pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10"))
+]
 
-# Tests roll the DB back between cases; an answer kept in memory would not.
+config :sukhi_fedi, SukhiFedi.QueueRepo, db
+config :sukhi_fedi, SukhiFedi.AccountRepo, db
+
+# Tests start each case from an empty store; an answer kept in memory would not.
 config :sukhi_fedi, :hot_cache, false
+
+# FEP-f799 keeps its notices in PostgreSQL; the unit tests run without a
+# database. The tests of that feature (`:integration`, under
+# test/sukhi_fedi/fedi/delivery_suspension) call the Receiver and the Store
+# themselves.
+config :sukhi_fedi, :delivery_suspension, false
 
 config :sukhi_fedi, Oban, testing: :inline
 

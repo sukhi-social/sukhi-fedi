@@ -3,7 +3,7 @@ defmodule SukhiFedi.Web.StreamingController do
   @moduledoc """
   Entry point for `/api/v1/streaming`.
 
-  The gateway shares Postgres with the api plugin node, so the OAuth
+  The gateway shares the store with the api plugin node, so the OAuth
   bearer is verified here directly via `SukhiFedi.OAuth.verify_bearer/1`
   rather than round-tripping to a plugin. On success the connection is
   upgraded to a WebSocket handled by `SukhiFedi.Web.StreamingSocket`.

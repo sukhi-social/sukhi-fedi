@@ -1,13 +1,21 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import Config
 
-config :sukhi_fedi, SukhiFedi.Repo,
+# PostgreSQL holds the accounts and how they sign in (`SukhiFedi.AccountRepo`)
+# and the job queues (`SukhiFedi.QueueRepo`): one database, a pool each. The
+# rest of the business data is in Datalevin (`SukhiFedi.Repo`, configured by
+# `SukhiFedi.Datalevin.Config`).
+db = [
   database: "sukhi_fedi",
   username: "postgres",
   password: "postgres",
   hostname: "localhost"
+]
 
-config :sukhi_fedi, ecto_repos: [SukhiFedi.Repo]
+config :sukhi_fedi, SukhiFedi.QueueRepo, db
+config :sukhi_fedi, SukhiFedi.AccountRepo, db
+
+config :sukhi_fedi, ecto_repos: [SukhiFedi.AccountRepo]
 
 # 起動時に、未着手/失敗の followee outbox backfill を pending にする
 # (`Federation.OutboxBackfill.pending_existing/0`)。テストでは off ──
@@ -20,7 +28,7 @@ config :sukhi_fedi, backfill_on_boot: true
 config :os_mon, disk_space_check_interval: 1
 
 config :sukhi_fedi, Oban,
-  repo: SukhiFedi.Repo,
+  repo: SukhiFedi.QueueRepo,
   queues: [
     monitor: 5,
     inbound_archive: 10,

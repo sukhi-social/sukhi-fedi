@@ -67,25 +67,6 @@ defmodule SukhiFedi.AddonTest do
     assert SukhiFedi.Addons.NodeinfoMonitor.id() == :nodeinfo_monitor
   end
 
-  test "nodeinfo_monitor migrations_path resolves to its addon dir" do
-    Code.ensure_loaded(SukhiFedi.Addons.NodeinfoMonitor)
-    path = SukhiFedi.Addons.NodeinfoMonitor.migrations_path()
-
-    assert path != nil
-    assert String.ends_with?(path, "priv/repo/migrations/addons/nodeinfo_monitor")
-    assert File.dir?(path)
-  end
-
-  test "Registry.migrations_paths includes enabled addons" do
-    Code.ensure_loaded(SukhiFedi.Addons.NodeinfoMonitor)
-    Application.put_env(:sukhi_fedi, :nodeinfo_monitor_configured, true)
-    Application.put_env(:sukhi_fedi, :enabled_addons, [:nodeinfo_monitor])
-    Application.put_env(:sukhi_fedi, :disabled_addons, [])
-
-    paths = Registry.migrations_paths()
-    assert Enum.any?(paths, &String.ends_with?(&1, "addons/nodeinfo_monitor"))
-  end
-
   defp restore(key, nil), do: Application.delete_env(:sukhi_fedi, key)
   defp restore(key, value), do: Application.put_env(:sukhi_fedi, key, value)
 

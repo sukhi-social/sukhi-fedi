@@ -6,55 +6,6 @@ defmodule SukhiFedi.ReleaseTest do
 
   alias SukhiFedi.Release
 
-  # The fail-fast gate's pure core: given Ecto.Migrator.migrations/2's
-  # `[{status, version, name}]`, which pending (`:down`) versions sit below
-  # the highest applied (`:up`) one? Driving it directly needs no DB.
-  describe "migrations_out_of_order/1" do
-    test "clean: all applied, then all pending — nothing out of order" do
-      migrations = [
-        {:up, 1, "a"},
-        {:up, 2, "b"},
-        {:down, 3, "c"},
-        {:down, 4, "d"}
-      ]
-
-      assert Release.migrations_out_of_order(migrations) == []
-    end
-
-    test "a pending migration below the highest applied is offending" do
-      migrations = [
-        {:up, 1, "a"},
-        {:down, 2, "b"},
-        {:up, 3, "c"}
-      ]
-
-      assert Release.migrations_out_of_order(migrations) == [2]
-    end
-
-    test "lists every offending version, not just the first" do
-      migrations = [
-        {:down, 1, "a"},
-        {:up, 2, "b"},
-        {:down, 3, "c"},
-        {:up, 5, "e"}
-      ]
-
-      assert Release.migrations_out_of_order(migrations) == [1, 3]
-    end
-
-    test "fresh database (nothing applied yet) is never out of order" do
-      migrations = [{:down, 1, "a"}, {:down, 2, "b"}]
-
-      assert Release.migrations_out_of_order(migrations) == []
-    end
-
-    test "a pending migration above the highest applied is fine" do
-      migrations = [{:up, 1, "a"}, {:up, 2, "b"}, {:down, 3, "c"}]
-
-      assert Release.migrations_out_of_order(migrations) == []
-    end
-  end
-
   # The one-shot data fixes live as files under priv/scripts and run through
   # run_script/2. These checks need no DB: the script set, that each parses,
   # and that the name is vetted before it touches the filesystem.
@@ -84,9 +35,8 @@ defmodule SukhiFedi.ReleaseTest do
     end
   end
 
-  describe "on the Datalevin store" do
+  describe "migrate_all/0" do
     setup do
-      prev = Application.get_env(:sukhi_fedi, :store)
       prev_datalevin = Application.get_env(:sukhi_fedi, :datalevin)
 
       dir =
@@ -95,14 +45,9 @@ defmodule SukhiFedi.ReleaseTest do
           "sukhi-datalevin-release-test-#{System.unique_integer([:positive])}"
         )
 
-      Application.put_env(:sukhi_fedi, :store, :datalevin)
       Application.put_env(:sukhi_fedi, :datalevin, dir: dir)
 
       on_exit(fn ->
-        if prev,
-          do: Application.put_env(:sukhi_fedi, :store, prev),
-          else: Application.delete_env(:sukhi_fedi, :store)
-
         if prev_datalevin,
           do: Application.put_env(:sukhi_fedi, :datalevin, prev_datalevin),
           else: Application.delete_env(:sukhi_fedi, :datalevin)
@@ -113,9 +58,8 @@ defmodule SukhiFedi.ReleaseTest do
       %{datalevin_dir: dir}
     end
 
-    test "there is nothing to migrate, and the gate has nothing to check" do
+    test "opens a new store and runs what it has to run" do
       assert :ok = Release.migrate_all()
-      assert :ok = Release.check_migration_sanity()
     end
   end
 end

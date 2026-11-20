@@ -1,18 +1,23 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiDelivery.PullFederation.OriginTest do
-  # Needs the shared test database (docs/TESTING.md, `--only integration`): the migrations are
-  # the gateway's, so they run with the stack up, not under a bare `mix test`.
+  # Needs the Datalevin store the gateway owns (`SukhiDelivery.Repo` only joins
+  # it) and PostgreSQL for the job tables, so it runs against the combined
+  # stack (docs/TESTING.md, `--only integration`), not under a bare `mix test`.
   use ExUnit.Case, async: false
 
   @moduletag :integration
 
+  import Ecto.Query
+
   alias SukhiDelivery.PullFederation.{Fallback, Log, NotifyWorker, Route}
   alias SukhiDelivery.Repo
+  alias SukhiDelivery.Schema.{Account, Follow}
   alias SukhiShared.{Capability, PeerCapabilities}
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Repo, {:shared, self()})
+    for table <- ~w(pull_log pull_heads pull_peers peer_capabilities follows accounts),
+        do: Repo.delete_all(table)
+
     Application.put_env(:sukhi_delivery, :domain, "origin.example")
 
     on_exit(fn ->
@@ -23,20 +28,18 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
     :ok
   end
 
-  defp account(name) do
-    %{rows: [[id]]} =
-      Repo.query!("INSERT INTO accounts (username) VALUES ($1) RETURNING id", [name])
-
-    id
-  end
+  defp account(name), do: Repo.insert!(%Account{username: name}).id
 
   defp follow(account_id, follower_uri) do
-    Repo.query!(
-      "INSERT INTO follows (follower_uri, followee_id, state) VALUES ($1, $2, 'accepted')",
-      [
-        follower_uri,
-        account_id
-      ]
+    Repo.insert!(%Follow{follower_uri: follower_uri, followee_id: account_id, state: "accepted"})
+  end
+
+  defp peer(host) do
+    Repo.one(
+      from(p in "pull_peers",
+        where: p.host == ^host,
+        select: %{failures: p.failures, notified_through: p.notified_through}
+      )
     )
   end
 
@@ -80,10 +83,9 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
       capable("flaky.example")
       now = DateTime.utc_now()
 
-      Repo.query!(
-        "INSERT INTO pull_peers (host, failures, notified_at) VALUES ('flaky.example', $1, $2)",
-        [Route.trip(), DateTime.to_naive(now)]
-      )
+      Repo.insert_all("pull_peers", [
+        %{host: "flaky.example", failures: Route.trip(), notified_at: DateTime.to_naive(now)}
+      ])
 
       assert {["https://flaky.example/inbox"], []} =
                Route.split(["https://flaky.example/inbox"], now)
@@ -104,8 +106,7 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
       assert {:ok, %{seq: 2, id: id}} = Log.append(a, "a2", activity(2))
       assert is_integer(id)
 
-      assert %{rows: [[2]]} =
-               Repo.query!("SELECT count(*) FROM pull_log WHERE account_id = $1", [a])
+      assert Repo.aggregate(from(l in "pull_log", where: l.account_id == ^a), :count) == 2
     end
 
     test "retract removes the Create a Delete retracts" do
@@ -120,16 +121,22 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
       {:ok, _} = Log.append(a, "old", activity(1))
       {:ok, _} = Log.append(a, "new", activity(2))
 
-      Repo.query!(
-        "UPDATE pull_log SET inserted_at = now() - interval '30 days' WHERE activity_id = 'old'"
+      from(l in "pull_log", where: l.activity_id == "old")
+      |> Repo.update_all(
+        set: [
+          inserted_at:
+            DateTime.utc_now() |> DateTime.add(-30 * 86_400, :second) |> DateTime.to_naive()
+        ]
       )
 
       assert Log.prune() == 1
-      assert %{rows: [["new"]]} = Repo.query!("SELECT activity_id FROM pull_log")
+      assert Repo.all(from(l in "pull_log", select: l.activity_id)) == ["new"]
 
       # The gateway is told how far pruning reached, so a puller behind it can
       # be sent to resync rather than silently missing rows.
-      assert %{rows: [[1]]} = Repo.query!("SELECT pruned_through FROM pull_heads WHERE account_id = $1", [a])
+      assert Repo.one(
+               from(h in "pull_heads", where: h.account_id == ^a, select: h.pruned_through)
+             ) == 1
     end
   end
 
@@ -174,8 +181,7 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
       # Nothing new: no second request (Bypass would fail on an unexpected call).
       assert :ok = run("pull.example")
 
-      assert %{rows: [[0]]} =
-               Repo.query!("SELECT failures FROM pull_peers WHERE host = 'pull.example'")
+      assert %{failures: 0} = peer("pull.example")
     end
 
     test "an actor the host does not follow is not mentioned", %{bypass: bypass} do
@@ -197,7 +203,7 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
       end)
 
       assert {:snooze, 7} = run("pull.example")
-      assert %{rows: []} = Repo.query!("SELECT 1 FROM pull_peers WHERE failures > 0")
+      assert Repo.all(from(p in "pull_peers", where: p.failures > 0, select: p.host)) == []
     end
 
     test "a host that does not serve the endpoint is pushed to at once", %{
@@ -209,11 +215,7 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
 
       assert :ok = run("pull.example")
 
-      assert %{rows: [[1, through]]} =
-               Repo.query!(
-                 "SELECT failures, notified_through FROM pull_peers WHERE host = 'pull.example'"
-               )
-
+      assert %{failures: 1, notified_through: through} = peer("pull.example")
       assert through > 0
     end
 
@@ -238,8 +240,7 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
                  max_attempts: 6
                })
 
-      assert %{rows: [[2]]} =
-               Repo.query!("SELECT failures FROM pull_peers WHERE host = 'pull.example'")
+      assert %{failures: 2} = peer("pull.example")
     end
   end
 
@@ -254,9 +255,7 @@ defmodule SukhiDelivery.PullFederation.OriginTest do
       # still moves so the backlog is not retried forever.
       assert Fallback.push("pull.example") >= 0
 
-      assert %{rows: [[through]]} =
-               Repo.query!("SELECT notified_through FROM pull_peers WHERE host = 'pull.example'")
-
+      assert %{notified_through: through} = peer("pull.example")
       assert through > 0
     end
   end

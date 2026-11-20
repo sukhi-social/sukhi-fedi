@@ -39,7 +39,7 @@ That we can talk with each other on the web today, without trouble, is thanks to
 
 Thank you for building kind, dependable passages for talking across different environments.
 
-*PostgreSQL · Ecto · NATS · rustfs · PGlite*
+*PostgreSQL · Ecto · NATS · rustfs · pgrust*
 
 <h2 id="security">Security</h2>
 

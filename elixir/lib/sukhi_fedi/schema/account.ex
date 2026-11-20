@@ -118,8 +118,7 @@ defmodule SukhiFedi.Schema.Account do
     field :last_fetched_at, :utc_datetime
 
     # こちらから follow した remote の過去投稿 backfill の進行状態。
-    # 詳しくは `Federation.OutboxBackfill` と
-    # `priv/repo/migrations/core/20260922000001_add_backfill_state_to_accounts.exs`。
+    # 詳しくは `Federation.OutboxBackfill`。
     field :backfill_state, :string
     field :backfill_attempted_at, :utc_datetime
     field :backfill_mirrored, :integer, default: 0

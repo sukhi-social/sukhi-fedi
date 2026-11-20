@@ -29,17 +29,12 @@ defmodule SukhiDelivery.MixProject do
       # Code the gateway and delivery must decide identically (UrlGuard).
       {:sukhi_shared, path: "../shared"},
 
-      # Database (reads outbox, writes delivery_receipts)
+      # Postgres for the job queues (Oban); the business data is the gateway's Datalevin store
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.18"},
 
       # Job queue
       {:oban, "~> 2.18"},
-
-      # Optional second queue store: the `delivery` and `outbox_dispatch`
-      # queues can live in a local SQLite file (`DELIVERY_QUEUE=sqlite`,
-      # Oban.Engines.Lite) instead of Postgres. See SukhiDelivery.Queue.
-      {:ecto_sqlite3, "~> 0.17"},
 
       # NATS client (Micro request/reply + core pub/sub)
       {:gnat, "~> 1.8"},

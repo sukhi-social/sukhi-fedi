@@ -33,7 +33,11 @@ top — those win.
 | `PLUGIN_NODES` | no | empty | Gateway only. Comma list of `<name>@<host>` Erlang nodes hosting plugin capabilities. Default `api@api`. |
 | `GATEWAY_NODE` | no | — | API node only. Pin a specific gateway to RPC into. Usually inferred — set this only for multi-gateway topologies. |
 
-## Database (gateway, delivery)
+## Job queues and raw bodies — PostgreSQL (gateway, delivery)
+
+PostgreSQL holds Oban's `oban_jobs` (both nodes, one table) and the `raw_blobs`
+table, and nothing else: the business data is in Datalevin (below). Both nodes
+read the same variables.
 
 | Var | Required | Default | Notes |
 |---|---|---|---|
@@ -50,31 +54,23 @@ top — those win.
 | `ADMISSION_MAX_WAIT_BG_MS` | no | `120000` | The same limit for requests that send `x-sukhi-purpose: background` (polls, read-marker syncs — nobody watching): they queue behind every interactive request and are refused only past this. |
 | `ADMISSION_QUEUE_MAX` | no | `500` | Longest line. Past it, a plain 503 with no ticket. |
 
-## Store (gateway) — Datalevin instead of Postgres
+## Store (gateway) — Datalevin
 
-Off by default. `docs/DATALEVIN.md` says what works, what does not, and
-what to set on a small box.
+The business data is in Datalevin (`dtlv` on the PATH); there is no other
+store. `docs/DATALEVIN.md` says what works, what does not, and what to set on
+a small box. A node that still sets `SUKHI_STORE` to anything but `datalevin`
+refuses to start.
 
 | Var | Required | Default | Notes |
 |---|---|---|---|
-| `SUKHI_STORE` | no | `postgres` | `datalevin` keeps the business data in Datalevin (`dtlv` on the PATH) and runs Oban on SQLite. The `DB_*` vars are then unused by the gateway. |
-| `SUKHI_QUEUE_DB` | no | `/var/lib/sukhi/queue.db` | datalevin mode: the SQLite file Oban lives in. |
 | `SUKHI_INTAKE_FILE` | no | `/var/lib/sukhi/intake.json` | The marker the gateway writes when intake is closed/opened (JSON: state, since, reason, until, retry_after_s, settled_at, backup). For a static maintenance page to read while the gateway is down. A fresh start writes `open`. docs/OPS_DRAIN_BACKUP.ja.md §5. |
-| `SUKHI_BACKUP_DIR` | no | `/var/lib/sukhi/backups` | datalevin mode: where `Maintenance.Backup` puts `<UTC stamp>/` (dtlv copy of the data and graph, SQLite copies of the queues). The newest 3 complete ones are kept. docs/OPS_DRAIN_BACKUP.ja.md §4. |
-| `SUKHI_QUEUE_SYNCHRONOUS` | no | `full` | datalevin mode: SQLite `synchronous` (`full`, `normal`, `off`). |
-| `SUKHI_QUEUE_POOL_SIZE` | no | `5` | datalevin mode: SQLite pool. |
-| `SUKHI_GRAPH` | no | off | `1`/`true`: run the graph store (`<DATALEVIN_DIR>/graph`, its own `dtlv`) beside the main database and copy each admitted inbound activity into it. Best-effort; never changes what the inbox answers. docs/DATALEVIN_SCHEMA.md. |
-| `SUKHI_GRAPH_READ` | no | off | `1`/`true` (with `SUKHI_GRAPH`): the public (local), hashtag and list timelines pick their page from the graph; the notes themselves still come from the relational store. A short page, a forward cursor (`since_id`/`min_id`), `only_media`/`hide_sensitive`, or any graph failure falls back to the relational query. |
-| `SUKHI_GRAPH_SWEEP` | no | dry-run | `execute` lets the daily sweep delete remote objects; anything else only logs what it would delete. |
-| `SUKHI_GRAPH_TTL_FOLLOWED_DAYS` / `SUKHI_GRAPH_TTL_OTHER_DAYS` | no | `90` / `14` | How long a remote object stays after it was last received or touched (followed authors / everyone else). |
-| `SUKHI_GRAPH_SWEEP_LIMIT` | no | `2000` | Candidates examined per sweep run. |
-| `SUKHI_GRAPH_SIZE_BUDGET_MB` | no | unset | Over this size on disk, the sweep halves both TTLs for that run. |
+| `SUKHI_BACKUP_DIR` | no | `/var/lib/sukhi/backups` | Where `Maintenance.Backup` puts `<UTC stamp>/` (a `dtlv` copy of the data; PostgreSQL is not in it). The newest 3 complete ones are kept. docs/OPS_DRAIN_BACKUP.ja.md §4. |
 | `SUKHI_HOSI_MIRROR` | no | off | `1`/`true`: copy the new people and posts of the store into hosigraph (`SukhiFedi.HosiMirror`). Only does anything in a build made with `SUKHI_HOSI=1` (a build-time switch, not read at runtime). docs/HOSI.md. |
 | `SUKHI_HOSI_SHADOW` | no | off | `1`/`true`: also ask hosigraph the like view (how many favourited a post, and whether the viewer did), compare with the store's answer, and log when they differ. The answer on screen is still the store's. Needs `SUKHI_HOSI_MIRROR`. docs/HOSI.md. |
 | `SUKHI_HOSI_DIR` | no | `<DATALEVIN_DIR>/hosi` | Where hosigraph keeps its files. It runs on the `dtlv` that `DATALEVIN_BIN` names. |
-| `SUKHI_RAW_BACKEND` | no | `sqlite` | datalevin mode: where large originals (`raw`) go: `sqlite` (a table in the queue file) or `s3` (S3-compatible, same credentials as media). |
-| `SUKHI_RAW_INLINE_MAX` | no | `4096` | datalevin mode: bytes of `raw` kept on the entity itself; larger is stored as a pointer. |
-| `SUKHI_RAW_GRACE_S` | no | `86400` | datalevin mode: how old an unreferenced blob must be before GC may delete it. |
+| `SUKHI_RAW_BACKEND` | no | `postgres` | Where large originals (`raw`) go: `postgres` (the `raw_blobs` table of the queue database) or `s3` (S3-compatible, same credentials as media). |
+| `SUKHI_RAW_INLINE_MAX` | no | `4096` | Bytes of `raw` kept on the entity itself; larger is stored as a pointer. |
+| `SUKHI_RAW_GRACE_S` | no | `86400` | How old an unreferenced blob must be before GC may delete it. |
 | `SUKHI_RAW_BUCKET` | no | `S3_BUCKET` | `SUKHI_RAW_BACKEND=s3`: bucket for blobs (keys `raw/sha256/<xx>/<hex>`). |
 | `SUKHI_SUDACHI_URL` | no | — | Sudachi segmentation service (`POST /segment`). Unset: Japanese text is indexed unsegmented. |
 | `DATALEVIN_DIR` | no | `/var/lib/sukhi/datalevin` | Database directory. |
@@ -157,7 +153,8 @@ Not operator knobs; listed so the audit (`scripts/env_audit.jl`) stays quiet.
 | Var | Where | Notes |
 |---|---|---|
 | `RUNTIME_CONFIG_DIR`, `RELEASE_ROOT` | combined | Where `combined/config/runtime.exs` finds the three apps' runtime configs. `combined/Dockerfile` sets the first. |
-| `PGLITE` | dev/test | `1` points the DB config at the embedded PGlite (`make test-pglite`). |
+| `PGRUST_PORT` | dev/test | The port the pgrust server listens on: `15434` under `make dev`, `15433` under `make test-pgrust`. |
+| `PGRUST_DIR`, `PGRUST_CACHE` | dev/test | `PGRUST_DIR` uses a pgrust you installed (it holds `bin/postgres`); otherwise the script fetches one into `PGRUST_CACHE` (default `.pgrust/`). |
 | `S3_HOST`, `S3_PORT` | test | The mock S3 the test config talks to (`127.0.0.1:19000`). |
 
 ## Transactional mail (gateway)
@@ -195,31 +192,18 @@ disabled unless `addons.nodeinfo_monitor` is explicitly `true` in
 `SUKHI_INSTANCE_CONFIG`. This keeps a normal SNS deployment from exposing or
 starting the watcher just because the generic addon default is `all`.
 
-## Delivery queue backend (delivery)
+## Delivery queue (delivery)
 
-Default is Postgres. `DELIVERY_QUEUE=sqlite` moves the `delivery` and
-`outbox_dispatch` queues to a single-node SQLite file (Oban Lite); every
-other queue and all business data stay in Postgres (`delivery` is also still
-drained from Postgres, because the gateway enqueues follow/quote/relay sends
-there). One node only: the file
-is not shared. The outbox → queue hop becomes at-least-once (the relay skips
-rows already queued; `delivery_receipts` absorbs any remaining duplicate).
+The delivery node's Oban runs on the same PostgreSQL as the gateway's
+(`oban_jobs`), with queues of its own; each node runs only the queues its own
+config names, so a job one inserts for the other's queue is picked up there.
+The outbox row is in Datalevin and its dispatch job in PostgreSQL, so the hop
+is at-least-once: the relay skips rows already queued, and
+`delivery_receipts` absorbs any remaining duplicate. The relay polls the
+outbox every 2 seconds (there is no LISTEN/NOTIFY).
 
-In a combined release the gateway also enqueues its `delivery` sends (follow
-Accepts, quotes, relays) into the SQLite queue (`:delivery_oban`), and its
-`DeliveryStatus` and discarded-job count read the SQLite file
-(`:extra_job_repos`). A separate gateway node cannot see the file, so it keeps
-using Postgres, which the delivery node still drains.
-
-
-| Var | Default | Meaning |
-|---|---|---|
-| `DELIVERY_QUEUE` | `postgres` | `postgres` or `sqlite`. Implied (all queues) by `SUKHI_STORE=datalevin` in the combined release |
-| `DELIVERY_QUEUE_DB` | `/var/lib/sukhi/delivery_queue.db` | SQLite file (directory must exist) |
-| `DELIVERY_QUEUE_SYNCHRONOUS` | `full` | `full` or `normal` (WAL; `normal` can lose the last commits on power loss) |
-| `DELIVERY_QUEUE_POOL_SIZE` | `5` | SQLite connection pool |
-| `DELIVERY_QUEUE_HANDOVER` | `1` | `0` で起動時の Postgres → SQLite 自動移管を止める (docs/DELIVERY_QUEUE_MIGRATION.ja.md) |
-| `DELIVERY_QUEUE_RETENTION_SECONDS` | `2592000` | Pruner max age for finished jobs |
+The delivery node keeps its business data in the gateway's Datalevin store, so
+it runs inside the `combined` release (one BEAM, one writer).
 
 ## Tuning — Oban concurrency (gateway, delivery)
 

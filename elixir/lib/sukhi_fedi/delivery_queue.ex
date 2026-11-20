@@ -2,25 +2,17 @@
 defmodule SukhiFedi.DeliveryQueue do
   @moduledoc """
   Where the gateway enqueues `delivery`-queue sends (follow Accepts, quote
-  and relay activities). Normally its own Oban (Postgres). In a combined
-  release started with `DELIVERY_QUEUE=sqlite`, the delivery app's runtime
-  config points `:delivery_oban` at its SQLite-backed instance instead, so
-  these sends land in the same queue the delivery node drains. A gateway on
-  its own node never gets that setting and keeps using Postgres.
+  and relay activities) and Web Push sends. They go into the gateway's own
+  Oban: the jobs land in the one `oban_jobs` table of the queue database
+  (`SukhiFedi.QueueRepo`), and the delivery node, which drains the `delivery`
+  and `push` queues from that same table, picks them up. This node's Oban does
+  not name those queues, so it never runs them.
   """
 
   @spec insert!(Ecto.Changeset.t()) :: Oban.Job.t()
-  def insert!(changeset) do
-    Oban.insert!(Application.get_env(:sukhi_fedi, :delivery_oban, SukhiFedi.Oban), changeset)
-  end
+  def insert!(changeset), do: Oban.insert!(SukhiFedi.Oban, changeset)
 
-  @doc """
-  Enqueue a Web Push send. The `push` queue is drained by the delivery node:
-  with Postgres that is the gateway's own Oban (same database); with Datalevin
-  the combined release points `:push_oban` at the delivery node's queue.
-  """
+  @doc "Enqueue a Web Push send (the `push` queue is drained by the delivery node)."
   @spec insert_push(Ecto.Changeset.t()) :: {:ok, Oban.Job.t()} | {:error, term()}
-  def insert_push(changeset) do
-    Oban.insert(Application.get_env(:sukhi_fedi, :push_oban, SukhiFedi.Oban), changeset)
-  end
+  def insert_push(changeset), do: Oban.insert(SukhiFedi.Oban, changeset)
 end

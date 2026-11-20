@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Fills an empty dev database with enough to make the timelines do real work:
+# Fills an empty dev store with enough to make the timelines do real work:
 # local accounts, a few posts each, and one viewer who follows most of them.
 # Run from combined/ after `mix sukhi.migrate`:
 #
