@@ -20,10 +20,9 @@ defmodule SukhiHosi.MigrateLikes do
   so a copy that stopped half way is finished by running it once more.
   """
 
-  alias SukhiHosi.{Actors, Notes, Store}
+  alias SukhiHosi.{Actors, Copy, Notes, Store}
 
   @batch 500
-  @favourite "⭐"
 
   @doc """
   Copy every like of `table` (default `old_likes`), or of sukhi's `reactions` when `domain:` is given, into `db`, in batches of `batch:` (default #{@batch}).
@@ -42,7 +41,7 @@ defmodule SukhiHosi.MigrateLikes do
 
       rows ->
         pairs = for [_, note_iri, actor_iri] <- rows, do: {note_iri, actor_iri}
-        %{copied: c, already: a, missing: m} = write_batch(db, pairs)
+        %{copied: c, already: a, missing: m} = Copy.likes(db, pairs)
 
         report = %{
           copied: report.copied + c,
@@ -53,40 +52,6 @@ defmodule SukhiHosi.MigrateLikes do
         [last_id, _, _] = List.last(rows)
         loop(db, pg, src, batch, last_id, report)
     end
-  end
-
-  # No guard on the write: making a like that is already there changes nothing but adds one more
-  # event to the log, so a like made by someone between our look and our write is harmless.
-  defp write_batch(db, pairs) do
-    {found, missing} = pairs |> Enum.uniq() |> resolve(db)
-    present = liked_by(db, found)
-    {have, todo} = Enum.split_with(found, fn {_, n, a} -> MapSet.member?(present, {n, a}) end)
-
-    if todo != [] do
-      {:ok, _} = Hosi.write(db, for({_, n, a} <- todo, do: [:create, n, :"object/liked-by", [:ref, a]]))
-    end
-
-    %{copied: length(todo), already: length(have), missing: missing}
-  end
-
-  # {[{pair, note_id, actor_id}], [pair]}: the ones hosigraph knows both ends of, and the ones it does not
-  defp resolve(pairs, db) do
-    {found, missing} =
-      pairs
-      |> Enum.map(fn {n, a} = pair -> {pair, find(&Notes.find/2, db, n), find(&Actors.find/2, db, a)} end)
-      |> Enum.split_with(fn {_, n, a} -> n && a end)
-
-    {found, Enum.map(missing, fn {pair, _, _} -> pair end)}
-  end
-
-  # the {note, actor} pairs hosigraph already has, among the notes of `found`
-  defp liked_by(db, found) do
-    ids = found |> Enum.map(fn {_, n, _} -> n end) |> Enum.uniq()
-
-    ids
-    |> Enum.zip(Store.entities(db, ids))
-    |> Enum.flat_map(fn {n, e} -> for a <- Map.get(e, :"object/liked-by", []), do: {n, a} end)
-    |> MapSet.new()
   end
 
   @doc """
@@ -152,7 +117,7 @@ defmodule SukhiHosi.MigrateLikes do
   defp source!(opts) do
     case Keyword.fetch(opts, :domain) do
       {:ok, domain} when is_binary(domain) ->
-        # a favourite is the reaction carrying the favourite emoji (`Notes.Interactions.favourite_emoji/0`)
+        # a favourite is the reaction carrying the favourite emoji (`Copy.favourite/0`)
         %{
           like: """
           SELECT r.id AS id, n.ap_id AS note_iri,
@@ -160,7 +125,7 @@ defmodule SukhiHosi.MigrateLikes do
           FROM reactions r JOIN notes n ON n.id = r.note_id JOIN accounts a ON a.id = r.account_id
           WHERE r.emoji = $2::text AND n.ap_id IS NOT NULL
           """,
-          args: [domain, @favourite]
+          args: [domain, Copy.favourite()]
         }
 
       :error ->

@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiHosi.Copy do
   @moduledoc """
-  Writing people and posts that sukhi already has into hosigraph: the one place that knows how.
-  `ImportPg` (by hand, all of it) and `Tail` (the new ones, as they come) both call this, so a
-  person or a post is made the same way whichever way it came.
+  Writing people, posts and likes that sukhi already has into hosigraph: the one place that knows
+  how. `ImportPg` and `MigrateLikes` (by hand, all of it) and `Tail` (the new ones, as they come)
+  all call this, so each is made the same way whichever way it came.
 
   What is written is history: nothing is told to the relay and no one is notified. A person or a
   post is found by its IRI, so what is already there is counted as `already` and left alone.
   """
 
-  alias SukhiHosi.{Notes, Store}
+  alias SukhiHosi.{Actors, Notes, Store}
 
   @doc "The IRI of a person: ours (`domain` of the row is nil) is built from this server's domain, a remote one is its `actor_uri`. nil if there is none."
   def iri_of(domain, username, nil, _uri), do: "https://#{domain}/users/#{username}"
@@ -136,6 +136,51 @@ defmodule SukhiHosi.Copy do
   def visibility("unlisted"), do: :unlisted
   def visibility(v) when v in ["followers", "private"], do: :followers
   def visibility(_), do: :direct
+
+  @favourite "⭐"
+
+  @doc "The emoji of a favourite: a like is the reaction that carries it (`Notes.Interactions.favourite_emoji/0` in sukhi-fedi)."
+  def favourite, do: @favourite
+
+  @doc """
+  Write likes, each a pair `{note_iri, actor_iri}`: a like is carried by the IRIs of the post and of
+  the person, since those are the identities hosigraph knows them by. A like whose post or person is
+  not in hosigraph is not written and not forgotten: it is in `missing`. A like that is there is
+  counted as `already`. Returns `%{copied: n, already: n, missing: [pair]}`.
+  """
+  # No guard on the write: making a like that is already there changes nothing but adds one more
+  # event to the log, so a like made by someone between our look and our write is harmless.
+  def likes(db, pairs) do
+    {found, missing} = pairs |> Enum.uniq() |> resolve_likes(db)
+    present = liked_by(db, found)
+    {have, todo} = Enum.split_with(found, fn {_, n, a} -> MapSet.member?(present, {n, a}) end)
+
+    if todo != [] do
+      {:ok, _} = Hosi.write(db, for({_, n, a} <- todo, do: [:create, n, :"object/liked-by", [:ref, a]]))
+    end
+
+    %{copied: length(todo), already: length(have), missing: missing}
+  end
+
+  # {[{pair, note_id, actor_id}], [pair]}: the ones hosigraph knows both ends of, and the ones it does not
+  defp resolve_likes(pairs, db) do
+    {found, missing} =
+      pairs
+      |> Enum.map(fn {n, a} = pair -> {pair, n && Notes.find(db, n), a && Actors.find(db, a)} end)
+      |> Enum.split_with(fn {_, n, a} -> n && a end)
+
+    {found, Enum.map(missing, fn {pair, _, _} -> pair end)}
+  end
+
+  # the {note, actor} pairs hosigraph already has, among the notes of `found`
+  defp liked_by(db, found) do
+    ids = found |> Enum.map(fn {_, n, _} -> n end) |> Enum.uniq()
+
+    ids
+    |> Enum.zip(Store.entities(db, ids))
+    |> Enum.flat_map(fn {n, e} -> for a <- Map.get(e, :"object/liked-by", []), do: {n, a} end)
+    |> MapSet.new()
+  end
 
   @doc "`%{value => hosigraph id}` for the entities that have one of `values` as `attr` (an identity)."
   def ids_of(_db, _attr, []), do: %{}

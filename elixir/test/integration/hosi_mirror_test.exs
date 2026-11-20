@@ -15,7 +15,7 @@ if Code.ensure_loaded?(SukhiFedi.HosiMirror.Server) do
     @moduletag :dtlv
 
     alias SukhiFedi.HosiMirror.Server
-    alias SukhiFedi.Schema.{Account, Note}
+    alias SukhiFedi.Schema.{Account, Note, Reaction}
     alias SukhiHosi.{Actors, Notes}
 
     setup do
@@ -44,6 +44,23 @@ if Code.ensure_loaded?(SukhiFedi.HosiMirror.Server) do
 
       Repo.insert!(%Note{account_id: alice.id, content: "later", ap_id: "https://sukhi.test/notes/3", visibility: "public"})
       assert %{actors: 0, notes: 1} = Server.sync_now()
+    end
+
+    test "a favourite is followed to the post it is on; another reaction is not", %{db: db} do
+      alice = Repo.insert!(%Account{username: "alice"})
+      bob = Repo.insert!(%Account{username: "bob", domain: "remote.test", actor_uri: "https://remote.test/users/bob"})
+      note = Repo.insert!(%Note{account_id: alice.id, content: "hello", ap_id: "https://sukhi.test/notes/1", visibility: "public"})
+      Repo.insert!(%Reaction{account_id: bob.id, note_id: note.id, emoji: SukhiFedi.Notes.favourite_emoji()})
+      Repo.insert!(%Reaction{account_id: alice.id, note_id: note.id, emoji: "🎉"})
+
+      assert %{likes: 1, likes_missing: []} = Server.sync_now()
+
+      [e] = SukhiHosi.Store.entities(db, [Notes.find(db, "https://sukhi.test/notes/1")])
+      assert e[:"object/liked-by"] == [Actors.find(db, "https://remote.test/users/bob")]
+    end
+
+    test "what hosi_store calls a favourite is what sukhi calls one" do
+      assert SukhiHosi.Copy.favourite() == SukhiFedi.Notes.favourite_emoji()
     end
   end
 end

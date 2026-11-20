@@ -10,12 +10,18 @@ defmodule TailTest do
 
   setup do
     Pg.reset!(SpikePg)
-    for t <- ["notes", "accounts"], do: Postgrex.query!(SpikePg, "DROP TABLE IF EXISTS #{t}", [])
+    for t <- ["reactions", "notes", "accounts"], do: Postgrex.query!(SpikePg, "DROP TABLE IF EXISTS #{t}", [])
     Postgrex.query!(SpikePg, "CREATE TABLE accounts (id bigserial PRIMARY KEY, username text NOT NULL, domain text, actor_uri text)", [])
 
     Postgrex.query!(
       SpikePg,
       "CREATE TABLE notes (id bigserial PRIMARY KEY, account_id bigint NOT NULL, ap_id text, content text NOT NULL DEFAULT '', content_html text, visibility text NOT NULL DEFAULT 'public', domain text, created_at timestamptz NOT NULL DEFAULT now(), in_reply_to_ap_id text)",
+      []
+    )
+
+    Postgrex.query!(
+      SpikePg,
+      "CREATE TABLE reactions (id bigserial PRIMARY KEY, account_id bigint NOT NULL, note_id bigint NOT NULL, emoji text NOT NULL)",
       []
     )
 
@@ -37,6 +43,18 @@ defmodule TailTest do
       )
 
     id
+  end
+
+  defp like(pg, account_id, note_id, emoji \\ "⭐") do
+    %{rows: [[id]]} =
+      Postgrex.query!(pg, "INSERT INTO reactions (account_id, note_id, emoji) VALUES ($1, $2, $3) RETURNING id", [account_id, note_id, emoji])
+
+    id
+  end
+
+  defp liked_by(db, note_iri) do
+    [e] = Store.entities(db, [Notes.find(db, note_iri)])
+    for a <- Map.get(e, :"object/liked-by", []), do: a
   end
 
   defp sync(c, opts \\ []), do: Tail.sync(c.db, c.source, [domain: @domain] ++ opts)
@@ -115,5 +133,65 @@ defmodule TailTest do
 
     assert %{actors: 1, skipped: [{^ghost, :no_iri}]} = sync(c)
     assert %{actors: 0, skipped: []} = sync(c)
+  end
+
+  test "a favourite is followed after its post; another emoji is not, and a second round has nothing to do", c do
+    alice = account(c.pg, "alice")
+    bob = account(c.pg, "bob", "remote.test", "https://remote.test/users/bob")
+    n1 = note(c.pg, alice, "https://sukhi.test/notes/1")
+    l1 = like(c.pg, bob, n1)
+    like(c.pg, alice, n1, "🎉")
+
+    assert %{likes: 1, likes_missing: []} = sync(c)
+    assert liked_by(c.db, "https://sukhi.test/notes/1") == [Actors.find(c.db, "https://remote.test/users/bob")]
+    assert cursor(c.db, "tail:likes") == l1
+
+    assert %{likes: 0, likes_missing: []} = sync(c)
+
+    l2 = like(c.pg, alice, n1)
+    assert %{likes: 1} = sync(c, batch: 1)
+    assert cursor(c.db, "tail:likes") == l2
+    assert length(liked_by(c.db, "https://sukhi.test/notes/1")) == 2
+  end
+
+  test "a like waits for its post, and the likes before it are written", c do
+    alice = account(c.pg, "alice")
+    bob = account(c.pg, "bob")
+    n1 = note(c.pg, alice, "https://sukhi.test/notes/1")
+    young = note(c.pg, alice, nil)
+    l1 = like(c.pg, bob, n1)
+    like(c.pg, bob, young)
+
+    assert %{likes: 1, likes_missing: []} = sync(c)
+    assert cursor(c.db, "tail:likes") == l1
+
+    # the stamp arrives: the post is written by the notes step, then the like, in one round
+    Postgrex.query!(c.pg, "UPDATE notes SET ap_id = 'https://sukhi.test/notes/2' WHERE id = $1", [young])
+    assert %{notes: 1, likes: 1} = sync(c)
+    assert liked_by(c.db, "https://sukhi.test/notes/2") == [Actors.find(c.db, "https://sukhi.test/users/bob")]
+  end
+
+  test "a like whose post will never be here is named, and the cursor goes past it", c do
+    alice = account(c.pg, "alice")
+    bob = account(c.pg, "bob")
+    old = note(c.pg, alice, nil, at: DateTime.add(DateTime.utc_now(), -3600))
+    gone = like(c.pg, bob, old)
+    ghost = like(c.pg, bob, 9_999)
+    n3 = note(c.pg, alice, "https://sukhi.test/notes/3")
+    l3 = like(c.pg, bob, n3)
+
+    assert %{likes: 1, likes_missing: missing} = sync(c)
+    assert Enum.sort(missing) == [{gone, :no_ap_id}, {ghost, :no_note}]
+    assert cursor(c.db, "tail:likes") == l3
+  end
+
+  test "a like by a person with no IRI is named", c do
+    alice = account(c.pg, "alice")
+    ghost = account(c.pg, "ghost", "remote.test", nil)
+    n1 = note(c.pg, alice, "https://sukhi.test/notes/1")
+    l1 = like(c.pg, ghost, n1)
+
+    assert %{likes: 0, likes_missing: [{^l1, :no_iri}]} = sync(c)
+    assert liked_by(c.db, "https://sukhi.test/notes/1") == []
   end
 end

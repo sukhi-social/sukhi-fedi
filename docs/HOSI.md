@@ -40,16 +40,19 @@ The Dockerfile and CI do not build it yet, so a release does not have it.
 ## What is copied, and what is not
 
 Copied: a person (`accounts`: ours as `https://<domain>/users/<username>`, a remote one by its
-`actor_uri`) and a post (`notes`, by `ap_id`, with its author, `published`, visibility, the HTML
-to show, and for a reply its parent and thread root). It works the same whichever store the
-Repo is on (`SUKHI_STORE`), because it reads through Ecto.
+`actor_uri`), a post (`notes`, by `ap_id`, with its author, `published`, visibility, the HTML
+to show, and for a reply its parent and thread root) and a like (a `reactions` row with the
+favourite emoji, on the post, by the person). It works the same whichever store the Repo is on
+(`SUKHI_STORE`), because it reads through Ecto.
 
 Waits or gives up, by name (the round's report says which): a post whose author is
 nowhere (`:no_author`); a local post that is still without its `ap_id` (waits up to 60
-seconds, then `:no_ap_id`).
+seconds, then `:no_ap_id`); a like whose post is not in hosigraph yet (waits up to 60 seconds,
+then `:no_note`, in `likes_missing`).
 
-Not followed: edits, deletes, follows, boosts, likes, anything else. A post deleted in the store
-stays in hosigraph. Switching likes over needs the deletes and likes followed first.
+Not followed: edits, deletes, a like taken back, follows, boosts, any other reaction. A post
+deleted in the store stays in hosigraph, and so does a like taken back. Switching likes over
+needs those followed first.
 
 A person or post already in hosigraph is left alone (they are looked up by IRI), so a round that
 stopped halfway is repaired by the next one.

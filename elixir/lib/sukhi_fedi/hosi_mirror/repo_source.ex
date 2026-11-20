@@ -11,9 +11,10 @@ if Code.ensure_loaded?(SukhiHosi.Source) do
     import Ecto.Query
 
     alias SukhiFedi.Repo
-    alias SukhiFedi.Schema.{Account, Note}
+    alias SukhiFedi.Schema.{Account, Note, Reaction}
 
     @account [:id, :username, :domain, :actor_uri]
+    @like [:id, :account_id, :note_id]
     @note [:id, :account_id, :ap_id, :content, :content_html, :visibility, :domain, :created_at, :in_reply_to_ap_id]
 
     @impl true
@@ -29,5 +30,17 @@ if Code.ensure_loaded?(SukhiHosi.Source) do
     @impl true
     def notes_after(_arg, after_id, limit),
       do: Repo.all(from n in Note, where: n.id > ^after_id, order_by: n.id, limit: ^limit) |> Enum.map(&Map.take(&1, @note))
+
+    @impl true
+    def notes_by_ids(_arg, []), do: []
+
+    def notes_by_ids(_arg, ids),
+      do: Repo.all(from n in Note, where: n.id in ^ids, order_by: n.id) |> Enum.map(&Map.take(&1, @note))
+
+    @impl true
+    def likes_after(_arg, after_id, limit, emoji) do
+      Repo.all(from r in Reaction, where: r.id > ^after_id and r.emoji == ^emoji, order_by: r.id, limit: ^limit)
+      |> Enum.map(&Map.take(&1, @like))
+    end
   end
 end
