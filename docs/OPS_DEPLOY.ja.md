@@ -185,7 +185,7 @@ podman logs <postgres-container>  # Postgres の場合
 
 既存 Datalevin の復元では、停止済み旧 writer から全 persistence unit を
 戻し、`SukhiFedi.Release.check_datalevin_backup_manifest!()` を先に実行する。
-catalog mismatch、queue DB 欠落、graph 欠落は起動前に拒否され、データは変更
+catalog mismatch、queue DB 欠落は起動前に拒否され、データは変更
 されない。
 
 #### F. NATS/DB/frontend upstream がつながらない場合

@@ -6,7 +6,7 @@ defmodule SukhiFedi.Datalevin.SchemaDiff do
 
   Schemas here are the wire form `datalevin_open_database` takes:
   `%{":ns/name" => %{":db/valueType" => ":db.type/string", ...}}`
-  (`Catalog.dtlv_schema/0`, `SchemaFile.to_dtlv/1`).
+  (`Catalog.dtlv_schema/0`).
 
   One rule decides everything: **only a new attribute is additive.** A
   removed attribute leaves data nobody reads, and a changed one may no longer

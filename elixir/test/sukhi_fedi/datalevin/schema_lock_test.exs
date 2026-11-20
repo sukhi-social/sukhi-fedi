@@ -7,8 +7,7 @@ defmodule SukhiFedi.Datalevin.SchemaLockTest do
   @string %{":db/valueType" => ":db.type/string"}
   @long %{":db/valueType" => ":db.type/long"}
 
-  defp lock(main, graph \\ %{}, mv \\ 0, gv \\ 0),
-    do: %{main: %{version: mv, schema: main}, graph: %{version: gv, schema: graph}}
+  defp lock(main, version \\ 0), do: %{main: %{version: version, schema: main}}
 
   # If this fails, the schema moved without the lock (or the lock without the
   # schema): `mix sukhi.datalevin.lock`. A removed or changed attribute needs
@@ -32,8 +31,8 @@ defmodule SukhiFedi.Datalevin.SchemaLockTest do
     end
 
     test "a newer migration makes the lock stale" do
-      assert [problem] = SchemaLock.check(lock(%{}, %{}, 0, 0), lock(%{}, %{}, 0, 20_260_101_000_000))
-      assert problem =~ "graph: newest migration is 20260101000000"
+      assert [problem] = SchemaLock.check(lock(%{}, 0), lock(%{}, 20_260_101_000_000))
+      assert problem =~ "main: newest migration is 20260101000000"
     end
   end
 
@@ -51,39 +50,35 @@ defmodule SukhiFedi.Datalevin.SchemaLockTest do
 
       assert {:error, [problem]} = SchemaLock.update(old, new)
       assert problem =~ "main: removed: :a/y"
-      assert problem =~ "gen.migration NAME --store main"
+      assert problem =~ "gen.migration NAME"
     end
 
-    test "a changed attribute is refused in the store it changed in" do
-      old = lock(%{}, %{":b/x" => @string})
-      new = lock(%{}, %{":b/x" => @long})
+    test "a changed attribute is refused without a newer migration" do
+      old = lock(%{":b/x" => @string})
+      new = lock(%{":b/x" => @long})
 
       assert {:error, [problem]} = SchemaLock.update(old, new)
-      assert problem =~ "graph: changed: :b/x"
+      assert problem =~ "main: changed: :b/x"
     end
 
     test "a removed attribute is taken once a migration newer than the lock exists" do
       old = lock(%{":a/x" => @string, ":a/y" => @long})
-      new = lock(%{":a/x" => @string}, %{}, 20_260_101_000_000, 0)
+      new = lock(%{":a/x" => @string}, 20_260_101_000_000)
 
       assert {:ok, ^new} = SchemaLock.update(old, new)
     end
 
-    test "a migration of the other store does not excuse it" do
-      old = lock(%{":a/x" => @string, ":a/y" => @long})
-      new = lock(%{":a/x" => @string}, %{}, 0, 20_260_101_000_000)
-
-      assert {:error, [_]} = SchemaLock.update(old, new)
-    end
   end
 
   test "encode then read round-trips, one attribute per line" do
     original =
       lock(
-        %{":a/x" => Map.put(@string, ":db/unique", ":db.unique/identity"), ":a/y" => @long},
-        %{":b/z" => %{":db/valueType" => ":db.type/tuple", ":db/tupleAttrs" => [":b/x", ":b/y"]}},
-        20_260_101_000_000,
-        0
+        %{
+          ":a/x" => Map.put(@string, ":db/unique", ":db.unique/identity"),
+          ":a/y" => @long,
+          ":b/z" => %{":db/valueType" => ":db.type/tuple", ":db/tupleAttrs" => [":b/x", ":b/y"]}
+        },
+        20_260_101_000_000
       )
 
     text = SchemaLock.encode(original)

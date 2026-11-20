@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Fedi.DeliverySuspension.ControlTest do
-  # Evidence is written to the store: real `dtlv`.
-  use SukhiFedi.GraphCase
+  # Evidence is written to the store: real PostgreSQL.
+  use SukhiFedi.IntegrationCase, async: false
+
+  @moduletag :integration
 
   alias SukhiFedi.Fedi.DeliverySuspension.{Control, Store}
   alias SukhiFedi.SuspensionNet, as: Net

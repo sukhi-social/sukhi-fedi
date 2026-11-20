@@ -2,7 +2,7 @@
 
 2026-11-17。nyanrus のレビュー前の下書き。sukhi-fedi には何も触っていない。
 読んだのは: `notes/create.ex`、`notes/interactions.ex`(favourite)、`timelines.ex`(home の前半)、
-`outbox.ex` の口、`backend.ex`、`graph/sweep.ex`、CODE_STYLE、FEDERATION_REDUCER の頭。
+`outbox.ex` の口、`backend.ex`、CODE_STYLE、FEDERATION_REDUCER の頭。
 読んでいないのは: `social.ex`、`account_deletion.ex`、`ap/instructions/follows.ex`、timelines の後半。
 
 ## 0. 置き場の物差し(nyanrus, 2026-11-17)
@@ -36,7 +36,7 @@ Repo(731 か所)の高さには、口を置かない。`Repo.get_by` や `Multi.
 
 置くのは、いまの Context が、すでに持っている「操作」の高さ。
 `Notes.Create.create_status`、`Notes.Interactions.favourite`、`Timelines.home`、
-`AccountDeletion`、`Graph.Sweep.run`。名前も引数も、呼ぶ側はそのまま。
+`AccountDeletion`。名前も引数も、呼ぶ側はそのまま。
 その下に、実装を 2 つ並べる(いまの Ecto と、hosigraph)。
 
 ```
@@ -58,7 +58,7 @@ Repo(731 か所)の高さには、口を置かない。`Repo.get_by` や `Multi.
 | `timeline(:public \| :home \| {:author, a} \| {:tag, t} \| {:thread, n}, viewer, page)` | `Timeline` | `Timelines` |
 | `ingest_object(remote)` | `Ingest.object` | `AP.Ingest.run` の書く部分 |
 | `erase_account(account)` | `Accounts.erase` | `AccountDeletion` |
-| `sweep(mode, opts)` | `Sweep.run` | `Graph.Sweep.run` |
+| `sweep(mode, opts)` | `Sweep.run` | (sukhi 側には無い。この掃除は hosi_store だけが持つ) |
 | (口には出さない)hosigraph の outbox 行 → Postgres の `outbox` へ橋をかける feeder | `Outbox` の CAS cursor | `SukhiDelivery.Outbox.Relay` の手前に足す |
 
 ## 3. 口の形で、決めておきたいこと
@@ -189,12 +189,12 @@ OSS に出す時は、nyanrus が読んでから。
 
 置き場の物差し(§0)に沿って、2 つ足した。dtlv 27 passed(2 excluded)/ JVM 29 passed。
 
-**Feeder(`feeder.ex`、Postgres は PGlite)** — 配送は今の Oban/`outbox` のまま、橋だけ。
+**Feeder(`feeder.ex`、Postgres は pgrust)** — 配送は今の Oban/`outbox` のまま、橋だけ。
 - 1 round = 1 Postgres transaction: cursor の行を `FOR UPDATE` → hosigraph の outbox 行を読む → `outbox` に insert(sukhi の subject 名で)→ cursor を進める。
 - round の途中で落ちても(`after_insert` で raise)Postgres には何も残らず、次の round が同じ行から。
 - `source_id`(hosigraph の行 id)を unique にして、cursor を失っても二重に入らない。
 - 変異で捕まる: cursor を進めない・source_id の guard を外す(各 2 本)。
-- **捕まらない変異: `FOR UPDATE` を外す。** PGlite は 1 本の接続を多重にしているので、transaction が重ならない。同時の feeder の保証は、**本物の Postgres で確かめるまで未確認**。
+- 変異で捕まる: `FOR UPDATE` を外す(同時に 2 本の接続を使う test が落ちる)。
 - 窓の前提(event log を直接読む)は、この試作では**まだ使えない**(口が無いので)。source は hosigraph の outbox 行のまま。差し替える所は `Outbox.after_id` 1 つ。
 - erase された行は配送されない(Delete の配送を先に済ませる順が要る。テストは「そうなる」ことだけ見ている)。
 
@@ -210,7 +210,7 @@ OSS に出す時は、nyanrus が読んでから。
   - 気づき: mention された account を erase しても、他人の投稿の `object/mentions` の値(id の数字)は残る(in-reply-to と同じ扱い。「他人が書いたものは残る」)。物理的に消したいなら、liked-by のように先に外す道がある。決めていない。
 - 既読位置も済み(`markers.ex`、Postgres): `markers(account_id, timeline, last_read_id text, version, updated_at)`、主キーは (account_id, timeline)。`upsert` は 1 文(`ON CONFLICT DO UPDATE SET version = version + 1`)で、sukhi の「読んでから書く」より取りこぼさない。`last_read_id` は文字列のまま中を見ないので、API の id をどうするか(§7)に縛られない。`get` は home / notifications だけ。`Notifications.count_after` で「位置より新しい通知」=未読が数えられる。変異 5 通りが捕まる。dtlv 42 / JVM 44 passed。
   - **account の erase は 2 つの store をまたぐ**: `Erase.account(db, pg, account)` が、hosigraph(`Accounts.erase`)→ Postgres(`Markers.erase` と、feeder が写し済みの outbox の行=payload の `account_id` が本人のもの)の順に呼ぶ。順は固定: hosigraph が先に手放せば、feeder はもう写すものが無い。2 つにまたがる transaction は無く、各段が「いまあるもの」を見るので、途中で止まっても呼び直せば済む(test 3 本・変異 4 通りが捕まる)。残る隙: hosigraph の erase の最中に回っていた feeder の round があとから commit した行は、次の呼び出しで消える(それまでは id だけで本文は無い)。**誰が呼ぶかは決まり(2026-11-19、nyanrus): job**。sukhi の閉じる手順はもともと Oban の cron worker(`AccountDeletion.Worker`)で、request は 24 時間後の予約を入れるだけ。呼ぶのは、その job の最後の 1 段(下)。
-  - **PGlite は 1 本の接続を多重にして、メッセージが混ざる**(`unnamed prepared statement does not exist`)。同時に 2 本の接続が要る test(feeder の 2 本・markers の同時 upsert・`FOR UPDATE`)は `:concurrent_pg` にして、本物の Postgres(`HOSI_PG_PORT=5432 mix test`)のときだけ走らせる。本物の Postgres(Postgres.app、5432、`HOSI_PG_DB=hosi_spike`)で走らせて通る。
+  - 同時に 2 本の接続が要る test(feeder の 2 本・markers の同時 upsert・`FOR UPDATE`)には `:concurrent_pg` の印がある。test の Postgres は pgrust で、接続を混ぜない本物のサーバーなので、ふつうの `mix test` で走る。自分の Postgres を使うなら `HOSI_PG_PORT=5432 mix test`(database は `HOSI_PG_DB`)。
 - boost の取り消しも済み(`Notes.unboost`): boost の entity と、その通知(`reblog`)を 1 write で外し、relay には `UndoAnnounce` の行を書く(feeder が `sns.outbox.announce.undone` に写す。sukhi の subject 名は sukhi-fedi に在るのを確かめた)。無ければ `:not_boosted`、取り消してから boost し直すと新しい boost になって、また通知する。変異 3 通りが捕まる。同時に 2 か所から取り消しても 1 回で、relay の行も 1 つ、にする `:holds` の守りは、JVM khana でしか走らせられない test(`:concurrent_read`)にしてあり、**この環境は JVM が見えないので、その test はまだ走らせていない**。
 - 本文からの @ も済み(`Mentions.extract(db, text)`、口の外): 人が書いた素の文章(html になる前)から、`@name`(ここの人)と `@name@host`(その host の人。host がここなら、ここの人)の actor id を、最初に出た順に 1 回ずつ返す。`Notes.post` の `mentions:` にそのまま渡せる。知らない人は外す(リモートの人は、投稿が届いたときに知る)。`me@x.org`・`/@bob`・`@@bob` は mention でない。大小は、書かれたまま→小文字の順に探す。変異 5 通りが捕まる。
 - 既読を付ける操作も済み(`Markers.advance`・`read_notifications`): 位置は前にしか進まない(数字の id は数として比べる。「1000」は「999」より後)。SQL 1 文で、遅れている端末が既読を戻さない。数字でない id は、比べられないのでそのまま置く。`read_notifications` は一番新しい通知の id まで進める(通知が無ければ `:nothing`)。変異 3 通りが捕まる(1 つは test を足して捕まえた)。
@@ -226,7 +226,7 @@ OSS に出す時は、nyanrus が読んでから。
 **見つかったこと**
 - like が先に作者を読む(書く前の read)ので、dtlv では「同時に 20 人が like」のテストが落ちた(読みと書きの重なり。既知の dtlv の癖)。
   そのテストは `:concurrent_read`(JVM のみ)に移した。sukhi の `favourite` は note を先に読んでいるので、呼び出し側が author を渡せるなら、この read は要らない。
-- PGlite は、test ごとに pool を作ると、閉じた socket を残して次が落ちる。run 全体で 1 つの pool にした。
+- Postgres の pool は run 全体で 1 つ(`test/test_helper.exs`)。
 
 ## 11. 操作の重さ(2026-11-19: hosigraph #25 の main で数えた)
 
@@ -292,7 +292,7 @@ like だけを切り替えようとして見つかったこと: sukhi では lik
 切り替えの前に、その 2 つを写す道が要る。`ImportPg`(手でやる・やり直せる)がそれ:
 
 - `actors/3` → `notes/3` → `verify/3` の順。人の IRI は、ここの人は `https://<domain>/users/<username>`、
-  リモートは `actor_uri`(sukhi の `Graph.Project.actor_iri` と同じ規則)。投稿の IRI は `ap_id`。
+  リモートは `actor_uri`(人の IRI はこの規則で決まる)。投稿の IRI は `ap_id`。
 - 運ぶもの: 人(IRI・username・host・local?)、投稿(IRI・作者・published〔µs〕・local?・visibility・
   表示する HTML〔`content_html`、無ければ `content`: `Note.html/1` と同じ〕・返信先と root)。
 - 運ばないもの: tags・mentions・media・poll・CW・boost・follow・pin・通知。それぞれ別の段。
@@ -311,8 +311,8 @@ like だけを切り替えようとして見つかったこと: sukhi では lik
 
 ## 13. 両書き: sukhi の store を追いかける(2026-11-20)
 
-「新しく作られる人と投稿を両方に書く」は、書く道(Multi)に手を入れず、**追いかける**形にした。`Graph.Local` が
-outbox を追うのと同じ考え方: sukhi の store の書き方は変えず、前回の id より後ろを読んで hosigraph に写す。
+「新しく作られる人と投稿を両方に書く」は、書く道(Multi)に手を入れず、**追いかける**形にした。
+sukhi の store の書き方は変えず、前回の id より後ろを読んで hosigraph に写す。
 どの道で作られた投稿(local の API・inbox・deco・backfill)も、id で一度は通るので、道ごとに hook を足さずに済む。
 
 - `Copy`: 人と投稿と like を hosigraph に書く、ただ一つの場所(`ImportPg`・`MigrateLikes`・`Tail` が呼ぶ)。IRI で探すので、あるものは触らない。

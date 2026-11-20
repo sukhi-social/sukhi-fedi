@@ -5,9 +5,8 @@ defmodule SukhiHosi.Ingest do
   go in as one write; the IRIs are identities, so the same post arriving twice, or at the same
   moment on two connections, is made once and the others are told `:already`.
 
-  Nothing here tells the relay: a remote post is not ours to deliver. There is also no `Mirror`:
-  sukhi's graph store is a copy kept beside another database, and here what is written is the
-  record.
+  Nothing here tells the relay: a remote post is not ours to deliver. There is also no copy kept
+  beside another database: what is written here is the record.
   """
 
   alias SukhiHosi.{Actors, Notes}

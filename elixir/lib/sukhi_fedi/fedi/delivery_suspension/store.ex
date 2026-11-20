@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
   @moduledoc """
-  What FEP-f799 remembers, in the graph store (`priv/datalevin/schema.edn`,
-  the `dsnotice/` `dspending/` `dsevidence/` `dscutoff/` attributes). Four
-  kinds of row, no refs:
+  What FEP-f799 remembers, in PostgreSQL (`SukhiFedi.AccountRepo`; the tables
+  are `suspension_notices`, `suspension_pending`, `suspension_evidence` and
+  `suspension_cutoffs`, in `priv/account_repo/migrations`). Four kinds of row,
+  no references:
 
     * **notices** — one per notice `id`. A cancelled row is kept as the
       mark that ends it: a later, higher `revision` does not bring it back.
@@ -18,21 +19,29 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
       notice we no longer remember.
 
   Reads never lock. A caller that reads and then writes does both inside
-  `exclusive/1` (the graph's one writer), and never nests it; nothing here
-  takes the lock itself.
+  `exclusive/1` (one holder at a time on this node), and never nests it;
+  nothing here takes the lock itself. A single write is its own whole step.
 
   Times in rows are microseconds since the epoch; a `Notice`'s `DateTime`s
   travel as ISO 8601 inside the `record` JSON, which is the authority for
-  reading a notice back (the other `dsnotice/` attributes are for indexes).
+  reading a notice back (the other `suspension_notices` columns are for
+  finding rows).
+
+  A database that cannot be reached answers `{:error, _}` where the function
+  can say so, and what it would have found if there were nothing (`0`, `false`,
+  `nil`, no rows) where it cannot.
   """
 
-  alias SukhiFedi.Datalevin.Edn
-  alias SukhiFedi.Graph
+  import Ecto.Query, only: [from: 2]
+
+  alias SukhiFedi.AccountRepo
   alias SukhiShared.DeliverySuspension.{Notice, Policy}
 
-  @doc "Run `fun` as the only writer. Not re-entrant."
+  @doc "Run `fun` as the only writer on this node. Not re-entrant."
   @spec exclusive((-> result)) :: result when result: term()
-  def exclusive(fun), do: Graph.exclusive(fun)
+  def exclusive(fun) do
+    :global.trans({{__MODULE__, :write}, self()}, fun, [node()], :infinity)
+  end
 
   # ── notices ──────────────────────────────────────────────────────────────
 
@@ -42,10 +51,7 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
   """
   @spec get_notice(String.t()) :: {:ok, Notice.t(), String.t() | nil} | :none | {:error, term()}
   def get_notice(id) when is_binary(id) do
-    read_one(
-      "[:find ?r ?c :where [?e :dsnotice/id #{Edn.literal(id)}] [?e :dsnotice/record ?r]" <>
-        " [(get-else $ ?e :dsnotice/create-id \"\") ?c]]"
-    )
+    read_one(from(n in "suspension_notices", where: n.id == ^id, select: {n.record, n.create_id}))
   end
 
   @doc "The notice that `actor`'s `Create` `create_id` carried, if we have it."
@@ -53,48 +59,59 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
           {:ok, Notice.t(), String.t() | nil} | :none | {:error, term()}
   def get_notice_by_create(actor, create_id) when is_binary(actor) and is_binary(create_id) do
     read_one(
-      "[:find ?r ?c :where [?e :dsnotice/controller #{Edn.literal(actor)}]" <>
-        " [?e :dsnotice/create-id #{Edn.literal(create_id)}]" <>
-        " [?e :dsnotice/record ?r] [(get-else $ ?e :dsnotice/create-id \"\") ?c]]"
+      from(n in "suspension_notices",
+        where: n.controller == ^actor and n.create_id == ^create_id,
+        select: {n.record, n.create_id},
+        limit: 1
+      )
     )
   end
 
   @doc "Every stored notice: what the cache is rebuilt from after a restart."
   @spec all_notices() :: {:ok, [Notice.t()]} | {:error, term()}
   def all_notices do
-    with {:ok, rows} <- Graph.query("[:find ?r :where [?e :dsnotice/record ?r]]") do
-      {:ok, for([r] <- rows, do: decode(r))}
+    case guard(fn -> AccountRepo.all(from(n in "suspension_notices", select: n.record)) end) do
+      {:error, _} = error -> error
+      records -> {:ok, Enum.map(records, &decode/1)}
     end
   end
 
   @doc "How many notices this controller has with us (cancelled ones count: they are marks)."
   @spec count_notices(String.t()) :: non_neg_integer()
   def count_notices(controller) when is_binary(controller) do
-    count("[:find (count ?e) :where [?e :dsnotice/controller #{Edn.literal(controller)}]]")
+    count(from(n in "suspension_notices", where: n.controller == ^controller, select: count()))
   end
 
   @doc """
   Write `notice` (insert or replace by `id`). Options: `:create_id`, and
-  `:snapshot`, the document as received.
+  `:snapshot`, the document as received. A write that gives neither leaves
+  what an earlier one stored.
   """
   @spec put_notice(Notice.t(), keyword()) :: :ok | {:error, term()}
   def put_notice(%Notice{} = n, opts \\ []) do
-    row =
-      %{
-        ":db/id" => -1,
-        ":dsnotice/id" => n.id,
-        ":dsnotice/controller" => n.controller,
-        ":dsnotice/target-kind" => ":#{n.target_kind}",
-        ":dsnotice/target" => n.target,
-        ":dsnotice/status" => ":#{n.status}",
-        ":dsnotice/revision" => n.revision,
-        ":dsnotice/published" => micros(n.published),
-        ":dsnotice/record" => encode(n)
-      }
-      |> put_if(":dsnotice/create-id", opts[:create_id])
-      |> put_if(":dsnotice/snapshot", opts[:snapshot])
+    row = %{
+      id: n.id,
+      controller: n.controller,
+      target_kind: Atom.to_string(n.target_kind),
+      target: n.target,
+      status: Atom.to_string(n.status),
+      revision: n.revision,
+      published: micros(n.published),
+      record: encode(n),
+      create_id: opts[:create_id],
+      snapshot: opts[:snapshot]
+    }
 
-    transact([row])
+    replace =
+      [:controller, :target_kind, :target, :status, :revision, :published, :record] ++
+        Enum.filter([:create_id, :snapshot], &Map.get(row, &1))
+
+    write(fn ->
+      AccountRepo.insert_all("suspension_notices", [row],
+        conflict_target: :id,
+        on_conflict: {:replace, replace}
+      )
+    end)
   end
 
   # ── pending cancellations ────────────────────────────────────────────────
@@ -108,46 +125,51 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
           :ok | {:error, :full | term()}
   def put_pending(actor, create_id, %DateTime{} = now, %Policy{} = policy) do
     cond do
-      count("[:find (count ?e) :where [?e :dspending/actor #{Edn.literal(actor)}]]") >=
+      count(from(p in "suspension_pending", where: p.actor == ^actor, select: count())) >=
           policy.max_pending_per_actor ->
         {:error, :full}
 
-      count("[:find (count ?e) :where [?e :dspending/actor _]]") >= policy.max_pending_total ->
+      count(from(p in "suspension_pending", select: count())) >= policy.max_pending_total ->
         {:error, :full}
 
       true ->
-        transact([
-          %{
-            ":db/id" => -1,
-            ":dspending/actor" => actor,
-            ":dspending/create-id" => create_id,
-            ":dspending/received-at" => micros(now),
-            ":dspending/expires-at" => micros(DateTime.add(now, policy.notice_max_age, :second))
-          }
-        ])
+        row = %{
+          actor: actor,
+          create_id: create_id,
+          received_at: micros(now),
+          expires_at: micros(DateTime.add(now, policy.notice_max_age, :second))
+        }
+
+        write(fn ->
+          AccountRepo.insert_all("suspension_pending", [row],
+            conflict_target: [:actor, :create_id],
+            on_conflict: {:replace, [:received_at, :expires_at]}
+          )
+        end)
     end
   end
 
   @doc "Is an `Undo` held for this `(actor, create_id)` that has not expired?"
   @spec pending?(String.t(), String.t(), DateTime.t()) :: boolean()
   def pending?(actor, create_id, %DateTime{} = now) do
+    at = micros(now)
+
     count(
-      "[:find (count ?e) :where [?e :dspending/actor #{Edn.literal(actor)}]" <>
-        " [?e :dspending/create-id #{Edn.literal(create_id)}]" <>
-        " [?e :dspending/expires-at ?x] [(> ?x #{micros(now)})]]"
+      from(p in "suspension_pending",
+        where: p.actor == ^actor and p.create_id == ^create_id and p.expires_at > ^at,
+        select: count()
+      )
     ) > 0
   end
 
   @doc "Drop the held `Undo` for `(actor, create_id)`, once it has been applied."
   @spec delete_pending(String.t(), String.t()) :: :ok | {:error, term()}
   def delete_pending(actor, create_id) do
-    case Graph.query(
-           "[:find ?e :where [?e :dspending/actor #{Edn.literal(actor)}]" <>
-             " [?e :dspending/create-id #{Edn.literal(create_id)}]]"
-         ) do
-      {:ok, rows} -> retract(for [e] <- rows, do: e)
-      {:error, _} = error -> error
-    end
+    write(fn ->
+      AccountRepo.delete_all(
+        from(p in "suspension_pending", where: p.actor == ^actor and p.create_id == ^create_id)
+      )
+    end)
   end
 
   # ── control evidence (stage 4 writes it; the row is here so the shape is one) ──
@@ -160,25 +182,21 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
 
   @spec get_evidence(atom(), String.t(), String.t()) :: {:ok, evidence()} | :none
   def get_evidence(kind, target, controller) when is_atom(kind) do
-    # Not `get-else`: dtlv answers a `get-else` query again from memory after
-    # the value it read has been rewritten (seen with the row below: the second
-    # attempt's `failure` did not show). Plain clauses are read each time, so
-    # the row is read as (attribute, value) pairs and folded here.
-    q =
-      "[:find ?a ?v :where [?e :dsevidence/kind #{Edn.literal(kind)}]" <>
-        " [?e :dsevidence/target #{Edn.literal(target)}]" <>
-        " [?e :dsevidence/controller #{Edn.literal(controller)}]" <>
-        " [?e ?a ?v]]"
+    kind = Atom.to_string(kind)
 
-    case Graph.query(q) do
-      {:ok, [_ | _] = pairs} ->
-        row = Map.new(pairs, fn [a, v] -> {a, v} end)
+    query =
+      from(e in "suspension_evidence",
+        where: e.kind == ^kind and e.target == ^target and e.controller == ^controller,
+        select: {e.verified_at, e.attempted_at, e.failure}
+      )
 
+    case guard(fn -> AccountRepo.one(query) end) do
+      {verified_at, attempted_at, failure} ->
         {:ok,
          %{
-           verified_at: from_micros(row[":dsevidence/verified-at"]),
-           attempted_at: from_micros(row[":dsevidence/attempted-at"]),
-           failure: failure(row[":dsevidence/failure"])
+           verified_at: from_micros(verified_at),
+           attempted_at: from_micros(attempted_at),
+           failure: failure(failure)
          }}
 
       _ ->
@@ -189,18 +207,24 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
   @doc "Record an attempt: `verified_at` only moves when `attrs` has one."
   @spec put_evidence(atom(), String.t(), String.t(), map()) :: :ok | {:error, term()}
   def put_evidence(kind, target, controller, attrs) when is_atom(kind) do
-    row =
-      %{
-        ":db/id" => -1,
-        ":dsevidence/kind" => ":#{kind}",
-        ":dsevidence/target" => target,
-        ":dsevidence/controller" => controller
-      }
-      |> put_if(":dsevidence/verified-at", micros(attrs[:verified_at]))
-      |> put_if(":dsevidence/attempted-at", micros(attrs[:attempted_at]))
-      |> put_if(":dsevidence/failure", attrs[:failure] && ":#{attrs[:failure]}")
+    row = %{
+      kind: Atom.to_string(kind),
+      target: target,
+      controller: controller,
+      verified_at: micros(attrs[:verified_at]),
+      attempted_at: micros(attrs[:attempted_at]),
+      failure: attrs[:failure] && Atom.to_string(attrs[:failure])
+    }
 
-    transact([row])
+    # A second attempt rewrites only what it has to say.
+    given = Enum.filter([:verified_at, :attempted_at, :failure], &Map.get(row, &1))
+
+    write(fn ->
+      AccountRepo.insert_all("suspension_evidence", [row],
+        conflict_target: [:kind, :target, :controller],
+        on_conflict: if(given == [], do: :nothing, else: {:replace, given})
+      )
+    end)
   end
 
   # ── cutoffs ──────────────────────────────────────────────────────────────
@@ -208,11 +232,10 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
   @doc "The controller's cutoff: notices published before it are not accepted. `nil` = none."
   @spec cutoff(String.t()) :: DateTime.t() | nil
   def cutoff(controller) when is_binary(controller) do
-    case Graph.query(
-           "[:find ?b :where [?e :dscutoff/controller #{Edn.literal(controller)}]" <>
-             " [?e :dscutoff/before ?b]]"
-         ) do
-      {:ok, [[b] | _]} -> from_micros(b)
+    query = from(c in "suspension_cutoffs", where: c.controller == ^controller, select: c.not_before)
+
+    case guard(fn -> AccountRepo.one(query) end) do
+      n when is_integer(n) -> from_micros(n)
       _ -> nil
     end
   end
@@ -220,19 +243,19 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
   @doc "Move the controller's cutoff forward to `at` (never back)."
   @spec advance_cutoff(String.t(), DateTime.t()) :: :ok | {:error, term()}
   def advance_cutoff(controller, %DateTime{} = at) do
-    case cutoff(controller) do
-      %DateTime{} = current ->
-        if DateTime.compare(at, current) == :gt, do: write_cutoff(controller, at), else: :ok
+    row = %{controller: controller, not_before: micros(at)}
 
-      nil ->
-        write_cutoff(controller, at)
-    end
-  end
+    forward =
+      from(c in "suspension_cutoffs",
+        update: [set: [not_before: fragment("GREATEST(?, EXCLUDED.not_before)", c.not_before)]]
+      )
 
-  defp write_cutoff(controller, at) do
-    transact([
-      %{":db/id" => -1, ":dscutoff/controller" => controller, ":dscutoff/before" => micros(at)}
-    ])
+    write(fn ->
+      AccountRepo.insert_all("suspension_cutoffs", [row],
+        conflict_target: :controller,
+        on_conflict: forward
+      )
+    end)
   end
 
   # ── forgetting ───────────────────────────────────────────────────────────
@@ -249,81 +272,79 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
           pending: non_neg_integer()
         }
   def sweep(%DateTime{} = now, %Policy{} = policy) do
-    horizon = DateTime.add(now, -policy.notice_max_age, :second)
+    horizon = micros(DateTime.add(now, -policy.notice_max_age, :second))
 
     old =
-      case Graph.query(
-             "[:find ?e ?c ?p :where [?e :dsnotice/published ?p] [(< ?p #{micros(horizon)})]" <>
-               " [?e :dsnotice/controller ?c]]"
-           ) do
-        {:ok, rows} -> rows
-        _ -> []
-      end
+      rows(
+        from(n in "suspension_notices",
+          where: n.published < ^horizon,
+          select: {n.id, n.controller, n.published}
+        )
+      )
 
     # Cutoffs first: if we stop between the two steps, the line is ahead of
     # the rows, which is the safe side.
     old
-    |> Enum.group_by(fn [_e, c, _p] -> c end, fn [_e, _c, p] -> p end)
+    |> Enum.group_by(fn {_id, c, _p} -> c end, fn {_id, _c, p} -> p end)
     |> Enum.each(fn {controller, published} ->
       # The first instant still acceptable: the forgotten notice's own
       # `published` must be refused too.
       _ = advance_cutoff(controller, from_micros(Enum.max(published) + 1))
     end)
 
-    _ = retract(for [e, _c, _p] <- old, do: e)
+    ids = for {id, _c, _p} <- old, do: id
+    _ = write(fn -> AccountRepo.delete_all(from(n in "suspension_notices", where: n.id in ^ids)) end)
 
-    expired =
-      case Graph.query("[:find ?e :where [?e :dspending/expires-at ?x] [(<= ?x #{micros(now)})]]") do
-        {:ok, rows} -> for [e] <- rows, do: e
-        _ -> []
+    at = micros(now)
+    expired = from(p in "suspension_pending", where: p.expires_at <= ^at)
+
+    pending =
+      case guard(fn -> AccountRepo.delete_all(expired) end) do
+        {n, _} when is_integer(n) -> n
+        _ -> 0
       end
 
-    _ = retract(expired)
-    %{notices: length(old), pending: length(expired)}
+    %{notices: length(old), pending: pending}
   end
 
   # ── plumbing ─────────────────────────────────────────────────────────────
 
-  defp read_one(edn) do
-    case Graph.query(edn) do
-      {:ok, [[record, create_id] | _]} ->
-        {:ok, decode(record), if(create_id == "", do: nil, else: create_id)}
+  # A connection that is not there is an answer (`{:error, _}`), not a crash:
+  # a caller that cannot reach the store has to say so, or carry on without it.
+  defp guard(fun) do
+    fun.()
+  rescue
+    error in [DBConnection.ConnectionError, Postgrex.Error] -> {:error, error}
+  end
 
-      {:ok, []} ->
-        :none
+  defp write(fun) do
+    guard(fn ->
+      _ = fun.()
+      :ok
+    end)
+  end
 
-      {:error, _} = error ->
-        error
+  defp rows(query) do
+    case guard(fn -> AccountRepo.all(query) end) do
+      rows when is_list(rows) -> rows
+      _ -> []
     end
   end
 
-  defp count(edn) do
-    case Graph.query(edn) do
-      {:ok, [[n] | _]} when is_integer(n) -> n
+  defp count(query) do
+    case guard(fn -> AccountRepo.one(query) end) do
+      n when is_integer(n) -> n
       _ -> 0
     end
   end
 
-  # A single write is its own whole step: the engine serialises writes. A
-  # read-then-write step holds `exclusive/1` around its reads and its writes.
-  defp transact(tx) do
-    case Graph.transact(tx) do
-      {:ok, _} -> :ok
+  defp read_one(query) do
+    case guard(fn -> AccountRepo.one(query) end) do
+      nil -> :none
       {:error, _} = error -> error
+      {record, create_id} -> {:ok, decode(record), create_id}
     end
   end
-
-  defp retract([]), do: :ok
-
-  defp retract(eids) do
-    case Graph.transact(for(e <- eids, do: [":db.fn/retractEntity", e])) do
-      {:ok, _} -> :ok
-      {:error, _} = error -> error
-    end
-  end
-
-  defp put_if(map, _key, nil), do: map
-  defp put_if(map, key, value), do: Map.put(map, key, value)
 
   defp micros(nil), do: nil
   defp micros(%DateTime{} = dt), do: DateTime.to_unix(dt, :microsecond)
@@ -331,9 +352,9 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
   defp from_micros(n) when is_integer(n) and n > 0, do: DateTime.from_unix!(n, :microsecond)
   defp from_micros(_), do: nil
 
-  defp failure(":none"), do: nil
-  defp failure(":" <> name), do: String.to_existing_atom(name)
-  defp failure(_), do: nil
+  defp failure(nil), do: nil
+  defp failure("none"), do: nil
+  defp failure(name) when is_binary(name), do: String.to_existing_atom(name)
 
   # The record is the whole notice, times as ISO 8601 text.
   @times ~w(published start_time end_time effective_start proof_expires_at accepted_at cancelled_at)a

@@ -4,8 +4,8 @@ defmodule SukhiHosi.Tail do
   Keeping hosigraph beside sukhi's store: what is new there (a person, a post, a like) is written here,
   a little after. This is "both are written" without editing any path that writes to sukhi's
   store: each round reads what came after the last id this has seen (`SukhiHosi.Source`) and
-  gives it to `Copy`. Like `Graph.Local`, it follows the store; it never changes what the store
-  does, so a lost or repeated round does no damage.
+  gives it to `Copy`. It follows the store and never changes what the store does, so a lost or
+  repeated round does no damage.
 
   The cursors are in hosigraph (`relay/name` `tail:accounts`, `tail:notes`, `tail:likes` and `tail:sweep`), so they move with
   the data they describe. A cursor is moved only after what is before it is written, and writing

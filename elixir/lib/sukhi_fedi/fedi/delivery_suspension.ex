@@ -5,20 +5,23 @@ defmodule SukhiFedi.Fedi.DeliverySuspension do
   and the parts that are started.
 
     * `Receiver` — takes in a notice and its cancellation;
-    * `Store` — remembers them (the graph store);
+    * `Store` — remembers them (PostgreSQL, `SukhiFedi.AccountRepo`);
     * `Upkeep` — fills the delivery worker's ETS copy
       (`SukhiShared.DeliverySuspension.Cache`) from the store when the gateway
       starts, and forgets the old once an hour.
 
-  It needs the graph store; without `SUKHI_GRAPH=1` nothing here starts, the
-  cache has no table, and no delivery is ever held.
+  On unless `config :sukhi_fedi, :delivery_suspension, false` (the unit tests,
+  which have no database): then nothing here starts, the cache has no table,
+  and no delivery is ever held.
   """
 
-  alias SukhiFedi.Graph
+  @doc "Is FEP-f799 handled? Read where it matters: the inbox, the hint job, the children."
+  @spec enabled?() :: boolean()
+  def enabled?, do: Application.get_env(:sukhi_fedi, :delivery_suspension, true) == true
 
-  @doc "Children for the application's supervisor; none when the graph is off. Start after `Graph.children/0`."
+  @doc "Children for the application's supervisor; none when off. Start after `SukhiFedi.AccountRepo`."
   @spec children() :: [module()]
   def children do
-    if Graph.enabled?(), do: [SukhiShared.DeliverySuspension.Cache, __MODULE__.Upkeep], else: []
+    if enabled?(), do: [SukhiShared.DeliverySuspension.Cache, __MODULE__.Upkeep], else: []
   end
 end

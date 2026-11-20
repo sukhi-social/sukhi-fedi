@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Datalevin のデータ構造(ひなたさんのドラフトの見直し)
 
-ドラフトを土台に、dtlv 1.2.10 で実際に読み込んで動かし、穴と直し方をまとめた。
-改訂版のスキーマは [`elixir/priv/datalevin/schema.edn`](../elixir/priv/datalevin/schema.edn)(168 属性、そのまま読み込める。正本はこの 1 つ)。
-まだ実装には接続していない。今の `SUKHI_STORE=datalevin` は Postgres のカタログを 1 対 1 で写した構造で動いている([DATALEVIN.md](DATALEVIN.md))。
+ドラフトを土台に、dtlv 1.2.10 で実際に読み込んで動かし、穴と直し方をまとめた、設計の覚え。
+この構造で作った第二のストア(`SukhiFedi.Graph`)は畳んだ。ここに残るのは、そのとき確かめたことと決めたこと。
+属性の定義(`schema.edn`)はもう無い。いまの store は Postgres のカタログを 1 対 1 で写した構造で動いている([DATALEVIN.md](DATALEVIN.md))。
 
 ## 前提(変えていない)
 
@@ -77,75 +77,22 @@ B 層まで手で設計し直す価値は小さく、変えるほどバグの面
 
 ## 実装の状況
 
-出来ている(単体テストと、実際の `dtlv` を使う通しテスト済み。どれも既存のアプリには未接続):
+この設計で作った `SukhiFedi.Graph`(別の `dtlv`、受信の取り込み、掃除、タイムラインの読み取り)は畳んだ。
+投稿・フォロー・タイムラインの役目は hosigraph(`hosi_store/`、[DESIGN.md](../hosi_store/DESIGN.md))が、
+アカウント・認証・設定・鍵は PostgreSQL(`AccountRepo`)が引き継ぐ。
 
-- `SukhiFedi.Graph`(+ `Supervisor`): グラフ用の別 DB(`<DATALEVIN_DIR>/graph`)と専用の `dtlv` 子プロセス。
-- `Graph.Ingest.object/2`: 1 件の取り込み(IRI で upsert)。author・宛先・メンションを stub で作り、`to`/`cc` を actor / collection に結び、
-  `visibility` を `Audience` で導き、`root`(順序が逆に届いても、後から親が来た時点で付け替える)、`sid`(Snowflake、再取り込みで不変)、
-  `raw`(`RawStore` 経由)、`content-html` と `content-mfm`、contentMap の展開、ハッシュタグを 1 トランザクションで書く。
-  `tombstone/2` は本文・原本・言語別の本文を消して `deleted-at` を付ける。
-- `Graph.Tokens`: 分かち書きのバッチ。`tokens` の無いものを `limit` 件ずつ処理し、サービスが落ちていれば最初の失敗で止まる。
-  `reset/0` で作り直せる。リアルタイムの分かち書きは(MAY として)持たない。検索側は `query_text/3` で同じ分かち書きをかける。
-- `Graph.Sweep`: 掃除。候補は索引(`received-at`)で取り、保持ルール(`local_thread` `young_thread` `local_touch` `followed`)を batch に 1 回だけ当て、
-  残りと子(`content` `attachment` `tagging` `reaction` `poll`→`choice`→`vote` など)を 1 トランザクションで消す。`:dry_run` は理由ごとの内訳を返す。
-  `gc/1` は blob を 1 つずつグラフに問い合わせて、参照のないものだけ消す(参照の全列挙はしない)。
-  スキーマの ref 属性がすべて「子」か「辺」に分類されていることをテストで見ている(新しい ref を足すと落ちて、扱いを決めさせる)。
-- `RawStore` / `Tokenizer` / `SchemaFile`: 前の段のとおり。
-
-実測で分かって直したこと:
+実測で分かったことのうち、`dtlv` 一般に効くもの:
 
 - **時刻は instant ではなく long(µs)にした。** `dtlv mcp` の JSON では instant を書けない(`Expect java.util.Date`)。
   既存のストア(`Datalevin.Types`)と同じ約束で、範囲比較もそのまま通る。
 - キーワード値、lookup ref、`ground` によるコレクション束縛、`:order-by`/`:limit`、`not`/`not-join`、`retractEntity` は JSON 経由で通る。
-- 同じミリ秒に複数の object が来ても、`sid` はそのミリ秒の最大値+1 を取るので重ならない(65,536 件を超えたら明示的に失敗する)。
-- 取り込みの速さ: `strict`(WAL を毎回 fsync)で 1 件あたり約 6ms(500 件)。バックフィルは束ねて書く余地がある(未実装)。
 
-接続と運用(`SUKHI_GRAPH=1` のとき):
-
-- 受信の入口 `AP.Ingest` の、実行が済んだ後に `Graph.Mirror.admit/2` が 1 件ずつ(受け付けた順に 1 プロセスで)グラフへ写す。
-  埋め込み object が actor と別のホストなら(作者が署名していない限り)写さない。失敗しても受信の応答は変わらない。
-- cron: `Tokens`(5 分ごと)、`Sweep`(毎日。既定は dry-run で、`SUKHI_GRAPH_SWEEP=execute` で初めて削除)。変数は `docs/ENV.md`。
-- ベンチ: `mix sukhi.graph.bench`(合成データを実際の取り込み経路で入れ、読み取りを書き込み直後の冷えた状態で測る)と、
-  `.github/workflows/graph-bench.yml`(PR の数字を main と並べて要約に出す。報告のみで、落とさない)。
-- 読み取りは 2 段(並べ替え用の最小クエリ → `pull_many`)で、窓(`sid` の範囲)を広げながら探す。範囲検索の道具が `dtlv mcp` に無いため。
-  速さの残りは TODO.md。
-
-受信以外の取り込み(`SUKHI_GRAPH=1` のとき。`Graph.Project` と `Graph.Local`):
-
-- 入口は 1 つのまま。ローカル行を ActivityPub の JSON で言い直し(`Project`、純粋関数)、`Graph.Activity.record/2` に渡す。
-  ノートを書く別経路は作らない。活動の id は行の id から決めるので、同じ行を 2 回書いても 1 件になる。
-- **outbox を追う**(`Local`)。連合する操作はすでに同じトランザクションで `outbox` に行を書いている。それを id 順に読んで写す
-  (ノート作成・更新・削除、Like / リアクション / ブーストとその取り消し、フォロー依頼と取り消し、ピン、プロフィール更新)。
-  カーソルはグラフの中(`sync/outbox`)。最初の起動は最新の行から始める(それ以前は既存データの取り込みの仕事)。
-  一時的な失敗は 5 回まで再試行して先へ進まず、消えた行のような永続的な失敗は飛ばす。
-- **フック**。連合しないもの(ブックマーク、リスト、ローカル投票、ローカル同士のフォロー)は `Local.changed/1` を投げ、
-  行を読み直して「グラフを行に合わせる」。落ちても二重でも、次に呼ばれたときに正しくなる。
-- 添付・投票(`Question` の選択肢と票)・カスタム絵文字は、受信側(`Ingest` / `Activity`)も同じ形で取り込む。
-- 通知: ローカルのノートが名指した人(本文の `@name`、`Notes.Create.local_mentioned_ids/1` と同じ規則)は `Mention` タグにして渡すので、
-  受信と同じ経路で `mention` / `reply` / `favourite` / `reblog` / `follow` の通知ができる(宛先がローカルのときだけ、自分には作らない)。
-- 既知の穴: `dm.created` は無視する(ノート作成で足りるため)。編集で外した添付は消えない。
-
-API の読み取り(`SUKHI_GRAPH_READ=1`。`Graph.Timelines`):
-
-- 公開(ローカル)・ハッシュタグ・リストのタイムラインは、**どの投稿をどの順で出すか**をグラフが決め、投稿そのもの(件数・メディア・閲覧者ごとの状態)は
-  これまでどおり関係 DB から読む。Mastodon JSON を作るコードは 1 つのまま。`max_id` は note id → `ap_id` → `sid` と読み替える。
-- グラフが厳密に答えられないときは関係 DB のクエリに戻る: ページが足りない(既存データがまだ入っていないだけかもしれない)、
-  `since_id`/`min_id`、`only_media`/`hide_sensitive`、カーソルの投稿がグラフに無い、グラフの失敗。タイムラインは、グラフを入れる前より空にならない。
-- **Postgres 無しで動かす**には `SUKHI_STORE=datalevin`(関係 DB 側が Datalevin になる)に `SUKHI_GRAPH=1` `SUKHI_GRAPH_READ=1` を足す。
-  ホーム・通知・スレッドは、その関係 DB 側(= Datalevin)から今までの意味のまま読む。グラフ経由の統合テストは両方の構成で通る。
-- ホーム・通知・スレッドをグラフが選ぶ形はまだ。ホームはミュート・ブロック・リストのゲート・ブースト・キーワードなど規則が多く、同じ意味に移すのに別の一段が要る(TODO.md)。
-
-まだ(この先):
-
-- 既存データの取り込み(Postgres → グラフ)、ホーム・リスト・通知・スレッドの読み取りの切り替え。
-- 読み取りの速さ、韓国語の分かち書き(TODO.md)。
+残してあるが、いまは呼ぶところが無いもの: `Tokenizer`(下の分かち書き)。`RawStore` は使われている(PostgreSQL の blob 表と S3)。
 
 ## 移行の道筋
 
-1. A 層の表を `schema.edn` の形で受ける「第二のストア層」を、今の Ecto アダプタ越しではなく Datalog で直接書く(読み取りから)。
-2. 読み取り側(タイムライン・スレッド・通知)を Datalog クエリに替え、書き込みは今のアダプタ(Postgres 形)と二重書きして突き合わせる。
-3. 一致を見てから書き込みを切り替え、Ecto 形のテーブルを A 層から外す。
-4. `sid` は Postgres の `id` をそのまま引き継ぐ。
+この設計の道筋(第二のストア層を作って二重書きし、突き合わせてから切り替える)は取らなかった。
+投稿・フォロー・タイムラインは hosigraph へ、アカウント・認証・設定・鍵は PostgreSQL へ移す。
 
 ## 日本語・韓国語の分かち書き
 
@@ -213,4 +160,4 @@ API の読み取り(`SUKHI_GRAPH_READ=1`。`Graph.Timelines`):
 
 ## 配送のお休み(FEP-f799)の表
 
-`dsnotice/` `dspending/` `dsevidence/` `dscutoff/` の4つは、このグラフのスキーマ(`schema.edn`)に直接あります。ref は持たず、掃除(`Graph.Sweep`)の対象外です。意味と守り方は [`DELIVERY_SUSPENSION.md`](DELIVERY_SUSPENSION.md)。
+`dsnotice/` `dspending/` `dsevidence/` `dscutoff/` の4つだった記録は、このスキーマには無い。PostgreSQL の表(`suspension_*`)にある。表と意味と守り方は [`DELIVERY_SUSPENSION.md`](DELIVERY_SUSPENSION.md)。

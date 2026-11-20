@@ -5,7 +5,7 @@ defmodule SukhiHosi.Timeline do
   of the query, not a filter after it. A page is asked for by an id (`before:`): a hosigraph id
   grows with the order things were written, so it does the work sukhi's `sid` does.
 
-  Home is put together at read time (as in `Graph.Read.home`): the posts of the people you follow
+  Home is put together at read time: the posts of the people you follow
   and your own, and what they boosted, merged by when each appeared; a post seen twice is one row
   with `via` naming the boosters. Its cursor is a time (`at`), because a boost has no id of a
   post's kind.
@@ -173,7 +173,7 @@ defmodule SukhiHosi.Timeline do
 
   # A query's `:order-by` and `:limit` sort every match before they cut, so they do not make it
   # cheaper: narrow first. A page asks for the last few hours first and widens only if that was too
-  # few (as `Graph.Read` does), and sorts and cuts here. (`author` and `home` do not need this: a
+  # few, and sorts and cuts here. (`author` and `home` do not need this: a
   # tuple of (who, when) is walked with `highest_in`.)
   defp page(db, vis, clauses, {decl, inputs}, opts) do
     limit = Keyword.get(opts, :limit, 20)
