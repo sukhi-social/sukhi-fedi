@@ -301,5 +301,10 @@ like だけを切り替えようとして見つかったこと: sukhi では lik
 - 投稿の索引(id・IRI・親の IRI)は走る間メモリに持つ。数百万件の規模は想定していない。
 - 試した所: 親のほうが大きい id の thread(深さの順に書く。壊すと test が落ちる)・やり直し・作者が無い投稿と
   `ap_id` が無い投稿(`missing` に名前が出る。人を写してもう一度走らせれば直る)。
-- まだ: like の元の行を `MigrateLikes` の `(note_iri, actor_iri)` に合わせる view(`reactions` ⨝ `notes` ⨝ `accounts`)、
-  新しく作られる人と投稿を両方に書く道(sukhi 側の Multi に足す)、本物の sukhi の DB での試走。
+- like の元の行も済み: `MigrateLikes.copy/3`・`verify/3` に `domain:` を渡すと、sukhi の `reactions`(emoji が ⭐ のもの。
+  `Notes.Interactions.favourite_emoji/0`)を `notes`・`accounts` と結んで読む。view は作らず、問い合わせの中で
+  IRI を作る(ここの人は domain から、リモートは `actor_uri`。domain は設定で変わるので view に焼かない)。`domain:` 無しは
+  従来の `old_likes` 表のまま。⭐以外の reaction(Misskey 風)は運ばない。`ap_id` の無い投稿への like は元の行に
+  現れない(その投稿は `ImportPg.notes` が `:no_ap_id` で名前を出す)。`actor_uri` の無いリモートの人の like は
+  `missing` に `{note_iri, nil}` で出る。
+- まだ: 新しく作られる人と投稿を両方に書く道(sukhi 側の Multi に足す)、like の切り替え(config)、本物の sukhi の DB での試走。
