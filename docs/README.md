@@ -75,6 +75,7 @@ Start at [`DEVELOPING.md`](DEVELOPING.md), then [`ARCHITECTURE.md`](ARCHITECTURE
 | Web Push: design, and what shipped | [`WEBPUSH.md`](WEBPUSH.md) |
 | Making the backend unhurried | [`UNHURRIED_BACKEND.md`](UNHURRIED_BACKEND.md) (ja) |
 | Four seams where native code could plug in | [`native-seams.md`](native-seams.md) |
+| Following the store into hosigraph (the mirror, off by default) | [`HOSI.md`](HOSI.md) |
 | The web UI (web-next) | [`../web-next/README.md`](../web-next/README.md) (ja) |
 | Load and anomaly watching (Julia) | [`METRICS_REPORT.md`](METRICS_REPORT.md), [`../analysis/README.md`](../analysis/README.md) |
 
