@@ -92,6 +92,51 @@ FAKE_DOWN=1 "$sm" off >"$work/out" 2>&1 || bad "off with web-next down exits 0"
 [ ! -e "$SUKHI_MAINT_DIR/on" ] && ok "web-next down: flag removed" || bad "web-next down: flag removed"
 ls "$SUKHI_MAINT_DIR/www"/maintenance.*.html >/dev/null 2>&1 && bad "web-next down: pages holding the copy are deleted on off" || ok "web-next down: pages holding the copy are deleted on off"
 
+echo "# notice (FEP-f799): 眠っている間も答える文書と Link"
+# mix sukhi.suspension.prepare の --out と同じ形の、偽の DIR。
+prep="$work/prep"
+mkdir -p "$prep/public/control/users" "$prep/public/control/.well-known" "$prep/public/suspensions" "$prep/held" "$prep/send"
+echo '{"id":"https://rest.example/users/ops","note":"actor"}' > "$prep/public/control/users/ops.json"
+echo '{"subject":"https://rest.example","links":[]}' > "$prep/public/control/.well-known/webfinger.json"
+echo '{"announcement":"https://rest.example/activities/suspension-aB_9-1-create","id":"https://rest.example/suspensions/aB_9-1","status":"active"}' > "$prep/public/suspensions/aB_9-1.json"
+echo '{"id":"https://rest.example/suspensions/aB_9-1","status":"cancelled"}' > "$prep/held/aB_9-1.cancel.json"
+doc() { echo "$SUKHI_MAINT_DIR/www/doc/$1"; }
+"$sm" prepare >/dev/null 2>&1
+[ -e "$SUKHI_MAINT_DIR/link.map" ] && [ ! -s "$SUKHI_MAINT_DIR/link.map" ] && ok "prepare makes an empty link.map for nginx" || bad "prepare makes an empty link.map for nginx"
+SUKHI_NGINX_RELOAD="touch $work/reloaded" "$sm" notice put "$prep" >"$work/out" 2>&1 || { cat "$work/out"; bad "notice put exits 0"; }
+has "$(doc users/ops.json)" 'actor' && ok "actor placed at its URL path" || bad "actor placed at its URL path"
+has "$(doc .well-known/webfinger.json)" 'subject' && ok "webfinger placed" || bad "webfinger placed"
+has "$(doc suspensions/aB_9-1.json)" '"active"' && ok "notice placed" || bad "notice placed"
+stat -c %a "$(doc users/ops.json)" | grep -q '^644$' && ok "documents are world-readable (nginx)" || bad "documents are world-readable (nginx)"
+ls -a "$SUKHI_MAINT_DIR/www/doc" "$SUKHI_MAINT_DIR/www/doc/suspensions" | grep -q '\.new$' && bad "no half-written documents left" || ok "no half-written documents left"
+want='"~^" '"'"'<https://rest.example/suspensions/aB_9-1>; rel="https://w3id.org/fep/f799#deliverySuspension"'"'"';'
+[ "$(cat "$SUKHI_MAINT_DIR/link.map")" = "$want" ] && ok "link.map is one map line (what nginx includes)" || { cat "$SUKHI_MAINT_DIR/link.map"; bad "link.map is one map line"; }
+[ -e "$work/reloaded" ] && ok "the reload command ran" || bad "the reload command ran"
+"$sm" status >"$work/out"; has "$work/out" 'notice   https://rest.example/suspensions/aB_9-1' && ok "status shows the notice" || bad "status shows the notice"
+rm -f "$work/reloaded"
+"$sm" notice put "$prep" >"$work/out" 2>&1; has "$work/out" 'reload nginx' && ok "without a reload command, it says what to do next" || bad "without a reload command, it says what to do next"
+SUKHI_NGINX_RELOAD=false "$sm" notice put "$prep" >"$work/out" 2>&1 && ok "a failed reload is a warning, not a failure" || bad "a failed reload is a warning, not a failure"
+has "$work/out" 'could not reload' && ok "failed reload is said" || bad "failed reload is said"
+
+echo "# notice cancel"
+SUKHI_NGINX_RELOAD="touch $work/reloaded" "$sm" notice cancel "$prep" >"$work/out" 2>&1 || { cat "$work/out"; bad "notice cancel exits 0"; }
+has "$(doc suspensions/aB_9-1.json)" 'cancelled' && ok "the pre-signed cancellation replaces the notice" || bad "the pre-signed cancellation replaces the notice"
+[ -e "$(doc users/ops.json)" ] && bad "control stand-ins are taken down" || ok "control stand-ins are taken down"
+[ ! -s "$SUKHI_MAINT_DIR/link.map" ] && ok "the Link is withdrawn" || bad "the Link is withdrawn"
+[ -e "$work/reloaded" ] && ok "reloaded after the cancellation" || bad "reloaded after the cancellation"
+
+echo "# notice: bad input"
+"$sm" notice put "$work/nowhere" >/dev/null 2>&1 && bad "missing DIR" || ok "missing DIR is an error"
+two="$work/two"; cp -r "$prep" "$two"; cp "$two/public/suspensions/aB_9-1.json" "$two/public/suspensions/other.json"
+"$sm" notice put "$two" >"$work/out" 2>&1 && bad "two notices are refused" || { has "$work/out" 'exactly one' && ok "two notices are refused" || bad "two notices are refused"; }
+badid="$work/badid"; cp -r "$prep" "$badid"
+echo '{"id":"http://evil.example/suspensions/aB_9-1\u0027; x"}' > "$badid/public/suspensions/aB_9-1.json"
+"$sm" notice put "$badid" >"$work/out" 2>&1 && bad "an id that is not https is refused" || ok "an id that is not https is refused"
+[ ! -s "$SUKHI_MAINT_DIR/link.map" ] && ok "nothing is written to link.map for a refused id" || bad "nothing is written to link.map for a refused id"
+nohold="$work/nohold"; cp -r "$prep" "$nohold"; rm "$nohold/held/aB_9-1.cancel.json"
+"$sm" notice cancel "$nohold" >/dev/null 2>&1 && bad "cancel without a pre-signed cancellation" || ok "cancel without a pre-signed cancellation is refused"
+"$sm" notice put >/dev/null 2>&1 && rc=0 || rc=$?; [ "$rc" = 2 ] && ok "notice with no DIR is a usage error" || bad "notice with no DIR is a usage error (got $rc)"
+
 echo "# arguments"
 for args in "on --why because" "on --about soon" "on --bogus" "frobnicate" ""; do
   # shellcheck disable=SC2086

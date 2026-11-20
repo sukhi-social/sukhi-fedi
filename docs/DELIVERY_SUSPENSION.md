@@ -5,7 +5,7 @@
 **読む人の困りごと(仮説):** 相手が止まっている間に、こちらの配送が失敗を重ねて諦めてしまうこと。また、だれかが他人の宛先を「お休み」にして、配送を止められてしまうこと。
 
 > FEP-f799 は DRAFT です。プロパティ名は変わるかもしれないので、名前は `SukhiShared.DeliverySuspension.Notice` の一か所にまとめてあります。
-> 見通しと段ごとの計画は #116(子 issue #156〜#162)。受け取り・制御の確認・配送の保留まで通っています。配送の応答の Link ヘッダーからの取得も通っています。告げる側(段5)は、作って署名して、ピアへ配るところまで通っています。眠っている間に静的に答える nginx の道だけが残っています(下の「告げる側」)(下の「いまどこまで」)。
+> 見通しと段ごとの計画は #116(子 issue #156〜#162)。受け取り・制御の確認・配送の保留まで通っています。配送の応答の Link ヘッダーからの取得も通っています。告げる側(段5)は、作って署名して、ピアへ配り、眠っている間は nginx が静的に答えるところまで通っています(下の「告げる側」)(下の「いまどこまで」)。
 
 ## 守っている約束
 
@@ -149,7 +149,15 @@ bin/sukhi_delivery rpc 'SukhiDelivery.Release.announce_suspension("/srv/sukhi/he
 - `DeliverySuspension` の配送は、お知らせがあっても保留されません(`Gate.exempt?/1`)。休んでいるピアにも、告げる側は後回しにされません。
 - 取り消しは、先に署名した `held/<slug>.cancel.json` を公開の場所に置きかえ(`public/suspensions/<slug>.json`)、`Undo` を配ります。`Update` で運びたいときは `Publisher.update_activity/3`。
 
-**まだ**: 眠っている間に `public/control/…` と `public/suspensions/…` を nginx が静的に返す道(アプリが答えないとき、文書があればそれを返す)、休み中の `503` に `Link` を付けること、配る仕事を実機で通すこと。nginx は本物で確かめる必要があるので、別の変更にします。
+### 眠っている間の nginx
+
+`public/control/…` と `public/suspensions/…` は、眠っている間、nginx が静的に返します(`sukhi-maintenance notice put DIR`、[`OPS_MAINTENANCE_PAGE.ja.md`](OPS_MAINTENANCE_PAGE.ja.md) §8)。
+
+- `GET`/`HEAD`(人の窓ではないもの)には、用意した文書を **200** で返す。**`POST` は同じ URL でも `503` + `Retry-After`**(受け取る責任を持てないものに 2xx を返さない)。
+- 休み中の `503` には `Link: <お知らせ>; rel="…#deliverySuspension"` を添える。相手の配送が、この `Link` から通知を探しに来る(段4の後半、`Hint`)。
+- 取り消しは `notice cancel DIR`(先に署名した取り消しに置きかえ、`Link` を外す)。
+
+**まだ**: 実機で通すこと(配る仕事・nginx とも、テストの相手では確かめた)。
 
 ## 記録するもの(`schema.edn`)
 
@@ -171,10 +179,10 @@ bin/sukhi_delivery rpc 'SukhiDelivery.Release.announce_suspension("/srv/sukhi/he
 | 2 | `Store`・`Receiver`・`Ingest` の分岐・proof の持ち主 | merge 済み(#167) |
 | 3 | 配送への組み込み(保留・免除・再開・ETS) | merge 済み(#168) |
 | 4 | 制御の確認(`Fetch` `Control` `Recheck`)・取り下げ | merge 済み(#184) |
-| 4 の後半 | 配送の応答の Link ヘッダーから通知を取りにいく(ヒント) | この変更 |
+| 4 の後半 | 配送の応答の Link ヘッダーから通知を取りにいく(ヒント) | merge 済み(#186) |
 | 5 の前半 | 告げる側の芯(`Publisher`・`mix sukhi.suspension.prepare`) | merge 済み(#188) |
-| 5 の中 | 眠っている間の制御の文書・配る仕事(`Announce`・`Spread`) | この変更 |
-| 5 の後半 | nginx で静的に返す道・休み中の 503 に `Link` | 次 |
+| 5 の中 | 眠っている間の制御の文書・配る仕事(`Announce`・`Spread`) | merge 済み(#190) |
+| 5 の後半 | nginx で静的に返す道・休み中の 503 に `Link`(`sukhi-maintenance notice`) | この変更 |
 | 6 | 管理画面と telemetry | 後 |
 
 初版の範囲は段0〜3(段4で実際に休むようになりました)。宛先ごとの同時数、容量上限の記録、`Retry-After` は後回しです。

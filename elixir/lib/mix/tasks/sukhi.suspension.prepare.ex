@@ -21,9 +21,14 @@ defmodule Mix.Tasks.Sukhi.Suspension.Prepare do
   Writes under DIR:
 
       public/suspensions/<slug>.json   the notice. Serve it where it can be read while we sleep
+      public/control/<url path>.json   the documents a peer reads to confirm we speak for the target
+                                       (actor, inbox collection, WebFinger). Serve them while we sleep
       send/<slug>.create.json          the Create, sent to peers when the resting starts
       held/<slug>.cancel.json          the cancellation, signed now. Publish it when the work is done
       held/<slug>.undo.json            the Undo of the Create, sent after
+
+  `scripts/sukhi-maintenance notice put DIR` puts these where nginx answers from while
+  the application sleeps (docs/OPS_MAINTENANCE_PAGE.ja.md, §8).
 
   Nothing is sent or published here. The private key is read once, now; it is
   not needed while the application sleeps.
