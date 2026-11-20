@@ -10,6 +10,7 @@ defmodule SukhiFedi.Web.Admin.UsersController do
   import Ecto.Query
   import Plug.Conn
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
@@ -95,7 +96,7 @@ defmodule SukhiFedi.Web.Admin.UsersController do
   defp find_local(id) do
     case Integer.parse(to_string(id)) do
       {n, ""} ->
-        case Repo.get(Account, n) do
+        case Accounts.get(n) do
           %Account{domain: nil} = a -> {:ok, a}
           _ -> :error
         end

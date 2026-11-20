@@ -15,6 +15,7 @@ defmodule SukhiFedi.OAuth do
 
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias Ecto.Multi
   alias SukhiFedi.{Outbox, Repo}
   alias SukhiFedi.Schema.{OauthAccessToken, OauthApp, OauthAuthorizationCode}
@@ -404,7 +405,7 @@ defmodule SukhiFedi.OAuth do
     account =
       case tok.account_id do
         nil -> nil
-        id -> Repo.get(SukhiFedi.Schema.Account, id)
+        id -> Accounts.get(id)
       end
 
     # best-effort touch

@@ -53,6 +53,7 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
 
   require Logger
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.AP.Instructions.{Extract, Mirror}
   alias SukhiFedi.Federation.{ActorFetcher, CollectionFetcher}
   alias SukhiFedi.Maintenance.RebuildFromArchive
@@ -166,7 +167,7 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"actor_uri" => actor_uri}}) do
-    case Repo.get_by(Account, actor_uri: actor_uri) do
+    case Accounts.by_actor_uri(actor_uri) do
       nil ->
         :ok
 

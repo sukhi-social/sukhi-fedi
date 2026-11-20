@@ -28,6 +28,7 @@ defmodule SukhiFedi.Web.MediaProxyController do
 
   import Plug.Conn
 
+  alias SukhiFedi.Accounts
   alias SukhiShared.UrlGuard
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
@@ -63,7 +64,7 @@ defmodule SukhiFedi.Web.MediaProxyController do
     with {:ok, id, _} <- parse_id(id_str),
          {:ok, n, _} <- parse_id(n_str),
          %Account{domain: domain, avatar_decorations: decos} when is_binary(domain) <-
-           Repo.get(Account, id),
+           Accounts.get(id),
          %{"url" => url} when is_binary(url) <- Enum.at(decos || [], n) do
       fetch(conn, url, @profile_cache, nil, @max_redirects)
     else
@@ -75,7 +76,7 @@ defmodule SukhiFedi.Web.MediaProxyController do
   # /uploads/ 直なのでここへは来ない(来ても 404 でいい)。
   defp profile_image(conn, id_str, field) do
     with {:ok, id, target} <- parse_id(id_str),
-         %Account{domain: domain} = account when is_binary(domain) <- Repo.get(Account, id),
+         %Account{domain: domain} = account when is_binary(domain) <- Accounts.get(id),
          url when is_binary(url) <- Map.get(account, field) do
       fetch(conn, url, @profile_cache, target, @max_redirects)
     else

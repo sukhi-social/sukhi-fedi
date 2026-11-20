@@ -19,6 +19,7 @@ defmodule SukhiFedi.Auth.Passkeys do
 
   require Logger
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.{Account, WebauthnChallenge, WebauthnCredential}
 
@@ -156,7 +157,7 @@ defmodule SukhiFedi.Auth.Passkeys do
            wax_authenticate(credential_id, authenticator_data, signature, client_data_json, challenge, cred),
          :ok <- sign_count_ok(auth_data.sign_count, cred.sign_count) do
       touch(cred, auth_data.sign_count)
-      {:ok, Repo.get!(Account, cred.account_id)}
+      {:ok, Accounts.get!(cred.account_id)}
     end
   end
 

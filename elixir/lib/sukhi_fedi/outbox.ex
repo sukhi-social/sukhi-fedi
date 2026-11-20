@@ -24,9 +24,32 @@ defmodule SukhiFedi.Outbox do
       |> SukhiFedi.Repo.transaction()
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.OutboxEvent
   alias Ecto.Multi
+
+  @doc """
+  The rows after `cursor` (an outbox id), oldest first, at most `limit` of
+  them — for a reader that follows the outbox by id.
+  """
+  @spec after_id(integer(), pos_integer()) :: [OutboxEvent.t()]
+  def after_id(cursor, limit) when is_integer(cursor) and is_integer(limit) do
+    Repo.all(from(o in OutboxEvent, where: o.id > ^cursor, order_by: o.id, limit: ^limit))
+  end
+
+  @doc "The newest outbox id, or `0` when there is none."
+  @spec last_id() :: non_neg_integer()
+  def last_id do
+    Repo.one(from(o in OutboxEvent, select: max(o.id))) || 0
+  end
+
+  @doc "How many rows are still `pending` (not yet handed to a dispatch job)."
+  @spec pending_count() :: non_neg_integer()
+  def pending_count do
+    Repo.one(from(e in OutboxEvent, where: e.status == "pending", select: count(e.id))) || 0
+  end
 
   @doc """
   Enqueue a single event outside any existing transaction.

@@ -18,6 +18,7 @@ if Code.ensure_loaded?(SukhiHosi.Notes) do
 
     require Logger
 
+    alias SukhiFedi.Accounts
     alias SukhiFedi.Repo
     alias SukhiFedi.Schema.{Account, Note}
     alias SukhiHosi.{Copy, Notes}
@@ -47,7 +48,7 @@ if Code.ensure_loaded?(SukhiHosi.Notes) do
     end
 
     defp viewer_iri(domain, account_id) do
-      case Repo.get(Account, account_id) do
+      case Accounts.get(account_id) do
         %Account{} = a -> Copy.iri_of(domain, a.username, a.domain, a.actor_uri)
         nil -> nil
       end

@@ -14,6 +14,7 @@ defmodule SukhiFedi.Addons.Moderation do
   use SukhiFedi.Addon, id: :moderation
 
   import Ecto.Query
+  alias SukhiFedi.Accounts
   alias Ecto.Multi
   alias SukhiFedi.{Outbox, Repo}
   alias SukhiFedi.Schema.{Mute, Block, Report, InstanceBlock, BubbleInstance, Account, AdminAudit}
@@ -527,7 +528,7 @@ defmodule SukhiFedi.Addons.Moderation do
   @spec suspend_account(integer() | binary(), integer(), String.t() | nil) ::
           {:ok, Account.t()} | {:error, :not_found}
   def suspend_account(account_id, suspended_by_id, reason) when is_integer(suspended_by_id) do
-    case coerce_id(account_id) && Repo.get(Account, coerce_id(account_id)) do
+    case coerce_id(account_id) && Accounts.get(coerce_id(account_id)) do
       nil ->
         {:error, :not_found}
 
@@ -572,7 +573,7 @@ defmodule SukhiFedi.Addons.Moderation do
   @spec unsuspend_account(integer() | binary(), integer()) ::
           {:ok, Account.t()} | {:error, :not_found}
   def unsuspend_account(account_id, by_id) when is_integer(by_id) do
-    case coerce_id(account_id) && Repo.get(Account, coerce_id(account_id)) do
+    case coerce_id(account_id) && Accounts.get(coerce_id(account_id)) do
       nil ->
         {:error, :not_found}
 

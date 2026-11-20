@@ -16,6 +16,7 @@ defmodule SukhiFedi.Auth.SecondFactor do
 
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.Auth.TOTP
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
@@ -35,7 +36,7 @@ defmodule SukhiFedi.Auth.SecondFactor do
   @spec verify_pending(String.t()) :: {:ok, Account.t()} | {:error, :invalid_pending}
   def verify_pending(token) when is_binary(token) do
     with {:ok, id} <- Plug.Crypto.verify(secret(), @pending_salt, token, max_age: @pending_max_age),
-         %Account{} = account <- Repo.get(Account, id) do
+         %Account{} = account <- Accounts.get(id) do
       {:ok, account}
     else
       _ -> {:error, :invalid_pending}
