@@ -14,7 +14,7 @@ You do not need to read everything. Take the first step, and see if it moves.
 
 > [!NOTE]
 > **What is current** (as of 2026-11): the store is **Datalevin**, the pages are **web-next**, and production runs as containers under **Podman** (Quadlet).
-> The Postgres store and the old SvelteKit `web/` are **kept running only**: no new features go there.
+> The Postgres store is **kept running only**: no new features go there. (The old SvelteKit `web/` SPA is gone.)
 
 ## The shape of it
 
@@ -116,12 +116,12 @@ EOF
 #    Both .env and docker-compose.override.yml are gitignored.
 cp docker-compose.override.example.yml docker-compose.override.yml
 
-# 3. Build and bring it up. The first build is slow — the SPA plus four
+# 3. Build and bring it up. The first build is slow — four
 #    Elixir prod releases.
 docker-compose up --build
 ```
 
-Then open **http://localhost:4000**. Migrations and the NATS streams are created automatically on boot.
+Then the API answers at **http://localhost:4000** — the gateway has no pages of its own; the pages are a web front's, so run `cd web-next && pnpm install && pnpm run dev` (http://localhost:5174, points at :4000). Migrations and the NATS streams are created automatically on boot.
 
 Federating with other servers needs a public domain and TLS, and is out of scope for a local trial.
 For a real deploy, see [`OPERATIONS.ja.md`](OPERATIONS.ja.md).
@@ -133,7 +133,6 @@ For a real deploy, see [`OPERATIONS.ja.md`](OPERATIONS.ja.md).
 ```bash
 make test          # every layer's unit tests (elixir / delivery / api / web)
 make test-pglite   # the DB integration suite, on embedded PGlite — no Docker
-make test-e2e      # cross-browser SPA smoke (Playwright)
 make check         # linters and type checks
 ```
 

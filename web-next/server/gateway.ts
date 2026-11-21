@@ -44,6 +44,9 @@ type Init = {
   form?: FormData;
   query?: Record<string, string | string[] | undefined>;
   notFound?: boolean; // 404 を NotFound にする(頁の 404 にしたいとき)
+  accept?: string; // 既定は application/json。流れ(text/event-stream)を読むときだけ変える
+  signal?: AbortSignal; // 待つのをやめるとき(流れを読みおえた・相手が去ったとき)
+  background?: boolean; // だれも見ていない定期の取得。「後ろに回してよい」と名乗る(gateway の待機列が、人を先に通す)
 };
 
 // 同時に飛んだ 401 が、それぞれ refresh を叩かないように、セッションごとに一本へ束ねる。
@@ -97,7 +100,8 @@ export async function gw(ctx: Ctx, method: string, path: string, init: Init = {}
   }
 
   const send = (anonymous = false) => {
-    const headers: Record<string, string> = { accept: 'application/json', ...clientHeaders(ctx) };
+    const headers: Record<string, string> = { accept: init.accept ?? 'application/json', ...clientHeaders(ctx) };
+    if (init.background) headers['x-sukhi-purpose'] = 'background';
     let body: BodyInit | undefined;
     if (init.json !== undefined) {
       headers['content-type'] = 'application/json';
@@ -107,7 +111,7 @@ export async function gw(ctx: Ctx, method: string, path: string, init: Init = {}
     }
     const token = ctx.session?.token;
     if (auth !== false && token && !anonymous) headers.authorization = `Bearer ${token.access_token}`;
-    return fetch(url, { method, headers, body });
+    return fetch(url, { method, headers, body, signal: init.signal });
   };
 
   if (auth === true && !ctx.session?.token) throw new Unauthorized();
@@ -193,6 +197,40 @@ export async function gwCookie<T = Record<string, unknown>>(
   if (cookie) headers.cookie = `session_token=${cookie}`;
   const token = ctx.session?.token;
   if (token) headers.authorization = `Bearer ${token.access_token}`;
+  return callCookie<T>(method, path, headers, json);
+}
+
+// ── ブラウザの cookie だけで聞く口 ────────────────────────────────
+// 同意の頁(/oauth/authorize)は、ブラウザが持っている session cookie を、あるだけ見て決める:
+// 同名の session_token が二つ(古い host-only と、新しい Domain 付き)・複数アカウントの session_tokens。
+// bearer は添えない ── この郵便局の札は、いまブラウザで入っている人とは別の人かもしれず、
+// api は、添えられた bearer を「この呼び手」と読んでしまう。
+export function browserSessions(ctx: Pick<Ctx, 'req'>): string {
+  return (ctx.req.headers.cookie ?? '')
+    .split(';')
+    .map((p) => p.trim())
+    .filter((p) => /^session_tokens?=/.test(p))
+    .join('; ');
+}
+
+export async function gwBrowser<T = Record<string, unknown>>(
+  ctx: Ctx,
+  method: 'GET' | 'POST',
+  path: string,
+  json?: unknown
+): Promise<CookieReply<T>> {
+  const headers: Record<string, string> = { accept: 'application/json', ...clientHeaders(ctx) };
+  const cookie = browserSessions(ctx);
+  if (cookie) headers.cookie = cookie;
+  return callCookie<T>(method, path, headers, json);
+}
+
+async function callCookie<T>(
+  method: 'GET' | 'POST',
+  path: string,
+  headers: Record<string, string>,
+  json?: unknown
+): Promise<CookieReply<T>> {
   let body: string | undefined;
   if (json !== undefined) {
     headers['content-type'] = 'application/json';

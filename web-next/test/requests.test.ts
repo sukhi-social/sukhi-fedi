@@ -91,3 +91,44 @@ test('知らないことばは、一覧へ戻す(gateway には何も送らな�
   assert.equal(res.headers.get('location'), '/requests');
   assert.equal((await log()).length, before);
 });
+
+// ── 招待リンク(フォロー申請の頁の下)──────────────────────────────────
+const upInvites = { 'x-up-target': '#invites', 'x-up-version': '3.15.0' };
+const postInvites = (path: string) => go(path, { method: 'POST', body: new FormData(), headers: upInvites });
+
+test('招待: 一覧に、code から作ったリンクと、作る・コピー・取り消すが並ぶ', async () => {
+  const page = await (await go('/requests')).text();
+  assert.match(page, /<section class="stack-tight" id="invites">/);
+  // 渡すリンクは、この家の origin + gateway が受ける道。
+  assert.ok(page.includes(`${BASE}/users/kuro/invites/warm-code`));
+  assert.match(page, /action="\/requests\/invites"/);
+  assert.match(page, /action="\/requests\/invites\/warm-code\/delete"/);
+});
+
+test('招待: 作ると gateway の POST に届き、新しいリンクが先頭に出る(区画だけが返る)', async () => {
+  const before = (await log()).length;
+  const res = await postInvites('/requests/invites');
+  assert.equal(res.status, 200);
+  const frag = await res.text();
+  assert.match(frag, /^<section class="stack-tight" id="invites">/);
+  assert.ok(frag.indexOf('new-code-1') >= 0 && frag.indexOf('new-code-1') < frag.indexOf('warm-code'));
+  assert.deepEqual((await log()).slice(before), ['POST follow_invites']);
+});
+
+test('招待: 取り消すと gateway の DELETE に届き、その行だけが消える', async () => {
+  const before = (await log()).length;
+  const res = await postInvites('/requests/invites/warm-code/delete');
+  assert.equal(res.status, 200);
+  const frag = await res.text();
+  assert.doesNotMatch(frag, /warm-code/);
+  assert.match(frag, /new-code-1/);
+  assert.deepEqual((await log()).slice(before), ['DELETE follow_invites/warm-code']);
+});
+
+test('招待: 取り消し済みのコードを、もう一度取り消しても、区画はそのまま返る(叱らない)', async () => {
+  const res = await postInvites('/requests/invites/warm-code/delete');
+  assert.equal(res.status, 200);
+  const frag = await res.text();
+  assert.match(frag, /id="invites"/);
+  assert.match(frag, /new-code-1/);
+});

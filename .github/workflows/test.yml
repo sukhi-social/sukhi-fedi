@@ -2,15 +2,14 @@
 #
 # The tests, on every change that can break them. Until this file, nothing
 # ran them: load-bench compiles and boots the Elixir code but runs no test,
-# web-e2e watches only web/, and web-next had no workflow at all — so a PR
-# touching only those could be green with its tests never run.
+# and web-next had no workflow at all — so a PR touching only those could
+# be green with its tests never run.
 #
 # Each job has its own `paths`, so a change runs exactly the suites that read
 # the files it touched, and a new source directory is one more line here. The
 # `push` trigger on main keeps main honest after a merge.
 #
 #   web-next       pnpm test (node --test, a mock gateway; no build step)
-#   web-simple     node --test on its server and manifest (no install needed)
 #   maintenance-page  the nginx rules on a real nginx, and the switch script
 #                  (docs/OPS_MAINTENANCE_PAGE.ja.md); web-next's own part is in `web-next`
 #   elixir-unit    make test-shared / -elixir / -api / -delivery (no DB)
@@ -23,7 +22,6 @@ on:
   pull_request:
     paths:
       - "web-next/**"
-      - "web/**"
       - "elixir/**"
       - "api/**"
       - "shared/**"
@@ -41,7 +39,6 @@ on:
       - main
     paths:
       - "web-next/**"
-      - "web/**"
       - "elixir/**"
       - "api/**"
       - "shared/**"
@@ -87,23 +84,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm test
-
-  # web-simple's own server and the manifest it hands the gateway. The SPA's
-  # browser tests are web-e2e.yml; this is the part that is now an image.
-  web-simple:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - run: node --test "serve/*.test.mjs" "scripts/*.test.mjs"
 
   # The page nginx answers with while the app is down. Reads web-next/server as it
   # is (Node 24 strips the types), so no install; nginx comes from apt.

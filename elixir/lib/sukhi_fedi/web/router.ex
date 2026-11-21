@@ -4,10 +4,7 @@ defmodule SukhiFedi.Web.Router do
   use Plug.ErrorHandler
 
   @doc false
-  def uncounted?(conn),
-    do:
-      SukhiFedi.Web.SpaRoutes.page_request?(conn) or
-        SukhiFedi.Web.AdmissionQueue.ticket_due?(conn)
+  def uncounted?(conn), do: SukhiFedi.Web.AdmissionQueue.ticket_due?(conn)
 
   alias SukhiFedi.Web.InboxController
   alias SukhiFedi.Web.WebfingerController
@@ -45,9 +42,9 @@ defmodule SukhiFedi.Web.Router do
   # like /up from k8s LBs still fit easily. Tighten per-endpoint via
   # dedicated forwarders when needed.
   #
-  # Files served as-is (the SPA build, custom emoji, twemoji) are left out:
-  # the emoji picker alone asks for hundreds of images at once, and counting
-  # them used up the window, so the next 60s of API calls and images got 429.
+  # Files served as-is (custom emoji) are left out: the emoji picker alone
+  # asks for hundreds of images at once, and counting them used up the
+  # window, so the next 60s of API calls and images got 429.
   # /proxy/ (remote avatars, banners, attachments) is the same shape: a
   # timeline asks for dozens at once, and a 429 there looks like a stalled image.
   # Its cost is bounded elsewhere (edge cache, the Finch pool, the fetch deadline).
@@ -55,9 +52,9 @@ defmodule SukhiFedi.Web.Router do
     bucket: "global",
     limit: 500,
     scale_ms: 60_000,
-    skip_prefixes: ["/static/", "/_app/", "/twemoji/", "/proxy/"],
-    # A SPA page, or a client polling its place in the admission line at the
-    # pace it was told (the ticket was issued to a request already counted).
+    skip_prefixes: ["/static/", "/proxy/"],
+    # A client polling its place in the admission line at the pace it was
+    # told (the ticket was issued to a request already counted).
     skip_if: &SukhiFedi.Web.Router.uncounted?/1,
     # Signed in, a month old: counted as the account, not as the address
     # (and boxed in as the account) — so a shared connection does not share
@@ -106,11 +103,6 @@ defmodule SukhiFedi.Web.Router do
   # session middleware (cookie-signed via SECRET_KEY_BASE) and runs the
   # Mastodon-OAuth-bearer auth check on every request.
   forward("/admin", to: SukhiFedi.Web.Admin.Router)
-
-  # ── User-facing login (session_token cookie minter) ────────────────────
-  # The form lives in the SPA (`web/src/routes/login`); GET serves the
-  # shell, POST is the JSON endpoint that validates credentials and mints
-  # the session_token cookie `/oauth/authorize` consumes.
 
   # ── Legal pages (static HTML baked at compile time) ────────────────────
   # Robust on purpose: no SPA, no JS, no DB — served even if everything
@@ -198,7 +190,7 @@ defmodule SukhiFedi.Web.Router do
   end
 
   # ── Password set / change / remove (session_token cookie required) ─────
-  # Form in the SPA (`web/src/routes/settings/password`), POST is JSON.
+  # Form in the web front (`web-next`, `/settings/password`), POST is JSON.
   # Same cookie auth surface as /login (not the OAuth bearer).
 
   post "/settings/password" do
@@ -292,11 +284,10 @@ defmodule SukhiFedi.Web.Router do
     AccountDeletionController.cancel(conn)
   end
 
-  # ── Static assets for the SPA + login page ─────────────────────────────
-  # The SvelteKit build at `web/build` is copied (or symlinked) into
-  # `priv/static`. Cloudflare Pages style deploys can ignore this and
-  # serve the SPA from the CDN; this fallback keeps a self-contained
-  # one-binary deploy possible.
+  # ── Files the gateway itself hands out (SukhiFedi.Web.StaticFiles) ─────
+  # Not a UI: the custom emoji the importer drops into the override dir, and
+  # the placeholder avatar the API names for an account without one. Pages,
+  # icons and the web manifest belong to the web front, not to this router.
 
   get "/static/*path" do
     serve_static(conn, path)
@@ -459,7 +450,7 @@ defmodule SukhiFedi.Web.Router do
           via_upstream(conn, fn ->
             if nodeinfo_monitor_enabled?(),
               do: ViewerController.home(conn, []),
-              else: serve_spa(conn)
+              else: not_found(conn)
           end)
         else
           SetupController.home(conn, [])
@@ -475,93 +466,18 @@ defmodule SukhiFedi.Web.Router do
     end
   end
 
-  # The SPA's own pages (`/signup`, `/lists/:id`, ...) are not listed here:
-  # the build says which exist (`routes.json`, SukhiFedi.Web.SpaRoutes) and
-  # the catch-all at the bottom answers them with the shell. Only a page
-  # that needs more than the shell gets a route of its own above.
-
-  # SvelteKit がビルド出力に `_app/` を使うので、こちらも static として
-  # 配る(`/static/` と同じ priv/static ルート、prefix だけ別)。
-  get "/_app/*path" do
-    # SSR のときは Node から。HTML が指す chunk と同じビルドでないと
-    # いけない(SukhiFedi.Web.SSR.proxy/1 に理由)。
-    if SukhiFedi.Web.SSR.enabled?(),
-      do: SukhiFedi.Web.SSR.proxy(conn),
-      else: serve_static(conn, ["_app" | path])
-  end
-
-  # Self-hosted Twemoji SVGs, baked into priv/static/twemoji by the SPA
-  # build. The SPA points unicode emoji + UI icons at /twemoji/svg/<cp>.svg.
-  get "/twemoji/*path" do
-    serve_static(conn, ["twemoji" | path])
-  end
-
-  get "/favicon.ico" do
-    serve_static(conn, ["favicon.ico"])
-  end
-
-  # Site icon — handwritten 好 (くろ lives inside it). Also the
-  # /api/v2/instance thumbnail.
-  get "/favicon.png" do
-    serve_static(conn, ["favicon.png"])
-  end
-
-  get "/apple-touch-icon.png" do
-    serve_static(conn, ["apple-touch-icon.png"])
-  end
-
-  get "/icon-512.png" do
-    serve_static(conn, ["icon-512.png"])
-  end
-
-  # PWA インストール用のもう一段(192px)と、Android の adaptive icon
-  # 向け(セーフゾーン込みで描いてある)。natadeco だけが今のところ使う。
-  get "/icon-192.png" do
-    serve_static(conn, ["icon-192.png"])
-  end
-
-  get "/icon-maskable-512.png" do
-    serve_static(conn, ["icon-maskable-512.png"])
-  end
-
-  get "/manifest.webmanifest" do
-    serve_static(conn, ["manifest.webmanifest"])
-  end
-
-  # natadeco の web-natadeco 側だけが使う画像(ひなたの肖像)。他の
-  # favicon 等と同じ、明示の一枚もの。
-  get "/hinata.png" do
-    serve_static(conn, ["hinata.png"])
-  end
-
-  # signup で見せる、もう一枚のひなた。
-  get "/hinata-signup.png" do
-    serve_static(conn, ["hinata-signup.png"])
-  end
-
-  # scope が `/` になるよう、ルート直下から配る。中身は static/ にある
-  # 手書きの一枚(依存なし)。
-  get "/service-worker.js" do
-    serve_static(conn, ["service-worker.js"])
-  end
-
-  # natadeco の板の直リンク / リロード。web-natadeco の SPA も同じ shell
-  # (priv/static/index.html) を返すやり方で、JS が URL を読んで描く。
+  # 投稿の住所は `/d/<slug>/p/<id>`(板の名前が読める)。`/posts/<id>` は
+  # id しか知らない人(通知・友デコ・古いリンク)のための入り口。
   #
   # 連合側(Mastodon/Misskey)がこの URL を「返信先」として解決しようと
   # すると、`Accept: application/activity+json` で来る ── その場合は
-  # SPA を返さず、本当の ap_id(/users/:name/notes/:id)へ回す。他の
-  # 投稿からこの URL を貼るだけで、外から返信できて、それが板の
-  # コメントとして出てくるようにするための入り口。
+  # 本当の ap_id(/users/:name/notes/:id)へ回す。他の投稿からこの URL を
+  # 貼るだけで、外から返信できて、それが板のコメントとして出てくるように
+  # するための入り口。
   #
   # ブラウザ以外(LLM のクローラ等、JS を実行しない/しないクライアント)
-  # が直接見に来たときは、空の SPA shell を返しても中身が見えない ──
-  # その場合は投稿をそのまま Markdown で返す。
-  #
-  # 投稿の住所は `/d/<slug>/p/<id>`(板の名前が読める)。`/posts/<id>` は
-  # id しか知らない人(通知・友デコ・古いリンク)のための入り口で、
-  # SPA がそこから本当の住所へ回す。線の向こう(AP JSON / Markdown)には
-  # どちらも同じものを返す。
+  # が直接見に来たときは、投稿をそのまま Markdown で返す。ブラウザには
+  # 頁を持っている web(front)が答える ── ここは頁を持たない。
   get "/posts/:id" do
     serve_post_page(conn, conn.path_params["id"])
   end
@@ -722,37 +638,20 @@ defmodule SukhiFedi.Web.Router do
     SukhiFedi.Web.PluginPlug.call(conn, SukhiFedi.Web.PluginPlug.init([]))
   end
 
-  # OAuth 2.0 server endpoints (`/oauth/authorize`, `/oauth/token`,
-  # `/oauth/revoke`) live on the api plugin node. PluginPlug is
-  # path-agnostic so the same forwarder handles them.
+  # OAuth 2.0 server endpoints (`/oauth/token`, `/oauth/revoke`) live on the
+  # api plugin node. PluginPlug is path-agnostic so the same forwarder
+  # handles them. The pages — sign in, pick an account, consent — are the
+  # web front's; the api only decides which of them to show
+  # (`/api/v1/sukhi/oauth/authorize`).
   match "/oauth/*_" do
     SukhiFedi.Web.PluginPlug.call(conn, SukhiFedi.Web.PluginPlug.init([]))
   end
 
-  # SPA のプロフィール画面 (`/@alice`, `/@alice@example.tld`,
-  # `/@alice/followers`, `/@alice/following`) は `/@` プレフィクスで
-  # 来る。ActivityPub の actor URL は `/users/:name` 側に分けてあるので
-  # 衝突しない。Plug.Router の `*glob` は segment の先頭にしか書けず、
-  # `/@` で始まる任意のパスを 1 行で書けないので、catch-all の中で
-  # 文字列マッチして SPA に渡す。
-  # SvelteKit の client-side navigation は、次の頁の load の結果を
-  # `<path>/__data.json` で取りに来る(頁ごとの server load があるので、
-  # natadeco では全部の頁がそう)。頁と同じで、横の Node が答える ──
-  # 届かないと、SvelteKit は遷移のたびに丸ごと読み直しに倒れる。
-  # SSR が無いところ(sukhi)では今までどおり下の 404 へ。
-  # `/@…` の振り分けもここ ── `*path` は `@` で始まる segment も拾うので、
-  # 下の `match _` に置いたままだと GET は一度も届かない。
-  # `/@…` を `/people/<id>` へ案内するのは **natadeco の画面のときだけ**
-  # ── その front は `/@alice` を持たない。見分けは SSR の有無で付ける
-  # (この函数の `__data.json` と同じ印)。sukhi は `ENABLED_ADDONS=all` で
-  # deco addon も積むが、画面は `/@alice` を持つ自分の web なので、addon の
-  # 有無で分けてはいけなかった(2026-09-22、`/@kuro_admin` が
-  # `/people/33` へ飛んで 404 になった)。
-  # 頁そのもの(`/lists/:id` など)は、ビルドの `routes.json` が頁と言った
-  # path だけここで shell を返す(SukhiFedi.Web.SpaRoutes)。
+  # Whatever no route above names: a page of a web front (WEB_UPSTREAMS), or
+  # a crawler asking for the public preview of a profile / note at `/@alice`
+  # (`/@alice/123`). `*path` catches a `@`-leading segment too, so the split
+  # is made inside.
   get "/*path" do
-    at? = String.starts_with?(conn.request_path, "/@")
-
     cond do
       # A dot-led segment (`/.env`, `/.sukhi/web.json`) is the gateway's
       # alone — never a page, never forwarded (Upstreams.dot_path?/1).
@@ -760,7 +659,7 @@ defmodule SukhiFedi.Web.Router do
         not_found(conn)
 
       true ->
-        via_upstream(conn, fn -> serve_unclaimed(conn, path, at?) end)
+        via_upstream(conn, fn -> serve_unclaimed(conn) end)
     end
   end
 
@@ -779,20 +678,12 @@ defmodule SukhiFedi.Web.Router do
     end
   end
 
-  defp serve_unclaimed(conn, path, at?) do
-    cond do
-      List.last(path) == "__data.json" and SukhiFedi.Web.SSR.enabled?() ->
-        SukhiFedi.Web.SSR.render(conn)
-
-      at? and SukhiFedi.Web.SSR.enabled?() ->
-        redirect_deco_page(conn)
-
-      at? ->
-        serve_at_path(conn)
-
-      true ->
-        serve_page_or_404(conn, path)
-    end
+  # No front claims it, and the gateway has no page of its own to give —
+  # except the preview a crawler gets for a profile or a note.
+  defp serve_unclaimed(conn) do
+    if String.starts_with?(conn.request_path, "/@"),
+      do: serve_at_path(conn),
+      else: not_found(conn)
   end
 
   # A DB pool that is full is "busy", not "a bug": the checkout waited its
@@ -810,42 +701,11 @@ defmodule SukhiFedi.Web.Router do
 
   def handle_errors(conn, _), do: conn
 
-  # natadeco のフロントは `/@alice` `/@alice/123` を持たない(人は
-  # `/people/<id>`、投稿は `/d/<slug>/p/<id>`)。連合に出ている `url` は
-  # sukhi 流のままなので、外から「元の投稿を見る」で来た人をここで
-  # 案内する。板は `GroupJson.profile_uri/1` が最初から `/d/<slug>` を
-  # 名乗っているので、ここには来ない。
-  defp redirect_deco_page(conn) do
-    case path_segments(conn) do
-      ["@" <> username] ->
-        case SukhiFedi.Accounts.by_local_username(username) do
-          %{id: id} -> redirect_to(conn, "/people/#{id}")
-          nil -> send_resp(conn, 404, "not found")
-        end
-
-      ["@" <> _username, note_id] ->
-        case SukhiFedi.Addons.Deco.slug_for_post(note_id) do
-          {:ok, slug} -> redirect_to(conn, "/d/#{slug}/p/#{note_id}")
-          _ -> send_resp(conn, 404, "not found")
-        end
-
-      _ ->
-        send_resp(conn, 404, "not found")
-    end
-  end
-
-  defp redirect_to(conn, path) do
-    conn
-    |> put_resp_header("location", path)
-    |> send_resp(302, "")
-  end
-
-  # `/@alice` (profile) and `/@alice/123` (a note) are SPA routes. For an
-  # app client we serve the SPA shell as before; for a crawler / no-JS GET
-  # with the preview enabled we render the same HTML the actor/note routes
-  # do, by re-deriving the `:name`/`:note_id` path params from the URL (the
-  # `*glob` can't bind a `/@`-leading segment, so we split here). Any other
-  # `/@…` path (followers/following) keeps falling through to the shell.
+  # `/@alice` (profile) and `/@alice/123` (a note) for a crawler / no-JS GET,
+  # with the preview enabled: the same HTML the actor/note routes give, by
+  # re-deriving the `:name`/`:note_id` path params from the URL (the `*glob`
+  # can't bind a `/@`-leading segment, so we split here). Everyone else is
+  # answered by a web front or not at all.
   defp serve_at_path(conn) do
     if PublicPreviewController.wants_html_preview?(conn) do
       case path_segments(conn) do
@@ -859,10 +719,10 @@ defmodule SukhiFedi.Web.Router do
           |> PublicPreviewController.note()
 
         _ ->
-          serve_spa(conn)
+          not_found(conn)
       end
     else
-      serve_spa(conn)
+      not_found(conn)
     end
   end
 
@@ -892,7 +752,7 @@ defmodule SukhiFedi.Web.Router do
     cond do
       wants_activity_json?(conn) -> redirect_to_ap_object(conn, id)
       wants_markdown?(conn) -> serve_post_markdown(conn, id)
-      true -> serve_spa(conn)
+      true -> via_upstream(conn, fn -> not_found(conn) end)
     end
   end
 
@@ -952,43 +812,7 @@ defmodule SukhiFedi.Web.Router do
     Enum.join(parts)
   end
 
-  # With SSR_URL set (natadeco), the page comes from the Node renderer
-  # next door instead of the static shell — see SukhiFedi.Web.SSR.
-  defp serve_spa(conn) do
-    if SukhiFedi.Web.SSR.enabled?(), do: SukhiFedi.Web.SSR.render(conn), else: serve_shell(conn)
-  end
-
-  # A page of the SPA, per the build's `routes.json`. Without one, the SSR
-  # renderer (if there is one) is the authority and 404s what it does not
-  # know; with neither, nothing is claimed.
-  defp serve_page_or_404(conn, path) do
-    case SukhiFedi.Web.SpaRoutes.classify(path) do
-      :page -> serve_spa(conn)
-      :no_manifest -> if SukhiFedi.Web.SSR.enabled?(), do: serve_spa(conn), else: not_found(conn)
-      :not_page -> not_found(conn)
-    end
-  end
-
   defp not_found(conn), do: send_resp(conn, 404, "not found")
-
-  defp serve_shell(conn) do
-    # index.html refers to content-hashed chunks (`_app/immutable/...`).
-    # If a CDN (Cloudflare here) caches the HTML, the browser keeps
-    # asking for old chunk names and never sees a new SPA push. Force
-    # revalidation on the shell; the chunks themselves are
-    # cache-forever-safe because their URL changes per build.
-    case SukhiFedi.Web.StaticFiles.resolve("index.html") do
-      {source, index} ->
-        conn
-        |> put_resp_content_type("text/html; charset=utf-8")
-        |> put_resp_header("cache-control", "no-cache, must-revalidate")
-        |> put_static_source(source)
-        |> send_file(200, index)
-
-      nil ->
-        send_resp(conn, 404, "frontend not built — run `cd web && pnpm run build`")
-    end
-  end
 
   defp serve_static(conn, path_segments) do
     if Enum.any?(path_segments, &(&1 == "..")) do
@@ -996,45 +820,31 @@ defmodule SukhiFedi.Web.Router do
     else
       relative = Path.join(path_segments)
 
-      # baked と override のどちらを出すか ─ 決め方は
-      # SukhiFedi.Web.StaticFiles の moduledoc に。
+      # どの木から出すかは SukhiFedi.Web.StaticFiles が決める(絵文字は
+      # override、そのほかは release に焼いたもの)。
       case SukhiFedi.Web.StaticFiles.resolve(relative) do
         nil ->
           send_resp(conn, 404, "")
 
-        {source, full} ->
+        full ->
           conn
           |> put_resp_content_type(content_type_for(full))
           |> put_static_cache_control(relative)
-          |> put_static_source(source)
           |> send_static(relative, full)
       end
     end
   end
 
-  # serve_spa のコメントで「chunks は cache-forever-safe」と言っておきながら
-  # ヘッダを付け忘れていた ─ CF が BYPASS して毎回 origin まで来ていた。
-  # `_app/immutable/` は content-hash 付きなので永久キャッシュ、twemoji は
-  # 名前が安定(package 更新時だけ変わる)なので一日。それ以外は触らない。
-  defp put_static_cache_control(conn, relative) do
-    cond do
-      String.starts_with?(relative, "_app/immutable/") ->
-        put_resp_header(conn, "cache-control", "public, max-age=31536000, immutable")
-
-      String.starts_with?(relative, "twemoji/") ->
-        put_resp_header(conn, "cache-control", "public, max-age=86400")
-
-      String.starts_with?(relative, "emojis/") ->
-        put_resp_header(
-          conn,
-          "cache-control",
-          "public, max-age=2592000, stale-while-revalidate=604800"
-        )
-
-      true ->
-        conn
-    end
+  # 長く持たせるのはカスタム絵文字だけ(理由は send_static)。それ以外は触らない。
+  defp put_static_cache_control(conn, "emojis/" <> _) do
+    put_resp_header(
+      conn,
+      "cache-control",
+      "public, max-age=2592000, stale-while-revalidate=604800"
+    )
   end
+
+  defp put_static_cache_control(conn, _relative), do: conn
 
   # カスタム絵文字(`emojis/`)は同じ名前で差し替えられうる(取り込み直し)
   # ので immutable にはできない。代わりに一か月は問い合わせなしで使わせ、
@@ -1057,12 +867,6 @@ defmodule SukhiFedi.Web.Router do
   end
 
   defp send_static(conn, _relative, full), do: send_file(conn, 200, full)
-
-  # どちらの木が答えたかを一目で見えるように。今回の取り違えが 10 日
-  # 見つからなかったのは、外から確かめる方法が無かったからでもある。
-  #   curl -sI https://.../static/index.html | grep x-static-source
-  defp put_static_source(conn, source),
-    do: put_resp_header(conn, "x-static-source", to_string(source))
 
   # `/uploads/<key>` を S3 backend (rustfs) から proxy する。avatar /
   # 添付などはすべてここを通る。key は upload パイプラインが生成する

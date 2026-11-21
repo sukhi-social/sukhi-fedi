@@ -33,7 +33,7 @@
 | 10 | `MediaTranscode`(WebP をその場で) | 画像を軽く返す | ○ 一段だけ | 画像が重くなる | **直した** → AVIF の裏 encode・Store・ETS 層・:retry を外し、WebP だけに(§B) |
 | 11 | `Streaming.publish_notification` ほかの `Task.start`(投げっぱなし) | 書き込みの応答を待たせない | △ 失敗が静かに消える | 書き込みがストリーム描画を待つ | 残す。目的が「待たせない」で、おだやかな側 |
 | 12 | `Revalidate`(ETag / 304 / SWR) | 公開 JSON の再送を省く | ○ 中身のハッシュで、無効化の考えがいらない | 帯域 | 残す |
-| 13 | `persistent_term` の「一度だけ作る」(registry, canon, catalog, spa_routes) | 起動後に変わらないものを毎回作らない | ○ | 初回のみ | 残す |
+| 13 | `persistent_term` の「一度だけ作る」(registry, canon, catalog) | 起動後に変わらないものを毎回作らない | ○ | 初回のみ | 残す |
 | 14 | `Notifier`(1 秒の静かな窓でまとめる) | 通知を 100 回でなく 1 回に | ○ 一文で言える | 通知の洪水 | 残す。急かさない側 |
 | 15 | `Cache.Ets` 各表(webfinger, actor, key…) | 外への問い合わせを減らす | ○ | 外部取得が増える | 残す |
 | 16 | `account_porter` / `account_migration` の `Task.async_stream` | 引っ越しの下準備を並べる | △ 同時数が上限つき | 引っ越しが遅い | 残す(上限あり、まれな操作) |

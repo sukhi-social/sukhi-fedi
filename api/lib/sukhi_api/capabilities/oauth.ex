@@ -1,21 +1,36 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiApi.Capabilities.OAuth do
   @moduledoc """
-  OAuth 2.0 server endpoints (authorize / token / revoke). Mounted on
-  `/oauth/*` (not `/api/v1/*`) per Mastodon convention; the gateway
-  router has a `match "/oauth/*_"` block that forwards here.
+  OAuth 2.0 server endpoints. `token` / `revoke` are mounted on `/oauth/*`
+  (not `/api/v1/*`) per Mastodon convention; the gateway router has a
+  `match "/oauth/*_"` block that forwards them here.
 
-      GET   /oauth/authorize    HTML consent form (rendered by this capability)
-      POST  /oauth/authorize    user submits → redirect with ?code=…
-      POST  /oauth/token        grant_type ∈ {authorization_code, refresh_token, client_credentials}
-      POST  /oauth/revoke       RFC 7009; idempotent
+      POST  /oauth/token                    grant_type ∈ {authorization_code, refresh_token, client_credentials}
+      POST  /oauth/revoke                   RFC 7009; idempotent
+      GET   /api/v1/sukhi/oauth/authorize   what the browser's session should be shown (JSON)
+      POST  /api/v1/sukhi/oauth/authorize   the person said yes → the redirect that carries the code (JSON)
 
-  GET /oauth/authorize requires an authenticated browser session. Today
-  that comes from a `session_token` cookie set by an external login
-  flow (or by curl in tests via `Cookie: session_token=…`). When the
-  session lookup fails, the form re-renders with a sign-in link instead
-  of the consent UI; production deployments should front this with a
-  proper login page.
+  **There is no page here.** `/oauth/authorize` — the account picker, the
+  consent form, the errors — is a web front's (web-next). It asks this
+  capability *what to show* and draws it; the decision (who is signed in, is
+  this a first-party redirect, does the app exist, is the scope allowed) stays
+  on this side, in one place, next to the code it mints.
+
+  The browser's own cookies (`session_token`, `session_tokens`) are what the
+  front forwards — these two routes read them, not a bearer.
+
+  GET answers `200 {"decision": …}`, one of:
+
+      "login"     nobody is signed in — send them to the sign-in page, then back
+      "pick"      several accounts are signed in — `accounts: [{id, username}]`;
+                  ask again with `choose=<id>`
+      "consent"   a third-party app asks — `app: {name, client_id}`, `scopes: [...]`
+      "redirect"  go to `location` (the code is already minted: a first-party
+                  app, where asking "may I?" of one's own server is only form)
+
+  A `choose=<id>` that is answered carries the re-ordered `Set-Cookie`s on that
+  one response (it is the only chance to hand them over). Anything wrong is a
+  non-2xx `{"error": code, "error_description": …}`.
   """
 
   use SukhiApi.Capability, addon: :mastodon_api
@@ -28,16 +43,16 @@ defmodule SukhiApi.Capabilities.OAuth do
   @impl true
   def routes do
     [
-      {:get, "/oauth/authorize", &authorize_form/1},
-      {:post, "/oauth/authorize", &authorize_submit/1},
+      {:get, "/api/v1/sukhi/oauth/authorize", &decide/1},
+      {:post, "/api/v1/sukhi/oauth/authorize", &approve/1},
       {:post, "/oauth/token", &token/1},
       {:post, "/oauth/revoke", &revoke/1}
     ]
   end
 
-  # ── GET /oauth/authorize ─────────────────────────────────────────────────
+  # ── GET /api/v1/sukhi/oauth/authorize ────────────────────────────────────
 
-  def authorize_form(req) do
+  def decide(req) do
     params = parse_query(req[:query])
     client_id = params["client_id"]
     redirect_uri = params["redirect_uri"] || ""
@@ -54,10 +69,10 @@ defmodule SukhiApi.Capabilities.OAuth do
 
     cond do
       response_type != "code" ->
-        html_error(400, "unsupported_response_type", "only response_type=code is supported")
+        error(400, "unsupported_response_type", "only response_type=code is supported")
 
       is_nil(client_id) or client_id == "" ->
-        html_error(400, "invalid_request", "missing client_id")
+        error(400, "invalid_request", "missing client_id")
 
       is_binary(choose) ->
         # 「このアカウントで続ける」を選んだ直後。選んだ方を主に並べ替えた
@@ -65,15 +80,14 @@ defmodule SukhiApi.Capabilities.OAuth do
         # 即発行)へ進む ── 一度リダイレクトを挟むと、まだ2アカウントとも
         # 有効なままなのでピッカーがもう一度出てしまう。
         sessions = resolve_sessions(primary_token, extra_tokens)
-        account_id = String.to_integer(choose)
 
-        case Enum.find(sessions, &(&1.account.id == account_id)) do
+        case choose_target(sessions, choose) do
           nil ->
             # 選んだものがもう無い(期限切れ等)。選び直してもらう。
-            html_account_picker(sessions, params)
+            pick(sessions)
 
           target ->
-            case GatewayRpc.run(@session_cookie, :layout_for_promote, [sessions, account_id]) do
+            case GatewayRpc.run(@session_cookie, :layout_for_promote, [sessions, target.account.id]) do
               {:ok, {new_primary, new_extras}} ->
                 authorize_with_session(
                   target.account,
@@ -85,35 +99,47 @@ defmodule SukhiApi.Capabilities.OAuth do
                 )
 
               {:unavailable, why} ->
-                html_unavailable(why)
+                unavailable(why)
             end
         end
 
       true ->
         case resolve_sessions(primary_token, extra_tokens) do
+          # ログインしていない人に consent 画面を見せない。ログインが済んだら
+          # 同じ問いに戻ってこられるよう、戻す先は呼び手(front)が持つ。
           [] ->
-            # ログインしていない人に consent 画面を見せない。`/login`
-            # に飛ばし、ログインが済んだら同じ /oauth/authorize?... に
-            # 戻ってこられるよう `next` に元 URL を載せる。
-            next = "/oauth/authorize?" <> (req[:query] || "")
-            redirect_to_login(next)
+            decision(%{decision: "login"})
 
           [%{account: account}] ->
             authorize_with_session(account, client_id, redirect_uri, scope, state)
 
+          # 2 個以上サインインしてるときだけ、consent の手前に一枚
+          # 「どのアカウントで続ける?」を挟む。1個しか無い人には今まで
+          # 通り何も見えない。
           sessions ->
-            # 2 個以上サインインしてるときだけ、consent の手前に一枚
-            # 「どのアカウントで続ける?」を挟む。1個しか無い人には今まで
-            # 通り何も見えない。
-            html_account_picker(sessions, params)
+            pick(sessions)
         end
     end
+  end
+
+  defp choose_target(sessions, choose) do
+    case Integer.parse(choose) do
+      {account_id, ""} -> Enum.find(sessions, &(&1.account.id == account_id))
+      _ -> nil
+    end
+  end
+
+  defp pick(sessions) do
+    decision(%{
+      decision: "pick",
+      accounts: Enum.map(sessions, fn %{account: a} -> %{id: a.id, username: a.username} end)
+    })
   end
 
   # 自分のサーバの SPA に「自分が自分を許可する?」を聞くのは形式で
   # しかないので、redirect_uri が自ホストなら consent を出さずに即
   # code を発行する。外部の Mastodon クライアント等(別ホスト)が来た
-  # ときは従来どおり consent form。`extra_headers` はピッカーで選んだ直後
+  # ときは従来どおり consent。`extra_headers` はピッカーで選んだ直後
   # だけ乗る、並べ替えた Set-Cookie(このリクエストの応答が最初にそれを
   # 運ぶ唯一の機会)。
   defp authorize_with_session(account, client_id, redirect_uri, scope, state, extra_headers \\ []) do
@@ -122,14 +148,21 @@ defmodule SukhiApi.Capabilities.OAuth do
         if first_party?(redirect_uri) do
           mint_and_redirect(app, account, redirect_uri, scope, state, extra_headers)
         else
-          html_form(app, redirect_uri, scope, state, extra_headers)
+          decision(
+            %{
+              decision: "consent",
+              app: %{name: app.name, client_id: app.client_id},
+              scopes: scope_names(scope)
+            },
+            extra_headers
+          )
         end
 
       {:error, :not_found} ->
-        html_error(404, "invalid_client", "unknown client_id")
+        error(404, "invalid_client", "unknown client_id")
 
       {:unavailable, why} ->
-        html_unavailable(why)
+        unavailable(why)
     end
   end
 
@@ -143,13 +176,13 @@ defmodule SukhiApi.Capabilities.OAuth do
         redirect(redirect_uri, [code: code, state: returned_state], extra_headers)
 
       {:error, :invalid_redirect_uri} ->
-        html_error(400, "invalid_redirect_uri", "redirect_uri does not match registered URIs")
+        error(400, "invalid_redirect_uri", "redirect_uri does not match registered URIs")
 
       {:error, :invalid_scope} ->
-        html_error(400, "invalid_scope", "requested scope exceeds the app's allowed scopes")
+        error(400, "invalid_scope", "requested scope exceeds the app's allowed scopes")
 
       {:unavailable, why} ->
-        html_unavailable(why)
+        unavailable(why)
     end
   end
 
@@ -167,26 +200,23 @@ defmodule SukhiApi.Capabilities.OAuth do
 
   defp strip_port(domain), do: domain |> String.split(":", parts: 2) |> hd()
 
-  defp redirect_to_login(next) do
-    location = "/login?next=" <> URI.encode_www_form(next)
-
-    {:ok,
-     %{
-       status: 302,
-       body: "",
-       headers: [{"location", location}]
-     }}
+  # scope は空白区切り (Mastodon 互換)。"read write follow" や
+  # "read:statuses write:statuses" のような形で来る。言い換え(その人の
+  # ことばへ)は front の仕事 ── ここは名前を並べるだけ。
+  defp scope_names(scope) do
+    scope
+    |> to_string()
+    |> String.split([" ", "+"], trim: true)
+    |> Enum.uniq()
   end
 
-  # ── POST /oauth/authorize ────────────────────────────────────────────────
+  # ── POST /api/v1/sukhi/oauth/authorize ───────────────────────────────────
 
-  def authorize_submit(req) do
-    # POST /oauth/authorize は同意フォーム(ブラウザの form submit)から
-    # 来るので元の content-type は application/x-www-form-urlencoded だが、
-    # `SukhiFedi.Web.PluginPlug` が body_params を JSON に再エンコード
-    # してから渡してくる(`plugin_plug.ex` の `body =` 参照)。なので
-    # ここは JSON で読む。直接呼ばれた古いテスト等のために
-    # form 形式へのフォールバックも残す。
+  def approve(req) do
+    # 同意フォームの submit は front が受け、JSON にして渡してくる。
+    # (PluginPlug が body_params を JSON に再エンコードして渡してくる
+    # 形も同じ。直接呼ばれた古いテスト等のために form 形式への
+    # フォールバックも残す。)
     body = decode_request_body(req)
     client_id = body["client_id"]
     redirect_uri = body["redirect_uri"] || ""
@@ -196,14 +226,14 @@ defmodule SukhiApi.Capabilities.OAuth do
 
     cond do
       is_nil(client_id) or client_id == "" ->
-        html_error(400, "invalid_request", "missing client_id")
+        error(400, "invalid_request", "missing client_id")
 
       true ->
-        do_authorize_submit(client_id, redirect_uri, scope, state, token_candidates)
+        do_approve(client_id, redirect_uri, scope, state, token_candidates)
     end
   end
 
-  defp do_authorize_submit(client_id, redirect_uri, scope, state, token_candidates) do
+  defp do_approve(client_id, redirect_uri, scope, state, token_candidates) do
     with {:ok, account} <- resolve_session_any(token_candidates),
          {:ok, app} <- GatewayRpc.run(@gateway, :find_app_by_client_id, [client_id]),
          {:ok, %{code: code, state: returned_state}} <-
@@ -215,22 +245,22 @@ defmodule SukhiApi.Capabilities.OAuth do
       redirect(redirect_uri, code: code, state: returned_state)
     else
       {:error, :no_session} ->
-        html_error(401, "unauthorized", "log in first to authorize this app")
+        error(401, "unauthorized", "log in first to authorize this app")
 
       {:error, :not_found} ->
-        html_error(404, "invalid_client", "unknown client_id")
+        error(404, "invalid_client", "unknown client_id")
 
       {:error, :invalid_redirect_uri} ->
-        html_error(400, "invalid_redirect_uri", "redirect_uri does not match registered URIs")
+        error(400, "invalid_redirect_uri", "redirect_uri does not match registered URIs")
 
       {:error, :invalid_scope} ->
-        html_error(400, "invalid_scope", "requested scope exceeds the app's allowed scopes")
+        error(400, "invalid_scope", "requested scope exceeds the app's allowed scopes")
 
       {:unavailable, why} ->
-        html_unavailable(why)
+        unavailable(why)
 
       _ ->
-        html_error(400, "invalid_request", "could not authorize")
+        error(400, "invalid_request", "could not authorize")
     end
   end
 
@@ -463,198 +493,15 @@ defmodule SukhiApi.Capabilities.OAuth do
     end
   end
 
-  # ── HTML rendering ───────────────────────────────────────────────────────
+  # ── answers ──────────────────────────────────────────────────────────────
 
-  # 2 アカウント以上サインインしているときだけ挟む一枚。選ぶと
-  # `/oauth/authorize?...&choose=<id>` に飛び、選んだ方を主に並べ替えて
-  # 同じ URL(choose= 抜き)へ戻る ── その次はいつもの1アカウントの流れ。
-  defp html_account_picker(sessions, params) do
-    qs = Map.take(params, ["client_id", "redirect_uri", "scope", "state", "response_type"])
-
-    buttons =
-      Enum.map_join(sessions, "\n        ", fn %{account: account} ->
-        href = "/oauth/authorize?" <> URI.encode_query(Map.put(qs, "choose", to_string(account.id)))
-        ~s|<a class="button" href="#{h(href)}">@#{h(account.username)}</a>|
-      end)
-
-    add_href =
-      "/login?" <>
-        URI.encode_query(%{
-          "next" => "/oauth/authorize?" <> URI.encode_query(qs),
-          "mode" => "add"
-        })
-
-    body = """
-    <!doctype html>
-    <html lang="ja">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>どのアカウント? — sukhi-fedi</title>
-      <link rel="stylesheet" href="/static/styles/app.css" />
-    </head>
-    <body>
-      <main class="wrap stack">
-        <section class="hero">
-          <h1>どのアカウントで、続けますか?</h1>
-          <p class="tagline">このブラウザには、いくつかサインインしています。</p>
-        </section>
-        <div class="stack">
-          #{buttons}
-        </div>
-        <p class="prose-small"><a href="#{h(add_href)}">別のアカウントでログイン</a></p>
-      </main>
-    </body>
-    </html>
-    """
-
-    {:ok, %{status: 200, body: body, headers: [{"content-type", "text/html; charset=utf-8"}]}}
-  end
-
-  defp html_form(app, redirect_uri, scope, state, extra_headers) do
-    name = h(app.name)
-    cid = h(app.client_id)
-    redir = h(redirect_uri)
-    sc = h(scope)
-    st = h(state)
-
-    scope_list = render_scope_list(scope)
-
-    body = """
-    <!doctype html>
-    <html lang="ja">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>許可する — sukhi-fedi</title>
-      <link rel="stylesheet" href="/static/styles/app.css" />
-    </head>
-    <body>
-      <main class="wrap stack">
-        <section class="hero">
-          <h1>#{name} に、許可しますか?</h1>
-          <p class="tagline">この道具に、こんなことが、できるようになります。</p>
-        </section>
-        #{scope_list}
-        <p class="prose-small">
-          「いいよ」を押すと、<code>#{redir}</code> に戻ります。
-        </p>
-        <form action="/oauth/authorize" method="post" class="form stack">
-          <input type="hidden" name="client_id" value="#{cid}">
-          <input type="hidden" name="redirect_uri" value="#{redir}">
-          <input type="hidden" name="scope" value="#{sc}">
-          <input type="hidden" name="state" value="#{st}">
-          <button type="submit">いいよ</button>
-        </form>
-        <p class="prose-small"><a href="/">やめておく</a></p>
-      </main>
-    </body>
-    </html>
-    """
-
+  defp decision(body, extra_headers \\ []) do
     {:ok,
      %{
        status: 200,
-       body: body,
-       headers:
-         [
-           {"content-type", "text/html; charset=utf-8"},
-           # この同意フォームは、わざと外部アプリの custom scheme
-           # (例 `cx-c3-toot://…`) へ 302 で戻すのが仕事。グローバルCSP
-           # の `form-action 'self'`(CorsPlug) は、WebKit(Safari/iOS)だと
-           # フォーム送信のリダイレクト先まで照合するので、そのままだと
-           # Toot! 等の webview が戻りを掴めず「いいよ」で先に進めない
-           # (Chrome系は CSP3 でリダイレクト先チェックを外したので通る)。
-           # ここだけ form-action を落とす — 他の hardening は残す。
-           # CorsPlug は handler が CSP を立てたら上書きしない。
-           {"content-security-policy", "object-src 'none'; base-uri 'none'; frame-ancestors 'self'"}
-         ] ++ extra_headers
+       body: JSON.encode!(body),
+       headers: [{"content-type", "application/json"}] ++ extra_headers
      }}
-  end
-
-  # scope は空白区切り (Mastodon 互換)。"read write follow" や
-  # "read:statuses write:statuses" のような形で来る。1 つずつ短い
-  # 日本語に直して、見たことのない sub-scope はそのまま並べる。
-  defp render_scope_list(scope) do
-    items =
-      scope
-      |> to_string()
-      |> String.split([" ", "+"], trim: true)
-      |> Enum.uniq()
-      |> Enum.map(&scope_explain/1)
-      |> Enum.map(fn {label, detail} ->
-        "<li><strong>#{h(label)}</strong> — #{h(detail)}</li>"
-      end)
-      |> Enum.join("\n          ")
-
-    case items do
-      "" -> ""
-      _ -> ~s|<ul class="scope-list">\n          #{items}\n        </ul>|
-    end
-  end
-
-  # 既知の scope はやさしい日本語で。未知のものはそのまま見せて、
-  # ぼかさずに「これがついています」と置く。
-  defp scope_explain("read"), do: {"読む", "あなたのところで起きていることを、読みます。"}
-  defp scope_explain("write"), do: {"書く", "あなたに代わって、投稿したり、プロフィールを変えたりします。"}
-  defp scope_explain("follow"),
-    do: {"フォロー", "あなたに代わって、誰かをフォロー/アンフォローします。"}
-
-  defp scope_explain("push"), do: {"通知", "新しい通知を、この道具に届けます。"}
-
-  defp scope_explain("read:accounts"),
-    do: {"アカウントを読む", "あなたや他の人のプロフィールを、読みます。"}
-
-  defp scope_explain("read:statuses"),
-    do: {"投稿を読む", "タイムラインや個別の投稿を、読みます。"}
-
-  defp scope_explain("read:notifications"),
-    do: {"通知を読む", "届いた通知を、読みます。"}
-
-  defp scope_explain("read:follows"),
-    do: {"フォローを読む", "あなたがフォローしている人/されている人を、読みます。"}
-
-  defp scope_explain("write:statuses"),
-    do: {"投稿を書く", "あなたに代わって、投稿したり、消したりします。"}
-
-  defp scope_explain("write:media"),
-    do: {"画像を上げる", "投稿に添える画像などを、サーバへ上げます。"}
-
-  defp scope_explain("write:accounts"),
-    do: {"プロフィールを変える", "あなたの表示名・自己紹介・アイコンを、書き換えます。"}
-
-  defp scope_explain("write:follows"),
-    do: {"フォローを変える", "あなたに代わって、フォロー/アンフォローします。"}
-
-  defp scope_explain("write:notifications"),
-    do: {"通知を整える", "通知を消したり、まとめて既読にしたりします。"}
-
-  defp scope_explain(other), do: {other, "この権限の説明は、まだ用意していません。"}
-
-  defp html_unavailable(:not_connected),
-    do: html_error(503, "gateway_not_connected", "the gateway is unreachable")
-
-  defp html_unavailable({:badrpc, reason}),
-    do: html_error(503, "gateway_rpc_failed", inspect(reason))
-
-  defp html_error(status, code, detail) do
-    body = """
-    <!doctype html><html><head><title>#{h(code)}</title></head>
-    <body><h1>#{h(code)}</h1><p>#{h(detail)}</p></body></html>
-    """
-
-    {:ok, %{status: status, body: body, headers: [{"content-type", "text/html; charset=utf-8"}]}}
-  end
-
-  defp h(nil), do: ""
-
-  defp h(s) when is_binary(s) do
-    s
-    |> String.replace("&", "&amp;")
-    |> String.replace("<", "&lt;")
-    |> String.replace(">", "&gt;")
-    |> String.replace("\"", "&quot;")
-    |> String.replace("'", "&#39;")
   end
 
   defp redirect(base, params, extra_headers \\ []) do
@@ -664,14 +511,14 @@ defmodule SukhiApi.Capabilities.OAuth do
       |> URI.encode_query()
 
     location = if qs == "", do: base, else: "#{base}?#{qs}"
-
-    {:ok,
-     %{
-       status: 302,
-       body: "",
-       headers: [{"location", location}, {"content-type", "text/plain"}] ++ extra_headers
-     }}
+    decision(%{decision: "redirect", location: location}, extra_headers)
   end
+
+  defp error(status, code, detail) do
+    json(status, %{error: code, error_description: detail})
+  end
+
+  defp unavailable(why), do: json(503, GatewayRpc.unavailable_body(why))
 
   defp json(status, body) do
     {:ok,

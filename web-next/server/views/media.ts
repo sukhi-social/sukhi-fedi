@@ -25,7 +25,7 @@ export function mediaStrings(t: T): Record<string, string> {
   };
 }
 
-// 設定の、アイコンとヘッダーの切り抜き。大きさと形は、web/ の設定画面と同じ(アイコン 512 角の PNG、ヘッダー 3:1 の JPEG)。
+// 設定の、アイコンとヘッダーの切り抜き(アイコン 512 角の PNG、ヘッダー 3:1 の JPEG)。
 export function cropSpec(t: T, kind: 'avatar' | 'header'): string {
   const base = { zoom: t('crop.zoom'), hint: t('crop.hint'), cancel: t('crop.cancel'), confirm: t('crop.confirm'), keep: t('crop.keep'), original: t('crop.original') };
   return JSON.stringify(

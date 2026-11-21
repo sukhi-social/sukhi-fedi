@@ -1,20 +1,10 @@
 # syntax=docker/dockerfile:1.7
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Build context is the repo root so this Dockerfile can pull in both
-# `web/` (SPA source) and `elixir/` (gateway source). release.yml
-# passes `context: .` and `file: ./elixir/Dockerfile`.
-
-# ── SPA build ─────────────────────────────────────────────────────────────
-FROM node:24.22.1-alpine AS spa
-
-WORKDIR /spa
-RUN corepack enable
-COPY web/package.json web/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
-
-COPY web/ ./
-RUN pnpm run build
+# Build context is the repo root, as in combined/Dockerfile. release.yml
+# passes `context: .` and `file: ./elixir/Dockerfile`. The gateway holds no
+# web UI: pages come from a web front (web-next, web-natadeco…) that is
+# built and run on its own.
 
 # ── Elixir release build ──────────────────────────────────────────────────
 FROM elixir:1.20-alpine AS build
@@ -65,18 +55,6 @@ COPY elixir/config config
 COPY elixir/lib lib
 COPY elixir/priv priv
 COPY elixir/rel rel
-
-# Drop the prebuilt SPA into priv/static so the release embeds it.
-# Gateway's `serve_spa/1` reads `index.html` from there. Separately
-# copy the raw token CSS files into priv/static/styles/ so the
-# server-rendered pages (OAuth consent / error pages) can reference them
-# at the same paths (the SvelteKit build hashes them under
-# _app/immutable/assets/ which isn't predictable from an EEx template).
-COPY --from=spa /spa/build /spa-build
-COPY web/src/styles /spa-styles
-RUN mkdir -p priv/static priv/static/styles && \
-    cp -r /spa-build/. priv/static/ && \
-    cp /spa-styles/tokens.css /spa-styles/base.css /spa-styles/app.css priv/static/styles/
 
 RUN MIX_ENV=prod mix release
 

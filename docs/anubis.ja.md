@@ -22,12 +22,12 @@ Fediverse 連携 (`/inbox`, `/users/*`, `/.well-known/*`) と SPA の API 通信
 
 ## `/check` の通り方
 
-`/check` は SPA shell を返すだけの HTML エンドポイント。`?intent=` で
+`/check` は web の前線(web-next)が返す HTML エンドポイント。`?intent=` で
 出口が変わる。Anubis cookie はドメイン全体に効くので、一度通れば
 当面は他の `/check` 訪問もすぐ抜ける(つまり「ログインのたびに
 PoW」ではなく「久しぶりに来た人は一度だけ」)。
 
-> **web-next(Node の郵便局)でも同じ関所を通る。** SPA ではブラウザが `/check` で手順を進めたが、
+> **web-next(Node の郵便局)は、この関所を通る。** かつての SPA ではブラウザが `/check` で手順を進めたが、
 > web-next では `/check` がサーバの手順の一部になる ── 一段目のあとで `/check?intent=login|signup`
 > へ redirect し、anubis が PoW を終えて届いたところで、OAuth を始める・アカウントを作る。
 > 行き先は session に置く一度きりで、URL の `intent` は合図にすぎない(`web-next/server/routes/auth.ts`)。
@@ -48,7 +48,7 @@ PoW」ではなく「久しぶりに来た人は一度だけ」)。
    ↓
 4. /check                    ← ここで初めて Anubis が CHALLENGE
    ↓ PoW 解けた
-5. SPA が /oauth/authorize?... を発射 → consent
+5. web が /oauth/authorize?... を発射 → consent
    ↓
 6. /app/callback?code=... → トークン取得 → /timeline
 ```
@@ -61,13 +61,13 @@ PoW」ではなく「久しぶりに来た人は一度だけ」)。
 ```
 1. /signup でフォーム入力
    ↓ submit
-2. SPA が下書きを sessionStorage に保存
+2. web が下書きを session に保存(`signupDraft`)
    ↓
 3. /check?intent=signup       ← Anubis が CHALLENGE
    ↓ PoW 解けた
-4. SPA が下書きを読んで POST /api/v1/accounts
+4. web が下書きを読んで POST /api/v1/accounts
    ↓ 成功
-5. sessionStorage クリア → /timeline
+5. session の下書きを消す → /timeline
 ```
 
 **signup の認可は /check を通れたときに初めて起こる**。PoW に失敗

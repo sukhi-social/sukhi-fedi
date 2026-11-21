@@ -40,6 +40,8 @@ export type Session = {
   flash?: { kind: 'notice' | 'error'; text: string };
   // 預かっている予約投稿の「手元のひかえ」。gateway が一覧を返さないときの代わり。
   pending?: { id: string; text: string; at: string }[];
+  // メールの確認が済んでいる、と一度わかったら立てる(nudge.ts)。済んだ人に、頁ごとに gateway へ聞かないため。
+  emailOk?: true;
 };
 
 const file = `${config.dataDir}sessions.json`;

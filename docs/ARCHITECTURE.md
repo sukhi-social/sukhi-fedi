@@ -111,9 +111,16 @@ apps into a single-BEAM release for small single-box deployments
 (`docker-compose.combined.yml`). Rules 1–6 hold unchanged in either
 topology; only the process count differs.
 
-**Web fronts.** The pages people read (web-simple, web-next, web-board,
-web-room…) are separate processes that sit *behind* the gateway, on a
-private network; the browser reaches only the gateway, so rule 1 holds.
+**Web fronts.** The pages people read (web-next, web-board, web-room…) are
+separate processes. The gateway has no UI of its own beyond the legal pages,
+the public preview a crawler gets for a profile or a note, `/map`, the setup
+page, `/admin` and the nodeinfo monitor: sign-in, the OAuth account picker and
+consent page (`/oauth/authorize`, which asks `GET /api/v1/sukhi/oauth/authorize`
+what to show) are the front's. Either the front sits in front of the gateway
+(production), or the gateway sits in front and forwards GETs to the fronts
+behind it on a private network; in the second shape the consent page, which
+needs the front to see the browser's own cookies, cannot work. The browser
+reaches only the outermost one, so rule 1 holds.
 Each front serves a static `/.sukhi/web.json` listing the paths it can
 answer; the operator lists the fronts' URLs and, where two could answer,
 who wins in the required `/etc/sukhi/instance.json` (`routes`, first match
@@ -124,10 +131,11 @@ dot-led segment (`/.well-known/…`, `/.sukhi/…`) are the gateway's alone and
 are never forwarded. Everything the gateway itself routes (`/api`,
 `/oauth`, federation, media) is matched first and is not claimable. The one
 place this is decided is `SukhiFedi.Web.Upstreams`; the one place a request
-crosses is `SukhiFedi.Web.Proxy`. Each front is its own image: `sukhi-fedi-web-simple` (`web/`, the SPA build
-and a small static server), `sukhi-fedi-web-next` (`web-next/`) and
-`sukhi-fedi-web-board` (`web-natadeco/`, the natadeco SSR; also still pushed as
-`sukhi-fedi-natadeco-ssr`). Each answers `/.sukhi/web.json` itself, generated
+crosses is `SukhiFedi.Web.Proxy`. Each front is its own image: `sukhi-fedi-web-next` (`web-next/`) and
+`sukhi-fedi-web-board` (`web-natadeco/`, the natadeco SvelteKit server; also
+still pushed as `sukhi-fedi-natadeco-ssr`). The old `web/` SPA is gone and no
+image is built for it (`web-simple` stays an accepted front name so an
+existing config still loads). Each answers `/.sukhi/web.json` itself, generated
 from its own route table. Design notes and the migration order:
 `gateway-web-split/DESIGN.md` (project files).
 
@@ -329,7 +337,7 @@ sukhi-fedi/
 │   │       ├── mastodon_instance.ex
 │   │       ├── nodeinfo_monitor.ex
 │   │       ├── oauth_apps.ex              # /api/v1/apps + verify_credentials
-│   │       ├── oauth.ex                   # /oauth/authorize, /token, /revoke
+│   │       ├── oauth.ex                   # /oauth/token, /revoke; sukhi/oauth/authorize (JSON)
 │   │       ├── mastodon_accounts.ex       # accounts/* read + update
 │   │       ├── mastodon_follows.ex        # accounts/:id/{follow,unfollow}
 │   │       ├── mastodon_statuses.ex       # statuses CRUD + context
@@ -916,7 +924,7 @@ shapes from `api/lib/sukhi_api/views/`.
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MastodonInstance`               | `GET /api/v1/instance`                                                                                                                                                                                                                                                                                                                                  |
 | `OAuthApps`                      | `POST /api/v1/apps`, `POST /api/v1/apps/verify_credentials`                                                                                                                                                                                                                                                                                             |
-| `OAuth`                          | `GET /oauth/authorize` (HTML form), `POST /oauth/authorize`, `POST /oauth/token` (auth code / refresh / client_credentials), `POST /oauth/revoke`                                                                                                                                                                                                       |
+| `OAuth`                          | `GET`/`POST /api/v1/sukhi/oauth/authorize` (JSON: what to show / the redirect), `POST /oauth/token` (auth code / refresh / client_credentials), `POST /oauth/revoke`                                                                                                                                                                                                       |
 | `MastodonAccounts`               | `verify_credentials`, `update_credentials`, `lookup`, `relationships`, `:id`, `:id/statuses`, `:id/followers`, `:id/following`                                                                                                                                                                                                                          |
 | `MastodonFollows`                | `:id/follow`, `:id/unfollow`                                                                                                                                                                                                                                                                                                                            |
 | `BonfireGroups`                  | `POST /api/v1-bonfire/groups/:id/join`, `POST /api/v1-bonfire/groups/:id/leave` (Bonfire's draft groups API; join also follows) |
@@ -1010,7 +1018,7 @@ Custom metrics to emit as we build each feature:
 # behind the `disabled` profile). See the README quick start for the minimal
 # .env + build-from-source override that makes this reachable on the host.
 docker-compose up --build
-# http://localhost:4000             — Elixir gateway (SPA + Mastodon API)
+# http://localhost:4000             — Elixir gateway (Mastodon API; pages are a web front's)
 # http://localhost:4000/metrics     — PromEx (scrape externally)
 ```
 

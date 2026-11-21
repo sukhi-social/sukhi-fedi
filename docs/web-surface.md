@@ -34,23 +34,23 @@ bearer — that check lives with the route, where it belongs. This list
 answers only whether the door is meant to face the street at all,
 because that is the question that goes unasked.
 
-## The SPA's pages are not doors of their own
+## A web front's pages are not doors of their own
 
-`/signup`, `/lists/:id` and the rest of the SPA's pages have no line in
-`router.ex`. The web build writes `routes.json` from SvelteKit's own route
-table (`web/scripts/routes-manifest.mjs`), the gateway reads it
-(`SukhiFedi.Web.SpaRoutes`), and the catch-all `get /*path` answers a path
-the build calls a page with the shell. Add a `+page.svelte` and the page
-exists; there is no second list to forget (every time one was forgotten,
-the page worked on in-app clicks and 404ed on a reload).
+`/signup`, `/lists/:id` and the rest of the pages people read have no line in
+`router.ex`: the gateway has no pages of its own to list. They belong to a
+web front (`web-next`, or `web-natadeco` as `web-board`), and the front
+decides what its own pages answer.
 
-A page is the same static shell whichever path asks, with no data in it, so
-there is nothing to decide per page. A route that needs more than the shell
-(`/settings/password` is also a POST, `/posts/:id` negotiates on `Accept`)
-keeps its own line, and so its own entry here.
+Where the gateway sits in front, the catch-all `get /*path` asks the front
+that the instance config's routes name for that path (`SukhiFedi.Web.Upstreams`)
+and forwards it, GET only. A path nothing claims is a `404` — except
+`/@name`, where the gateway gives a crawler the public preview. A path that
+starts with a dot is never forwarded. Add a page to a front and it exists;
+there is no second list in the gateway to forget.
 
-With the SSR renderer (natadeco) and no `routes.json` yet, the renderer is
-asked and answers 404 for what it does not know.
+What the gateway does keep, as its own lines (and so its own entries here):
+the legal pages, `/map`, the setup page, `/admin`, and every route that is
+not a page — federation, `/api`, `/oauth/token`, `/oauth/revoke`.
 
 ## Why the test and not a plug
 

@@ -7,7 +7,7 @@ iced・egui・Jetpack Compose・SwiftUI は、CSS のカスケードを持たな
 
 - **新しい機能は、積極的に受け入れる**(下の「新機能の受け入れ」)。
 - **古い CSS は書かない**。**打ち消し(override)を強いる書き方も、書かない**。
-- 規則は `web/scripts/css-subset.mjs` が機械で見る(`pnpm run css-check`)。
+- 規則を機械で見る道具(`css-check`)は、消した SPA と一緒に無くなった。いまは、書く人が見る。
 
 ## 0. 四つの枠組みから借りるもの
 
@@ -100,7 +100,7 @@ HTML は、**ネイティブの要素を先に**: `<button>`・`<a>`・`<dialog>
 - **「広く使える」(high)と「最近使える」(low)は、すぐ使ってよい。** 待たない。
 - **まだ足りない(limited)ものは**、`@supports` で囲み、**無くても使える**既定を残す。
   使うたびに、この表に足す。
-- 四半期に一度、この表を取り直す: `node web/scripts/baseline-status.mjs`(web-features のデータを取って、状態を出す)。
+- 四半期に一度、この表を取り直す(web-features のデータを取って、状態を見る)。取り直す道具(`baseline-status.mjs`)は SPA と一緒に無くなった。
 
 | 機能 | 状態 | 日付 | 使い道 |
 |---|---|---|---|

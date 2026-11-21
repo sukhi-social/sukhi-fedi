@@ -127,11 +127,10 @@ path takes its credentials, region and bucket from the same config.
 | `SUKHI_INSTANCE_CONFIG` → `legal.dir` | — (bundled) | Absolute path of a directory holding **this instance's own** `terms.<lang>.md` and `privacy.<lang>.md` (`ja`, `ko`, `en`; the same languages for both). Read and rendered once at boot; changing them takes a restart. A missing directory, an empty/unreadable file, a document missing in a language or an unsupported language refuses to boot. Unset → the bundled set `LEGAL_FLAVOR` names is served; with neither set, the gateway refuses to boot. The bundled sets are not anyone else's policy. |
 | `PUBLIC_PREVIEW` | `off` | Server-rendered preview for logged-out visitors/crawlers: `off`, `meta` (OG / Twitter / JSON-LD head only) or `full` (plus a readable body). Public content only. |
 | `PUBLIC_PREVIEW_ROBOTS` | `noindex, nofollow` | The meta-robots string on preview pages. Set `index, follow` to be crawled. |
-| `SSR_URL` | — | When set (natadeco: `http://natadeco-ssr:3000`), pages that would get the empty SPA shell are forwarded to this SSR server. |
 | `SUKHI_INSTANCE_CONFIG` | `/etc/sukhi/instance.json` | Required mounted non-secret JSON for site metadata, optional `unauthenticated_redirect`, addon switches, `frontends` (`relay`, `web-next`, `web-simple`, `web-board`, `web-room`) and ordered routes. If routes are empty, `/` shows the frontend setup instructions. `nodeinfo_monitor` is disabled unless `addons.nodeinfo_monitor` is explicitly `true`. See `config/instance.json.example`. |
 | `WEB_UPSTREAMS` | — | Removed. Define frontend URLs in `SUKHI_INSTANCE_CONFIG`. |
 | `WEB_ROUTES` | — | Removed. Define route precedence and frontend selection in `SUKHI_INSTANCE_CONFIG`; first match wins. |
-| `STATIC_OVERRIDE_ONLY` | — | `true` = `STATIC_OVERRIDE=only` (kept for natadeco). See `docs/static-override.ja.md`. |
+| `STATIC_OVERRIDE_DIR` | `/app/priv/static-override` | Where `/static/emojis/…` is read from: the custom emoji the importer drops on the host. Everything else under `/static/` comes from the release. See `docs/static-override.ja.md`. |
 | `WT_TICKET_KEY` | — | Ed25519 seed (raw 32 bytes, base64) that signs WebTransport entry tickets. Unset → `/api/wt` answers 503. |
 | `WT_ENDPOINT` | `https://webtransport.f3liz.casa/wt` | The WebTransport edge a ticket is for. |
 

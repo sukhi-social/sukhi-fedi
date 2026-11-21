@@ -11,21 +11,29 @@ import './routes/auth.ts';
 import './routes/read.ts';
 import './routes/translate.ts'; // write.ts の /statuses/:id/:verb より先に
 import './routes/write.ts';
+import './routes/notify.ts';
 import './routes/requests.ts';
 import './routes/settings.ts';
 import './routes/people.ts';
 import './routes/saved.ts';
 import './routes/lists.ts';
 import './routes/rooms.ts';
+import './routes/clips.ts';
+import './routes/draft.ts';
 import './routes/emojis.ts';
 import './routes/feedback.ts';
+import './routes/map.ts';
 import './routes/join.ts';
 import './routes/announcements.ts';
 import './routes/security.ts';
 import './routes/close.ts';
+import './routes/cleanup.ts';
+import './routes/bot.ts';
+import './routes/nudge.ts';
 import './routes/migration.ts';
 import './routes/data.ts';
 import './routes/push.ts';
+import './routes/oauth.ts';
 
 // 頁が見つからない・戸が閉まっている・向こうに届かない、のとき。責めずに、帰り道を置く。
 setErrorPage((ctx, status) => {

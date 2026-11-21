@@ -101,7 +101,7 @@ Receiving (`ap/instructions/extract.ex`, `mirror.ex`, `dms.ex`, `schema/note.ex`
 - `Extract.extract_mfm/1` takes `_misskey_content` if it is a non-empty string, otherwise `source.content`. It does not check `source.mediaType`.
 - The text is stored in `notes.mfm` for notes, mirrored notes, and DMs, and extracted again on an edit.
 - The Mastodon-compatible API passes it through as an extra key `mfm`.
-- The web client shows `mfm` through `renderMfm` (`web/src/lib/mfm.ts`) when present, and `content` otherwise.
+- The web client shows `mfm` through `web-next/server/mfm.ts` when present, and `content` otherwise.
 - `renderMfm` escapes the whole source first, then applies a static subset. Kept: fenced code, `<center>`, quote lines, inline code, `<small>`, `<b>`, `<i>`, `<s>`, `**`, `__`, `*`, `_`, `~~`, `[label](http(s) url)`, bare URLs, mentions, hashtags, emoji. Every `$[name args content]` is replaced by its content, so motion and decoration are dropped on purpose (calm UX). Not handled: `<plain>`, `search`, math, and the meaning of any `$[...]`.
 
 Sending (`notes/create.ex`, `fedi/builders.ex` `inject_misskey_content`):

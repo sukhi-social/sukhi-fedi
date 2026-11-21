@@ -291,7 +291,7 @@ export const peekVeranda = (at: string) =>
 // ── 通知 ──────────────────────────────────────────────────────────
 //
 // 友デコを出すと「返事が来ても気づけない」が目に見える形になるので、
-// 一緒に置く。数は出さない（`web/src/lib/notify.ts` の ambient の考え）
+// 一緒に置く。数は出さない（sukhi-fedi の web-next と同じ、ambient の考え）
 // ── 数字は圧になるし、友達が増えるほど永遠に残るので。
 
 export type Notice = {

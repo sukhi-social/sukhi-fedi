@@ -1,7 +1,7 @@
 # sukhi-web-next
 
 sukhi-fedi の web を、**Unpoly + Alpine.js の MPA** で作りなおしたもの。
-`sukhi-web-next`(SvelteKit の SPA)と `sukhi-fedi/web` を読んで、同じことばと見た目を借りている。
+`sukhi-web-next`(SvelteKit の SPA)と、sukhi-fedi にあった旧 SPA(`web/`、いまは無い)を読んで、同じことばと見た目を借りた。
 
 サーバ(郵便局)が、gateway(Elixir)の `/api/v1` を呼んで、HTML を組み立てて返す。
 ブラウザ側の JS は、`public/js/app.js` ひとつだけ(Unpoly の設定・Alpine の小さな部品・字の着替え)。
@@ -27,6 +27,7 @@ pnpm test
 | `COOKIE_SECURE=1` | https の裏に置くとき |
 | `SITE_NAME` | ナビ・入口の帯・`<title>` の末尾に出るサイトの名前(既定 `sukhi-fedi`) |
 | `SITE_LOGO` | その横のロゴ画像。`/…` のパスか `https://…` の URL(既定 `/favicon.png`)。ほかの書きかたは既定に戻す。image を焼きなおさずに替えるには、`data/brand/` にファイルを置き(コンテナなら `/app/data/brand/`)、`/brand/<ファイル名>` を書く |
+| `SITE_THEME` | 見た目のテーマ。`about`(既定。about.sukhi.social の色)か `ink`(紙とインク。web にあった見た目)。知らない名前は `about`。頁の `<html data-theme>`・`theme-color`・manifest の色が、いっしょに替わる(`server/theme.ts`) |
 | `ABOUT_URL` | はじめての人の行き先(既定 `https://about.sukhi.social`。空ならここの入口) |
 | `POST_DELAY_MIN` | 投稿が上がるまでの余白(分、既定 15 = 約四半刻。0 ですぐ上がる) |
 | `NOTIFY_HOLD_MIN` | 「反応」の通知を置く時間(分、既定 60)。gateway に `hold_minutes` として毎回添える |
@@ -42,7 +43,8 @@ server/
   gateway.ts     /api/v1 を呼ぶ(トークン付与・refresh・Link の次ページ)
   session.ts     トークンはここ(サーバ)。ブラウザには札(sukhi_sid)だけ
   routes/        auth(入口・入る・はじめる)/ read(読む)/ write(書く・押す・通知)/ requests(フォロー申請に答える)/
-                 settings(プロフィール)/ security(ログインと安全・あいことば)/ migration(引っ越し)/ data(フォロー等の CSV)
+                 settings(プロフィール)/ security(ログインと安全・あいことば)/ migration(引っ越し)/ data(フォロー等の CSV)/
+                 rooms(ふたりの部屋)/ clips(自分あてのメモ置き場)/ map(路線図)/ draft(書きかけ)
   maintenance.ts / maintenance-cli.ts   アプリが止まっている間に nginx が返す「メンテナンス中」の頁を作る(docs/OPS_MAINTENANCE_PAGE.ja.md)。ここは配らない
   views/         HTML(html`` は差し込みを自動でエスケープ。raw() だけがそのまま)
   time.ts        時計の針を外した、うつろいのことば
@@ -93,7 +95,23 @@ mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
 
 ## sukhi-web-next との、意図した違い
 
-- **数を出さない**: お気に入り・ブースト・リアクション・フォロワー・投稿の数。通知の未読の数・点・バッジも。
+- **数を出さない**: お気に入り・ブースト・リアクション・フォロワー・投稿の数。通知は、待っている人のぶんだけ(下)。
+- **通知のしるし**: ナビの通知のそばに、二つだけ。返信・フォロー申請(direct)の未見は、数字そのまま。お気に入り・ブーストなど(ambient)は、
+  数字ではなく、数で育つかたち(、→ 輪 → w → Λ → A → 木。境いは 1 / 3 / 6 / 11 / 19)。赤も丸も付けない。数え方は `server/notify.ts` 一か所
+  (最新の一頁 40 から数える)。置き場は空で来て、頁が描かれたあとに `public/js/app.js` が `GET /notifications/unseen` で満たす(頁を待たせない)。
+- **どこまで見たか**: gateway の marker(`notifications`)が一本の正本で、層ごとの印は持たない(別の端末で見たものを、また「新着」と数えない)。
+  通知の頁を描くだけでは動かさない(GET は書かない。`up-preload` が先に開いても動かない)── 見えたとき `[data-mark-seen]` が `POST /notifications/seen`。
+  頁には、来たときの印を `since` でタブ・「もっと読む」へ引き継いで、「新しい通知は、ここまで」の線を引く(見たあとも、線は動かない)。
+  はじめて(印が無い)は「いま」を起点にする。一件も無いなら `0` を置く(最初の一件を、見たことにしない)。
+- **通知のライブ更新**: `GET /notifications/stream`(SSE)が gateway の `streaming/user/notification` を読み、direct のぶんだけ、中身なしの
+  `event: direct` を渡す(ambient は流さない。かたちは、頁と頁の境でだけ動く)。ブラウザは、それを合図に数だけ取りなおす ── 本文は、この道を通らない。
+  gateway に届かないときは `200` + `retry: 60000` で閉じる(EventSource は `200` でないと繋ぎ直さない)。`401` は、そのまま `401`。
+  呼び鈴の形(荷物ではない・繋ぎ直し・心拍)は `server/sse.ts` 一か所で、通知も部屋も、ここを通る。
+- **部屋のライブ更新**: ふたりの部屋を開いているあいだ、`GET /rooms/:id/stream`(SSE)が、この部屋に何か起きたとき、中身なしの `poke` を鳴らす。
+  向こうは gateway の WebSocket(`stream=direct`)で、この郵便局が `Authorization: Bearer` を握手の header に付けて開く(`server/direct.ts`。
+  ブラウザは WebSocket に header を付けられず token を URL に乗せるしかないが、ここなら URL に出ない)。鳴ったら、ブラウザは
+  `GET /rooms/:id/talk`(ログの箱の中身だけ。読んだ印も付く)を取りなおして差す ── 書きかけの返事には、ふれない。
+  60 秒の見直しは残す(管が死んでいることに、こちらからは気づけない)。裏に回ったら畳み、戻ったら開いて一度訊く。
 - **時間は、うつろいで**: 「今日の昼下がり」「昨日の宵」「秋の夜ふけ」。分・秒は言わない。
 - **見直しの余白**: 投稿は `scheduled_at` で約四半刻あとに上がる。そのあいだは「お預かり」として、とりやめられる。
 - **反応は、ポツポツ**: お気に入り・ブーストなどの通知は、`NOTIFY_HOLD_MIN` 置いてから出し、同じ投稿への反応は一つにまとめる。返信・フォロー申請はすぐ。置くのもまとめるのも gateway の仕事で(アカウントごとの設定がある。docs/MASTODON_API.md の「Pace」)、この郵便局は、設定にかかわらず `hold_minutes` と `grouping` を添えて呼ぶ。
@@ -102,11 +120,28 @@ mock/            偽の gateway(sukhi-web-next/shots の mock を借用)
 - ログインの要素(メール・2FA・パスキー・端末・あいことば)は、gateway が bearer を受けず、ブラウザの `session_token` cookie だけを見る。
   この郵便局は、その cookie を一本だけ添えて呼ぶ(`gwCookie`)。cookie が無い・切れていれば、フォームを出さずに「入りなおして」。
 
-## まだ(縦に一本、のあと)
+## web にあって、ここに来たもの
 
-入口・入る・はじめる・タイムライン・タグ・投稿の詳細・プロフィール・書く・通知・さがす・設定(プロフィール・
-ログインと安全〔メール・2FA・パスキー・端末・あいことば〕・引っ越し・書き出しと読み込み・フォロー申請・ブロックとミュート・
-アカウントを閉じる・ご意見)・しおりとお気に入り・リスト〔プロフィールから入れる・外すも〕・ふたりの部屋〔DM〕・投票・絵文字の選び口と @ の候補・ホームのおしらせまで。
-ない: 設定の掃除・BOT / 部屋から投稿を差し出す / clips / map / 下書きの保存 / 私的メモ。
+旧 SPA(`web/`)は消した。旧 web でできたことは、ここでもできる。
+
+- **Clips**(`/clips`。どこからもリンクしない ── 旧 web も、直 URL だけ): 自分あての会話(`accounts` が空)を、メモ置き場に使う頁。
+  古い順で、下から読む。まだ一通も無ければ、最初の一通が部屋を作る。
+  - 置く(`POST /clips`)は、頭に自分の `@` を付けた DM を、直前の一通への返信として(同じ部屋に入る)。お預かり(四半刻の余白)はかけない。
+    ファイルは四つまで、種類は問わない。置き場は `routes/clips.ts`、一枚の姿は `views/clips.ts`。
+  - 宛名(頭の `@`・言及だけの末尾の段落)は、見せるときに外す(`withoutAddress`)。コピーの字は、外したあとの全文。
+  - ピンは 📌 のリアクション。押すのは、ふつうのリアクションと同じ道(`POST /statuses/:id/react`)── 返るのは、この頁の一枚の姿。
+  - `?q=` で探す(gateway の検索)・`?pinned=1` でピンだけ(開いた一頁のなか)・`?max_id=` でもっと古いほう(一頁 20 件)。
+  - ライブ更新は、ふたりの部屋と同じ呼び鈴。`GET /clips/stream`(SSE)が `poke` を鳴らし、ブラウザが `GET /clips/talk?since=<開いたときの先頭>`
+    (それより後に届いた分だけ、古い順)を取りなおして、下に足す。読んでいるところは動かさない。
+- **路線図**(`/map`。ナビには無く、入っていない人の入口から行ける。入っていない人にも開いている): `GET /map` が頁、`GET /map/live` が 30 秒ごとの取りなおし
+  (領域だけを返し、絵の差しかえは `public/js/app.js`)。数字は gateway が 5 秒覚えている ── キャッシュは、そこ一か所。はかれなければ、線路だけ。
+- **書きかけ**(ふつうのノート): 書く欄が、手を止めたあとに `POST /compose/draft` で、gateway の `/api/i/notes/drafts` へ置く(一アカウントに一つ。連合しない)。
+  開いたとき(`GET /compose`)に戻り、送れたとき(`POST /compose`)に畳む。戻るのは、はじめの一通だけ ── 返信・引用・記事・共有からの書き出しには、戻さない。
+  gateway の口は `routes/draft.ts` 一か所。置きそこねても、書くことは止めない。記事の書きかけは、これとは別で、この端末の localStorage だけ。
+- **テーマ**: `SITE_THEME`(上の表)。`about` が既定、`ink` は旧 web の紙とインクの見た目(`server/theme.ts`・`public/css/theme-ink.css`)。
+
+## まだ
+
+ない: 部屋から投稿を差し出す(web にも、無かった)。
 
 `TODO.md` に、入口の行き先についての、次の予定がある。

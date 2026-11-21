@@ -91,13 +91,14 @@ config :sukhi_fedi,
        System.get_env("WT_ENDPOINT", "https://webtransport.f3liz.casa/wt")
 
 # Server-rendered HTML preview for logged-out visitors and crawlers
-# (SukhiFedi.Web.PublicPreviewController). The SPA is JS-only, so without
-# this a shared `/@alice` or note link unfurls as an empty shell.
-#   PUBLIC_PREVIEW=off  (default) — no preview; AP JSON / SPA shell as before.
+# (SukhiFedi.Web.PublicPreviewController): a shared `/@alice` or note link
+# unfurls with a title and a picture. The gateway holds no page of its own.
+#   PUBLIC_PREVIEW=off  (default) — no preview; AP JSON as before, the page
+#                                   is the web front's.
 #   PUBLIC_PREVIEW=meta           — only OG/Twitter-card + JSON-LD head meta.
 #   PUBLIC_PREVIEW=full           — meta + a readable static body.
 # Only public-visibility content is ever rendered. Off by default so a
-# quiet instance stays a shell to strangers until an operator opts in.
+# quiet instance shows strangers nothing until an operator opts in.
 public_preview =
   case System.get_env("PUBLIC_PREVIEW", "off") do
     "meta" -> :meta

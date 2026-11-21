@@ -6,8 +6,8 @@ defmodule SukhiFedi.Integration.PublicPreviewTest do
     * an ActivityPub consumer (Accept: application/activity+json) still gets
       the actor / note JSON, regardless of the preview setting;
     * a crawler GET with PUBLIC_PREVIEW=meta gets OG / Twitter-card tags;
-    * with PUBLIC_PREVIEW=off the same crawler GET is not a preview — it
-      falls through to the SPA shell path.
+    * with PUBLIC_PREVIEW=off the same crawler GET is not a preview — the
+      page is the web front's, so the gateway has nothing to answer.
 
   Visibility is honest: a followers-only note never renders here.
   """
@@ -29,10 +29,6 @@ defmodule SukhiFedi.Integration.PublicPreviewTest do
     # Read at request time, so set per test and restore after.
     prev = Application.get_env(:sukhi_fedi, :public_preview, :off)
     on_exit(fn -> Application.put_env(:sukhi_fedi, :public_preview, prev) end)
-
-    # `/@alice` `/@alice/123` は sukhi の SPA の道。natadeco の画面
-    # (`/people/<id>`)へ案内するのは SSR の有るときだけなので、SSR_URL の
-    # 無いここでは素通りする。
 
     n = System.unique_integer([:positive])
     account = create_account!("alice_#{n}")
@@ -130,9 +126,9 @@ defmodule SukhiFedi.Integration.PublicPreviewTest do
     assert conn.resp_body =~ "hello public world"
   end
 
-  # ── off = SPA shell (not a preview) ──────────────────────────────────────
+  # ── off = not a preview (a page is the web front's) ──────────────────────
 
-  test "with preview off a crawler GET is not a preview (falls through to SPA)",
+  test "with preview off a crawler GET is not a preview",
        %{account: account} do
     set_level(:off)
 
@@ -142,11 +138,12 @@ defmodule SukhiFedi.Integration.PublicPreviewTest do
     refute conn.resp_body =~ "og:title"
   end
 
-  test "with preview off `/@alice` falls through to the SPA shell path", %{account: account} do
+  test "with preview off `/@alice` is left to the web front: 404 here", %{account: account} do
     set_level(:off)
 
     conn = get("/@#{account.username}", [{"accept", "text/html"}])
 
+    assert conn.status == 404
     refute conn.resp_body =~ "og:title"
   end
 

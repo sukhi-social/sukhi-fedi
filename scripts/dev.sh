@@ -17,10 +17,10 @@
 #   3. The combined release's projects (gateway + delivery + api in one
 #      BEAM) on http://localhost:4000, with an IEx shell.
 #
-# The SPA dev server is a separate process on purpose — two programs
+# The web client's dev server is a separate process on purpose — two programs
 # writing to one terminal is worse than two terminals:
 #
-#   make dev-web        # http://localhost:5173, proxies API calls to :4000
+#   cd web-next && pnpm run dev    # http://localhost:5174, points at :4000
 #
 # Ports are picked to not collide with a docker-compose stack or with
 # `make test-pglite` (15433).
@@ -107,7 +107,7 @@ cd "$ROOT/combined"
 echo "→ migrating"
 mix sukhi.migrate
 
-echo "→ http://localhost:4000   (SPA dev server: \`make dev-web\` in another terminal)"
+echo "→ http://localhost:4000   (web client: \`pnpm run dev\` in web-next/, in another terminal)"
 
 # Deliberately not `exec`: that would replace this shell, and the EXIT
 # trap above would never run — leaving PGlite and nats-server holding

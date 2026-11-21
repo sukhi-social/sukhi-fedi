@@ -12,7 +12,7 @@
 > [`FEDERATION.md`](FEDERATION.md) (the irreversible-loss history that
 > makes the deletion rules below non-negotiable). The two-tier
 > notification model this must preserve is documented *in code* at the
-> top of [`web/src/lib/notify.ts`](../web/src/lib/notify.ts).
+> top of [`web-next/server/notify.ts`](../web-next/server/notify.ts).
 
 Web Push is a notification *transport*. It is the one transport that can
 **wake a person who isn't looking** — buzz a phone, light a lock screen.
@@ -358,7 +358,7 @@ on おやすみ should quiet every device at once.
 - **UI (web):** a calm toggle in notification settings — "おやすみ" with
   an optional "until" time, no countdown timer ticking down (a countdown
   is an anxiety animation; show the *time*, not the shrinking remainder).
-  Settings strings go in **both** `web/src/lib/locales/ja.ts` (source)
+  Settings strings go in **both** `web-next/server/locales/ja.ts` (source)
   and `ko.ts` (parity) when implemented — this doc adds no keys.
 
 ---
@@ -441,8 +441,8 @@ knowing before touching this again.
 | VAPID config | `:sukhi_fedi, :web_push` (gateway), `:web_push, :vapid` (delivery) |
 | Durable send, retry, 410-expiry | `delivery/lib/sukhi_delivery/push/worker.ex` |
 | RFC 8291 encryption + VAPID JWT | the `web_push` library |
-| Service worker `push` / `notificationclick` | `web/static/service-worker.js` |
-| Subscribe / unsubscribe | `web/src/lib/push.ts` + `push.svelte.ts` + `PushToggle.svelte` |
+| Service worker `push` / `notificationclick` | `web-next/public/sw.js` (built from `web-next/sw/` by `build-sw.mjs`) |
+| Subscribe / unsubscribe | `web-next/public/js/pwa.js` + `web-next/server/routes/push.ts` |
 
 `send_notification/2` is gone, as §2 said it would be.
 
@@ -495,10 +495,11 @@ drifts again, that test says so out loud.
   is not consent and that a truthy-looking string from the wire (`"true"`,
   `1`) is not a yes.
 - `delivery/test/push/encryption_round_trip_test.exs` — above.
-- `web/src/lib/push.test.ts` — the base64url key conversion (another
-  silent failure: a key one byte off subscribes fine and never rings),
-  and that the client **cannot** add a type to `alerts` on its own,
-  because it never builds the list.
+- `web-next/test/pwa.test.ts` — that the client **cannot** add a type to
+  `alerts` on its own, because it never builds the list (`alertsFor` takes
+  the gateway's list as given). The base64url key conversion (another silent
+  failure: a key one byte off subscribes fine and never rings) is in
+  `public/js/pwa.js` and has no unit test.
 
 ### Still open
 

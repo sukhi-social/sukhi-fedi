@@ -70,6 +70,7 @@ const runtimeCaching = [
       here(url) &&
       (url.pathname.startsWith('/assets/vendor/') ||
         url.pathname.startsWith('/assets/fonts/') ||
+        url.pathname.startsWith('/assets/fonts-variable/') ||
         url.pathname.startsWith('/twemoji/') ||
         (url.pathname.startsWith('/assets/') && url.searchParams.has('v'))),
     handler: new CacheFirst({

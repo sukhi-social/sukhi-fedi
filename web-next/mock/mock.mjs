@@ -198,6 +198,26 @@ export const CONVERSATION_STATUSES = [
 // クリップ(自分あて DM)。ピンは既存のリアクション機構を借りている。
 export const CLIP_CONVERSATIONS = [{ id: 'c0', unread: false, accounts: [], last_status: null }];
 
+// クリップの、はじめの四件(古い順)。api-server が覚えて、書く・ピン・探す・もっと読む を、行って帰って試せるようにする。
+// 頭の「@kuro」は、h-card の形のものと、むき出しの文字のものを一件ずつ ── どちらも外れるか、見るため。
+const AT_ME = '<span class="h-card"><a href="https://sukhi.f3liz.casa/@kuro" class="u-url mention">@<span>kuro</span></a></span>';
+const PICTURE = `data:image/svg+xml;utf8,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='160' height='120' viewBox='0 0 160 120'><rect width='160' height='120' fill='#e8d9c4'/><circle cx='80' cy='64' r='34' fill='#b5651d'/><rect x='72' y='20' width='16' height='16' rx='4' fill='#7a4a1a'/></svg>")}`;
+
+export const clipStatus = (id, content, mins, extra = {}) => status(id, ME, content, mins, { visibility: 'direct', ...extra });
+export const CLIP_SEED = () => [
+  clipStatus('4001', `<p>${AT_ME} https://example.com/tea-roasting あとで読む</p>`, 60 * 24 * 3),
+  clipStatus('4002', '<p>@kuro ほうじ茶: 弱火で十分、色が変わるまで待つ</p>', 60 * 24 * 2, {
+    reactions: [{ name: '📌', count: 1, me: true }]
+  }),
+  clipStatus('4003', `<p>${AT_ME} 急須の写真</p>`, 60 * 24, {
+    media_attachments: [{ id: 'a1', type: 'image', url: PICTURE, preview_url: PICTURE, description: '湯気の立つ急須', filename: 'teapot.svg' }],
+    reactions: [{ name: '☺️', count: 1, me: true }]
+  }),
+  clipStatus('4004', `<p>${AT_ME}</p>`, 180, {
+    media_attachments: [{ id: 'a2', type: 'unknown', url: 'http://localhost/uploads/a2', preview_url: null, description: null, filename: 'recipe.pdf' }]
+  })
+];
+
 export const LISTS = [
   {
     id: '1',

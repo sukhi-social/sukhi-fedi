@@ -44,6 +44,28 @@ export function profileActions(ctx: Ctx, accountId: string, rel: Relationship): 
   </div>`;
 }
 
+// 私的メモ。本名の下に、あなただけに見える呼び名をそっと(連合しない)。本名は上に残したまま、上書きはしない。
+// 書く・直す・消すは、同じ一つの口 ── 空にして送ると、消える。長さの上限は gateway(AccountNote)と同じ。
+export const NOTE_MAX = 2000;
+
+export function noteBlock(ctx: Ctx, accountId: string, rel: Relationship): SafeHtml {
+  const t = ctx.t;
+  const note = rel.note?.trim() ?? '';
+  return html`<div class="account-note" id="pf-note" x-data="{ open: false }">
+    ${note
+      ? html`<button type="button" class="account-note-line" x-show="!open" @click="open = true"><span class="account-note-tag">${t('profile.noteLabel')}</span> ${note}</button>`
+      : html`<button type="button" class="account-note-add" x-show="!open" @click="open = true">${t('profile.noteAdd')}</button>`}
+    <form class="account-note-edit" method="post" action="/accounts/${accountId}/note" in-place up-target="#pf-note" x-show="open" x-cloak>
+      <label class="account-note-label" for="pf-note-input">${t('profile.noteLabel')}</label>
+      <textarea id="pf-note-input" class="account-note-input" name="comment" rows="2" maxlength="${NOTE_MAX}" placeholder="${t('profile.notePlaceholder')}">${note}</textarea>
+      <div class="account-note-actions">
+        <button type="submit" class="chip">${t('profile.noteSave')}</button>
+        <button type="button" class="chip" @click="open = false">${t('profile.noteCancel')}</button>
+      </div>
+    </form>
+  </div>`;
+}
+
 // フォロー申請への答え。押したところ(通知の行、または申請の一行)だけを差し替える。
 // 通知から来たときは、その通知の id も添える ── 答えたら通知は片づく(残すと、答えたボタンが出つづける)。
 export function requestButtons(ctx: Ctx, accountId: string, notifId?: string): SafeHtml {

@@ -669,6 +669,17 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
 .account-row .request-actions {
   margin-block-end: 0;
 }
+/* 招待リンク(フォロー申請の頁の下)。リンクは長いので、どこでも折り返す。 */
+.invite-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+}
+.invite-link {
+  word-break: break-all;
+  font-size: 0.85em;
+}
 /* 答えたあとの一行。通知の枠の中で、ことばだけが残る。 */
 .notif-answered {
   color: var(--color-text-muted);
@@ -731,3 +742,197 @@ a, button, summary, label, select, [role="button"], [role="menuitem"] {
 .join textarea { min-block-size: 6rem; inline-size: 100%; box-sizing: border-box; }
 .join .choices { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
 .join .receipt { display: inline-block; font-variant-numeric: tabular-nums; letter-spacing: .08em; background: var(--color-accent-soft); color: var(--color-accent-strong); border-radius: 999px; padding: 0 .7rem; }
+
+/* 取り返しのつかない一押し(古い投稿のお片づけ)。主ボタンの橙ではなく、ふつうの .btn の佇まいのまま、
+   字と罫線だけ danger に寄せる。色は --color-danger 一か所から引く。 */
+.btn.danger-btn {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 45%, var(--color-surface));
+}
+.btn.danger-btn:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  background: var(--fill-danger);
+}
+
+/* BOT の鍵。一回しか出ない文字列なので、どこでも折り返し、選びやすく、地を一段だけ変える。 */
+.token-once {
+  display: block;
+  word-break: break-all;
+  user-select: all;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+}
+
+/* メールのお願い。頁の先頭の、流れの中の小さなカード(浮かせない ── 下にあるものを覆わないため)。
+   来たときに一度目に入って、読み進めれば流れて消える。追いかけてこない。 */
+.email-nudge {
+  max-inline-size: 24rem;
+  margin-inline: auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  display: grid;
+  gap: var(--space-2);
+}
+.email-nudge p { margin: 0; }
+.nudge-lead { line-height: 1.6; }
+.nudge-small { color: var(--color-text-muted); font-size: 0.85em; }
+.nudge-form { display: grid; gap: var(--space-2); }
+.nudge-form input { font: inherit; padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius); background: var(--color-surface); color: var(--color-text); }
+.nudge-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+/* ベルの横の、通知のしるし(数は .notif-count、育つかたちは .notif-glyph)。
+   置き場は、空のときは箱を持たない ── .nav-text の gap を、余計に空けないため。
+   かたちの色は currentColor。リンクの文字色にそのまま従い、何も主張しない。動きもつけない。 */
+.notif-slot { display: contents; }
+.notif-glyph {
+  width: 0.9em;
+  height: 0.9em;
+  vertical-align: -0.1em;
+}
+
+/* ── 路線図(/map) ────────────────────────────────────────────────
+   絵の色は、トークンから(線の色 use / build、墨、うすい墨)。絵の中の部品名は、web の路線図と同じ。
+   乗り物は「走る組」と「停めた組」の両方を描いてあって、動きを減らす設定のときは、停めた組だけを見せる。 */
+.map-scroll { overflow-x: auto; }
+.map-svg { display: block; width: 100%; min-width: 720px; font-family: inherit; }
+.map-parked { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .map-moving { display: none; }
+  .map-parked { display: inline; }
+}
+.map-region { display: contents; }
+
+.map-svg .station-box { fill: var(--color-surface); stroke: var(--color-border-strong); stroke-width: 1.5; }
+.map-svg .track { fill: none; stroke-width: 3.5; stroke-linecap: round; }
+.map-svg .track.use { stroke: var(--color-use); }
+.map-svg .track.build { stroke: var(--color-build); }
+.map-svg .track.wt { stroke: var(--color-text); stroke-dasharray: 7 6; }
+/* 帰り専用の軽電鉄(SSE)。ほそく、しずかな線 */
+.map-svg .track-light { fill: none; stroke: var(--color-text-muted); stroke-width: 2; stroke-linecap: round; }
+.map-svg .hair { fill: none; stroke: var(--color-border-strong); stroke-width: 1.5; }
+.map-svg .hair.stop { stroke: var(--color-text); stroke-width: 2.5; }
+/* 航路。線路ではなく、宇宙をわたる便の道すじ */
+.map-svg .route { fill: none; stroke: var(--color-build); stroke-width: 2.5; stroke-dasharray: 1 7; stroke-linecap: round; }
+/* 島のきわ(連合宇宙とのさかいめ) */
+.map-svg .frontier { fill: none; stroke: var(--color-border-strong); stroke-width: 1; stroke-dasharray: 2 8; }
+.map-svg .star { fill: var(--color-border-strong); }
+/* 連合の宇宙図。sukhi と星を結ぶ、うすい航路 */
+.map-svg .lane { fill: none; stroke: var(--color-border); stroke-width: 1; stroke-dasharray: 1 6; stroke-linecap: round; }
+.map-svg .peer path { fill: var(--color-border-strong); }
+.map-svg .peer.lit path { fill: var(--color-text); }
+.map-svg .station { fill: var(--color-surface); stroke: var(--color-text); stroke-width: 2.5; }
+.map-svg .station.sm { stroke-width: 2; }
+.map-svg .station.terminus { stroke-width: 3; }
+.map-svg .port-ring { fill: none; stroke: var(--color-border-strong); stroke-width: 1.5; }
+/* 検問所のバー(駅ではないので丸にしない) */
+.map-svg .checkpoint { fill: none; stroke: var(--color-text); stroke-width: 3; stroke-linecap: round; }
+/* 進行方向の矢印。塗りの三角で、線の色のまま、はっきりと */
+.map-svg .dir { stroke: none; opacity: 0.85; }
+.map-svg .dir.use { fill: var(--color-use); }
+.map-svg .dir.build { fill: var(--color-build); }
+.map-svg .dir.muted { fill: var(--color-text-muted); }
+.map-svg .dir.ink { fill: var(--color-text); }
+.map-svg .dock { fill: var(--color-surface); stroke: var(--color-text); stroke-width: 2.5; }
+.map-svg .lbl { fill: var(--color-text); font-size: 13px; }
+.map-svg .lbl-bold { font-weight: 600; }
+.map-svg .lbl-sub { fill: var(--color-text-muted); font-size: 11px; }
+.map-svg .line-name { font-size: 11px; font-weight: 600; }
+.map-svg .line-name.use { fill: var(--color-use); }
+.map-svg .line-name.build { fill: var(--color-build); }
+.map-svg .line-name.ink { fill: var(--color-text); }
+.map-svg .line-name.muted { fill: var(--color-text-muted); font-weight: 400; }
+.map-svg .chip-trial { fill: var(--color-text-muted); font-size: 11px; }
+/* 乗り物は <g> ごと塗る(貨車の箱もロケットの胴も fill を継ぐ) */
+.map-svg .train.use { fill: var(--color-use); }
+.map-svg .train.build { fill: var(--color-build); }
+.map-svg .train.ink { fill: var(--color-text); }
+.map-svg .train.lr { fill: var(--color-text-muted); }
+.map-svg .train .wheel { fill: var(--color-text); }
+.map-svg .train .window { fill: var(--color-surface); }
+.map-svg .held-car { fill: var(--color-danger); }
+
+/* 発車標。数字はぜんぶ本物、取れないときは取れないと言う */
+.map-asof { margin: 0 0 var(--space-2); font-size: var(--text-sm); color: var(--color-text-muted); }
+.map-error { color: var(--color-text-muted); font-size: var(--text-sm); }
+.map-board { list-style: none; margin: 0; padding: 0; }
+.map-board li { padding: var(--space-3) 0; border-block-start: 1px solid var(--color-border); }
+.map-board li:first-child { border-block-start: none; }
+.map-board p { margin: var(--space-1) 0 0; font-size: var(--text-sm); color: var(--color-text-muted); }
+.map-chip {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-surface);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.map-chip.use { background: var(--color-use); }
+.map-chip.build { background: var(--color-build); }
+.map-chip.muted { background: var(--color-text-muted); }
+.map-chip.wt { background: transparent; color: var(--color-text); border: 1.5px dashed var(--color-border-strong); }
+.map-status { margin-inline-start: var(--space-2); font-size: var(--text-sm); color: var(--color-text-muted); }
+.map-held { color: var(--color-danger); }
+.map-note { color: var(--color-text-muted); }
+/* 解説の段落は、息つぎの間をあける */
+.map-page .prose-small + .prose-small { margin-block-start: var(--space-3); }
+
+/* ── Clips(自分あての会話を、メモ置き場に) ───────────────────────────
+   古い順に並べて、いちばん新しいのが下。書く欄は、下にとどまる。 */
+.clips-tools { display: grid; gap: var(--space-2); justify-items: start; }
+.clips-tools form { inline-size: 100%; }
+.clips-list { display: grid; gap: var(--space-3); }
+.clips-older {
+  display: block;
+  margin-inline: auto;
+  padding: var(--space-2) var(--space-6);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border: 1px solid var(--color-control);
+  border-radius: var(--radius-sm);
+}
+.clips-older:hover { color: var(--color-text); border-color: var(--color-text); }
+.clip { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-surface); }
+.clip-when { font-size: var(--text-sm); color: var(--color-text-muted); text-decoration: none; }
+.clip-when:hover { color: var(--color-text); }
+.clip-body { overflow-wrap: anywhere; line-height: 1.7; }
+.clip-body p { margin: 0; }
+.clip-body p + p { margin-block-start: var(--space-2); }
+.clip-media { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.clip-image img { display: block; max-inline-size: 100%; max-block-size: 20rem; border-radius: var(--radius-sm); }
+.clip-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  max-inline-size: 16rem;
+  color: var(--color-text);
+  text-decoration: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.clip-file:hover { border-color: var(--color-text); }
+.clip-ext { flex: none; font-size: var(--text-sm); font-weight: 700; color: var(--color-text-muted); }
+.clip-fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clip-reactions { margin-block-start: 0; align-items: center; }
+.clip-reactions form { display: contents; }
+.clip-reactions .nav-ico { inline-size: 1rem; block-size: 1rem; }
+/* 足す口は、触れたとき・tab で来たときだけ、そっと現れる(指の画面は、触れる手立てが無いので常に出す)。 */
+@media (hover: hover) {
+  .clip .reaction-add { opacity: 0; }
+  .clip:hover .reaction-add, .clip:focus-within .reaction-add { opacity: 1; }
+}
+.reaction-add { text-decoration: none; color: inherit; }
+.clips-write { position: sticky; inset-block-end: 0; padding-block: .75rem; background: var(--color-bg, Canvas); }
+/* スマホでは、下の帯の上に載る(ふたりの部屋の .composer-dm と同じ決まり。--dock-h は、帯があるときだけ全体の CSS が置く)。 */
+@media (width <= 40rem) {
+  .clips-write { inset-block-end: var(--dock-h, 0px); padding-block-end: var(--dock-pad, .75rem); }
+}
+.clips-attach { cursor: pointer; }
+.clips-attach:focus-within { outline: 3px solid var(--color-focus); outline-offset: 1px; }
+.clips-names { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

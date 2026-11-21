@@ -2,12 +2,11 @@
 defmodule SukhiApi.Locale do
   @moduledoc """
   Pick a UI locale for a request, mirroring the web client's rule in
-  `web/src/lib/i18n.ts`: Korean when the reader asks for Korean,
-  Japanese otherwise. The web client reads its own `localStorage`
-  first; a server has only the request, so we read `Accept-Language`.
+  `web-next/server/i18n.ts`: Korean when the reader asks for Korean,
+  Japanese otherwise. The web client reads its own cookie first; a
+  server has only the request, so we read `Accept-Language`.
 
-  Supported locales match the web client exactly: `:ja` (the default)
-  and `:ko`. Any server-authored, reader-facing copy (the ご近所 guide
+  Supported locales: `:ja` (the default) and `:ko`. Any server-authored, reader-facing copy (the ご近所 guide
   post, the official list title) routes through here so it speaks the
   same two languages the UI does.
   """

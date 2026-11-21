@@ -4,30 +4,33 @@
 // 中身は、宛先が相手だけの投稿(visibility: direct)── だから、Mastodon や Misskey の人とも、そのまま話せる。
 // 別のサーバも、別の仕組みも要らない。ここで作らないもの:
 //   ・入力中の表示 / 既読の印 / 未読の数 / 通話(急かすものは、置かない)
-//   ・ライブ更新(開いたときと、押しなおしたときに、読み直す)
 // 「ひらいていません」は、数ではなく、ことばひとつ。
+// 開いている部屋には、呼び鈴がある(`GET /rooms/:id/stream`、server/direct.ts・server/sse.ts)。鳴ったら、
+// public/js/app.js が `GET /rooms/:id/talk`(ログだけ)を取りなおして差す ── 呼び鈴は荷物ではなく、中身は流れない。
 // 送るときは、ふつうの投稿と同じ「お預かり」(config.postDelayMin)を通る。
 // 本文の頭の @相手 は、置く場所を慣習(宛先は本文の先頭の @)に合わせて、見せるときは外す。
 
 import { config } from '../config.ts';
 import { html } from '../html.ts';
-import { GatewayError, gwJson } from '../gateway.ts';
-import { NotFound, ok, redirect, route, type Ctx } from '../http.ts';
+import { GatewayError, gw, gwJson } from '../gateway.ts';
+import { empty, NotFound, ok, redirect, route, Unauthorized, type Ctx } from '../http.ts';
+import { watchDirect } from '../direct.ts';
 import { plainText } from '../maintenance.ts';
 import { delayWords, timeWords } from '../time.ts';
 import { saveSession } from '../session.ts';
+import { bell, later } from '../sse.ts';
 import type { Account, Status } from '../types.ts';
 import { layout } from '../views/layout.ts';
 import { avatar } from '../views/parts.ts';
 import { nameHtml, nameOf } from '../views/account.ts';
 import { paragraphs } from './announcements.ts';
-import { needMe } from './shared.ts';
+import { needMe, quiet } from './shared.ts';
 
-type Conversation = { id: string; unread: boolean; accounts: Account[]; last_status: Status | null };
+export type Conversation = { id: string; unread: boolean; accounts: Account[]; last_status: Status | null };
 type Scheduled = { id: string; scheduled_at: string };
 
 const idOk = (id: string) => /^[\w-]{1,64}$/.test(id);
-const MAX = 5000;
+export const MAX = 5000;
 
 // 本文の頭の「@相手 」を外した、文字だけ。
 const spoken = (s: Status) => plainText(s.content ?? '').replace(/^(?:@\S+\s+)+/, '');
@@ -37,7 +40,7 @@ function roomName(ctx: Ctx, accounts: Account[]) {
   return html`${accounts.map((a, i) => html`${i ? ctx.t('messages.nameSep') : ''}${nameHtml(a)}`)}`;
 }
 
-async function conversations(ctx: Ctx): Promise<Conversation[] | null> {
+export async function conversations(ctx: Ctx): Promise<Conversation[] | null> {
   return gwJson<Conversation[]>(ctx, 'GET', '/api/v1/conversations', { query: { limit: '40' } }).catch(() => null);
 }
 
@@ -123,13 +126,23 @@ route('POST', '/rooms/new', async (ctx) => {
 // ── 部屋 ────────────────────────────────────────────────────
 type Room = { id: string | null; people: Account[]; messages: Status[]; unread: boolean };
 
+// 部屋のログ。頁にも、呼び鈴のあとの差しかえ(GET /rooms/:id/talk)にも、これを出す ── 描きかたは一か所。
+// 差しかえるのは、この中身だけ(書きかけの返事には、ふれない)。
+function roomLog(ctx: Ctx, me: Account, messages: Status[]) {
+  const now = new Date();
+  return html`${messages.length === 0 ? html`<p class="prose-small">${ctx.t('messages.threadEmpty')}</p>` : ''}
+      <div class="room-talk">${messages.map((s) => {
+        const mine = s.account.id === me.id;
+        return html`<div class="room-msg ${mine ? 'me' : 'them'}">${paragraphs(spoken(s))}<span class="room-t">${timeWords(s.created_at, ctx.locale, now, ctx.tz)}</span></div>`;
+      })}</div>`;
+}
+
 async function roomPage(ctx: Ctx, room: Room, o: { text?: string; error?: string; status?: number } = {}) {
   const t = ctx.t;
   const me = await needMe(ctx);
   const flash = ctx.takeFlash();
   const who = room.people[0];
   const action = room.id ? `/rooms/${room.id}` : `/rooms/with/${encodeURIComponent(who?.acct ?? 'me')}`;
-  const now = new Date();
   const body = html`<header class="room-head">
       <a class="chip" href="/rooms" aria-label="${t('rooms.back')}">‹</a>
       <span class="room-name"><b>${roomName(ctx, room.people)}</b>${who ? html`<span class="muted">@${who.acct}</span>` : ''}</span>
@@ -138,11 +151,7 @@ async function roomPage(ctx: Ctx, room: Room, o: { text?: string; error?: string
     <div class="timeline stack">
       ${flash ? html`<p class="${flash.kind === 'error' ? 'error' : 'notice'}" role="status">${flash.text}</p>` : ''}
       <p class="muted text-sm">${t('rooms.quiet')}</p>
-      ${room.messages.length === 0 ? html`<p class="prose-small">${t('messages.threadEmpty')}</p>` : ''}
-      <div class="room-talk">${room.messages.map((s) => {
-        const mine = s.account.id === me.id;
-        return html`<div class="room-msg ${mine ? 'me' : 'them'}">${paragraphs(spoken(s))}<span class="room-t">${timeWords(s.created_at, ctx.locale, now, ctx.tz)}</span></div>`;
-      })}</div>
+      <div class="room-log stack"${room.id ? html` data-room-live="/rooms/${room.id}"` : ''}>${roomLog(ctx, me, room.messages)}</div>
       <form class="room-write" method="post" action="${action}">
         ${o.error ? html`<p class="error" role="alert">${o.error}</p>` : ''}
         <textarea name="body" rows="4" maxlength="${MAX}" required placeholder="${t('rooms.placeholder')}" aria-label="${t('rooms.placeholder')}">${o.text ?? ''}</textarea>
@@ -157,6 +166,11 @@ async function roomPage(ctx: Ctx, room: Room, o: { text?: string; error?: string
   return ok(layout(ctx, { title, me, body }), o.status ?? 200);
 }
 
+// 読んだ、という自分だけの印。相手には届かない。落ちても、部屋は開く。
+export async function markedRead(ctx: Ctx, id: string): Promise<void> {
+  await gwJson(ctx, 'POST', `/api/v1/conversations/${encodeURIComponent(id)}/read`, { json: {} }).catch(() => {});
+}
+
 // いまある部屋を読む。相手は、一覧の行から(無ければ、投稿の書き手のうち、自分でない人)。
 async function loadRoom(ctx: Ctx, id: string, markRead: boolean): Promise<Room> {
   const me = await needMe(ctx);
@@ -169,10 +183,7 @@ async function loadRoom(ctx: Ctx, id: string, markRead: boolean): Promise<Room> 
   const people =
     entry?.accounts ??
     [...new Map(messages.filter((s) => s.account.id !== me.id).map((s) => [s.account.id, s.account])).values()];
-  if (markRead && entry?.unread) {
-    // 読んだ、という自分だけの印。相手には届かない。落ちても、部屋は開く。
-    await gwJson(ctx, 'POST', `/api/v1/conversations/${encodeURIComponent(id)}/read`, { json: {} }).catch(() => {});
-  }
+  if (markRead && entry?.unread) await markedRead(ctx, id);
   return { id, people, messages, unread: !!entry?.unread };
 }
 
@@ -188,6 +199,36 @@ route('GET', '/rooms/:id', async (ctx) => {
   await needMe(ctx);
   if (!idOk(ctx.params.id)) throw new NotFound();
   return roomPage(ctx, await loadRoom(ctx, ctx.params.id, true));
+});
+
+// 呼び鈴のあとの、ログだけの取りなおし。頁の GET と同じ読みかた(見ているので、読んだ印も付く)。
+route(
+  'GET',
+  '/rooms/:id/talk',
+  quiet(async (ctx) => {
+    if (!idOk(ctx.params.id)) return empty(404);
+    const me = await needMe(ctx);
+    const room = await loadRoom(ctx, ctx.params.id, true);
+    return ok(roomLog(ctx, me, room.messages));
+  })
+);
+
+// 呼び鈴(SSE)。この部屋に何か起きたら、中身なしで `poke`。
+route('GET', '/rooms/:id/stream', async (ctx) => {
+  if (!ctx.session?.token) return empty(401);
+  const id = ctx.params.id;
+  if (!idOk(id)) return empty(404);
+  try {
+    // 部屋があるか(無ければ 404 ── EventSource は繋ぎ直さない)。token が古ければ、ここで取り直される。
+    await gw(ctx, 'GET', `/api/v1/conversations/${encodeURIComponent(id)}/statuses`, { query: { limit: '1' }, notFound: true });
+  } catch (e) {
+    if (e instanceof Unauthorized) return empty(401);
+    if (e instanceof NotFound) return empty(404);
+    return later();
+  }
+  const token = ctx.session?.token?.access_token;
+  if (!token) return empty(401);
+  return bell((ring, gone) => watchDirect(token, id, () => ring('poke'), gone));
 });
 
 // 送る。宛先は本文の頭の @相手、可視性は direct、つづきなら直前の投稿への返信として(同じ部屋に入る)。

@@ -3,10 +3,11 @@
 
 import { html, type SafeHtml } from '../html.ts';
 import { gwJson, GatewayError } from '../gateway.ts';
-import { redirect, ok, Unauthorized, type Ctx, type Reply } from '../http.ts';
+import { empty, NotFound, redirect, ok, Unauthorized, type Ctx, type Reply } from '../http.ts';
 import { saveSession } from '../session.ts';
 import type { Account, Status } from '../types.ts';
 import { warmTranslation } from '../translate.ts';
+import { MAX_ATTACHMENTS } from '../views/media.ts';
 import { statusCard, theEnd } from '../views/status.ts';
 
 // 入っている人。入っていなければ Unauthorized(→ /login へ)。
@@ -15,6 +16,22 @@ export async function needMe(ctx: Ctx, opts?: { fresh?: boolean }): Promise<Acco
   const me = await ctx.me(opts);
   if (!me) throw new Unauthorized();
   return me;
+}
+
+// 頁ではなく、頁の裏から呼ばれる口(fetch・EventSource)。入っていない人を /login へ送らない
+// ── fetch が追いかけて、ログインの頁を、頁の中に差してしまう。401 を返す。
+export function quiet(handler: (ctx: Ctx) => Promise<Reply>) {
+  return async (ctx: Ctx): Promise<Reply> => {
+    if (!ctx.session?.token) return empty(401);
+    try {
+      return await handler(ctx);
+    } catch (e) {
+      if (e instanceof Unauthorized) return empty(401);
+      if (e instanceof NotFound) return empty(404);
+      if (e instanceof GatewayError) return empty(e.status >= 500 ? 502 : e.status);
+      throw e;
+    }
+  };
 }
 
 // 公開の頁のための「入っていれば、入っている人」。トークンが古くて戻せなかったら、静かに「入っていない人」。
@@ -110,6 +127,30 @@ export function failText(ctx: Ctx, e: unknown): string {
   }
   if (e instanceof TypeError) return ctx.t('compose.err.network');
   return ctx.t('common.deliverFailedRetry');
+}
+
+// 書く欄(multipart)から、添えるファイルを取り出す。0 バイトは捨て、MAX_ATTACHMENTS 枚まで。
+// alt は、ファイルと同じ順で並んで届く ── 0 バイトを捨てる前に組にする(捨てたあとだと、添字がずれる)。
+export function attachedFiles(f: FormData): { file: File; alt: string }[] {
+  const alts = f.getAll('alt').map((x) => String(x).trim());
+  return f
+    .getAll('files')
+    .map((file, i) => ({ file, alt: alts[i] ?? '' }))
+    .filter((x): x is { file: File; alt: string } => x.file instanceof File && x.file.size > 0)
+    .slice(0, MAX_ATTACHMENTS);
+}
+
+// 取り出したファイルを、先に gateway へ(alt があれば description として添える)。id を、同じ順で返す。
+export async function uploadAttached(ctx: Ctx, files: { file: File; alt: string }[]): Promise<string[]> {
+  const ids: string[] = [];
+  for (const { file, alt } of files) {
+    const fd = new FormData();
+    fd.set('file', file);
+    if (alt) fd.set('description', alt);
+    const m = await gwJson<{ id: string }>(ctx, 'POST', '/api/v1/media', { form: fd });
+    ids.push(m.id);
+  }
+  return ids;
 }
 
 // JSON の本文(64KB まで)。読めなければ空。

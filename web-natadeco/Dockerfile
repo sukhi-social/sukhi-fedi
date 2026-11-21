@@ -1,8 +1,7 @@
-# natadeco の頁を描く Node。BEAM の横に立ち、Elixir が HTML の要求だけ
-# ここへ回す(SukhiFedi.Web.SSR)。データは INTERNAL_API_URL の BEAM から
-# 取る。静的なもの(build/client)はこの image からは配らない ── Elixir の
-# override dir に `make push-natadeco` で置く。同じコミットから焼くので、
-# 中身のハッシュは一致する(Vite のハッシュは中身から決まる)。
+# natadeco の頁を描く Node。gateway の前に立つ web(front)で、頁も静的な
+# もの(build/client)も、この image が自分で配る。`/.sukhi/web.json` で
+# 何を答えるかを gateway に申告する(src/hooks.server.ts)。データは
+# INTERNAL_API_URL の BEAM から取る。
 #
 #   IMAGE_PREFIX=natadeco bin/build-on-box.sh ssr
 FROM node:24.22.1-alpine AS build

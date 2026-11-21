@@ -2,8 +2,7 @@
 // /settings/passkeys/*)とは base64url の文字列でやりとりして、
 // ArrayBuffer との行き来は、ぜんぶこのファイルの中だけで済ませる。
 //
-// sukhi-fedi 本体の web/src/lib/webauthn.ts と同じ内容。同じサーバの
-// 同じ口を叩くので、形も同じにしてある。
+// 叩く先は sukhi-fedi 本体と同じ口なので、形もそれに合わせてある。
 
 export function passkeySupported(): boolean {
   return typeof window !== 'undefined' && !!window.PublicKeyCredential;

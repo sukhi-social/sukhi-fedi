@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Web Push の、ブラウザにも gateway にも触らない部分。旧 web の web/src/lib/push.ts と同じ約束。
+// Web Push の、ブラウザにも gateway にも触らない部分。
 //
 // **鳴っていい種類は、gateway が決める**(WebPush.direct_types/0)。ここは、instance の返事から
 // 一覧を読んで、そのまま true にするだけ。自分では足さない ── 手元にもう一つ一覧を持つと、

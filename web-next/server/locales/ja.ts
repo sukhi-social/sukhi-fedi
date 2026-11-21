@@ -640,6 +640,9 @@ export const ja = {
   'clips.copied': 'コピーしました',
   'clips.searchPlaceholder': 'Clips を検索',
   'clips.noResults': '見つからなかった。',
+  'clips.attach': 'ファイルを添える',
+  'clips.maxFiles': 'ファイルは {max} 個までです。それより多いぶんは、置かれません。',
+  'clips.file': 'ファイル',
 
   // ── さがす ───────────────────────────────────────────
   'search.title': 'さがす',

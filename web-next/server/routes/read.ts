@@ -13,7 +13,7 @@ import { timeWords } from '../time.ts';
 import { layout } from '../views/layout.ts';
 import { avatar, icon } from '../views/parts.ts';
 import { statusCard } from '../views/status.ts';
-import { accountRow, nameHtml, nameOf, profileActions } from '../views/account.ts';
+import { accountRow, nameHtml, nameOf, noteBlock, profileActions } from '../views/account.ts';
 import { spreadWithinMoments } from '../shuffle.ts';
 import { maybeMe, replyAcctsFor, statusList } from './shared.ts';
 import { announcementCard } from './announcements.ts';
@@ -334,6 +334,7 @@ route('GET', '/@:acct', async (ctx) => {
         <div class="stack-tight fill">
           <p class="display-name text-lg">${nameHtml(account)}</p>
           <p class="muted">@${account.acct}</p>
+          ${rel ? noteBlock(ctx, account.id, rel) : ''}
         </div>
         ${rel ? profileActions(ctx, account.id, rel) : ''}
         ${isSelf ? html`<a class="chip" href="/settings">${t('profile.edit')}</a>` : ''}

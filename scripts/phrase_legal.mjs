@@ -13,8 +13,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// budoux is a dependency of web/ (the same parser web/src/lib/phrase.ts uses)
-const require = createRequire(new URL('../web/package.json', import.meta.url));
+// budoux is a dependency of web-next/ (the same parser web-next/server/phrase.ts uses)
+const require = createRequire(new URL('../web-next/package.json', import.meta.url));
 const parser = require('budoux').loadDefaultJapaneseParser();
 
 const dir = fileURLToPath(new URL('../elixir/priv/legal/', import.meta.url));

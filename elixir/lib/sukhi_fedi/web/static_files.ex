@@ -1,100 +1,41 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Web.StaticFiles do
   @moduledoc """
-  Which of the two static trees answers a request.
+  The few files the gateway hands out itself under `/static/`. None of them
+  is a page — pages, icons and the web manifest belong to the web front.
 
-  There are two, and both are legitimate:
+  Two trees, and which one answers is decided by the path alone:
 
-      <release>/lib/sukhi_fedi-<vsn>/priv/static/   ← baked, ships with the release
-      $STATIC_OVERRIDE_DIR                          ← pushed, `make push-static`
+    * `emojis/…` — **the override dir** (`$STATIC_OVERRIDE_DIR`, default
+      `/app/priv/static-override`): the custom emoji the importer drops on
+      the host and the container sees through a read-only bind. They are
+      the only thing in it, and it is the only place they are looked up — a
+      missing one is a 404, not a fall-through.
+    * everything else — **the baked tree** (`<release>/…/priv/static/`,
+      `$STATIC_BAKED_DIR` in tests): what ships in the release. Today that is
+      `avatar-default.svg`, the placeholder the API names for an account
+      without a picture (`SukhiApi.Views.MastodonAccount`) — a remote client
+      fetches it from here, so it has to keep answering.
 
-  The override exists so a CSS or SPA change can land by rsync alone, with
-  no rebuild and no restart. Which means the two can disagree, and something
-  has to choose.
+  The override path is fixed (not `:code.priv_dir/1`, which has the release
+  version in it) so the bind-mount target does not move on every release.
 
-  ## How it chooses
-
-  By **when each copy was built**, not by when its files last touched a
-  disk. `pnpm run build` leaves a `.static-build.json` behind (web/scripts/
-  static-manifest.mjs) and it travels with the tree — into the image, into
-  the release tarball, across the rsync. The newer build wins, as a whole
-  tree rather than file by file, so an index.html and the chunks it names
-  always come from the same build.
-
-  It used to compare mtimes, and that was wrong in a way that took ten days
-  to notice: a deploy that unpacks a release tarball stamps every baked
-  file `now`, so no push could ever win. mtime answers "last written
-  here", which is not the question.
-
-  Missing manifest counts as the oldest possible build. So a tree that says
-  when it was built beats one that doesn't, and when neither says, the
-  override wins — which is the older behaviour, and the kinder default for
-  someone who put a file there on purpose.
-
-  ## When the operator wants the last word
-
-  `STATIC_OVERRIDE` (default `auto`):
-
-    * `auto`   — newest build wins, as above
-    * `prefer` — the override wins whenever it has the file, whatever the
-      dates say. For "I know it is older, I want mine."
-    * `only`   — the override is the only tree consulted; a file it does not
-      have is a 404 rather than a fall-through. natadeco rides the same
-      combined image, whose baked tree holds *sukhi's* frontend, and would
-      rather show nothing than show the neighbour's page.
-
-  `STATIC_OVERRIDE_ONLY=true` still means `only` — it is what natadeco is
-  already set to.
-
-  ## The paths that are never part of a build
-
-  `styles/` and `emojis/` are pushed by hand and by the emoji importer;
-  no SPA build produces them, so no build date describes them. They come
-  from the override whenever it has them, in every mode. `STATIC_OVERRIDE_ALWAYS`
-  (comma-separated prefixes) replaces the list.
+  An earlier version also chose between the two trees by which one was built
+  later, because a pushed copy of the SPA could shadow a baked one. There is
+  no SPA to shadow any more, so that choice — and `STATIC_OVERRIDE`,
+  `STATIC_OVERRIDE_ONLY`, `STATIC_OVERRIDE_ALWAYS` with it — is gone.
   """
 
-  @manifest ".static-build.json"
-  @default_always ["styles/", "emojis/"]
-
   @doc """
-  Resolve a path relative to the static root.
-
-  Returns `{:override | :baked, absolute_path}`, or `nil` when neither tree
-  has it. The tag is what the `x-static-source` response header reports.
+  The absolute path to serve for `relative` (a path under `/static/`), or
+  `nil` when the tree that owns it cannot send it.
   """
-  @spec resolve(String.t()) :: {:override | :baked, String.t()} | nil
-  def resolve(relative) do
-    override = override_root()
-    baked = baked_root()
-
-    in_override = servable?(override, relative)
-    in_baked = mode() != :only and servable?(baked, relative)
-
-    cond do
-      in_override and in_baked ->
-        case tie_break(override, baked, relative) do
-          :override -> {:override, Path.join(override, relative)}
-          :baked -> {:baked, Path.join(baked, relative)}
-        end
-
-      in_override ->
-        {:override, Path.join(override, relative)}
-
-      in_baked ->
-        {:baked, Path.join(baked, relative)}
-
-      true ->
-        nil
-    end
-  end
+  @spec resolve(String.t()) :: String.t() | nil
+  def resolve("emojis/" <> _ = relative), do: servable(override_root(), relative)
+  def resolve(relative), do: servable(baked_root(), relative)
 
   @doc """
-  The override directory.
-
-  `:code.priv_dir/1` returns a path with the release version in it, which
-  would make the bind-mount target move on every release — so the override
-  lives at a fixed path instead, and deploy.yml never has to be edited.
+  The override directory. A fixed path, so the bind-mount target never moves.
   """
   @spec override_root() :: String.t()
   def override_root, do: System.get_env("STATIC_OVERRIDE_DIR", "/app/priv/static-override")
@@ -102,63 +43,6 @@ defmodule SukhiFedi.Web.StaticFiles do
   @spec baked_root() :: String.t()
   def baked_root do
     System.get_env("STATIC_BAKED_DIR") || Path.join([:code.priv_dir(:sukhi_fedi), "static"])
-  end
-
-  ## ── private ──────────────────────────────────────────────────────────
-
-  # Only reached when both trees hold the same path, which is rarer than it
-  # sounds: the SPA's chunks are content-hashed, so a chunk belongs to
-  # exactly one build and exactly one tree. What actually lands here is the
-  # handful of stable names — index.html, favicon.png, the CSS.
-  defp tie_break(override, baked, relative) do
-    cond do
-      mode() == :prefer -> :override
-      always_from_override?(relative) -> :override
-      # A tie goes to the override: pushing in the same second as a release
-      # is a deliberate act, and so is pushing when neither tree says when
-      # it was built.
-      built_at(override) >= built_at(baked) -> :override
-      true -> :baked
-    end
-  end
-
-  defp always_from_override?(relative) do
-    always()
-    |> Enum.any?(&String.starts_with?(relative, &1))
-  end
-
-  defp always do
-    case System.get_env("STATIC_OVERRIDE_ALWAYS") do
-      nil -> @default_always
-      "" -> []
-      list -> String.split(list, ",", trim: true) |> Enum.map(&String.trim/1)
-    end
-  end
-
-  defp mode do
-    cond do
-      System.get_env("STATIC_OVERRIDE_ONLY") == "true" -> :only
-      true -> parse_mode(System.get_env("STATIC_OVERRIDE", "auto"))
-    end
-  end
-
-  defp parse_mode("only"), do: :only
-  defp parse_mode("prefer"), do: :prefer
-  defp parse_mode(_), do: :auto
-
-  # Read, not cached. An earlier draft memoised this on the manifest's own
-  # mtime, which is the very thing this module exists to stop trusting —
-  # a file rewritten inside the same second keeps its stamp and the cache
-  # never notices. Two ~100-byte reads, only when both trees hold the same
-  # path, is a small enough price for an answer that is always current.
-  defp built_at(root) do
-    with {:ok, body} <- File.read(Path.join(root, @manifest)),
-         {:ok, %{"built_at" => built_at}} <- Jason.decode(body),
-         true <- is_integer(built_at) do
-      built_at
-    else
-      _ -> 0
-    end
   end
 
   # "Is it there" is not the question — "can we actually send it" is.
@@ -173,14 +57,15 @@ defmodule SukhiFedi.Web.StaticFiles do
   #
   # `File.stat/1` already knows — `:access` is computed against the running
   # user — and it is the same syscall we were making anyway.
-  defp servable?(root, relative) do
+  defp servable(root, relative) do
     full = Path.join(root, relative)
 
     with true <- String.starts_with?(Path.expand(full), Path.expand(root)),
-         {:ok, %File.Stat{type: :regular, access: access}} <- File.stat(full) do
-      access in [:read, :read_write]
+         {:ok, %File.Stat{type: :regular, access: access}} <- File.stat(full),
+         true <- access in [:read, :read_write] do
+      full
     else
-      _ -> false
+      _ -> nil
     end
   end
 end

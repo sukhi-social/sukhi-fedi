@@ -8,16 +8,19 @@ import { config } from '../config.ts';
 import { gw, gwJson, gwPage, GatewayError } from '../gateway.ts';
 import { html, raw, type SafeHtml } from '../html.ts';
 import { ok, redirect, route, type Ctx, type Reply } from '../http.ts';
+import { DIRECT, dividerAfter, markerOf, pace } from '../notify.ts';
 import { saveSession, setMe } from '../session.ts';
 import { delayWords, timeWords } from '../time.ts';
-import type { Account, Notification, NotificationType, Poll, Relationship, Status } from '../types.ts';
+import type { Account, Notification, Poll, Relationship, Status } from '../types.ts';
 import { layout } from '../views/layout.ts';
 import { avatar } from '../views/parts.ts';
-import { mediaStrings, MAX_ATTACHMENTS } from '../views/media.ts';
-import { followButton, nameHtml, nameOf, profileActions, requestButtons } from '../views/account.ts';
+import { mediaStrings } from '../views/media.ts';
+import { followButton, nameHtml, nameOf, noteBlock, profileActions, requestButtons } from '../views/account.ts';
+import { clipCard } from '../views/clips.ts';
 import { pollBlock, statusCard } from '../views/status.ts';
 import { byCategory, customEmojis } from '../customEmojis.ts';
-import { backOr, failText, needMe, replyAcctsFor } from './shared.ts';
+import { attachedFiles, backOr, failText, needMe, replyAcctsFor, uploadAttached } from './shared.ts';
+import { pruneDraft, readDraft } from './draft.ts';
 import { FILTERS } from './read.ts';
 import { renderEmojis } from '../emoji.ts';
 
@@ -27,6 +30,8 @@ const TOGGLES = new Set(['favourite', 'unfavourite', 'reblog', 'unreblog', 'book
 async function cardFor(ctx: Ctx, me: Account, s: Status, note?: string): Promise<SafeHtml> {
   // reblog / unreblog が、包んだ側を返しても、押したのは元の投稿。
   const shown = s.reblog ?? s;
+  // クリップの一枚のなかで押されたなら、返すのは、その一枚の姿(投稿のカードではなく)。
+  if (/#clip-[\w-]+/.test(ctx.upTarget ?? '')) return clipCard(ctx, me, shown);
   const replyAccts = await replyAcctsFor(ctx, [shown]);
   // ブーストの行のなかで押されたなら、差し替え先はその行の id。
   // 同じ投稿が単独の行にも居ても、押した行だけが変わる。
@@ -84,6 +89,21 @@ route('POST', '/timeline/default', async (ctx) => {
     ctx.flash('error', failText(ctx, e));
   }
   return redirect('/timeline?kind=home');
+});
+
+// 私的メモ(プロフィールの、本名の下)。連合しない、あなただけの呼び名。空にして送ると、消える。
+// 下の `/accounts/:id/:verb` より先に置く(あちらは、どんな名前も受けてしまう)。
+route('POST', '/accounts/:id/note', async (ctx) => {
+  await needMe(ctx);
+  const comment = String((await ctx.form()).get('comment') ?? '').trim();
+  try {
+    const rel = await gwJson<Relationship>(ctx, 'POST', `/api/v1/accounts/${encodeURIComponent(ctx.params.id)}/note`, { json: { comment } });
+    return backOr(ctx, noteBlock(ctx, ctx.params.id, rel));
+  } catch (e) {
+    if (!(e instanceof GatewayError || e instanceof TypeError)) throw e;
+    ctx.flash('error', failText(ctx, e));
+    return backOr(ctx, null);
+  }
 });
 
 // フォロー・ミュート・ブロック。ミュートとブロックは、プロフィールの「…」と、設定の一覧から来る。
@@ -149,15 +169,21 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
 
   const fetchOne = (id?: string) =>
     id ? gwJson<Status>(ctx, 'GET', `/api/v1/statuses/${encodeURIComponent(id)}`, { auth: 'optional' }).catch(() => null) : Promise.resolve(null);
-  const [replyTo, quoteOf, held, emojis] = await Promise.all([fetchOne(replyId), fetchOne(quoteId), heldList(ctx), customEmojis(ctx)]);
-  const emojiGroups = byCategory(emojis);
   // 記事は、返信でも引用でもない、はじめの文章だけ。
   const kind: 'note' | 'article' = !replyId && !quoteId && (v.kind ?? q.get('kind')) === 'article' ? 'article' : 'note';
   const article = kind === 'article';
-
-  // 返信は、相手の @ を頭に置いて始める(自分への返信は、置かない)。
   // 他のアプリの「共有」から来たとき(manifest の share_target)は、題・本文・URL を、重ならないように置く。
   const shared = [...new Set(['title', 'text', 'url'].map((k) => (q.get(k) ?? '').trim()).filter(Boolean))].join('\n');
+  // 書きかけが戻るのは、はじめの一通(返信でも引用でも記事でも、共有からでも、失敗して返ってきた頁でもない)だけ。
+  const note = !replyId && !quoteId && !article;
+  const [replyTo, quoteOf, held, emojis, draft] = await Promise.all([
+    fetchOne(replyId), fetchOne(quoteId), heldList(ctx), customEmojis(ctx),
+    note && !shared && !v.values ? readDraft(ctx) : Promise.resolve(null)
+  ]);
+  if (draft) v = { ...v, values: draft };
+  const emojiGroups = byCategory(emojis);
+
+  // 返信は、相手の @ を頭に置いて始める(自分への返信は、置かない)。
   const text = v.values?.status ?? (replyTo && replyTo.account.acct !== me.acct ? `@${replyTo.account.acct} ` : shared);
   const vis = v.values?.visibility ?? 'public';
   const visLabels: [string, string][] = [
@@ -176,7 +202,7 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
             <a class="tab" href="/compose?kind=article" aria-current="${article ? 'true' : null}">${t('compose.kindArticle')}</a>
           </nav>`
         : ''}
-      <form class="composer composer-page ${article ? 'composer-article' : ''}" method="post" action="/compose" enctype="multipart/form-data" x-data="composeAssist({ cw: ${String(!!v.values?.spoiler)}, draft: '${article ? 'article' : ''}', s: ${JSON.stringify(mediaStrings(t))} })" @paste.document="onPaste($event)" @dragover.window="onDragOver($event)" @drop.window="onDrop($event)" ${article ? raw('@input.debounce.400ms="save()" @submit="sent()"') : ''}>
+      <form class="composer composer-page ${article ? 'composer-article' : ''}" method="post" action="/compose" enctype="multipart/form-data" x-data="composeAssist({ cw: ${String(!!v.values?.spoiler)}, draft: '${article ? 'article' : ''}', note: ${String(note)}, restored: ${String(!!draft)}, s: ${JSON.stringify(mediaStrings(t))} })" @paste.document="onPaste($event)" @dragover.window="onDragOver($event)" @drop.window="onDrop($event)" ${article ? raw('@input.debounce.400ms="save()" @submit="sent()"') : note ? raw('@input.debounce.600ms="saveNote()" @submit="holdSave()"') : ''}>
         ${article ? html`<input type="hidden" name="kind" value="article" />` : ''}
         ${replyId ? html`<input type="hidden" name="in_reply_to_id" value="${replyId}" />` : ''}
         ${quoteId ? html`<input type="hidden" name="quote_id" value="${quoteId}" />` : ''}
@@ -189,11 +215,11 @@ async function composePage(ctx: Ctx, me: Account, v: ComposeView = {}, status = 
             : ''}
         ${v.error ? html`<p class="error" role="alert">${v.error}</p>` : ''}
 
+        <p class="composer-reply" x-show="restored" x-cloak>
+          <span>${t('compose.draftRestored')}</span><button type="button" class="chip" @click="discard()">${t('compose.discardDraft')}</button>
+        </p>
         ${article
-          ? html`<p class="composer-reply" x-show="restored" x-cloak>
-                <span>${t('compose.draftRestored')}</span><button type="button" class="chip" @click="discard()">${t('compose.discardDraft')}</button>
-              </p>
-              <label class="stack-tight title-field">
+          ? html`<label class="stack-tight title-field">
                 <span class="visually-hidden">${t('compose.titleLabel')}</span>
                 <input type="text" name="title" x-ref="title" value="${v.values?.title ?? ''}" maxlength="${ARTICLE_TITLE_MAX}" required autofocus placeholder="${t('compose.titlePlaceholder')}" />
               </label>`
@@ -329,13 +355,7 @@ route('POST', '/compose', async (ctx) => {
   const view = (error: string): Promise<Reply> =>
     composePage(ctx, me, { values, kind: article ? 'article' : 'note', replyId: str('in_reply_to_id') || undefined, quoteId: str('quote_id') || undefined, error }, 422);
 
-  // alt は、ファイルと同じ順で並んで届く。0 バイトを捨てる前に組にする(捨てたあとだと、添字がずれる)。
-  const alts = f.getAll('alt').map((x) => String(x).trim());
-  const files = f
-    .getAll('files')
-    .map((file, i) => ({ file, alt: alts[i] ?? '' }))
-    .filter((x): x is { file: File; alt: string } => x.file instanceof File && x.file.size > 0)
-    .slice(0, MAX_ATTACHMENTS);
+  const files = attachedFiles(f);
   // 画像があれば、本文は空でもいい(記事は、文章がすべてなので別)。
   if (!text && (article || !files.length)) return view(t('feedback.empty'));
   if (article && !title) return view(t('compose.needTitle'));
@@ -350,14 +370,7 @@ route('POST', '/compose', async (ctx) => {
 
   try {
     // 画像は、先に gateway へ(四枚まで)。alt があれば description として添える。
-    const mediaIds: string[] = [];
-    for (const { file, alt } of files) {
-      const fd = new FormData();
-      fd.set('file', file);
-      if (alt) fd.set('description', alt);
-      const m = await gwJson<{ id: string }>(ctx, 'POST', '/api/v1/media', { form: fd });
-      mediaIds.push(m.id);
-    }
+    const mediaIds = await uploadAttached(ctx, files);
 
     const body: Record<string, unknown> = { status: text, visibility: values.visibility };
     if (article) {
@@ -379,6 +392,8 @@ route('POST', '/compose', async (ctx) => {
     if (delayed) body.scheduled_at = new Date(Date.now() + config.postDelayMin * 60_000).toISOString();
 
     const res = await gwJson<Status | Scheduled>(ctx, 'POST', '/api/v1/statuses', { json: body });
+    // 送れた(お預かりも含む)。はじめの一通なら、書きかけは、もう要らない。返信・引用・記事は、書きかけにふれない。
+    if (!article && !str('in_reply_to_id') && !str('quote_id')) await pruneDraft(ctx);
 
     if (delayed && res && 'scheduled_at' in res) {
       // gateway が一覧の口を持たないときのために、手元にもひかえておく。
@@ -425,22 +440,17 @@ route('POST', '/compose/withdraw', async (ctx) => {
 });
 
 // ── 通知 ────────────────────────────────────────────────────────
-// 二つの層(lib/notify.ts と同じ割り方)。
+// 二つの層(server/notify.ts と同じ割り方)。
 //   あなたへ  返信・フォロー申請。会話で、相手が待っている。だからすぐ出す。
 //   反応      お気に入り・ブースト・フォローなど。うれしいけれど、急がない。
 //             だから NOTIFY_HOLD_MIN(既定 一刻)ほど置いてから、ポツポツ出す。
 //             置くのも、同じ投稿への反応を一つにまとめるのも、gateway がやる(アカウントごとの
 //             設定と、同じ規則。docs/MASTODON_API.md の「Pace」)。ここは、設定にかかわらず
 //             いつも hold_minutes と grouping を添えて、より遅く・まとめる側に寄せるだけ。
-// 未読の数も、点も、出さない。「新しい通知は、ここまで」の境い目も、引く必要がない。
-const DIRECT: NotificationType[] = ['mention', 'follow_request'];
-
-// 通知を読む・片づける呼び出しには、いつもこれを添える。gateway は、アカウントの設定より
-// 遅く・まとめる側にだけ、これを効かせる。
-const pace = (): Record<string, string> => ({
-  hold_minutes: String(config.notifyHoldMin),
-  grouping: 'true'
-});
+// 未見の数・かたち(ナビ)と、「新しい通知は、ここまで」の境い目は、gateway の印(marker)から引く。
+// この頁を描くだけでは、何も書き換えない(ナビのリンクは先読みされる)。見たことにするのは、
+// 頁が開いたときに、頁の中の [data-mark-seen] を見つけたブラウザが POST /notifications/seen するとき。
+// 来たときの印は、タブを替えても・もっと読んでも、同じものを使う(?since=)── 境いが動かないように。
 
 route('GET', '/notifications', async (ctx) => {
   const t = ctx.t;
@@ -453,7 +463,13 @@ route('GET', '/notifications', async (ctx) => {
   if (tier === 'direct') query['types[]'] = DIRECT;
   else query['exclude_types[]'] = DIRECT;
 
-  const page = await gwPage<Notification>(ctx, '/api/v1/notifications', { query });
+  // 来たときの「ここまで見た」。URL に引き継がれていればそれを、なければ、いまの印を読む。
+  const carried = q.get('since');
+  const [page, since] = await Promise.all([
+    gwPage<Notification>(ctx, '/api/v1/notifications', { query }),
+    // 印が読めなくても、頁は開く(境いの線が、引かれないだけ)。
+    carried && /^\d{1,30}$/.test(carried) ? carried : markerOf(ctx).catch(() => null)
+  ]);
 
   // 置く時間が過ぎたものだけが、gateway から来る。道の途中のものがあるかは、こちらからは見えない。
   const arrived = page.items;
@@ -500,8 +516,15 @@ route('GET', '/notifications', async (ctx) => {
     ${n.status ? statusCard(ctx, n.status, { me, replyAccts }) : ''}
   </article>`;
 
-  const moreHref = page.nextMaxId ? `/notifications?tier=${tier}&max_id=${encodeURIComponent(page.nextMaxId)}` : null;
-  const tabLink = (k: string, label: string) => html`<a class="tab" href="/notifications?tier=${k}" aria-current="${tier === k ? 'true' : null}">${label}</a>`;
+  // 来たときの印は、タブにも「もっと読む」にも引き継ぐ。
+  const keep = since ? `&since=${since}` : '';
+  const moreHref = page.nextMaxId ? `/notifications?tier=${tier}&max_id=${encodeURIComponent(page.nextMaxId)}${keep}` : null;
+  const tabLink = (k: string, label: string) => html`<a class="tab" href="/notifications?tier=${k}${keep}" aria-current="${tier === k ? 'true' : null}">${label}</a>`;
+
+  // 新着の境い目。ここまでが、前に見てから来たぶん。
+  const cut = dividerAfter(arrived, since, maxId ?? null, page.nextMaxId !== null);
+  const divider = html`<div class="notif-divider" role="separator">${t('notif.newUpToHere')}</div>`;
+  const rows = html`${cut === -1 ? divider : ''}${arrived.map((n, i) => html`${row(n)}${i === cut ? divider : ''}`)}`;
 
   const body = html`<header class="timeline page-head">
       <h1>${t('notif.title')}</h1>
@@ -514,18 +537,19 @@ route('GET', '/notifications', async (ctx) => {
       ${tier === 'ambient' ? html`<p class="prose-small">${t('notif.holdNote')}</p>` : ''}
       ${arrived.length === 0 ? html`<p class="prose-small">${tier === 'direct' ? t('notif.emptyToYou') : t('notif.emptyReactions')}</p>` : ''}
       <div id="nf-items">
-        ${arrived.map(row)}
+        ${rows}
       </div>
       <div id="nf-more">${moreHref
         ? html`<a class="load-more" href="${moreHref}" up-target="#nf-items:after, #nf-more" up-history="false" up-scroll="false">${t('common.loadMore')}</a>`
         : arrived.length ? html`<p class="the-end" role="note">${t('end.here')}</p>` : ''}</div>
-    </section>`;
+    </section>
+    <div hidden data-mark-seen="/notifications/seen"></div>`;
 
   // 「もっと読む」で続きの断片だけを要求されたときは、外側の枠を省いて返す。
   if (ctx.isUp && ctx.upTarget && ctx.upTarget.includes('nf-items:after')) {
     return ok(html`
       <div id="nf-items">
-        ${arrived.map(row)}
+        ${rows}
       </div>
       <div id="nf-more">${moreHref
         ? html`<a class="load-more" href="${moreHref}" up-target="#nf-items:after, #nf-more" up-history="false" up-scroll="false">${t('common.loadMore')}</a>`

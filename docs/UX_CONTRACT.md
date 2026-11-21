@@ -1,4 +1,4 @@
-# UX contract — `web/`
+# UX contract — the web client
 
 What the web client promises about *behaviour*, per platform. The visual
 side (colour, shape, density) is `tokens.css`; this
@@ -13,16 +13,19 @@ Two rules:
    primary source says so. Where we have no source, we do not claim a
    contract (⚠ below).
 
-The code is one place, as `CODE_STYLE.md` §0 asks: `web/src/lib/ux/`.
-Every component routes through it; none re-types a number or a key.
+The code that kept this contract for the Svelte SPA (`web/src/lib/ux/`: one
+Esc stack, `dismissable`, `useOverlay`, the platform hint, and
+`pnpm run ux-check`) went with the SPA; `git log -- web/src/lib/ux` has it.
+What web-next carries today:
 
-| File | Does |
+| Where | Does |
 |---|---|
-| `ux/platform.ts` | A coarse hint (mac / windows / android / ios / other) → `<html data-platform>`. Also: which modifier is primary, the `aria-keyshortcuts` spelling. User-overridable (`localStorage` `sf.platform`). |
-| `ux/escape.ts` | One Esc listener, one stack. Only the top-most transient UI closes. |
-| `ux/dismiss.ts` | `{@attach dismissable(…)}` — a small menu closes on outside click and Esc. |
-| `ux/overlay.svelte.ts` | `useOverlay(isOpen, close)` — a modal closes on Esc **and on Back**, and takes its history entry with it. |
-| `tokens.css` `--tap-min` | The press-size default (44px; 48px on Android). |
+| `public/js/app.js` | A coarse hint (mac / windows / android / ios / other) → `<html data-platform>`. |
+| `public/css/tokens.css` `--tap-min` | The press-size default (44px; 48px under `html[data-platform='android']`). |
+
+Esc, Back-closes-a-modal and the primary-modifier rule (B and C below) have
+no handler of their own in web-next. Whether Unpoly's layers already do them
+has **not been checked** against this contract.
 
 ## The contract
 
@@ -50,8 +53,8 @@ their compact heights.
 | Windows | Esc cancels **transient** UI (dialog, dropdown). It does not close or navigate back through app UI | ✓ [Keyboard interactions](https://learn.microsoft.com/en-us/windows/apps/design/input/keyboard-interactions) |
 | iOS | Provide a visible Back button; an edge swipe is a shortcut, never the only way; do not define gestures that collide with system ones | ✓ Apple HIG, Gestures (✗ "the edge swipe is defined by HIG") |
 
-→ Esc closes the top transient UI only (`escape.ts`). A modal adds one
-shallow history entry when it opens (same URL, `page.state.ux`), so the
+→ Esc closes the top transient UI only. A modal adds one
+shallow history entry when it opens (same URL), so the
 Android back gesture closes the modal instead of leaving the timeline; on
 a normal close it takes the entry back. No custom edge gestures anywhere.
 
@@ -76,17 +79,9 @@ the user-agent string, iPadOS-in-desktop-mode counted as iOS (touch points
 
 ## Checking it
 
-```sh
-cd web && pnpm run ux-check     # real Chrome as macOS / Windows / Android
-node --test src/lib/ux/platform.test.ts
-```
-
-`ux-check` drives the mocked app (`shots/mock.mjs`): menus close on Esc and
-outside click, a toggle does not reopen, a lightbox closes on Esc and on
-Back without leaving the page and without a leftover history entry, ⌘/Ctrl
-+Enter posts (the other modifier does not), `--tap-min` is 44/48. Its last
-section lists what is still under 44px on Android — an inventory, not a
-pass/fail.
+Nothing runs this contract now: `ux-check` (real Chrome as macOS / Windows /
+Android, driving the SPA's mocked app) and the platform unit test lived in
+the SPA. A check for web-next would drive `web-next/mock/` the same way.
 
 ## Not done, not known
 

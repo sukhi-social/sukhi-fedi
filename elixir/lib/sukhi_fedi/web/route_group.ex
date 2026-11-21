@@ -8,7 +8,6 @@ defmodule SukhiFedi.Web.RouteGroup do
   differently, so a table of "p95 by group" says which kind of request
   gets slow first:
 
-    * `shell`           — a browser GET of an SPA page (never rate limited)
     * `static`          — files served as-is
     * `timeline_public` — same answer for everyone, the cacheable one
     * `timeline_home`   — per user, joins the follow graph
@@ -19,12 +18,10 @@ defmodule SukhiFedi.Web.RouteGroup do
     * `other`
   """
 
-  alias SukhiFedi.Web.SpaRoutes
-
-  @static ["/static/", "/_app/", "/twemoji/"]
+  @static ["/static/"]
 
   @spec of(Plug.Conn.t()) :: String.t()
-  def of(%Plug.Conn{request_path: path} = conn) do
+  def of(%Plug.Conn{request_path: path}) do
     cond do
       Enum.any?(@static, &String.starts_with?(path, &1)) -> "static"
       path == "/api/v1/timelines/public" -> "timeline_public"
@@ -33,7 +30,6 @@ defmodule SukhiFedi.Web.RouteGroup do
       String.starts_with?(path, ["/api/", "/oauth/"]) -> "api"
       String.starts_with?(path, ["/login", "/signup", "/logout"]) -> "auth"
       federation?(path) -> "federation"
-      SpaRoutes.page_request?(conn) -> "shell"
       true -> "other"
     end
   end
