@@ -4,7 +4,7 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Upkeep do
   Keeps the delivery worker's copy of the notices true to the store.
 
     * On start it reads every notice from the store into the cache
-      (`SukhiShared.DeliverySuspension.Cache`), retrying while the graph is not
+      (`SukhiShared.DeliverySuspension.Cache`), retrying while the store is not
       ready. A restart therefore changes nothing: an inbox that was resting
       rests until the same time, because the time is in the notice.
     * Every hour it forgets what can no longer be accepted (`Store.sweep/2`,

@@ -8,6 +8,7 @@ defmodule SukhiFedi.Notes.Read do
 
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.Notes.Ids
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.{Account, ConversationParticipant, Follow, Note}
@@ -102,7 +103,7 @@ defmodule SukhiFedi.Notes.Read do
   # `follower_uri` is `https://<domain>/users/<viewer-username>` (same shape
   # the home timeline matches on).
   defp local_follower?(viewer_id, author_id) do
-    case Repo.get(Account, viewer_id) do
+    case Accounts.get(viewer_id) do
       %Account{username: u, domain: nil} when is_binary(u) ->
         uri = "https://#{SukhiFedi.Config.domain!()}/users/#{u}"
 

@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Fedi.DeliverySuspension.HintTest do
   # A delivery's Link header points at a notice: it is fetched and judged like
-  # any other, and it suspends nothing on its own. Real `dtlv`, the web stood in for.
-  use SukhiFedi.GraphCase
+  # any other, and it suspends nothing on its own. Real PostgreSQL, the web stood in for.
+  use SukhiFedi.IntegrationCase, async: false
+
+  @moduletag :integration
 
   alias SukhiFedi.Fedi.DeliverySuspension.{Control, Hint, Store}
   alias SukhiFedi.SuspensionNet, as: Net

@@ -27,6 +27,7 @@ defmodule SukhiFedi.AccountDeletion do
 
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.{Mailer, Outbox, Repo}
   alias SukhiFedi.Notes.Create
   alias SukhiFedi.Schema.{Account, AccountDeletion, Note}
@@ -130,7 +131,7 @@ defmodule SukhiFedi.AccountDeletion do
   # The account stops being usable *now*, in one transaction. The address is
   # read first (the mail is sent to it afterwards) and then blanked.
   defp start(%AccountDeletion{} = d, now) do
-    account = Repo.get!(Account, d.account_id)
+    account = Accounts.get!(d.account_id)
     email = if account.email_verified_at, do: account.email
 
     Repo.transaction(fn ->
@@ -215,7 +216,7 @@ defmodule SukhiFedi.AccountDeletion do
   end
 
   defp finish(%AccountDeletion{} = d, now) do
-    account = Repo.get!(Account, d.account_id)
+    account = Accounts.get!(d.account_id)
 
     Ecto.Multi.new()
     |> Ecto.Multi.update_all(

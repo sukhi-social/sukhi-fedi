@@ -5,7 +5,7 @@ defmodule SukhiFedi.Integration.NoteDraftsTest do
   (`:misskey_api` addon). One draft per account, scoped by `account_id`,
   never federated.
 
-      make test-pglite ARGS="test/integration/note_drafts_test.exs"
+      make test-pgrust ARGS="test/integration/note_drafts_test.exs"
   """
 
   use SukhiFedi.IntegrationCase, async: false

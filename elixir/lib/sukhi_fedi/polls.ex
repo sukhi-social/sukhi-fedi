@@ -250,7 +250,6 @@ defmodule SukhiFedi.Polls do
 
       case Repo.transaction(multi) do
         {:ok, _} ->
-          SukhiFedi.Graph.Local.changed({:votes, pid, account_id})
           :ok
 
         # Re-votes land in `on_conflict: :nothing` and still commit, so

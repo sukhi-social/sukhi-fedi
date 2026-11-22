@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiShared.PullStats do
   @moduledoc """
-  Pull Federation metrics: counted in memory, written to Postgres in
+  Pull Federation metrics: counted in memory, written to the store in
   batches. This is the one place the `pull_stats` / `pull_peer_stats`
   tables are written, from both nodes.
 

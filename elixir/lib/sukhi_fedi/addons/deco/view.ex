@@ -13,7 +13,7 @@ defmodule SukhiFedi.Addons.Deco.View do
   一覧が板の数だけクエリを撃つことになる。
   """
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.Accounts
   alias SukhiFedi.Schema.{Account, Deco}
 
   @doc "板一枚の形。`post_count` は呼び出し側が数えて渡す。"
@@ -52,7 +52,7 @@ defmodule SukhiFedi.Addons.Deco.View do
   defp topic_by(%Deco{topic_by_id: nil}), do: nil
 
   defp topic_by(%Deco{topic_by_id: id}) do
-    case Repo.get(Account, id) do
+    case Accounts.get(id) do
       %Account{} = a -> author(a)
       nil -> nil
     end

@@ -26,8 +26,9 @@ defmodule SukhiFedi.Web.MapController do
 
   alias SukhiFedi.MapPeers
   alias SukhiFedi.Metrics
+  alias SukhiFedi.Outbox
   alias SukhiFedi.Repo
-  alias SukhiFedi.Schema.{Note, OutboxEvent}
+  alias SukhiFedi.Schema.Note
   @window_hours 24
 
   def show(conn, _opts) do
@@ -79,14 +80,7 @@ defmodule SukhiFedi.Web.MapController do
   # （ふだんは 0 ── Relay が NOTIFY で即つかむ）。数字が取れないときは
   # nil のまま返す＝ページ側はその線を「運転見合わせ」にする。
   defp outbox_state do
-    from(e in OutboxEvent,
-      select: {coalesce(max(e.id), 0), filter(count(e.id), e.status == "pending")}
-    )
-    |> Repo.one()
-    |> case do
-      {seq, held} -> %{seq: seq, held: held}
-      _ -> nil
-    end
+    %{seq: Outbox.last_id(), held: Outbox.pending_count()}
   rescue
     _ -> nil
   end

@@ -54,18 +54,17 @@ defmodule SukhiFedi.Web.SetupController do
         Register a passkey after the first login.</p>
         <h2>3. Bring an existing Datalevin store</h2>
         <p>Stop the old instance before copying its data. Restore the complete
-        <code>DATALEVIN_DIR</code>, including <code>graph/</code> when graph mode
-        was enabled. Restore <code>SUKHI_QUEUE_DB</code> and
-        <code>DELIVERY_QUEUE_DB</code> too; SQLite raw blobs may be stored in the
-        queue database. If raw or media storage uses S3, restore those buckets
-        and their prefixes as well.</p>
+        <code>DATALEVIN_DIR</code>. The job queue is in PostgreSQL (<code>DB_*</code>): bring it
+        back from the database's own backup, or start with an empty one (sends
+        still waiting in it are then not made). Raw bodies are in PostgreSQL too
+        unless <code>SUKHI_RAW_BACKEND=s3</code>. If raw or media storage uses S3,
+        restore those buckets and their prefixes as well.</p>
         <pre>podman stop &lt;old-gateway-container&gt;
     # restore the saved files under /var/lib/sukhi
     # mount the saved instance config at /etc/sukhi/instance.json
     podman start &lt;gateway-container&gt;</pre>
         <p>Use the same image/release family and keep <code>DOMAIN</code> and
-        signing secrets stable. This restores an existing store; it does not
-        convert Postgres data into Datalevin. Check the journal for
+        signing secrets stable. Check the journal for
         <code>datalevin_init_complete</code> before treating the restore as ready.</p>
         <p>Before a planned backup, create a non-secret inventory with:</p>
         <pre>podman exec &lt;gateway-container&gt; \

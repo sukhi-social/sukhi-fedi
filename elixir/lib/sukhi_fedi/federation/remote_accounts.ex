@@ -11,6 +11,7 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
   signature verifier, not the outbound signer.
   """
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.AP.Emojis
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
@@ -72,7 +73,7 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
       # mirror drops them; a degraded doc leaves them alone, like the rest.
       identity = Map.merge(identity, entries(actor_json))
 
-      case Repo.get_by(Account, actor_uri: actor_uri) do
+      case Accounts.by_actor_uri(actor_uri) do
         nil ->
           # New row: blanks are fine; restore the historical defaults so a
           # nameless actor still shows its handle and summary is "" not nil.

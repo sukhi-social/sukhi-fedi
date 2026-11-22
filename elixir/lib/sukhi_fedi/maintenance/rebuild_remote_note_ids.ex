@@ -39,9 +39,9 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
   `ap_id`) are never touched — their id and created_at are minted
   together at post time and already agree.
 
-  Runs on both stores: Postgres and Datalevin (every statement is Ecto; the
-  FK list comes from `RebuildRemoteNotes.note_fk_refs/0`, which reads the
-  catalog snapshot on Datalevin). Run on the gateway (it owns the Repo):
+  Every statement is Ecto, and the FK list comes from
+  `RebuildRemoteNotes.note_fk_refs/0`, which reads the catalog snapshot.
+  Run on the gateway (it owns the Repo):
 
       bin/sukhi_fedi eval 'SukhiFedi.Maintenance.RebuildRemoteNoteIds.run(:dry_run)'
       bin/sukhi_fedi eval 'SukhiFedi.Maintenance.RebuildRemoteNoteIds.run(:execute)'
@@ -55,8 +55,6 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
   alias SukhiFedi.Schema.Note
   alias SukhiFedi.Snowflake
 
-  # Matches the `snowflake_id()` migration: epoch 2024-01-01, 16-bit seq.
-  @epoch_ms Snowflake.epoch_ms()
   @seq_threshold 1_000_000_000_000
 
   # Default drift tolerance. Live posts land well under a minute of their
@@ -98,28 +96,8 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
   `created_at` by more than `skew_s` seconds.
   """
   def target_notes(skew_s \\ @default_skew_s) do
-    if SukhiFedi.Store.datalevin?(), do: drifted_in_elixir(skew_s), else: drifted_in_sql(skew_s)
-  end
-
-  defp drifted_in_sql(skew_s) do
-    from(n in Note,
-      where: not is_nil(n.domain) and n.id > ^@seq_threshold,
-      where:
-        fragment(
-          "abs(extract(epoch from (to_timestamp(((? >> 16) + ?) / 1000.0) - (? at time zone 'UTC')))) > ?",
-          n.id,
-          ^@epoch_ms,
-          n.created_at,
-          ^skew_s
-        ),
-      order_by: n.created_at
-    )
-    |> Repo.all()
-  end
-
-  # Datalevin has no date arithmetic in a query: read the remote snowflake
-  # notes and compare the id's instant to `created_at` here.
-  defp drifted_in_elixir(skew_s) do
+    # Datalevin has no date arithmetic in a query: read the remote snowflake
+    # notes and compare the id's instant to `created_at` here.
     from(n in Note,
       where: not is_nil(n.domain) and n.id > ^@seq_threshold,
       order_by: n.created_at
@@ -153,7 +131,7 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
   @doc """
   Swap one note for a copy whose snowflake id encodes its `created_at`,
   carrying every FK ref across. Exposed for testing; `refs` is the
-  `note_fk_refs/0` list. Plain Ecto, so it runs on Postgres and Datalevin.
+  `note_fk_refs/0` list.
   """
   def rebuild(%Note{} = old, refs) do
     Repo.transaction(fn ->
@@ -169,7 +147,7 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
         |> Repo.insert!()
 
       Enum.each(refs, fn {table, column} ->
-        repoint(table, String.to_atom(column), old.id, new.id)
+        RebuildRemoteNotes.repoint(table, String.to_atom(column), old.id, new.id)
       end)
 
       Repo.delete!(old)
@@ -177,12 +155,6 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNoteIds do
 
       {old.id, new.id}
     end)
-  end
-
-  # Table/column names come from the catalog, not user input.
-  defp repoint(table, column, old_id, new_id) do
-    from(t in table, where: field(t, ^column) == ^old_id)
-    |> Repo.update_all(set: [{column, new_id}])
   end
 
   defp tally(results) do

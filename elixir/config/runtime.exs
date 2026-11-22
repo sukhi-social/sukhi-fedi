@@ -283,49 +283,52 @@ if vapid_public not in [nil, ""] do
       )
 end
 
-# The graph store beside the main database (docs/DATALEVIN_SCHEMA.md): a second
-# Datalevin, fed from the inbox. Off unless asked.
-if System.get_env("SUKHI_GRAPH") in ["1", "true"] do
-  config :sukhi_fedi, :graph, true
+# hosigraph beside the store (SukhiFedi.HosiMirror): copies the new people and posts into it.
+# Only when the build has it (SUKHI_HOSI=1 at compile time); SUKHI_HOSI_DIR / DATALEVIN_BIN say where.
+if System.get_env("SUKHI_HOSI_MIRROR") in ["1", "true"] do
+  config :sukhi_fedi, :hosi_mirror, true
 end
 
-# Let the public and tag timelines pick their posts from the graph
-# (SukhiFedi.Graph.Timelines). Only meaningful with SUKHI_GRAPH.
-if System.get_env("SUKHI_GRAPH_READ") in ["1", "true"] do
-  config :sukhi_fedi, :graph_read, true
+# ...and asks it the like view too, to compare with the store's answer and log when they differ
+# (needs SUKHI_HOSI_MIRROR). The answer on screen is still the store's.
+if System.get_env("SUKHI_HOSI_SHADOW") in ["1", "true"] do
+  config :sukhi_fedi, :hosi_shadow, true
 end
 
-# Which database holds the business data (docs/DATALEVIN.md). Everything
-# else about it is read by SukhiFedi.Datalevin.Config when the store starts.
-if System.get_env("SUKHI_STORE", "postgres") == "datalevin" do
-  config :sukhi_fedi, :store, :datalevin
+# The business data is in Datalevin (docs/DATALEVIN.md); everything about it is
+# read by SukhiFedi.Datalevin.Config when the store starts. SUKHI_STORE used to
+# choose between Datalevin and PostgreSQL. Only Datalevin is left, so a node
+# still asking for the other one stops here, rather than starting on an empty
+# store and looking healthy.
+case System.get_env("SUKHI_STORE") do
+  value when value in [nil, "", "datalevin"] ->
+    :ok
 
-  # Oban's jobs (SukhiFedi.Queue) live in a SQLite file next to it.
-  config :sukhi_fedi, SukhiFedi.QueueRepo,
-    database: System.get_env("SUKHI_QUEUE_DB", "/var/lib/sukhi/queue.db"),
-    journal_mode: :wal,
-    synchronous: String.to_atom(System.get_env("SUKHI_QUEUE_SYNCHRONOUS", "full")),
-    pool_size: String.to_integer(System.get_env("SUKHI_QUEUE_POOL_SIZE", "5"))
+  other ->
+    raise "SUKHI_STORE=#{other}: the PostgreSQL store is gone and only Datalevin is left. " <>
+            "Unset SUKHI_STORE. PostgreSQL stays for the job queues (DB_*), nothing else."
 end
 
 if config_env() == :prod do
-  # Datalevin has no connection to configure (SukhiFedi.Datalevin.Config reads
-  # its own variables). Only this one block is Postgres's: everything after it
-  # (secret_key_base, plugin_nodes, NATS, the admission gate, the Oban queues)
-  # applies to either store.
-  unless System.get_env("SUKHI_STORE", "postgres") == "datalevin" do
-    config :sukhi_fedi, SukhiFedi.Repo,
-      database: System.get_env("DB_NAME", "sukhi_fedi"),
-      username: System.fetch_env!("DB_USER"),
-      password: System.fetch_env!("DB_PASS"),
-      hostname: System.get_env("DB_HOST", "localhost"),
-      port: String.to_integer(System.get_env("DB_PORT", "5432")),
-      pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
-      # DBConnection drops a checkout that has waited longer than
-      # queue_target for a whole queue_interval. Defaults 50 / 1000 ms.
-      queue_target: String.to_integer(System.get_env("DB_QUEUE_TARGET_MS", "50")),
-      queue_interval: String.to_integer(System.get_env("DB_QUEUE_INTERVAL_MS", "1000"))
-  end
+  # PostgreSQL holds the accounts and how they sign in (`AccountRepo`), the job
+  # queues (Oban's oban_jobs) and the raw blobs (`QueueRepo`). DB_* names it;
+  # the delivery node reads the same variables. Each repo has its own pool of
+  # DB_POOL_SIZE connections.
+  db = [
+    database: System.get_env("DB_NAME", "sukhi_fedi"),
+    username: System.fetch_env!("DB_USER"),
+    password: System.fetch_env!("DB_PASS"),
+    hostname: System.get_env("DB_HOST", "localhost"),
+    port: String.to_integer(System.get_env("DB_PORT", "5432")),
+    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
+    # DBConnection drops a checkout that has waited longer than
+    # queue_target for a whole queue_interval. Defaults 50 / 1000 ms.
+    queue_target: String.to_integer(System.get_env("DB_QUEUE_TARGET_MS", "50")),
+    queue_interval: String.to_integer(System.get_env("DB_QUEUE_INTERVAL_MS", "1000"))
+  ]
+
+  config :sukhi_fedi, SukhiFedi.QueueRepo, db
+  config :sukhi_fedi, SukhiFedi.AccountRepo, db
 
   # Calls the api node may have running on this node at once
   # (SukhiFedi.RpcGate); the next is refused, not queued.

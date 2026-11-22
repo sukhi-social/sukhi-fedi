@@ -56,7 +56,6 @@ defmodule SukhiFedi.Lists do
     %List{}
     |> List.changeset(attrs)
     |> Repo.insert()
-    |> synced()
   end
 
   @spec update(integer(), integer() | String.t(), map()) ::
@@ -66,7 +65,6 @@ defmodule SukhiFedi.Lists do
       list
       |> List.changeset(stringify(attrs))
       |> Repo.update()
-      |> synced()
     end
   end
 
@@ -74,17 +72,9 @@ defmodule SukhiFedi.Lists do
           {:ok, List.t()} | {:error, :not_found}
   def delete(viewer_id, id) do
     with {:ok, list} <- get(viewer_id, id) do
-      Repo.delete(list) |> synced()
+      Repo.delete(list)
     end
   end
-
-  # A list is set into the graph whole after any change to it (or its removal).
-  defp synced({:ok, %List{id: id}} = ok) do
-    SukhiFedi.Graph.Local.changed({:list, id})
-    ok
-  end
-
-  defp synced(other), do: other
 
   # ── membership ──────────────────────────────────────────────────────────
 
@@ -138,7 +128,6 @@ defmodule SukhiFedi.Lists do
         conflict_target: [:list_id, :account_id]
       )
 
-      SukhiFedi.Graph.Local.changed({:list, lid})
       :ok
     end
   end
@@ -154,7 +143,6 @@ defmodule SukhiFedi.Lists do
           where: la.list_id == ^lid and la.account_id in ^ids
       )
 
-      SukhiFedi.Graph.Local.changed({:list, lid})
       :ok
     end
   end
@@ -172,16 +160,7 @@ defmodule SukhiFedi.Lists do
       opts = if is_map(opts), do: opts, else: Map.new(opts)
       limit = clamp(opts[:limit])
 
-      with true <- SukhiFedi.Graph.read?(),
-           {:ok, iris} <- SukhiFedi.Graph.Timelines.list_page(lid, Map.put(opts, :limit, limit)) do
-        # the graph picked the page; the notes (counts, media, who is reading) are read as usual
-        {:ok,
-         iris
-         |> SukhiFedi.Graph.Timelines.notes()
-         |> Repo.preload([:account, :media, :tags])}
-      else
-        _ -> relational_timeline(lid, opts, limit)
-      end
+      relational_timeline(lid, opts, limit)
     end
   end
 

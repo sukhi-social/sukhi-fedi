@@ -60,16 +60,12 @@ defmodule SukhiFedi.MixProject do
       # image. Pinned to a tag: ojak-ex is young and its API may change.
       {:ojak, github: "sukhi-social/ojak-ex", tag: "v0.1.3"},
 
-      # Database
+      # Postgres for the job queues (Oban); the business data is Datalevin
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.18"},
 
       # Job queue
       {:oban, "~> 2.18"},
-
-      # Where the job queues live when the business data is in Datalevin
-      # (SUKHI_STORE=datalevin): Oban's Lite engine on a SQLite file.
-      {:ecto_sqlite3, "~> 0.17"},
 
       # NATS client
       {:gnat, "~> 1.8"},
@@ -139,6 +135,14 @@ defmodule SukhiFedi.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:bypass, "~> 2.1", only: :test},
       {:mox, "~> 1.0", only: :test}
-    ]
+    ] ++ hosi_deps()
+  end
+
+  # hosigraph beside the store (hosi_store/, docs/HOSI.md). Compiled in only when asked for
+  # (`SUKHI_HOSI=1 mix ...`), because hosigraph-ex builds or downloads a native library: a default
+  # build, the Dockerfile and CI are not changed by it. `HOSIGRAPH_EX` points at a checkout of
+  # sukhi-social/hosigraph's hosigraph-ex.
+  defp hosi_deps do
+    if System.get_env("SUKHI_HOSI") in ["1", "true"], do: [{:sukhi_hosi, path: "../hosi_store"}], else: []
   end
 end

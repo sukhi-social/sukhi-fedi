@@ -21,8 +21,10 @@ Practical notes:
   is the right version — no per-command prefix.
 - Entry points all live in the Makefile — `make` lists them.
   `make dev` runs the whole thing locally with no Docker.
-- Tests: `make test` (unit, every layer), `make test-pglite`
+- Tests: `make test` (unit, every layer), `make test-pgrust`
   (DB integration, no docker).
-- `pglite/` is the embedded Postgres `make dev` / `make test-pglite` start (node).
+- `scripts/lib/pgrust.sh` fetches and starts the pgrust server (a
+  PostgreSQL-compatible binary) that `make dev`, `make test-pgrust` and
+  `hosi_store/`'s tests use.
 - Every source file starts with
   `# SPDX-License-Identifier: AGPL-3.0-or-later`.

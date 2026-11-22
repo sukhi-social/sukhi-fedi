@@ -28,6 +28,33 @@ defmodule SukhiFedi.Accounts do
   @spec remote_accounts(Ecto.Queryable.t()) :: Ecto.Query.t()
   def remote_accounts(query \\ Account), do: from(a in query, where: not is_nil(a.domain))
 
+  # ── one account, by the key it is known by ────────────────────────────────
+
+  # Every read of one account by id, actor URI, handle or monitored domain
+  # goes through these. What each returns is what the `Repo` call it stands
+  # for returned: `nil` for none, a struct for one, a raise where the bang
+  # says so.
+
+  @doc "The account with this id, or `nil`."
+  @spec get(integer() | binary()) :: Account.t() | nil
+  def get(id), do: Repo.get(Account, id)
+
+  @doc "As `get/1`; raises `Ecto.NoResultsError` when there is none."
+  @spec get!(integer() | binary()) :: Account.t()
+  def get!(id), do: Repo.get!(Account, id)
+
+  @doc "The account whose `actor_uri` this is (a remote's stored one), or `nil`."
+  @spec by_actor_uri(String.t()) :: Account.t() | nil
+  def by_actor_uri(actor_uri), do: Repo.get_by(Account, actor_uri: actor_uri)
+
+  @doc "The remote account `username` at `domain`, or `nil`."
+  @spec by_handle(String.t(), String.t()) :: Account.t() | nil
+  def by_handle(username, domain), do: Repo.get_by(Account, username: username, domain: domain)
+
+  @doc "The monitor actor of this instance `domain`, or `nil`."
+  @spec by_monitored_domain(String.t()) :: Account.t() | nil
+  def by_monitored_domain(domain), do: Repo.get_by(Account, monitored_domain: domain)
+
   # ── reads ─────────────────────────────────────────────────────────────────
 
   def get_account_by_username(username), do: by_local_username(username)
@@ -149,7 +176,7 @@ defmodule SukhiFedi.Accounts do
           nil
       end
 
-    case id && Repo.get(Account, id) do
+    case id && get(id) do
       nil -> {:error, :not_found}
       %Account{} = a -> {:ok, a}
     end
@@ -177,7 +204,7 @@ defmodule SukhiFedi.Accounts do
         local_lookup(username)
 
       [username, host] ->
-        case Repo.get_by(Account, username: username, domain: host) do
+        case by_handle(username, host) do
           %Account{} = a -> {:ok, a}
           nil when resolve? -> resolve_remote(bare)
           nil -> {:error, :not_found}
@@ -223,7 +250,7 @@ defmodule SukhiFedi.Accounts do
 
       %Session{expires_at: exp} = s ->
         if DateTime.compare(exp, now) == :gt do
-          Repo.get(Account, s.account_id)
+          get(s.account_id)
         else
           nil
         end
@@ -308,7 +335,7 @@ defmodule SukhiFedi.Accounts do
   end
 
   def update_credentials(account_id, attrs) when is_integer(account_id) do
-    case Repo.get(Account, account_id) do
+    case get(account_id) do
       nil -> {:error, :not_found}
       a -> do_update(a, attrs)
     end
@@ -414,7 +441,7 @@ defmodule SukhiFedi.Accounts do
   end
 
   def broadcast_actor_update(account_id) when is_integer(account_id) do
-    case Repo.get(Account, account_id) do
+    case get(account_id) do
       nil -> {:error, :not_found}
       %Account{} = a -> emit_actor_updated(a)
     end
@@ -495,7 +522,7 @@ defmodule SukhiFedi.Accounts do
           {:ok, Account.t()} | {:error, :not_found}
   def set_admin(account_id, by_id, flag)
       when is_integer(account_id) and is_integer(by_id) and is_boolean(flag) do
-    case Repo.get(Account, account_id) do
+    case get(account_id) do
       nil ->
         {:error, :not_found}
 
@@ -543,7 +570,7 @@ defmodule SukhiFedi.Accounts do
   @spec set_roles(integer(), integer(), list()) ::
           {:ok, Account.t()} | {:error, :not_found}
   def set_roles(account_id, by_id, rows) when is_integer(account_id) and is_integer(by_id) do
-    case Repo.get(Account, account_id) do
+    case get(account_id) do
       %Account{domain: nil} = account ->
         Multi.new()
         |> Multi.update(:account, Account.changeset_roles(account, rows))
@@ -652,7 +679,7 @@ defmodule SukhiFedi.Accounts do
   # ── helpers ──────────────────────────────────────────────────────────────
 
   defp local_actor_uri(account_id) do
-    case Repo.get(Account, account_id) do
+    case get(account_id) do
       nil ->
         nil
 

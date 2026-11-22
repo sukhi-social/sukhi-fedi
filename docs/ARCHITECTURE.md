@@ -141,239 +141,34 @@ from its own route table. Design notes and the migration order:
 
 ### 2.1 Where the data lives
 
-The system-of-record sentence in §1 (PostgreSQL) is the default. Two other
-stores can sit beside it or take its place; the application code does not
-change, only which of them answers.
+The business data (accounts, notes, follows, the outbox) is in Datalevin.
+PostgreSQL holds the job queues and the raw bodies, and nothing else. The
+application code reaches the store as if it were Ecto.
 
 ```
                          SukhiFedi.Repo  (looks like Ecto)
-                                │  SukhiFedi.Store.Adapter picks one at boot
-              ┌─────────────────┴─────────────────┐
-   SUKHI_STORE unset (default)          SUKHI_STORE=datalevin
-              │                                   │
-        PostgreSQL                 SukhiFedi.Datalevin.Adapter
-   (migrations, triggers,          Ecto queries compiled to Datalog;
-    LISTEN/NOTIFY)                 one `dtlv` child, one database,
-                                   one writer. Not crash-atomic.
-                                   docs/DATALEVIN.md
+                                │
+                  SukhiFedi.Datalevin.Adapter
+                  Ecto queries compiled to Datalog;
+                  one `dtlv` child, one database, one writer.
+                  Not crash-atomic. docs/DATALEVIN.md
 
-   SUKHI_GRAPH=1  ── a second `dtlv` (`<DATALEVIN_DIR>/graph`) beside either:
-        actors / objects / activities and their edges
-        (SukhiFedi.Graph, priv/datalevin/schema.edn, docs/DATALEVIN_SCHEMA.md).
-        Filled best-effort from each admitted inbound activity (a copy, not
-        yet the only home); SUKHI_GRAPH_READ=1 lets the public, hashtag and
-        list timelines choose their page from it and falls back to the
-        relational query on any miss. Direction: docs/FEDERATION_REDUCER.md.
+   Job queues (Oban) ── PostgreSQL (`DB_*`): one `oban_jobs` table for the
+        gateway's and the delivery node's queues. Jobs are not in the same
+        store as the business rows, so "enqueue in the same transaction"
+        does not hold: the row is written first, the job after, and a job
+        that runs twice must be harmless (`delivery_receipts`). The outbox
+        relay polls the outbox every 2 seconds; there is no LISTEN/NOTIFY.
 
-   Job queues (Oban) ── SQLite (`SUKHI_QUEUE_DB`) in datalevin mode, and
-        the delivery queue when `DELIVERY_QUEUE=sqlite`. Jobs are not in the
-        same store as the business rows, so "enqueue in the same transaction"
-        holds only on PostgreSQL. docs/DELIVERY_QUEUE_MIGRATION.ja.md
+   Raw bodies ── the `raw_blobs` table of the same PostgreSQL (or S3,
+        `SUKHI_RAW_BACKEND=s3`).
 ```
 
-Direction (decided 2026-11): Datalevin is the store new work targets
-and PostgreSQL is to be removed; the Ecto-compatible adapter is the bridge
-while the graph grows into the home of remote content. The rest of this
-document still describes the PostgreSQL path (outbox triggers, LISTEN/NOTIFY)
-unless it says otherwise.
+Delivery and the gateway share the one Datalevin writer, so the delivery node
+runs inside the `combined` release.
 
-## 3. Repository layout
-
-```
-sukhi-fedi/
-├── elixir/                                # 案内人 (gateway only)
-│   ├── lib/sukhi_fedi/
-│   │   ├── application.ex                 # supervision tree
-│   │   ├── addon.ex / addon/registry.ex   # addon ABI + discovery
-│   │   ├── repo.ex
-│   │   ├── pull_federation/               # Pull Federation, follower + serving side
-│   │   │                                    (notify, serve, gate, puller, stats);
-│   │   │                                    see docs/PULL_FEDERATION.md
-│   │   ├── ap/ingest.ex                   # the one admission path: inbox and
-│   │   │                                    pulled items both end here
-│   │   ├── outbox.ex                      # Outbox.enqueue / enqueue_multi
-│   │   │                                    (write side only; delivery
-│   │   │                                    node owns the Relay / read side)
-│   │   ├── oauth.ex                       # OAuth 2.0 server: register_app,
-│   │   │                                    {authorization_code, refresh,
-│   │   │                                    client_credentials} grants,
-│   │   │                                    verify_bearer, revoke
-│   │   ├── accounts.ex                    # Mastodon-shaped account ops
-│   │   │                                    (lookup, update_credentials,
-│   │   │                                    counts_for, list_statuses)
-│   │   ├── notes.ex                       # create_status / get / delete /
-│   │   │                                    context + favourite/reblog/
-│   │   │                                    bookmark/pin + counts/viewer
-│   │   ├── timelines.ex                   # home / public / tag timelines
-│   │   ├── tags.ex                        # hashtag extraction + upsert
-│   │   ├── lists.ex                       # user lists CRUD + list timeline
-│   │   ├── polls.ex                       # poll reads + vote writes
-│   │   ├── notifications.ex               # Mastodon notifications context
-│   │   ├── conversations.ex               # DM thread index
-│   │   ├── social.ex                      # follow / unfollow / relationships
-│   │   ├── relays.ex                      # relay subscriptions: Follow of
-│   │   │                                    as:Public, the accepted set
-│   │   ├── auth/                          # login factors: TOTP (RFC 6238),
-│   │   │                                    email codes (verify + login),
-│   │   │                                    passkeys (Wax/WebAuthn), and the
-│   │   │                                    2FA pending-token bridge
-│   │   ├── mailer.ex                      # transactional mail; SMTP (OCI
-│   │   │                                    Email Delivery) or log transport
-│   │   ├── federation/
-│   │   │   ├── actor_fetcher.ex           # remote actor GET + ETS cache
-│   │   │   ├── note_fetcher.ex            # remote note GET + mirror into notes
-│   │   │   ├── webfinger.ex               # acct:user@host → self URL
-│   │   │   ├── remote_accounts.ex         # upsert shadow Account from JSON
-│   │   │   └── fedify_client.ex           # NATS Micro client → Bun (admin)
-│   │   ├── schema/                        # Ecto schemas (note, account,
-│   │   │   │                                follow, boost, reaction,
-│   │   │   │                                oauth_app/code/token, …)
-│   │   │   └── outbox_event.ex            # `outbox` table
-│   │   ├── cache/ets.ex                   # ETS TTL cache
-│   │   ├── ap/                            # ActivityPub helpers
-│   │   │   ├── instructions.ex            # inbox activity dispatcher
-│   │   │   └── instructions/relayed.ex    # relay-forwarded activity
-│   │   ├── addons/                        # first-party addons
-│   │   │   ├── nodeinfo_monitor.ex + nodeinfo_monitor/
-│   │   │   ├── streaming.ex + streaming/
-│   │   │   ├── media.ex
-│   │   │   ├── moderation.ex / pinned_notes.ex / web_push.ex
-│   │   └── web/                           # controllers + plugs
-│   │       ├── router.ex                  # + /oauth/*_ → PluginPlug,
-│   │       │                                /uploads/*path → static serve
-│   │       ├── auth/                      # /login (+/totp,/email,/passkey),
-│   │       │                                /settings factor management
-│   │       │                                (session-cookie gated), /auth/state
-│   │       ├── rate_limit_plug.ex
-│   │       ├── plugin_plug.ex             # :rpc to api plugin node
-│   │       ├── inbox_controller.ex
-│   │       ├── webfinger_controller.ex
-│   │       ├── nodeinfo_controller.ex
-│   │       ├── collection_controller.ex   # followers / following collections
-│   │       ├── actor_controller.ex
-│   │       └── featured_controller.ex
-│   ├── priv/repo/migrations/
-│   │   ├── core/                          # core schema (notes, follows, outbox, …)
-│   │   └── addons/<id>/                   # per-addon migrations
-│   ├── test/
-│   │   ├── support/integration_case.ex
-│   │   ├── integration/                   # E2E (docker-compose.test.yml)
-│   │   ├── web/                           # unit tests
-│   │   └── test_helper.exs                # excludes :integration
-│   ├── config/{config,dev,prod,runtime,test}.exs
-│   ├── mix.exs / mix.lock
-│   └── Dockerfile
-│
-├── delivery/                              # 配達員 (separate BEAM node)
-│   ├── lib/sukhi_delivery/
-│   │   ├── application.ex                 # supervision tree
-│   │   ├── repo.ex
-│   │   ├── outbox/
-│   │   │   ├── relay.ex                   # LISTEN/NOTIFY → Oban dispatch job
-│   │   │   └── consumer.ex                # Gnat.sub on sns.outbox.>
-│   │   │                                    routes 11 subjects to Bun
-│   │   │                                    translators + Worker fan-out;
-│   │   │                                    actor.updated built inline via
-│   │   │                                    AP.ActorJson (no Bun hop)
-│   │   ├── ap/actor_json.ex               # Update(Person) builder (local actor)
-│   │   ├── federation/actor_fetcher.ex    # remote actor JSON + ETS cache
-│   │   │                                    (resolves sharedInbox/inbox URL)
-│   │   ├── cache/ets.ex                   # ETS TTL sweep (actor_remote)
-│   │   ├── delivery/
-│   │   │   ├── worker.ex                  # Oban :delivery queue
-│   │   │   ├── fan_out.ex                 # legacy precompute helper
-│   │   │   ├── fedify_client.ex           # NATS Micro client → Bun
-│   │   │   ├── followers_sync.ex          # FEP-8fcf
-│   │   │   └── follower_sync_worker.ex    # Oban :federation queue
-│   │   ├── push/
-│   │   │   └── worker.ex                  # Oban :push queue (RFC 8291)
-│   │   ├── schema/                        # read-only projection of the
-│   │   │                                    gateway's core schema
-│   │   │   ├── outbox_event.ex / delivery_receipt.ex
-│   │   │   └── account.ex / follow.ex / object.ex / relay.ex
-│   │   ├── relays.ex                      # get_active_inbox_urls/0
-│   │   ├── prom_ex.ex                     # metrics on :4001
-│   │   └── release.ex                     # stub (gateway owns migrations)
-│   ├── config/{config,dev,prod,runtime,test}.exs
-│   ├── test/delivery/worker_test.exs
-│   ├── mix.exs
-│   └── Dockerfile
-│
-├── pglite/                                # PGlite (Postgres as WASM) for `make dev`
-│   ├── server.mjs                            and `make test-pglite`; goes away
-│   └── package.json                          with PostgreSQL. (`bun/`, the retired
-│                                             fedify worker, was removed; git tag
-│                                             `bun-last` is the last tree with it.)
-│
-├── api/                                   # ★ Mastodon/Misskey REST plugin node
-│   ├── mix.exs                            # independent :sukhi_api app
-│   ├── lib/sukhi_api/
-│   │   ├── application.ex                 # start-up; prints registered routes
-│   │   ├── capability.ex                  # @behaviour + `use` macro
-│   │   │                                    routes can be 3-tuple (public)
-│   │   │                                    or 4-tuple {…, scope: "…"}
-│   │   ├── registry.ex                    # runtime discovery of capability modules
-│   │   ├── router.ex                      # :rpc entry — handle(req) → {:ok, resp}
-│   │   │                                    + Bearer token auth plug for
-│   │   │                                    routes with scope: opt
-│   │   ├── gateway_rpc.ex                 # calls back to gateway contexts
-│   │   │                                    test impl injection via
-│   │   │                                    :gateway_rpc_impl env
-│   │   ├── pagination.ex                  # max_id/since_id/min_id/limit +
-│   │   │                                    Mastodon Link header builder
-│   │   ├── multipart.ex                   # plug-less multipart parser
-│   │   ├── views/                         # JSON renderers (Mastodon shape)
-│   │   │   ├── id.ex                      # snowflake-ready id encoder
-│   │   │   ├── mastodon_account.ex        # Account + CredentialAccount
-│   │   │   ├── mastodon_relationship.ex
-│   │   │   ├── mastodon_status.ex         # counts + viewer flags via ctx
-│   │   │   ├── mastodon_media.ex
-│   │   │   ├── mastodon_notification.ex
-│   │   │   ├── mastodon_list.ex
-│   │   │   └── mastodon_poll.ex
-│   │   ├── token_cache.ex                 # 60s positive cache for verify_bearer
-│   │   ├── token_rate_limit.ex            # 300 req / 5min per token
-│   │   └── capabilities/                  # ← DROP FILES HERE TO ADD ENDPOINTS
-│   │       ├── mastodon_instance.ex
-│   │       ├── nodeinfo_monitor.ex
-│   │       ├── oauth_apps.ex              # /api/v1/apps + verify_credentials
-│   │       ├── oauth.ex                   # /oauth/token, /revoke; sukhi/oauth/authorize (JSON)
-│   │       ├── mastodon_accounts.ex       # accounts/* read + update
-│   │       ├── mastodon_follows.ex        # accounts/:id/{follow,unfollow}
-│   │       ├── mastodon_statuses.ex       # statuses CRUD + context
-│   │       ├── mastodon_interactions.ex   # favourite/reblog/bookmark/pin
-│   │       ├── mastodon_timelines.ex      # home / public / tag
-│   │       ├── mastodon_notifications.ex  # index/show/clear/dismiss
-│   │       ├── mastodon_lists.ex          # lists CRUD + list timeline
-│   │       ├── mastodon_polls.ex          # poll read + vote
-│   │       ├── mastodon_moderation.ex     # block/mute/report/domain_blocks
-│   │       ├── mastodon_conversations.ex  # /api/v1/conversations
-│   │       ├── mastodon_push.ex           # /api/v1/push/subscription
-│   │       └── mastodon_media.ex          # POST /media + GET/PUT
-│   ├── config/{config,dev,prod,runtime,test}.exs
-│   └── Dockerfile                         # distributed Erlang release
-│
-├── combined/                              # gateway + delivery in ONE BEAM
-│   ├── mix.exs                            # release shell: path deps on
-│   │                                        elixir/ + delivery/, no code
-│   ├── config/                            # imports/reads both projects'
-│   │                                        own configs (single source)
-│   ├── rel/entrypoint.sh                  # migrate (gateway-owned) + start
-│   └── Dockerfile                         # small single-box image
-│
-├── infra/
-│   └── cloud-init.yaml.tmpl               # shared VM bootstrap template
-│
-├── docker-compose.yml                     # dev + prod stack (pinned GHCR images)
-├── docker-compose.combined.yml            # 1-BEAM override (≈1 core / 2 GB box)
-├── docker-compose.test.yml                # hermetic test stack
-├── TODO.md                                # punch list of deferred work
-└── docs/
-    ├── ARCHITECTURE.md                    # ← this file (canonical)
-    └── ADDONS.md                          # addon ABI contract
-```
-
-## 4. NATS topology
+Sections below that speak of outbox triggers, `LISTEN/NOTIFY` or SQL
+migrations describe the earlier PostgreSQL store and are being rewritten.
 
 ### 4.1 Nothing durable rides on NATS
 
@@ -804,8 +599,9 @@ end
 `@sukhi_fedi_addon` attribute at boot, verifies each addon's
 `abi_version` major against core (`"1"`), applies the enable/disable
 filter, and returns supervision children + NATS subscriptions. Major-
-version mismatch is a boot-time crash. Migrations under
-`priv/repo/migrations/addons/<id>/` run per-addon at release time.
+version mismatch is a boot-time crash. An addon's tables are in the store's
+catalog (`priv/datalevin/catalog.exs`); changes to it go through
+`lib/sukhi_fedi/datalevin/migrations/`.
 
 ### Bun (`bun/addons/`)
 

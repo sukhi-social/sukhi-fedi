@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Datalevin.Manifest do
   @moduledoc """
-  The record a Datalevin store keeps of itself: `<dir>/.sukhi-store.json`.
-  The main store and the graph store (`<dir>/graph`) each have one.
+  The record the Datalevin store keeps of itself: `<dir>/.sukhi-store.json`.
 
   Format 2 says which migrations the data has been through and what schema
   the store was last opened with, so the next release can tell what changed
   (`SchemaDiff`) instead of refusing every difference:
 
       "format"         2
-      "name"           "main" | "graph"
+      "name"           "main"
       "schema_version" the newest applied migration (0: none)
       "migrations"     [{"version", "name", "applied_at"}]
       "schema"         the schema it was last stamped with (wire form)
@@ -61,7 +60,7 @@ defmodule SukhiFedi.Datalevin.Manifest do
   end
 
   @doc "A format-2 manifest."
-  @spec build(Config.t(), :main | :graph, Migrator.schema(), [map()], map() | nil) :: t()
+  @spec build(Config.t(), :main, Migrator.schema(), [map()], map() | nil) :: t()
   def build(%Config{} = config, name, schema, applied, migrating \\ nil) do
     %{
       "format" => @format,
@@ -129,12 +128,9 @@ defmodule SukhiFedi.Datalevin.Manifest do
          :ok <-
            validate_value(
              manifest["raw_backend"],
-             Map.get(env, "SUKHI_RAW_BACKEND", "sqlite"),
+             Map.get(env, "SUKHI_RAW_BACKEND", "postgres"),
              "raw backend"
-           ),
-         :ok <- validate_existing(manifest["queue_db"], "queue database"),
-         :ok <- validate_existing(manifest["delivery_queue_db"], "delivery queue database"),
-         :ok <- validate_graph(manifest, config, env) do
+           ) do
       Logger.info("datalevin_backup_manifest_valid path=#{file}")
       :ok
     else
@@ -181,24 +177,6 @@ defmodule SukhiFedi.Datalevin.Manifest do
 
   defp validate_value(actual, expected, _label) when actual == expected, do: :ok
   defp validate_value(_, _, label), do: {:error, "#{label} does not match current runtime"}
-
-  defp validate_existing(path, label) when is_binary(path) do
-    if File.exists?(path), do: :ok, else: {:error, "#{label} is missing: #{path}"}
-  end
-
-  defp validate_existing(_, label), do: {:error, "#{label} path is missing"}
-
-  defp validate_graph(manifest, config, env) do
-    if Map.get(env, "SUKHI_GRAPH", "0") in ["1", "true"] do
-      validate_path(manifest["graph_dir"], Path.join(config.dir, "graph"), "graph directory")
-      |> case do
-        :ok -> validate_existing(manifest["graph_dir"], "graph directory")
-        error -> error
-      end
-    else
-      :ok
-    end
-  end
 
   defp refuse!(message), do: raise(ArgumentError, message)
 

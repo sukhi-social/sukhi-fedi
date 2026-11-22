@@ -23,6 +23,7 @@ defmodule SukhiFedi.Notes do
 
   import Ecto.Query
 
+  alias SukhiFedi.HosiMirror
   alias SukhiFedi.Notes.{Counts, Create, Interactions, Read, Thread, Parents}
   alias SukhiFedi.Schema.Note
 
@@ -79,12 +80,19 @@ defmodule SukhiFedi.Notes do
   # ── counts + viewer flags ────────────────────────────────────────────────
 
   defdelegate counts_for_note(note_id), to: Counts
-  defdelegate counts_for_notes(note_ids), to: Counts
+
+  # The like view's two reads are also asked of hosigraph, and compared (`HosiMirror.shadow/3`);
+  # the answer is the store's.
+  def counts_for_notes(note_ids),
+    do: note_ids |> Counts.counts_for_notes() |> HosiMirror.shadow(:favourites, [note_ids])
+
   defdelegate reactions_for_notes(note_ids, viewer_id \\ nil), to: Counts
 
   # 平らに並べる面が返信へ添える、親の一行（`Notes.Parents`）。
   defdelegate parents_for_notes(note_ids), to: Parents, as: :for_note_ids
   defdelegate parents_by_ap_id(ap_ids), to: Parents, as: :by_ap_id
   defdelegate viewer_flags(account_id, note_id), to: Counts
-  defdelegate viewer_flags_many(account_id, note_ids), to: Counts
+
+  def viewer_flags_many(account_id, note_ids),
+    do: account_id |> Counts.viewer_flags_many(note_ids) |> HosiMirror.shadow(:favourited, [account_id, note_ids])
 end

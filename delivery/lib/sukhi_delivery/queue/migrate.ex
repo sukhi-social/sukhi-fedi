@@ -1,9 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiDelivery.Queue.Migrate do
   @moduledoc """
-  Creates the `oban_jobs` tables in the queue SQLite file at boot. Runs as a
-  supervisor child that returns `:ignore`, so it finishes before the next
-  child (the Oban instance) starts.
+  Brings Oban's tables up to date at boot. Runs as a supervisor child that
+  returns `:ignore`, so it has finished before the next child (the Oban
+  instance) starts.
+
+  It is keyed on Oban's own schema version, the way the gateway's
+  `SukhiFedi.Queue.Migrate` is. Both nodes use one database, so whichever
+  starts second finds the version already recorded and does nothing; the
+  migrator's lock makes an overlap safe.
   """
 
   alias SukhiDelivery.QueueRepo
@@ -21,7 +26,8 @@ defmodule SukhiDelivery.Queue.Migrate do
   end
 
   def start_link do
-    Ecto.Migrator.run(QueueRepo, [{0, Schema}], :up, all: true, log: false)
+    version = Oban.Migrations.Postgres.current_version()
+    Ecto.Migrator.run(QueueRepo, [{version, Schema}], :up, all: true, log: false)
     :ignore
   end
 end

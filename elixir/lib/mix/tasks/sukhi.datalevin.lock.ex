@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule Mix.Tasks.Sukhi.Datalevin.Lock do
   @moduledoc """
-  Record the Datalevin schema of both stores in `priv/datalevin/schema.lock.json`.
+  Record the Datalevin schema in `priv/datalevin/schema.lock.json`.
 
       mix sukhi.datalevin.lock           # write it
       mix sukhi.datalevin.lock --check   # fail if it is stale (what the test does)
 
-  Run it after `mix sukhi.datalevin.catalog` or an edit of `schema.edn`.
+  Run it after an edit of `catalog.exs`.
   A new attribute is taken as it is. A removed or changed one is refused
   until a migration newer than the lock's exists
   (`mix sukhi.datalevin.gen.migration`): see `SukhiFedi.Datalevin.SchemaLock`
@@ -29,7 +29,7 @@ defmodule Mix.Tasks.Sukhi.Datalevin.Lock do
     lock =
       case SchemaLock.read() do
         {:ok, lock} -> lock
-        {:error, _} -> %{main: %{version: 0, schema: %{}}, graph: %{version: 0, schema: %{}}}
+        {:error, _} -> %{main: %{version: 0, schema: %{}}}
       end
 
     if opts[:check], do: check(lock, current), else: write(lock, current)

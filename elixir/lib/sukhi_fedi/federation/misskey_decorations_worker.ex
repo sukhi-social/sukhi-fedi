@@ -11,13 +11,13 @@ defmodule SukhiFedi.Federation.MisskeyDecorationsWorker do
 
   require Logger
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.Federation.MisskeyDecorations
-  alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"account_id" => id}}) do
-    with %Account{} = account <- Repo.get(Account, id),
+    with %Account{} = account <- Accounts.get(id),
          {:error, reason} <- MisskeyDecorations.refresh(account) do
       Logger.debug("decorations: skipped #{account.actor_uri}: #{inspect(reason)}")
     end

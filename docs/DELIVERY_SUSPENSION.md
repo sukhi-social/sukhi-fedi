@@ -17,8 +17,8 @@
 
 ## 対応する構成
 
-- **Datalevin の combined だけ。Postgres 構成は f799 に対応しません**(受け取った記録の置き場が `schema.edn` で、Postgres の migration には無い)。
-- 記録は graph ストア(`SUKHI_GRAPH=1`、`docker-compose.datalevin.yml` では既定で 1)に置く。graph が無いとき、お知らせは通常の受信と同じ道を通り、何も起きない。
+- 記録は PostgreSQL(`SukhiFedi.AccountRepo`、表は `priv/account_repo/migrations`)に置く。どの構成でも、お知らせを受け取る。
+- 設定 `:delivery_suspension` が `false` のときだけ(単体テスト。データベースを持たない)、お知らせは通常の受信と同じ道を通り、何も起きない。
 
 ## 受け取り(段2)
 
@@ -93,7 +93,7 @@
   - 知らないお知らせは、`Control` が新しく読んで確認できるまで受けない。**ヒントだけでは何も休まない**
   - すでに持っているものとの比べ方はふつうと同じ(取り消しは最終、古い revision は無視、同じなら何もしない)
 - 読めなかったとき(サーバーが落ちている、`unavailable`)は、3回まで間を置いて取り直します。読めて断ったとき(おかしな文書、確認できない)は取り直しません。
-- graph が無いときは、ジョブは何もしません。
+- f799 を扱わない設定(`:delivery_suspension` が `false`)のときは、ジョブは何もしません。
 
 telemetry: `[:sukhi_delivery, :suspension, :hint]`(渡した)、`[:sukhi_fedi, :delivery_suspension, :hint]`(gateway で受けた結果)。
 
@@ -159,14 +159,16 @@ bin/sukhi_delivery rpc 'SukhiDelivery.Release.announce_suspension("/srv/sukhi/he
 
 **まだ**: 実機で通すこと(配る仕事・nginx とも、テストの相手では確かめた)。
 
-## 記録するもの(`schema.edn`)
+## 記録するもの(PostgreSQL)
 
-| 表 | 属性 | 中身 |
+| 中身 | 表 | 行の中身 |
 | --- | --- | --- |
-| notices | `dsnotice/*` | お知らせごとに1行。`record` が JSON の全体(読み戻しの正本)。取り消しの行は「終わりの印」として残る |
-| pending cancellations | `dspending/*` | 先に届いた Undo。`(actor, create_id)` で一意 |
-| control evidence | `dsevidence/*` | 制御を最後に確認できた時刻・最後の試行・その結果(`Control` が書く) |
-| controller cutoffs | `dscutoff/*` | 「この時刻より前は受けない」線 |
+| notices | `suspension_notices` | お知らせごとに1行。`record` が JSON の全体(読み戻しの正本)。取り消しの行は「終わりの印」として残る |
+| pending cancellations | `suspension_pending` | 先に届いた Undo。`(actor, create_id)` で一意 |
+| control evidence | `suspension_evidence` | 制御を最後に確認できた時刻・最後の試行・その結果(`Control` が書く)。`(kind, target, controller)` で一意 |
+| controller cutoffs | `suspension_cutoffs` | 「この時刻より前は受けない」線(`not_before`)。前にだけ進む |
+
+時刻は、エポックからのマイクロ秒の整数です。
 
 忘れるとき(`Store.sweep/2`)は、年齢上限を過ぎた notice と期限切れの預かりを消し、消した分だけ cutoff を進めます。方針をゆるめても、忘れた取り消しが蘇りません。`Upkeep` が1時間ごとに `sweep` を呼び、そのあと写しを組み直します。
 

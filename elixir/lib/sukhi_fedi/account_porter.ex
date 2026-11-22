@@ -50,7 +50,7 @@ defmodule SukhiFedi.AccountPorter do
 
   @spec export(integer(), kind()) :: {:ok, binary()} | {:error, :not_found}
   def export(account_id, kind) when is_integer(account_id) and kind in @kinds do
-    case Repo.get(Account, account_id) do
+    case Accounts.get(account_id) do
       nil ->
         {:error, :not_found}
 
@@ -127,7 +127,7 @@ defmodule SukhiFedi.AccountPorter do
           | {:error, :not_found | :too_large | :too_many}
   def import_csv(account_id, kind, csv)
       when is_integer(account_id) and kind in @kinds and is_binary(csv) do
-    with %Account{} = account <- Repo.get(Account, account_id),
+    with %Account{} = account <- Accounts.get(account_id),
          {:ok, addresses, invalid} <- parse(csv) do
       run_import(account, kind, addresses, invalid)
     else

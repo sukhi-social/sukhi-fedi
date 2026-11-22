@@ -6,7 +6,7 @@ defmodule SukhiFedi.Integration.ScheduledStatusesTest do
   `PublishWorker` later replays those params through the real
   `create_status` path (Note insert + transactional outbox).
 
-      make test-pglite ARGS="test/integration/scheduled_statuses_test.exs"
+      make test-pgrust ARGS="test/integration/scheduled_statuses_test.exs"
 
   The test env runs Oban `testing: :inline`, which executes a job
   synchronously the moment it's inserted — that can't model "schedule

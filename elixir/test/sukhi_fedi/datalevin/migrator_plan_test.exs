@@ -98,7 +98,7 @@ defmodule SukhiFedi.Datalevin.MigratorPlanTest do
     end
 
     defmodule Two do
-      use SukhiFedi.Datalevin.Migration, version: 20_260_101_000_001, store: :graph
+      use SukhiFedi.Datalevin.Migration, version: 20_260_101_000_001, store: :main
 
       @impl true
       def description, do: "second"
@@ -116,7 +116,7 @@ defmodule SukhiFedi.Datalevin.MigratorPlanTest do
     end
 
     test "sorts by version and ignores modules that are not migrations" do
-      assert [%{module: One, store: :main}, %{module: Two, store: :graph, description: "second"}] =
+      assert [%{module: One, store: :main}, %{module: Two, store: :main, description: "second"}] =
                Migrator.describe_all([Two, NotAMigration, One])
     end
 
@@ -130,15 +130,10 @@ defmodule SukhiFedi.Datalevin.MigratorPlanTest do
       end
     end
 
-    test "the same version in different stores is fine" do
-      assert length(Migrator.describe_all([One, Two])) == 2
-    end
-
-    test "latest_version is per store" do
+    test "latest_version is the newest of the store" do
       ds = Migrator.describe_all([One, Two])
 
-      assert Migrator.latest_version(:main, ds) == 20_260_101_000_000
-      assert Migrator.latest_version(:graph, ds) == 20_260_101_000_001
+      assert Migrator.latest_version(:main, ds) == 20_260_101_000_001
       assert Migrator.latest_version(:main, []) == 0
     end
   end
@@ -152,7 +147,7 @@ defmodule SukhiFedi.Datalevin.MigratorPlanTest do
       """)
     end
 
-    assert_raise ArgumentError, ~r/:main or :graph/, fn ->
+    assert_raise ArgumentError, ~r/must be :main/, fn ->
       Code.compile_string("""
       defmodule SukhiFedi.Datalevin.MigratorPlanTest.BadStore do
         use SukhiFedi.Datalevin.Migration, version: 1, store: :other

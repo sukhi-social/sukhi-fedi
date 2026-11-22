@@ -6,7 +6,7 @@ defmodule SukhiFedi.Web.WtController do
 
   SPA は ticket を付けて `<endpoint>?ticket=<token>` に WebTransport で繋ぎ、karutte は
   公開鍵でローカル検証する（`SukhiFedi.WtTicket` / karutte 側 `Karutte.Ticket`）。SSE と同じく
-  bearer はここで直接検証する（gateway が Postgres を共有＝プラグインノード往復なし）。
+  bearer はここで直接検証する（gateway が store を共有＝プラグインノード往復なし）。
   """
 
   import Plug.Conn

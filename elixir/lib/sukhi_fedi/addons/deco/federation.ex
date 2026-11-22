@@ -16,6 +16,7 @@ defmodule SukhiFedi.Addons.Deco.Federation do
 
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.{Outbox, Repo}
   alias SukhiFedi.Addons.Deco.{Boards, Posts}
   alias SukhiFedi.Federation.CollectionFetcher
@@ -126,7 +127,7 @@ defmodule SukhiFedi.Addons.Deco.Federation do
          {slug, true} <-
            Repo.one(from(d in Deco, where: d.id == ^deco_id, select: {d.slug, d.has_actor})),
          [_ | _] = inboxes <- follower_inboxes(deco_id),
-         %Account{username: username} <- Repo.get(Account, note.account_id) do
+         %Account{username: username} <- Accounts.get(note.account_id) do
       actor = SukhiFedi.AP.GroupJson.actor_uri(slug)
       object = SukhiFedi.Notes.Ids.note_ap_id(note_id) || local_note_uri(username, note_id)
 

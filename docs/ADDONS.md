@@ -16,7 +16,6 @@ Callback               | Default                | Purpose
 `id/0`                 | required               | atom matching the `.env` entry
 `abi_version/0`        | `"1.0"`                | bumped by core on breaking changes
 `depends_on/0`         | `[]`                   | ids that must also be enabled
-`migrations_path/0`    | `priv/repo/migrations/addons/<id>/` | Ecto migration dir (nil if absent)
 `supervision_children/0` | `[]`                 | processes started under `SukhiFedi.Supervisor`
 `nats_subscriptions/0` | `[]`                   | `[{subject, {module, fn}}]`
 `env_schema/0`         | `[]`                   | required/optional env var hints
@@ -38,16 +37,17 @@ Capabilities without `:addon` are treated as core (always active).
 `ENABLED_ADDONS` reaches the api node through docker-compose's
 environment passthrough.
 
-## Migrations
+## Data changes
 
-- Per-addon: `elixir/priv/repo/migrations/addons/<id>/*.exs`.
-- Core: `elixir/priv/repo/migrations/core/*.exs`.
-- Runner: `SukhiFedi.Release.migrate_all/0` walks core first, then
-  each enabled addon's path. Invoked by the container entrypoint on
-  every start.
-- **Disabling an addon does NOT roll migrations back.** Tables stay;
-  re-enabling is a no-op DB-wise.
-- **Cross-addon foreign keys are forbidden.** Addons may FK into core
+The business data is in Datalevin, and an addon's attributes are in the same
+catalog as core's (`elixir/priv/datalevin/catalog.exs`, edited by hand).
+`SukhiFedi.Release.migrate_all/0` runs the Datalevin migrations on every
+start (docs/DATALEVIN_MIGRATIONS.md); an addon has no migration directory of
+its own.
+
+- **Disabling an addon does NOT remove its data.** The attributes stay;
+  re-enabling is a no-op store-wise.
+- **Cross-addon references are forbidden.** Addons may refer into core
   tables (`accounts`, `objects`) only. If addon A's table needs to
   reference addon B's table, merge them into one addon.
 
@@ -65,8 +65,8 @@ environment passthrough.
    end
    ```
 
-2. (Optional) Add migrations under
-   `elixir/priv/repo/migrations/addons/my_feature/*.exs`.
+2. (Optional) Add the addon's tables to `elixir/priv/datalevin/catalog.exs`
+   (and a migration, if an existing one changes: docs/DATALEVIN_MIGRATIONS.md).
 
 3. (Optional) Add REST routes as SukhiApi capabilities in
    `api/lib/sukhi_api/capabilities/` tagged with `addon: :my_feature`.

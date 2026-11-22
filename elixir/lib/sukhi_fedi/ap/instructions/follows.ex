@@ -9,6 +9,7 @@ defmodule SukhiFedi.AP.Instructions.Follows do
 
   import Ecto.Query
 
+  alias SukhiFedi.Accounts
   alias SukhiFedi.AP.ActorJson
   alias SukhiFedi.AP.Instructions.{Extract, Resolve}
   alias SukhiFedi.{Notifications, Outbox, Relays, Repo}
@@ -165,7 +166,7 @@ defmodule SukhiFedi.AP.Instructions.Follows do
   def authorize(followee_id, follower_account_id) when is_integer(followee_id) do
     with uri when is_binary(uri) <- follower_uri_for(follower_account_id),
          %FollowRequest{} = req <- get_request_by_uri(followee_id, uri),
-         %Account{} = followee <- Repo.get(Account, followee_id) do
+         %Account{} = followee <- Accounts.get(followee_id) do
       actor_uri = ActorJson.actor_uri(followee.username)
       deliver_follow_reply("Accept", actor_uri, req.follow_activity, req.follower_inbox)
 
@@ -185,7 +186,7 @@ defmodule SukhiFedi.AP.Instructions.Follows do
   def reject(followee_id, follower_account_id) when is_integer(followee_id) do
     with uri when is_binary(uri) <- follower_uri_for(follower_account_id),
          %FollowRequest{} = req <- get_request_by_uri(followee_id, uri),
-         %Account{} = followee <- Repo.get(Account, followee_id) do
+         %Account{} = followee <- Accounts.get(followee_id) do
       actor_uri = ActorJson.actor_uri(followee.username)
       deliver_follow_reply("Reject", actor_uri, req.follow_activity, req.follower_inbox)
       Repo.delete(req)
@@ -198,7 +199,7 @@ defmodule SukhiFedi.AP.Instructions.Follows do
   # The actor URI a follower account is known by: a remote's stored
   # `actor_uri`, or a local account's synthesized `/users/<u>` URL.
   defp follower_uri_for(account_id) do
-    case Repo.get(Account, account_id) do
+    case Accounts.get(account_id) do
       %Account{actor_uri: uri} when is_binary(uri) and uri != "" -> uri
       %Account{domain: nil, username: u} -> ActorJson.actor_uri(u)
       _ -> nil
@@ -274,7 +275,7 @@ defmodule SukhiFedi.AP.Instructions.Follows do
       }) do
     with follower_uri when is_binary(follower_uri) <- Extract.extract_uri(inner["actor"]),
          followee_uri when is_binary(followee_uri) <- Extract.extract_uri(inner["object"]),
-         %Account{id: followee_id} <- Repo.get_by(Account, actor_uri: followee_uri) do
+         %Account{id: followee_id} <- Accounts.by_actor_uri(followee_uri) do
       from(f in Follow,
         where: f.follower_uri == ^follower_uri and f.followee_id == ^followee_id
       )
@@ -304,7 +305,7 @@ defmodule SukhiFedi.AP.Instructions.Follows do
          {id, ""} <- follow_id |> String.replace_prefix(prefix, "") |> Integer.parse(),
          %Follow{follower_uri: follower_uri, followee_id: followee_id} <- Repo.get(Follow, id),
          %Account{actor_uri: followee_uri} when is_binary(followee_uri) <-
-           Repo.get(Account, followee_id),
+           Accounts.get(followee_id),
          ^followee_uri <- Extract.extract_uri(actor) do
       maybe_handle_follow_accept(%{
         "type" => "Accept",

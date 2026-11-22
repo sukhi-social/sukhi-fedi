@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Fedi.DeliverySuspension.RecheckTest do
   # Looking again at a notice we hold: a link that is gone withdraws it, an
-  # unreadable web changes nothing. Real `dtlv`, the web stood in for.
-  use SukhiFedi.GraphCase
+  # unreadable web changes nothing. Real PostgreSQL, the web stood in for.
+  use SukhiFedi.IntegrationCase, async: false
+
+  @moduletag :integration
 
   alias SukhiFedi.Fedi.DeliverySuspension.{Receiver, Recheck, Store}
   alias SukhiFedi.SuspensionNet, as: Net

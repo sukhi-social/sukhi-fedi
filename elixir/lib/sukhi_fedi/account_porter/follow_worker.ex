@@ -9,12 +9,12 @@ defmodule SukhiFedi.AccountPorter.FollowWorker do
 
   use Oban.Worker, queue: :import, max_attempts: 3
 
-  alias SukhiFedi.{Accounts, Repo, Social}
+  alias SukhiFedi.{Accounts, Social}
   alias SukhiFedi.Schema.Account
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"account_id" => account_id, "address" => address}}) do
-    with %Account{} = account <- Repo.get(Account, account_id),
+    with %Account{} = account <- Accounts.get(account_id),
          {:ok, %Account{} = target} <- Accounts.lookup_by_acct(address, resolve: true) do
       case Social.request_follow(account, target.id) do
         {:ok, _follow} -> :ok

@@ -26,11 +26,11 @@ defmodule SukhiFedi.Datalevin.ManifestTest do
       %{"version" => 1, "name" => "a", "applied_at" => "t"}
     ]
 
-    manifest = Manifest.build(config, :graph, @schema, applied)
+    manifest = Manifest.build(config, :main, @schema, applied)
 
     assert manifest["format"] == 2
     assert manifest["store"] == "datalevin"
-    assert manifest["name"] == "graph"
+    assert manifest["name"] == "main"
     assert manifest["schema_version"] == 3
     assert manifest["schema"] == @schema
     assert manifest["migrating"] == nil
@@ -73,17 +73,13 @@ defmodule SukhiFedi.Datalevin.ManifestTest do
   describe "validate_backup!/3" do
     setup %{config: config} do
       File.mkdir_p!(config.dir)
-      queue = Path.join(config.dir, "queue.db")
-      File.write!(queue, "")
 
       inventory = %{
         "format" => 1,
         "store" => "datalevin",
         "data_dir" => config.dir,
         "data_dir_manifest" => Manifest.path(config),
-        "queue_db" => queue,
-        "delivery_queue_db" => queue,
-        "raw_backend" => "sqlite"
+        "raw_backend" => "postgres"
       }
 
       inv_path = Path.join(config.dir, "backup-manifest.json")

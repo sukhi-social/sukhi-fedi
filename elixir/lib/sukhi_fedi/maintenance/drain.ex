@@ -14,7 +14,7 @@ defmodule SukhiFedi.Maintenance.Drain do
        and answered in one go).
     3. **flush the outbox** — wait until every accepted post has left the
        store's `outbox` table and its dispatch job has run, so nothing is
-       half-way between Datalevin and the SQLite queue. Delivery jobs
+       half-way between Datalevin and the PostgreSQL queue. Delivery jobs
        (one per remote inbox) are *not* waited for: they are durable in the
        queue and resume after the restart, and a dead peer would keep this
        waiting for hours.
@@ -33,10 +33,10 @@ defmodule SukhiFedi.Maintenance.Drain do
   down; that is the unit's job (`scripts/sukhi-drain.sh run --stop`).
 
   What this does *not* stop: the Oban cron plugins keep inserting (paused)
-  jobs; the metrics sampler and the optional graph mirror keep their own small
+  jobs; the metrics sampler and the optional hosigraph mirror keep their own small
   writes; Pull Federation counters flush on their own timer. None of them is
   a user's data, and the backup does not need them to be still —
-  `dtlv copy` and SQLite's `VACUUM INTO` are consistent on a database in use.
+  `dtlv copy` is consistent on a database in use.
 
   Everything the procedure touches is reached through a `world` map of
   functions (`world/0`), so the order and the timeouts are tested without a
@@ -46,9 +46,8 @@ defmodule SukhiFedi.Maintenance.Drain do
   import Ecto.Query
 
   alias SukhiFedi.Maintenance.Backup
+  alias SukhiFedi.Outbox
   alias SukhiFedi.PullFederation.Puller
-  alias SukhiFedi.Repo
-  alias SukhiFedi.Schema.OutboxEvent
   alias SukhiFedi.Web.AdmissionQueue
   alias SukhiShared.Intake
 
@@ -277,8 +276,7 @@ defmodule SukhiFedi.Maintenance.Drain do
   @doc "Every Oban instance in this BEAM that holds queues: the gateway's, and delivery's when combined."
   @spec oban_instances() :: [atom()]
   def oban_instances do
-    [SukhiFedi.Oban | List.wrap(Application.get_env(:sukhi_fedi, :delivery_oban))]
-    |> Enum.uniq()
+    [SukhiFedi.Oban, SukhiDelivery.Oban]
     |> Enum.filter(&(Oban.whereis(&1) != nil))
   end
 
@@ -299,11 +297,7 @@ defmodule SukhiFedi.Maintenance.Drain do
     if Process.whereis(Puller), do: Puller.idle?(), else: true
   end
 
-  defp outbox_pending do
-    from(e in OutboxEvent, select: filter(count(e.id), e.status == "pending"))
-    |> Repo.one()
-    |> Kernel.||(0)
-  end
+  defp outbox_pending, do: Outbox.pending_count()
 
   # Dispatch jobs that are ready or running. `scheduled`/`retryable` ones are
   # waiting on a clock, not on us: they are durable and wait out the restart.

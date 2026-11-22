@@ -26,7 +26,7 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Hint do
   be read is tried again (an `:unavailable` server may be the one that is
   resting); one that is read and refused is not.
 
-  Without the graph store there is nowhere to keep a notice, and the job does
+  When FEP-f799 is switched off (`DeliverySuspension.enabled?/0`) the job does
   nothing.
   """
 
@@ -34,13 +34,13 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Hint do
 
   require Logger
 
+  alias SukhiFedi.Fedi.DeliverySuspension
   alias SukhiFedi.Fedi.DeliverySuspension.{Fetch, Receiver}
-  alias SukhiFedi.Graph
   alias SukhiShared.DeliverySuspension.{Notice, Origin}
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"url" => url}}) when is_binary(url) do
-    if Graph.enabled?() do
+    if DeliverySuspension.enabled?() do
       case run(url, DateTime.utc_now()) do
         {:error, {:unreachable, :unavailable}} -> {:error, "notice unavailable"}
         _ -> :ok

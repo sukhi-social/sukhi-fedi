@@ -1,16 +1,18 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import Config
 
-config :sukhi_delivery, SukhiDelivery.Repo,
+# PostgreSQL holds the job queues and nothing else: the business data is in
+# Datalevin, which `SukhiDelivery.Repo` joins from the gateway.
+config :sukhi_delivery, SukhiDelivery.QueueRepo,
   database: "sukhi_fedi",
   username: "postgres",
   password: "postgres",
   hostname: "localhost"
 
-config :sukhi_delivery, ecto_repos: [SukhiDelivery.Repo]
+config :sukhi_delivery, ecto_repos: []
 
 config :sukhi_delivery, Oban,
-  repo: SukhiDelivery.Repo,
+  repo: SukhiDelivery.QueueRepo,
   # `push` is drained here and nowhere else: the gateway writes those jobs
   # (it makes the decision), this node sends them (it owns outbound HTTP).
   # Small concurrency — a doorbell is a few hundred bytes and there are

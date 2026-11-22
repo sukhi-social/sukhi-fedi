@@ -4,7 +4,7 @@
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev ui-lab test test-shared test-elixir test-delivery test-api test-web check-specs \
-        test-pglite check check-presets env-audit script-tests need-tsubaki up down preflight \
+        test-pgrust check check-presets env-audit script-tests need-tsubaki up down preflight \
         natadeco-images
 
 # The toolchain lives in mise.toml (elixir / erlang / node). mise puts
@@ -36,7 +36,6 @@ setup:  ## fetch every project's dependencies
 	@command -v nats-server >/dev/null 2>&1 || echo "note: nats-server is missing — 'make dev' runs without streaming (brew install nats-server nats)"
 	for d in elixir delivery api combined; do (cd $$d && $(RUN) mix deps.get); done
 	cd web-next && $(RUN) pnpm install
-	cd pglite && $(RUN) pnpm install
 	cd web-natadeco && $(RUN) pnpm install
 
 # ── Running it locally ──────────────────────────────────────────────────────
@@ -84,12 +83,13 @@ test-nginx:  ## the maintenance-page nginx rules, on a real nginx
 test-maintenance:  ## scripts/sukhi-maintenance, with a fake container tool (needs Node 22+)
 	@bash scripts/sukhi-maintenance_test.sh
 
-# The DB-backed integration suite, against an embedded PGlite Postgres —
-# no Docker. Extra args pass through to `mix test`:
-#   make test-pglite
-#   make test-pglite ARGS="test/integration/social_test.exs:97"
-test-pglite:  ## DB integration tests on embedded PGlite (no Docker)
-	@bash scripts/test-pglite.sh $(ARGS)
+# The DB-backed integration suite, against a pgrust server (a PostgreSQL-
+# compatible binary the script fetches once) — no Docker. Extra args pass
+# through to `mix test`:
+#   make test-pgrust
+#   make test-pgrust ARGS="test/integration/social_test.exs:97"
+test-pgrust:  ## DB integration tests on pgrust (no Docker)
+	@bash scripts/test-pgrust.sh $(ARGS)
 
 # `mix credo --strict` is deliberately not here: credo 1.7.18 crashes on
 # Elixir 1.20's sigil tokens (`Protocol.UndefinedError ... for Tuple` out

@@ -5,7 +5,7 @@ defmodule SukhiShared.DeliverySuspension.Cache do
   worker can ask "is this inbox resting?" without a database round trip.
 
   It is a **copy**, never the record. The gateway keeps the notices in the
-  graph store (`SukhiFedi.Fedi.DeliverySuspension.Store`), writes here after
+  PostgreSQL (`SukhiFedi.Fedi.DeliverySuspension.Store`), writes here after
   the store has taken a write, and rebuilds this table from the store when it
   starts, so a restart changes nothing: the same inbox rests until the same
   time. Only *active, believed* notices are kept; a cancelled or withdrawn one is
@@ -30,7 +30,7 @@ defmodule SukhiShared.DeliverySuspension.Cache do
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(_opts \\ []), do: GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
 
-  @doc "Child spec; one per VM (the gateway starts it when the graph store is on)."
+  @doc "Child spec; one per VM (the gateway starts it when `:delivery_suspension` is on)."
   def child_spec(opts),
     do: %{id: __MODULE__, start: {__MODULE__, :start_link, [opts]}, type: :worker}
 

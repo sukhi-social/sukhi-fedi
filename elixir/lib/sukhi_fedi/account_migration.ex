@@ -25,6 +25,7 @@ defmodule SukhiFedi.AccountMigration do
   never re-spells it (CODE_STYLE §3).
   """
 
+  alias SukhiFedi.Accounts
   alias Ecto.Multi
   alias SukhiFedi.AP.Instructions.{Migrations, Resolve}
   alias SukhiFedi.Addons.Moderation
@@ -49,7 +50,7 @@ defmodule SukhiFedi.AccountMigration do
           {:ok, Account.t()}
           | {:error, :not_found | :too_many | {:invalid_alias, String.t()} | {:validation, map()}}
   def set_aliases(account_id, uris) when is_integer(account_id) and is_list(uris) do
-    case Repo.get(Account, account_id) do
+    case Accounts.get(account_id) do
       nil ->
         {:error, :not_found}
 
@@ -189,7 +190,7 @@ defmodule SukhiFedi.AccountMigration do
   defp carry_over_moderation(_account, _target), do: :ok
 
   defp get_unmoved(account_id) do
-    case Repo.get(Account, account_id) do
+    case Accounts.get(account_id) do
       %Account{domain: nil} = a -> a
       _ -> nil
     end

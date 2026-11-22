@@ -18,7 +18,7 @@ defmodule SukhiFedi.Integration.OutboundArchiveTest do
   import Ecto.Query
 
   @moduletag :integration
-  # Writes the body to S3 (MinIO); PGlite alone has none. See docs/TESTING.md.
+  # Writes the body to S3 (MinIO); `make test-pgrust` has none. See docs/TESTING.md.
   @moduletag skip: s3_skip()
 
   alias SukhiFedi.Federation.OutboundArchive

@@ -34,7 +34,6 @@ defmodule SukhiFedi.Addon do
   @callback id() :: id()
   @callback abi_version() :: String.t()
   @callback depends_on() :: [id()]
-  @callback migrations_path() :: Path.t() | nil
   @callback supervision_children() :: [Supervisor.child_spec() | module() | {module(), term()}]
   @callback nats_subscriptions() :: [nats_sub()]
   @callback env_schema() :: [{atom(), :required | :optional, String.t()}]
@@ -58,17 +57,6 @@ defmodule SukhiFedi.Addon do
       def depends_on, do: []
 
       @impl true
-      def migrations_path do
-        path =
-          Application.app_dir(
-            :sukhi_fedi,
-            Path.join(["priv", "repo", "migrations", "addons", Atom.to_string(unquote(id))])
-          )
-
-        if File.dir?(path), do: path, else: nil
-      end
-
-      @impl true
       def supervision_children, do: []
 
       @impl true
@@ -80,7 +68,6 @@ defmodule SukhiFedi.Addon do
       defoverridable id: 0,
                      abi_version: 0,
                      depends_on: 0,
-                     migrations_path: 0,
                      supervision_children: 0,
                      nats_subscriptions: 0,
                      env_schema: 0

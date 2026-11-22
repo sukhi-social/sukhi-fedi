@@ -4,7 +4,6 @@ defmodule Mix.Tasks.Sukhi.Datalevin.Gen.Migration do
   Write the skeleton of a Datalevin migration.
 
       mix sukhi.datalevin.gen.migration drop_old_flag
-      mix sukhi.datalevin.gen.migration backfill_sid --store graph
 
   The file goes to `lib/sukhi_fedi/datalevin/migrations/`, versioned with the
   current UTC time. Edit `up/1`, then run `mix sukhi.datalevin.lock`.
@@ -18,19 +17,14 @@ defmodule Mix.Tasks.Sukhi.Datalevin.Gen.Migration do
 
   @impl Mix.Task
   def run(args) do
-    {opts, rest, _} = OptionParser.parse(args, strict: [store: :string])
-
     name =
-      case rest do
+      case args do
         [name] -> name
-        _ -> Mix.raise("usage: mix sukhi.datalevin.gen.migration NAME [--store main|graph]")
+        _ -> Mix.raise("usage: mix sukhi.datalevin.gen.migration NAME")
       end
 
     unless name =~ ~r/^[a-z][a-z0-9_]*$/,
       do: Mix.raise("NAME is lower_snake_case, like drop_old_flag; got #{inspect(name)}")
-
-    store = Keyword.get(opts, :store, "main")
-    unless store in ["main", "graph"], do: Mix.raise("--store is main or graph, got #{inspect(store)}")
 
     version = Calendar.strftime(DateTime.utc_now(), "%Y%m%d%H%M%S")
     module = "V#{version}#{Macro.camelize(name)}"
@@ -38,12 +32,12 @@ defmodule Mix.Tasks.Sukhi.Datalevin.Gen.Migration do
     file = Path.join(dir, "v#{version}_#{name}.ex")
 
     File.mkdir_p!(dir)
-    File.write!(file, template(module, version, store))
+    File.write!(file, template(module, version))
     Mix.shell().info("created #{file}")
   end
 
   @doc false
-  def template(module, version, store) do
+  def template(module, version) do
     """
     # SPDX-License-Identifier: AGPL-3.0-or-later
     defmodule SukhiFedi.Datalevin.Migrations.#{module} do
@@ -51,7 +45,7 @@ defmodule Mix.Tasks.Sukhi.Datalevin.Gen.Migration do
       TODO: what changed in the schema, and what happens to the data.
       \"\"\"
 
-      use SukhiFedi.Datalevin.Migration, version: #{version}, store: :#{store}
+      use SukhiFedi.Datalevin.Migration, version: #{version}
 
       # Attributes this migration reads that the current schema no longer
       # defines (a removed or renamed column), in wire form:

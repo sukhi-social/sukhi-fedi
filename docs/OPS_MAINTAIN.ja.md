@@ -47,7 +47,7 @@ sudo systemctl list-timers | grep -E 'sukhi|certbot|dnf'   # 自動のものが�
 
 | もの | 取り方(案・**未確認**) |
 | --- | --- |
-| Datalevin(`DATALEVIN_DIR`、`graph` を含む) | `dtlv` の複製コマンド(`dtlv copy` で、動いたまま一貫した写しを取れる見込み)。**使い方と一貫性は、実機で確かめる** |
+| Datalevin(`DATALEVIN_DIR`) | `dtlv` の複製コマンド(`dtlv copy` で、動いたまま一貫した写しを取れる見込み)。**使い方と一貫性は、実機で確かめる** |
 | 配信キュー(SQLite、`SUKHI_QUEUE_DB`) | SQLite の `.backup`(または `VACUUM INTO`)。ファイルを直接コピーしない |
 | 原本・メディア | S3 互換の側で複製(rustfs の複製、またはバケットのバージョニング) |
 | 設定 | `.env`(秘密を含むので暗号化して、別の場所に) |
@@ -56,7 +56,7 @@ sudo systemctl list-timers | grep -E 'sukhi|certbot|dnf'   # 自動のものが�
 取った写しを、restic で暗号化して off-host(B2 など)に置く、という形は既存の一式に載せられる見込み。
 
 **計画して止めるときの控えは実装済み**: [`OPS_DRAIN_BACKUP.ja.md`](OPS_DRAIN_BACKUP.ja.md)(`scripts/sukhi-drain.sh run`)。
-受付を止め、仕事を静かにしてから、Datalevin(`graph` を含む)を `dtlv copy`、SQLite を `VACUUM INTO` で取り、**開くか読み戻して**から控えと呼ぶ。
+受付を止め、仕事を静かにしてから、Datalevin を `dtlv copy`、SQLite を `VACUUM INTO` で取り、**開くか読み戻して**から控えと呼ぶ。
 夜の定期の控え(timer)と restic への組み込みは、まだ。実機の `dtlv` では未確認(同文書 §7)。
 
 ### 3.3 二軸のリカバリ(取り違えない)
@@ -89,8 +89,6 @@ sudo systemctl list-timers | grep -E 'sukhi|certbot|dnf'   # 自動のものが�
 ## 5. データと容量
 
 - **Datalevin:** `DATALEVIN_MAP_SIZE_MB`(既定 1024)は上限。データが近づく前に上げる。
-- **graph の掃除:** `SUKHI_GRAPH_SWEEP` は既定で**予行**。`execute` にすると、期限を過ぎた他サーバーのデータを消す。
-  先に予行のログを見てから。TTL の既定は、フォロー中の人 90 日、それ以外 14 日。
 - **ログ:** `infra/logrotate` で回す。ディスクを食い続けていないか、週に一度。
 - **保守スクリプト**(`SukhiFedi.Maintenance.*`): **予行が先**。`run(:dry_run)` で数を見て、よければ `run(:execute)`。
   実行は `bin/sukhi_fedi rpc`(予定の `sukhi script run` に置き換わる)。長いものは tmux の中で。
@@ -115,7 +113,7 @@ sudo systemctl list-timers | grep -E 'sukhi|certbot|dnf'   # 自動のものが�
 | 全部が遅い | ディスクの空き、メモリ(`DATALEVIN_XMX`、BEAM)、配信キュー |
 | 配信が溜まる | 相手のサーバーが落ちている可能性。まず待つ。キューのログ |
 | 管理画面に入れない | セッションの有効期限、パスキー、トークンの失効 |
-| ディスクが満杯 | ログ、古い控えの一時ファイル、graph の掃除(予行から) |
+| ディスクが満杯 | ログ、古い控えの一時ファイル |
 | 起動時に落ちる | `ERLANG_COOKIE`、`DOMAIN`、Datalevin のディスクと権限 |
 
 ## 8. 宿題(この手引きで、まだ埋まっていないところ)

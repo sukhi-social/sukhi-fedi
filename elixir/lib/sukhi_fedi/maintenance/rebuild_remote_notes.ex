@@ -88,37 +88,16 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNotes do
     |> Repo.all()
   end
 
-  @doc "Every `(table, column)` whose FOREIGN KEY points at `notes(id)`."
+  @doc """
+  Every `(table, column)` whose FOREIGN KEY points at `notes(id)`. Datalevin
+  has no information_schema; the catalog snapshot is its list of foreign keys
+  (docs/DATALEVIN.md).
+  """
   def note_fk_refs do
-    if SukhiFedi.Store.datalevin?(), do: note_fk_refs_from_catalog(), else: note_fk_refs_from_db()
-  end
-
-  # Datalevin has no information_schema; the catalog snapshot is its list of
-  # foreign keys (docs/DATALEVIN.md).
-  defp note_fk_refs_from_catalog do
     for {child, fk} <- SukhiFedi.Datalevin.Catalog.referencing("notes"),
         fk.ref_columns == ["id"],
         column <- fk.columns,
         do: {child, column}
-  end
-
-  defp note_fk_refs_from_db do
-    sql = """
-    SELECT tc.table_name, kcu.column_name
-    FROM information_schema.table_constraints tc
-    JOIN information_schema.key_column_usage kcu
-      ON tc.constraint_name = kcu.constraint_name
-     AND tc.table_schema = kcu.table_schema
-    JOIN information_schema.constraint_column_usage ccu
-      ON tc.constraint_name = ccu.constraint_name
-     AND tc.table_schema = ccu.table_schema
-    WHERE tc.constraint_type = 'FOREIGN KEY'
-      AND ccu.table_name = 'notes'
-      AND ccu.column_name = 'id'
-    """
-
-    Repo.query!(sql).rows
-    |> Enum.map(fn [table, column] -> {table, column} end)
   end
 
   defp process(%Note{} = old) do
@@ -188,38 +167,33 @@ defmodule SukhiFedi.Maintenance.RebuildRemoteNotes do
         |> Repo.insert!()
 
       Enum.each(refs, fn {table, column} ->
-        Repo.query!(
-          "UPDATE #{quote_ident(table)} SET #{quote_ident(column)} = $1 WHERE #{quote_ident(column)} = $2",
-          [new.id, old.id]
-        )
+        repoint(table, String.to_atom(column), old.id, new.id)
       end)
 
       Repo.delete!(old)
-      Repo.query!("UPDATE notes SET ap_id = $1 WHERE id = $2", [old.ap_id, new.id])
+      Repo.update_all(from(n in Note, where: n.id == ^new.id), set: [ap_id: old.ap_id])
 
       {old.id, new.id}
     end)
   end
 
-  @doc """
-  A snowflake id for `created_at`: the same layout and `snowflake_seq` as
-  the notes_remote_id_from_published trigger, so id order == authored order.
-  """
-  def mint_id(%DateTime{} = created_at) do
-    if SukhiFedi.Store.datalevin?() do
-      SukhiFedi.Snowflake.encode(
-        DateTime.to_unix(created_at, :millisecond),
-        :erlang.unique_integer([:positive]) |> rem(0x10000)
-      )
-    else
-      %{rows: [[id]]} = Repo.query!("SELECT snowflake_id_at($1)", [created_at])
-      id
-    end
+  @doc false
+  # Table/column names come from the catalog, not user input.
+  def repoint(table, column, old_id, new_id) do
+    from(t in table, where: field(t, ^column) == ^old_id)
+    |> Repo.update_all(set: [{column, new_id}])
   end
 
-  # Table/column names come from the catalog, not user input, but quote
-  # them anyway so an unusual identifier can't break the statement.
-  defp quote_ident(name), do: ~s("#{String.replace(name, "\"", "\"\"")}")
+  @doc """
+  A snowflake id for `created_at`: the same layout as the one minted at
+  insert time, so id order == authored order.
+  """
+  def mint_id(%DateTime{} = created_at) do
+    SukhiFedi.Snowflake.encode(
+      DateTime.to_unix(created_at, :millisecond),
+      :erlang.unique_integer([:positive]) |> rem(0x10000)
+    )
+  end
 
   defp tally(results) do
     %{

@@ -49,7 +49,6 @@ We would rather say so than hand you a machine translation; if you can help, ple
 | Every environment variable | [`ENV.md`](ENV.md) |
 | Where Datalevin keeps data, and its settings | [`DATALEVIN.md`](DATALEVIN.md) |
 | Upgrading a Datalevin store; writing a migration | [`DATALEVIN_MIGRATIONS.md`](DATALEVIN_MIGRATIONS.md) |
-| Moving the delivery queue to SQLite | [`DELIVERY_QUEUE_MIGRATION.ja.md`](DELIVERY_QUEUE_MIGRATION.ja.md) (ja) |
 | The bot gate (Anubis) | [`anubis.ja.md`](anubis.ja.md) (ja) |
 | The static files the gateway serves (custom emoji, avatar placeholder) | [`static-override.ja.md`](static-override.ja.md) (ja) |
 | Correcting data that went in wrong | [`data-correction.ja.md`](data-correction.ja.md) (ja) |
@@ -75,6 +74,7 @@ Start at [`DEVELOPING.md`](DEVELOPING.md), then [`ARCHITECTURE.md`](ARCHITECTURE
 | Web Push: design, and what shipped | [`WEBPUSH.md`](WEBPUSH.md) |
 | Making the backend unhurried | [`UNHURRIED_BACKEND.md`](UNHURRIED_BACKEND.md) (ja) |
 | Four seams where native code could plug in | [`native-seams.md`](native-seams.md) |
+| Following the store into hosigraph (the mirror, off by default) | [`HOSI.md`](HOSI.md) |
 | The web UI (web-next) | [`../web-next/README.md`](../web-next/README.md) (ja) |
 | Load and anomaly watching (Julia) | [`METRICS_REPORT.md`](METRICS_REPORT.md), [`../analysis/README.md`](../analysis/README.md) |
 
