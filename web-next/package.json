@@ -16,6 +16,7 @@
     "bench": "vitest bench --run"
   },
   "dependencies": {
+    "@fontsource-variable/source-sans-3": "^5.3.1",
     "@fontsource/gothic-a1": "^5.3.0",
     "@fontsource/nunito": "^5.3.0",
     "@fontsource/zen-maru-gothic": "^5.3.1",

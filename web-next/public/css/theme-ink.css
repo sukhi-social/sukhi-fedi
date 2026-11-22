@@ -1,0 +1,121 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* テーマ「ink」── web(SvelteKit の SPA)の、紙とインク。
+ *
+ * 運営が SITE_THEME=ink で選ぶと、頁が <html data-theme="ink"> になり、この css が最後に読まれる
+ * (server/theme.ts)。about(既定)の tokens.css の上に、値だけを重ねる。部品の css には触らない。
+ *   - 飾りの色はない。リンクは墨に下線。about の橙が受け持っていた役(--color-accent*)は、墨が受ける。
+ *   - 角は小さく(カード 5px・ボタン 3px)、影は浮くものだけ。about の「持ちあげて傾ける」動きもない。
+ *   - 字は Source Sans 3。日本語・韓国語は、手元の字(BIZ UDPGothic・Nanum Gothic)。字間は足さない。
+ *   - 色の値は、旧 web(消した SPA)の tokens.css から。ダークは旧 web に無かったので、紙の色合いのまま、反転して作った
+ *     (どの字も 4.5:1 以上、操作の縁は 3:1 以上)。
+ *
+ * about の css は、tokens(@layer の中)だけでなく、extra.css に、layer の外で字間を焼いている。
+ * layer の外は layer の中に必ず勝つので、ここも layer の外から、html[data-theme] の分だけ強くして上書きする。 */
+
+html[data-theme='ink'] {
+  color-scheme: light;
+
+  /* paper and ink */
+  --color-bg: #efeee7; /* server/theme.ts の color.light と同じ */
+  --color-surface: #fbfaf5;
+  --color-text: #262521;
+  --color-text-muted: #6a6960;
+  --color-border: #d8d6c9;
+  --color-border-strong: #b6b4a4;
+  --color-control: #858376;
+  --color-focus: var(--color-text);
+
+  /* 橙の役は、墨が受ける。読むもの(リンク・ボタンの字)は墨、色を塗るところは、墨の薄い洗い。 */
+  --color-accent: var(--color-text);
+  --color-accent-strong: var(--color-text);
+  --color-accent-soft: var(--fill-soft);
+  --color-on-accent: var(--color-surface);
+  --color-lane: var(--color-text);
+
+  /* 働きのある色(どこまで来ても、飾りには使わない) */
+  --color-use: #2f6d5a;
+  --color-build: #9a5024;
+  --color-danger: #9e3b2e;
+
+  /* 形 */
+  --radius: 5px;
+  --radius-sm: 3px;
+  --measure: 36rem;
+  --lift: none;
+  --leading-prose: var(--leading);
+
+  /* 字: Source Sans 3 が先頭(英数字・URL は、どの言語の頁でもこの字)。届くまでは --font-fallback。 */
+  --tracking: 0;
+}
+
+/* CJK の字は、同じ px でも大きく見える。web は文字の大きさだけ、言語ごとに少し絞っている。 */
+html[data-theme='ink'][lang='ja'] {
+  --type-scale: 0.92;
+}
+
+html[data-theme='ink'][lang='ko'] {
+  --type-scale: 0.96;
+}
+
+/* 字が届いたあと(public/js/app.js が <html data-fonts="on"> を置く) */
+html[data-theme='ink'][data-fonts='on'],
+html[data-theme='ink'][data-fonts='on'][lang='ko'] {
+  --font-body: 'Source Sans 3 Variable', var(--font-fallback);
+}
+
+/* UI と違う言語の文(本文に lang が付いている)は、その言語の字を、Source Sans 3 のあとに。 */
+html[data-theme='ink'][data-fonts='on'] [lang]:not(html):lang(ja) {
+  font-family: 'Source Sans 3 Variable', 'BIZ UDPGothic', system-ui, var(--font-system-any);
+}
+html[data-theme='ink'][data-fonts='on'] [lang]:not(html):lang(ko) {
+  font-family: 'Source Sans 3 Variable', 'Nanum Gothic', system-ui, var(--font-system-any);
+}
+html[data-theme='ink'] [lang]:not(html):lang(zh) {
+  font-family: 'Source Sans 3 Variable', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', system-ui, var(--font-system-any);
+}
+html[data-theme='ink'] [lang]:not(html):lang(zh-TW),
+html[data-theme='ink'] [lang]:not(html):lang(zh-Hant) {
+  font-family: 'Source Sans 3 Variable', 'PingFang TC', 'Noto Sans CJK TC', system-ui, var(--font-system-any);
+}
+
+/* about の字間(extra.css に、言語ごとに焼かれている)を、打ち消す。web は、字間を足さない。
+ * まず変数(extra.css の小さな画面の html[lang='ja'] { --tracking: 0.04em } に、読む順ではなく強さで勝つ)。
+ * つぎに、字間そのものを書いている部品の分。 */
+html[data-theme='ink'][lang] {
+  --tracking: 0;
+}
+html[data-theme='ink']:lang(ja) :is(.app-nav, .tabs, .legal-foot, .muted, .chip),
+html[data-theme='ink'] .content:lang(ja),
+html[data-theme='ink'] .content:lang(ko),
+html[data-theme='ink'] .content-wrap.reader .content:lang(ja) {
+  letter-spacing: 0;
+}
+
+/* ダーク ── 同じ紙を、灯りを落とした部屋で。端末に従う(切り替えはまだ無い)。 */
+@media (prefers-color-scheme: dark) {
+  html[data-theme='ink'] {
+    color-scheme: dark;
+    --color-bg: #1c1b18; /* server/theme.ts の color.dark と同じ */
+    --color-surface: #262520;
+    --color-text: #ecebe3;
+    --color-text-muted: #a8a797;
+    --color-border: #3a3933;
+    --color-border-strong: #55544b;
+    --color-control: #8b8a7c;
+    --color-use: #6cc0a4;
+    --color-build: #e8935f;
+    --color-danger: #e58a78;
+  }
+}
+
+/* リンクは墨に下線。下線は薄く、触れると墨になる(web の base.css と同じ)。
+ * base の layer の中に置く ── 部品が自分で決めた下線は、そのまま勝つ。 */
+@layer base {
+  html[data-theme='ink'] a {
+    text-underline-offset: 0.16em;
+    text-decoration-color: var(--color-border-strong);
+  }
+  html[data-theme='ink'] a:hover {
+    text-decoration-color: var(--color-text);
+  }
+}

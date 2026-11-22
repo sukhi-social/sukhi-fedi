@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // 入口: はじめる(signup)、入る(login)、OAuth の戻り(callback)、出る(logout)、ことば替え(lang)。
 //
-// SPA の auth.ts と /check がブラウザでやっていたことを、サーバの手順にした。
+// かつて SPA がブラウザでやっていたこと(auth.ts と /check)を、サーバの手順にした。
 //
 //   login   password か メールコード → gateway の /login が cookie(session_token)を立てる
-//           → その cookie をブラウザへ渡し → /oauth/authorize(gateway)→ /app/callback に戻る
+//           → その cookie をブラウザへ渡し → /oauth/authorize(この郵便局の頁。何を見せるかは api が決める)→ /app/callback に戻る
 //           → ここで code をトークンに替えて、セッションに仕舞う。ブラウザには札(sukhi_sid)だけ。
 //   signup  メール → 6 桁コード → email_proof → アカウント作成 → そのまま入る
 
@@ -177,9 +177,12 @@ route("GET", "/app/callback", async (ctx) => {
   if (!res.ok) return fail(`token exchange failed: ${res.status}`);
   s.token = (await res.json()) as TokenSet;
   s.me = undefined; // アカウントが替わったかもしれない。引きなおす。
+  // 外のアプリの問い(/oauth/authorize)で入りなおしに来た人は、その問いへ戻す(routes/oauth.ts が置いたもの)。
+  const back = s.next?.startsWith("/oauth/authorize?") ? s.next : undefined;
+  s.next = undefined;
   saveSession(s);
   await ctx.me().catch(() => null); // 言語を、最初の画面から使うため、いまのうちに引いておく。
-  return redirect("/");
+  return redirect(back ?? "/");
 });
 
 // ── login ───────────────────────────────────────────────────────
@@ -1058,7 +1061,7 @@ route("GET", "/", async (ctx) => {
         </div>
       </section>
       <section class="section">
-        <p class="prose-small">${t("landing.about")}</p>
+        <p class="prose-small">${t("landing.about")} <a href="/map">${t("landing.mapLink")}</a></p>
         <p class="prose-small">
           ${t("landing.peek")}<a href="/timeline">${t("landing.peekLink")}</a>
         </p>

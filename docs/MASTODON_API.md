@@ -30,8 +30,8 @@ inside `api/` prints the live route table.
 | ------ | ----------------------------------- | ----- |
 | POST   | `/api/v1/apps`                      | Returns `client_id` / `client_secret`. Scopes default to `read`. |
 | POST   | `/api/v1/apps/verify_credentials`   | Echoes the app row for the bearer's client. |
-| GET    | `/oauth/authorize`                  | HTML login → consent. |
-| POST   | `/oauth/authorize`                  | Issues an authorization code. |
+| GET    | `/api/v1/sukhi/oauth/authorize`     | sukhi's own, not Mastodon's. JSON: what the signed-in browser should be shown (`login` / `pick` / `consent` / `redirect`). The page at `/oauth/authorize` is the web front's, drawn from this. |
+| POST   | `/api/v1/sukhi/oauth/authorize`     | The person said yes: the redirect that carries the authorization code (JSON). |
 | POST   | `/oauth/token`                      | `authorization_code`, `password`, `client_credentials`, `refresh_token`. |
 | POST   | `/oauth/revoke`                     | RFC 7009; idempotent. |
 
@@ -91,7 +91,7 @@ timeline: `stage` is `received` → `signing` → `queued` → `sending` →
 while `sending`. No server names and no exact counts are in the API, the
 web UI, or anything else the author sees (the admin pages are unchanged).
 The web client shows it in a small card at the bottom right (not inside the post), stepping through the stages one at a time, about 0.3 s apart (the percent jumps to the real value, and shows 100% before "done"; the card stays 10 s after "done"),
-so a fast delivery is still readable (`web/src/lib/deliveryPace.ts`).
+so a fast delivery is still readable.
 Read from `outbox` + `oban_jobs` by `SukhiFedi.DeliveryStatus`; Pull
 Federation posts count as delivered once logged.
 

@@ -229,17 +229,17 @@ and don't copy their shape:
 
 ## 10. Web client: the same rule, in CSS
 
-The SPA (`web/`) obeys §0 in its own medium — every visual property in
+The web client (`web-next/`) obeys §0 in its own medium — every visual property in
 one place, structure routing all elements through it. The analogue of a
 copied predicate (§3) is a literal hex/px/rem in a component: it drifts,
 and the drift is invisible until two screens disagree.
 
 Which HTML/CSS features are allowed (and which are banned because they
-force overrides) is `docs/CSS_SUBSET.md`; `pnpm run css-check` in `web/`
-holds the line with a ratchet baseline.
+force overrides) is `docs/CSS_SUBSET.md`. Its mechanical check (`css-check`,
+a ratchet baseline) lived in the deleted SPA; nothing runs it now.
 
 - **Tokens are the one place for value.** Colour, space, type and shape
-  live in `web/src/styles/tokens.css` and nowhere else. Functional
+  live in `web-next/public/css/tokens.css` and nowhere else. Functional
   colour included: the single danger red is `--color-danger`
   (`tokens.css`), defined once — destructive actions and the `.error`
   box both derive from it, none re-type `#dc2626`.
@@ -268,13 +268,13 @@ holds the line with a ratchet baseline.
 ## 11. Web client: the same rule, in behaviour
 
 What a press, a key or a back gesture does follows §0 as well: one place,
-structure routing every component through it. That place is
-`web/src/lib/ux/`; the contract it keeps, with sources, is
-[`UX_CONTRACT.md`](UX_CONTRACT.md).
+structure routing every component through it. The contract, with sources,
+is [`UX_CONTRACT.md`](UX_CONTRACT.md). The code that was its one place
+(`web/src/lib/ux/`) went with the SPA; web-next has the press size and the
+platform hint so far, and `UX_CONTRACT.md` says what it does not.
 
 - **No literal press size.** A component reads `--tap-min` (`tokens.css`);
   it never writes `44px`.
-- **No private Esc handler.** A modal calls `useOverlay`, a small menu
-  takes `{@attach dismissable(…)}`; both go through the one Esc stack.
-- **No `ctrlKey` / `metaKey` in a component.** Ask `isPrimaryMod` (and
-  `shortcutOf` for `aria-keyshortcuts`) in `ux/platform.ts`.
+- **No private Esc handler, no `ctrlKey` / `metaKey` in a component.** One
+  Esc path, one primary-modifier check, each in one place. When web-next
+  needs them, that is where they go.

@@ -302,4 +302,4 @@ the `misskey` namespace (Misskey and forks), a background job
 and stores `avatarDecorations` on the shadow row. It is best effort and silent:
 an origin that is down or closes the endpoint just leaves the icon undecorated.
 Images are served through `/proxy/deco/:id/:n` (no viewer IP to the origin) and
-drawn over the icon by `web/src/lib/components/Avatar.svelte`.
+drawn over the icon by the web client (`web-next`).

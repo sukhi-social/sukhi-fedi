@@ -89,7 +89,7 @@ rootless、ユーザー `sukhi`、`~sukhi/.config/containers/systemd/` に置く
 | `sukhi-nats.container` | NATS | `nats:2-alpine`(ダイジェスト固定) | gateway が `Requires=` する(起動しないと動かない依存はこれだけ) |
 | `sukhi-gateway.container` | **combined**(gateway + delivery + api の一つの BEAM) | `ghcr.io/sukhi-social/sukhi-fedi-combined` | `SUKHI_STORE=datalevin`、`WEB_UPSTREAMS=web-next=http://sukhi-web-next:3000,…`。**書き手が一つ**なので、複製・ローリングは不可(再起動の間は短く止まる) |
 | `sukhi-web-next.container` | web-next(いまの主軸のフロント) | `…/sukhi-fedi-web-next` | `/.sukhi/web.json` を返す。gateway が起動時と 30 秒ごとに読む |
-| `sukhi-web-simple.container` | 旧 `web/`(SvelteKit SPA)。維持のみ | `…/sukhi-fedi-web-simple` | 同上。**使わない箱では置かない**(unit を足さなければ動かない) |
+| `sukhi-web-simple.container` | 旧 `web/`(SvelteKit SPA)。**消した**: ソースも image の build も無い。まだ箱に在るなら、止めて unit を外す | `…/sukhi-fedi-web-simple` | 同上。**使わない箱では置かない**(unit を足さなければ動かない) |
 | `sukhi-web-board.container` | natadeco の SSR(旧 natadeco-ssr) | `…/sukhi-fedi-web-board` | 別ドメイン。同じ箱で動かすかは §12-7 |
 | `sukhi-anubis.container` | Anubis | `…/sukhi-fedi-anubis` | `PublishPort=127.0.0.1:8082:8080`(ホスト側は 8082)。ホストの nginx がここへ向く(RUNTIME.md §9) |
 | (対象外)Postgres | 旧構成 | — | 維持のみ。Postgres 版の unit は本書では書かない |
@@ -159,9 +159,9 @@ WantedBy=default.target
 
 ### 3.1 CI(sukhi-fedi 側)
 
-1. **prod:** `v*.*.*` のタグで `release.yml` が 5 つの image(combined / web-next / web-simple / web-board / anubis)に**同じ版**(`1.0.0` `1.0` `v1`)を付け、cosign で署名する(いま動く形。タグはまだ無い)。
+1. **prod:** `v*.*.*` のタグで `release.yml` が 4 つの image(combined / web-next / web-board / anubis)に**同じ版**(`1.0.0` `1.0` `v1`)を付け、cosign で署名する(いま動く形。タグはまだ無い)。
    **dev:** main への push で `combined-sha.yml` が `sha-<commit>` を出し、署名する。
-2. 追加: リリース(または main)の最後の job が `scripts/bump-version.rb <env> <版>` を回して `sukhi-infra` に PR を立てる(5 つのダイジェストを `skopeo` で解決して `overlays/<env>/sukhi.version` を書き換える)。
+2. 追加: リリース(または main)の最後の job が `scripts/bump-version.rb <env> <版>` を回して `sukhi-infra` に PR を立てる(4 つのダイジェストを `skopeo` で解決して `overlays/<env>/sukhi.version` を書き換える)。
    - 立てるのは **GitHub App のトークン**(`sukhi-infra` への `pull_requests: write` と `contents: write` の一部だけ。main へは直接書けない)。
    - PR の中身は `sukhi.version` の書き換えだけ。本文に前回からの `git log` の件名、マイグレーションの有無
      (Datalevin は無し)、データ形が変わるかの印(§7)を載せる。
@@ -260,7 +260,7 @@ WantedBy=default.target
 ```
 requires-sync: 1                  # この形式を読める同期スクリプトの版。古い箱は適用せず通知する
 version: 1.0.0                    # prod はリリースの semver、dev は main の sha-<commit>
-digest.combined: sha256:<64桁>    # web-next / web-simple / web-board / anubis も同じ
+digest.combined: sha256:<64桁>    # web-next / web-board / anubis も同じ
 ```
 
 - base の unit は `Image=ghcr.io/sukhi-social/sukhi-fedi-<name>:{{version}}@{{digest:<name>}}`。**埋めるのは sukhi-setup の `bin/sukhi-render` の一か所**

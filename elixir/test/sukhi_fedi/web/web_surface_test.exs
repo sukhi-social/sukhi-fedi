@@ -71,16 +71,12 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
     "post /settings/close/request",
     "post /settings/close/cancel",
 
-    # ── Static assets for the SPA + login page
+    # ── The few files the gateway hands out itself (custom emoji, the
+    #    placeholder avatar) — no page, icon or manifest: those are the web front's
     "get /static/*path",
 
-    # ── The SPA's own pages (/signup, /lists/:id, ...) have no route of their
-    #    own: this one answers them with the shell, for exactly the paths the
-    #    build lists in routes.json (SukhiFedi.Web.SpaRoutes). A page is a
-    #    static shell with no data in it, so there is nothing to decide per page.
-    #
-    # ── SvelteKit's client-side navigation data (`<path>/__data.json`),
-    #    answered by the SSR renderer when SSR_URL is set; 404 otherwise
+    # ── Anything no route above names: a page of a web front (WEB_UPSTREAMS)
+    #    when one claims it, the `/@alice` preview for a crawler, else 404
     "get /*path",
 
     # ── ActivityPub / well-known (handled natively by Elixir)
@@ -120,18 +116,6 @@ defmodule SukhiFedi.Web.WebSurfaceTest do
 
     # ── Human-facing HTML + JSON proxy for nodeinfo lookup
     "get /",
-    "get /_app/*path",
-    "get /twemoji/*path",
-    "get /favicon.ico",
-    "get /favicon.png",
-    "get /apple-touch-icon.png",
-    "get /icon-512.png",
-    "get /icon-192.png",
-    "get /icon-maskable-512.png",
-    "get /manifest.webmanifest",
-    "get /hinata.png",
-    "get /hinata-signup.png",
-    "get /service-worker.js",
     "get /posts/:id",
     "get /d/:slug/p/:id",
     "get /api/nodeinfo",

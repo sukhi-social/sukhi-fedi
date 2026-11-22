@@ -109,11 +109,12 @@ document.addEventListener("alpine:init", () => {
   // 書く欄の手助け: 絵文字をカーソルに入れる / @ のあとの名前の候補(サーバが小さな HTML で返す)。
   // 候補は、押したときだけ入る。勝手には入れない。
   // 添付(整える・回す・切る・貼る・alt)は media.js の部品を、そのまま混ぜる。
-  Alpine.data("composeAssist", ({ cw = false, draft = "", s = {} } = {}) => ({
+  Alpine.data("composeAssist", ({ cw = false, draft = "", note = false, restored = false, s = {} } = {}) => ({
     ...window.sukhiMedia.mediaMixin(s),
     cw,
     hits: "",
-    restored: false,
+    // 戻ってきた書きかけがあるとき(ふつうのノートは、サーバが戻して、ここへ true で来る。記事は、下の loadDraft が立てる)。
+    restored,
     // 書きかけ(記事の題と本文)。この端末の localStorage にだけ置く ── 送らない。
     // 送信を押した時点で「送った」の印を付け、次に書く頁を開いたとき、その印のものは捨てる。
     // (送れなかった頁は、サーバが書いた中身を返すので、それでまた置きなおされる。)
@@ -166,6 +167,35 @@ document.addEventListener("alpine:init", () => {
       this.$refs.body.value = "";
       this.draftWrite(null);
       this.restored = false;
+      if (note) {
+        // ふつうのノートは、注意書きとセンシティブも空に。サーバの書きかけも畳む。
+        const f = this.$root.elements;
+        if (f.spoiler_text) f.spoiler_text.value = "";
+        if (f.sensitive) f.sensitive.checked = false;
+        this.cw = false;
+        this.holdSave();
+        fetch("/compose/draft/discard", { method: "POST", credentials: "same-origin" }).catch(() => {});
+      }
+    },
+    // ふつうのノートの書きかけ: gateway に置く(別の端末からも続けられる)。手を止めたあとに、そっと。
+    // 置けなくても、書くことは、できる。
+    saveNote() {
+      if (!note || this.holding) return;
+      const f = this.$root.elements;
+      const q = new URLSearchParams({
+        status: f.status.value,
+        spoiler_text: this.cw && f.spoiler_text ? f.spoiler_text.value : "",
+        visibility: f.visibility ? f.visibility.value : "public",
+      });
+      if (f.sensitive && f.sensitive.checked) q.set("sensitive", "1");
+      fetch("/compose/draft", { method: "POST", body: q, credentials: "same-origin" }).catch(() => {});
+    },
+    // 送る・消すとき、少しのあいだ置かない。手を止める間合いのあとに、遅れて来た保存が、
+    // サーバが畳んだ書きかけを、よみがえらせないように。
+    holding: false,
+    holdSave() {
+      this.holding = true;
+      setTimeout(() => (this.holding = false), 4000);
     },
     ins(text) {
       const el = this.$refs.body;
@@ -236,20 +266,52 @@ try {
 // 画面が入れ替わる遷移のときに着替える(本文が丸ごと替わる瞬間は、ずれが見えない)。
 {
   const IN_TIME_MS = 1200;
-  const sheets = [
-    `nunito/latin-400.css`,
-    `nunito/latin-700.css`,
-    `nunito/latin-ext-400.css`,
-    `nunito/latin-ext-700.css`,
-    `nunito/cyrillic-400.css`,
-    `nunito/cyrillic-700.css`,
-    `nunito/vietnamese-400.css`,
-    `nunito/vietnamese-700.css`,
-    `zen-maru-gothic/japanese-400.css`,
-    `zen-maru-gothic/japanese-700.css`,
-    `gothic-a1/korean-400.css`,
-    `gothic-a1/korean-700.css`,
-  ];
+  // どの字を読むかは、テーマ(<html data-theme>、server/theme.ts)が決める。
+  //   about: Nunito + Zen Maru Gothic + Gothic A1(about.sukhi.social と同じ)
+  //   ink:   Source Sans 3(web の「紙とインク」。日本語・韓国語は、手元の字)
+  const FONTS = {
+    about: {
+      base: "/assets/fonts/",
+      sheets: [
+        `nunito/latin-400.css`,
+        `nunito/latin-700.css`,
+        `nunito/latin-ext-400.css`,
+        `nunito/latin-ext-700.css`,
+        `nunito/cyrillic-400.css`,
+        `nunito/cyrillic-700.css`,
+        `nunito/vietnamese-400.css`,
+        `nunito/vietnamese-700.css`,
+        `zen-maru-gothic/japanese-400.css`,
+        `zen-maru-gothic/japanese-700.css`,
+        `gothic-a1/korean-400.css`,
+        `gothic-a1/korean-700.css`,
+      ],
+      probes: () => [
+        document.fonts.load("400 1em Nunito"),
+        document.fonts.load("700 1em Nunito"),
+        document.fonts.load(
+          `400 1em "Zen Maru Gothic"`,
+          "あいうえおかきくけこ玄関のこと",
+        ),
+        document.fonts.load(
+          `700 1em "Zen Maru Gothic"`,
+          "あいうえおかきくけこ玄関のこと",
+        ),
+        document.fonts.load(`400 1em "Gothic A1"`, "가나다라마바사아자차"),
+        document.fonts.load(`700 1em "Gothic A1"`, "가나다라마바사아자차"),
+      ],
+    },
+    ink: {
+      base: "/assets/fonts-variable/",
+      sheets: [`source-sans-3/wght.css`],
+      probes: () => [
+        document.fonts.load(`400 1em "Source Sans 3 Variable"`),
+        document.fonts.load(`700 1em "Source Sans 3 Variable"`),
+      ],
+    },
+  };
+  const { base, sheets, probes } =
+    FONTS[document.documentElement.dataset.theme] ?? FONTS.about;
 
   let loaded = false;
   let dressed = false;
@@ -264,29 +326,14 @@ try {
         new Promise((resolve, reject) => {
           const link = document.createElement("link");
           link.rel = "stylesheet";
-          link.href = `/assets/fonts/${s}`;
+          link.href = `${base}${s}`;
           link.onload = resolve;
           link.onerror = reject;
           document.head.append(link);
         }),
     ),
   )
-    .then(() =>
-      Promise.all([
-        document.fonts.load("400 1em Nunito"),
-        document.fonts.load("700 1em Nunito"),
-        document.fonts.load(
-          `400 1em "Zen Maru Gothic"`,
-          "あいうえおかきくけこ玄関のこと",
-        ),
-        document.fonts.load(
-          `700 1em "Zen Maru Gothic"`,
-          "あいうえおかきくけこ玄関のこと",
-        ),
-        document.fonts.load(`400 1em "Gothic A1"`, "가나다라마바사아자차"),
-        document.fonts.load(`700 1em "Gothic A1"`, "가나다라마바사아자차"),
-      ]),
-    )
+    .then(() => Promise.all(probes()))
     .then(
       () => {
         loaded = true;
@@ -605,5 +652,244 @@ up.compiler("[data-fresh]", (bar) => {
     document.removeEventListener("visibilitychange", onVisible);
     removeEventListener("online", onVisible);
     button.removeEventListener("click", press);
+  };
+});
+
+// ── 通知のしるし ────────────────────────────────────────────────
+// ベルの横の、数(direct)とかたち(ambient)。数え方はサーバ(server/notify.ts)。ここは取りにいって、置くだけ。
+//
+//   ・頁と頁の境(up:location:changed)で、ふたつとも数えなおす。ambient が動くのは、ここだけ
+//     ── 流れてきても画面の前では動かさない。変化の瞬間を誰も見ないことが「景色」の条件だから。
+//   ・direct の呼び鈴(SSE)が鳴ったら、数だけを取りなおす。切れて繋ぎ直したときも(切れていたぶんの回収)。
+//     呼び鈴は荷物ではない ── 鳴ったと知るだけで、数は、いつもサーバに訊く。
+//   ・通知の頁が開いたら(下の [data-mark-seen])「見た」を置いて、もう一度数える。
+//
+// 数えなおしは、いつも順番に。重なって飛ばさない(古い答えが、新しい答えのあとに着いて、数を戻さないように)。
+up.compiler("[data-notif]", (nav) => {
+  const url = nav.dataset.notif;
+  const streamUrl = nav.dataset.notifStream;
+  let queued = null; // 順番待ちの数えなおし("all" か "direct")。待っているあいだに増えても、一つにまとめる
+  let running = false;
+
+  const paint = async (parts) => {
+    try {
+      const res = await fetch(url, { credentials: "same-origin", cache: "no-store", headers: { accept: "text/html" } });
+      if (!res.ok) return;
+      const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+      for (const part of parts === "direct" ? ["direct"] : ["direct", "ambient"]) {
+        for (const where of ["top", "bottom"]) {
+          const id = `notif-${part}-${where}`;
+          const next = doc.getElementById(id);
+          const current = document.getElementById(id);
+          if (next && current) current.replaceWith(next);
+        }
+      }
+    } catch {
+      // 取れなかったら、表示は前のまま。そっとしておく。
+    }
+  };
+  const pull = async (parts) => {
+    queued = queued === "all" || parts === "all" ? "all" : "direct";
+    if (running) return;
+    running = true;
+    while (queued) {
+      const next = queued;
+      queued = null;
+      await paint(next);
+    }
+    running = false;
+  };
+
+  const all = () => pull("all");
+  const offLocation = up.on("up:location:changed", all);
+  document.addEventListener("notif:refresh", all);
+  all();
+
+  // 呼び鈴。入っていなければ(401)、EventSource は繋ぎ直すのをやめる。ほかで切れたときは、ブラウザが繋ぎ直す。
+  let bell = null;
+  let opened = false;
+  if (streamUrl && "EventSource" in window) {
+    bell = new EventSource(streamUrl);
+    bell.addEventListener("direct", () => pull("direct"));
+    bell.addEventListener("open", () => {
+      if (opened) pull("direct");
+      opened = true;
+    });
+  }
+  // 寝ていたタブに戻ってきたとき ── 裏にいるあいだに切れていることが多い。数を、もう一度訊く。
+  const onVisible = () => {
+    if (!document.hidden) pull("direct");
+  };
+  document.addEventListener("visibilitychange", onVisible);
+
+  return () => {
+    offLocation();
+    document.removeEventListener("notif:refresh", all);
+    document.removeEventListener("visibilitychange", onVisible);
+    bell?.close();
+  };
+});
+
+// 通知の頁が開いた。見に来たので、「ここまで見た」を置いて、ナビの数を戻す。
+// 裏のタブで開いただけのときは、見られるまで待つ(まだ見ていないので)。
+up.compiler("[data-mark-seen]", (el) => {
+  const mark = () =>
+    fetch(el.dataset.markSeen, { method: "POST", credentials: "same-origin" })
+      .then(() => document.dispatchEvent(new Event("notif:refresh")))
+      .catch(() => {});
+  if (!document.hidden) {
+    mark();
+    return;
+  }
+  const onVisible = () => {
+    if (document.hidden) return;
+    document.removeEventListener("visibilitychange", onVisible);
+    mark();
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  return () => document.removeEventListener("visibilitychange", onVisible);
+});
+
+// ふたりの部屋が開いているあいだの、呼び鈴。鳴ったら(部屋に何か起きたら)、ログだけを取りなおして差す。
+//   ・呼び鈴は荷物ではない。中身は流れず、訊き直す ── 切れていたあいだのぶんも、これで埋まる。
+//   ・60 秒の見直しは残す。管が死んでいることに、こちらからは気づけない(「静か」と見分けがつかない)ので、これが最後の砦。
+//   ・裏に回ったら畳む(寝ている端末の電池を静かに減らす。裏では、誰も見ていない)。戻ったら、開いて、一度訊く。
+//   ・書きかけの返事(フォーム)は動かさない。差すのは、この箱の中身だけ。
+//   ・data-room-query があれば、取りなおしの問い合わせに足す(Clips は「頁を開いてから届いたぶんだけ」を訊く)。
+up.compiler("[data-room-live]", (log) => {
+  const base = log.dataset.roomLive;
+  let last = null; // 最後に差した断片。同じなら差さない(描きなおしで、選んでいた字やスクロールの手がかりを乱さない)
+  let running = false;
+  let queued = false;
+
+  const pull = async () => {
+    queued = true;
+    if (running) return;
+    running = true;
+    while (queued) {
+      queued = false;
+      try {
+        const res = await fetch(`${base}/talk${log.dataset.roomQuery ?? ""}`, { credentials: "same-origin", cache: "no-store", headers: { accept: "text/html" } });
+        if (res.ok) {
+          const text = await res.text();
+          if (text !== last) {
+            last = text;
+            log.innerHTML = text;
+          }
+        }
+      } catch {
+        // 取れなかったら、ログは前のまま。そっとしておく。
+      }
+    }
+    running = false;
+  };
+
+  // 入っていない・部屋が無い(401・404)ときは、EventSource は繋ぎ直すのをやめる。ほかで切れたときは、ブラウザが繋ぎ直す。
+  let bell = null;
+  let opened = false;
+  const open = () => {
+    if (bell || !("EventSource" in window)) return;
+    bell = new EventSource(`${base}/stream`);
+    bell.addEventListener("poke", pull);
+    bell.addEventListener("open", () => {
+      if (opened) pull();
+      opened = true;
+    });
+  };
+  const close = () => {
+    bell?.close();
+    bell = null;
+  };
+  const onVisible = () => {
+    if (document.hidden) {
+      close();
+      return;
+    }
+    opened = false; // 開いた「いま」の一回は、下の pull で訊く(二度訊かない)
+    open();
+    pull();
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  const timer = setInterval(() => {
+    if (!document.hidden) pull();
+  }, 60_000);
+  if (!document.hidden) open();
+
+  return () => {
+    clearInterval(timer);
+    document.removeEventListener("visibilitychange", onVisible);
+    close();
+  };
+});
+
+// 路線図。30 秒ごとに数字を取りなおして、変わった所(領域)だけを差しかえる。
+//   ・列車は、差しかえると出発点へ戻ってしまう。だから、領域の印(data-v)が同じなら、さわらない。
+//   ・裏に回ったら止める。戻ったら、すぐ一度取る。
+//   ・取れなかったら、いまの絵のまま、一言(data-map-error)をそえる。取れたら、消す。
+//   ・あとから差した <svg> の SMIL は、Chromium で動きだしてくれないことがある(時計は進むのに、絵が凍る)ので、
+//     現れたら、時計をこつんと触って気づかせる。
+up.compiler("[data-map-live]", (page) => {
+  const url = page.dataset.mapLive;
+  const error = page.querySelector("[data-map-error]");
+  let running = false;
+
+  const nudge = () =>
+    setTimeout(() => {
+      for (const svg of page.querySelectorAll("svg")) svg.setCurrentTime?.(svg.getCurrentTime());
+    }, 120);
+
+  const pull = async () => {
+    if (running || document.hidden) return;
+    running = true;
+    try {
+      const res = await fetch(url, { credentials: "same-origin", cache: "no-store", headers: { accept: "text/html" } });
+      if (!res.ok) throw new Error(String(res.status));
+      const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+      let changed = false;
+      for (const next of doc.querySelectorAll("[data-map-region]")) {
+        const here = page.querySelector(`[data-map-region="${next.dataset.mapRegion}"]`);
+        if (!here || here.dataset.v === next.dataset.v) continue;
+        here.replaceWith(document.importNode(next, true));
+        changed = true;
+      }
+      if (error) error.hidden = true;
+      if (changed) nudge();
+    } catch {
+      if (error) error.hidden = false;
+    } finally {
+      running = false;
+    }
+  };
+
+  const onVisible = () => {
+    if (!document.hidden) pull();
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  const timer = setInterval(pull, 30_000);
+  nudge(); // はじめに描かれた絵も(Unpoly が差した頁は、あとから入った絵と同じ)
+  return () => {
+    clearInterval(timer);
+    document.removeEventListener("visibilitychange", onVisible);
+  };
+});
+
+// Clips。古い順に並ぶので、開いたら、いちばん新しい(下の)ところへ。
+//   ・下まで読んでいる人のところへ新しいクリップが届いたら、下へ送る。上のほうを読んでいる人は、動かさない。
+//   ・探しているとき・古いほうだけを開いたとき(data-clips-bottom が無いとき)は、頭のまま。
+up.compiler("[data-clips]", (page) => {
+  const toBottom = () => window.scrollTo({ top: document.documentElement.scrollHeight });
+  if (!page.hasAttribute("data-clips-bottom")) return;
+  requestAnimationFrame(toBottom);
+  let stuck = true;
+  const onScroll = () => {
+    stuck = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  const live = page.querySelector("#clips-new");
+  const mo = live ? new MutationObserver(() => stuck && requestAnimationFrame(toBottom)) : null;
+  mo?.observe(live, { childList: true });
+  return () => {
+    window.removeEventListener("scroll", onScroll);
+    mo?.disconnect();
   };
 });

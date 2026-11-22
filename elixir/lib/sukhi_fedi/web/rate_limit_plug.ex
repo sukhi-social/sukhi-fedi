@@ -14,30 +14,27 @@ defmodule SukhiFedi.Web.RateLimitPlug do
     * `:bucket`    — label prefix, lets different routes share limits
                      or isolate them (default "rl")
     * `:skip_prefixes` — request-path prefixes that are not counted at
-                     all. For files served as-is from disk (the SPA
-                     build, custom emoji): one page of them is easily
-                     hundreds of requests, and counting them starves
-                     the API calls that share the bucket (default `[]`)
+                     all. For files served as-is from disk (custom emoji):
+                     one page of them is easily hundreds of requests,
+                     and counting them starves the API calls that share
+                     the bucket (default `[]`)
     * `:skip_if`   — `fun(conn) :: boolean`, for requests that cannot be
-                     named by a prefix. The router passes
-                     `SpaRoutes.page_request?/1`: the SPA shell must
-                     reach a browser even while its IP is over the limit,
-                     or the page that could say "busy, retry in N s" is
-                     the one that never loads (default: skip nothing)
+                     named by a prefix. The router passes the admission
+                     queue's poll check: a client waiting its turn must
+                     be able to ask again at the pace it was told, even
+                     while its IP is over the limit (default: skip nothing)
 
     * `:soft`      — fraction of `:limit` after which responses carry
                      `x-slow-down: <seconds>` (default 0.8). It asks the
                      client to space its requests *before* the hard 429;
-                     the web client does (`web/src/lib/busy.ts`)
+                     a client that wants to may read it
     * `:strikes`   — how many 429s one peer may collect within
                      `:strike_window_ms` before it is put in the penalty
                      box for up to `:ban_ms` (Hammer's windows are aligned, so a ban
                      started late in one ends with it): every counted request answers 429
                      (reason `penalty`) until the ban runs out. For the
                      origin that was asked to slow down and did not.
-                     Default `nil` — no penalty box. The shell still passes
-                     (see `:skip_if`): a banned browser gets the page that
-                     explains, not a blank one.
+                     Default `nil` — no penalty box.
 
     * `:identify`  — `fun(conn) :: {:ok, account_id} | nil`. A request it
                      names is counted under that account instead of the

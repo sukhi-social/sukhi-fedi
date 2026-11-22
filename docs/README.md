@@ -50,7 +50,7 @@ We would rather say so than hand you a machine translation; if you can help, ple
 | Where Datalevin keeps data, and its settings | [`DATALEVIN.md`](DATALEVIN.md) |
 | Upgrading a Datalevin store; writing a migration | [`DATALEVIN_MIGRATIONS.md`](DATALEVIN_MIGRATIONS.md) |
 | The bot gate (Anubis) | [`anubis.ja.md`](anubis.ja.md) (ja) |
-| Swapping small static fixes without a release | [`static-override.ja.md`](static-override.ja.md) (ja) |
+| The static files the gateway serves (custom emoji, avatar placeholder) | [`static-override.ja.md`](static-override.ja.md) (ja) |
 | Correcting data that went in wrong | [`data-correction.ja.md`](data-correction.ja.md) (ja) |
 | Backups | [`../infra/backup/README.md`](../infra/backup/README.md) (ja) |
 

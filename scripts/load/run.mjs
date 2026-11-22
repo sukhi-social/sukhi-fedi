@@ -8,9 +8,8 @@
 // Each virtual user lives behind its own address (`cf-connecting-ip:
 // 203.0.113.N`), reads roughly once per `--think` seconds, and picks from a
 // mix shaped like the 2026-10-25 run: mostly the public timeline, some
-// instance info and nodeinfo, a SPA shell load now and then (the page that
-// must still arrive while the API is limited), and, with `--token`, the
-// logged-in home timeline (the one that stayed 503 after the run).
+// instance info and nodeinfo, and, with `--token`, the logged-in home
+// timeline (the one that stayed 503 after the run).
 //
 // It prints one table per stage, by route group (the same groups the
 // server's metrics use, see Web/RouteGroup), and writes the raw numbers to
@@ -66,13 +65,12 @@ const seconds = Number(o.seconds);
 const think = Number(o.think);
 const spread = o.spread && !o['no-spread'];
 
-// [group, weight, path, needs token, html]
+// [group, weight, path, needs token]
 const MIX = [
-  ['timeline_public', 5, '/api/v1/timelines/public?limit=20', false, false],
-  ['api', 1, '/api/v1/instance', false, false],
-  ['federation', 1, '/nodeinfo/2.1', false, false],
-  ['shell', 1, '/', false, true],
-  ['timeline_home', 3, '/api/v1/timelines/home?limit=20', true, false]
+  ['timeline_public', 5, '/api/v1/timelines/public?limit=20', false],
+  ['api', 1, '/api/v1/instance', false],
+  ['federation', 1, '/nodeinfo/2.1', false],
+  ['timeline_home', 3, '/api/v1/timelines/home?limit=20', true]
 ].filter((m) => !m[3] || o.token);
 const tokens = (o.token ?? '').split(',').filter(Boolean);
 const total = MIX.reduce((n, m) => n + m[1], 0);
@@ -90,8 +88,8 @@ async function user(id, stop, rec) {
   const ip = spread ? `203.0.113.${(id % 250) + 1}` : '203.0.113.1';
   await sleep(Math.random() * think * 1000);
   while (Date.now() < stop) {
-    const [group, , path, , html] = pick();
-    const headers = { 'cf-connecting-ip': ip, accept: html ? 'text/html' : 'application/json' };
+    const [group, , path] = pick();
+    const headers = { 'cf-connecting-ip': ip, accept: 'application/json' };
     if (tokens.length && path.includes('/home')) headers.authorization = `Bearer ${tokens[id % tokens.length]}`;
     const t0 = performance.now();
     let status = 0;

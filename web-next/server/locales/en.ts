@@ -643,6 +643,9 @@ export const en: Dict = {
   'clips.copied': 'Copied',
   'clips.searchPlaceholder': 'Search clips',
   'clips.noResults': 'Nothing found.',
+  'clips.attach': 'Attach files',
+  'clips.maxFiles': 'Up to {max} files. Any more than that will not be added.',
+  'clips.file': 'File',
 
   // ── Search ───────────────────────────────────────────
   'search.title': 'Search',

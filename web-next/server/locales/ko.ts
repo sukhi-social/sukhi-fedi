@@ -635,6 +635,9 @@ export const ko: Dict = {
   'clips.copied': '복사했어요',
   'clips.searchPlaceholder': 'Clips 검색',
   'clips.noResults': '찾지 못했어요.',
+  'clips.attach': '파일 첨부',
+  'clips.maxFiles': '파일은 {max}개까지예요. 그보다 많은 것은 올라가지 않아요.',
+  'clips.file': '파일',
 
   // ── 찾기 ─────────────────────────────────────────────
   'search.title': '찾기',

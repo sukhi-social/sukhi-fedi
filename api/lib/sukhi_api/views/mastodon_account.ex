@@ -21,8 +21,8 @@ defmodule SukhiApi.Views.MastodonAccount do
   # いい。avatar は @default_avatar_path(やさしいシルエット)を使う。
   @default_image "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 
-  # 画像が無い人の avatar の既定。web はこの URL を「画像なし」の印に
-  # して頭文字 + 淡い色に描き替える ─ web/src/lib/avatar.ts と末尾を
+  # 画像が無い人の avatar の既定。web-next はこの URL を「画像なし」の印に
+  # して頭文字 + 淡い色に描き替える ─ web-next/server/avatar.ts と末尾を
   # 揃えること。他クライアントにはこのシルエットがそのまま見える。
   @default_avatar_path "/static/avatar-default.svg"
 

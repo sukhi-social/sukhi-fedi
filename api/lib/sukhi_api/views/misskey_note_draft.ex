@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiApi.Views.MisskeyNoteDraft do
   @moduledoc """
-  Render a NoteDraft row into the compose-draft JSON the SPA restores.
-  The keys mirror `web/src/lib/compose-draft.ts`'s `ComposeDraft`
+  Render a NoteDraft row into the compose-draft JSON the web client restores.
+  The keys are the ones `web-next/server/routes/draft.ts` reads and writes
   (`text`, `spoiler`, `useSpoiler`, `sensitive`, `visibility`) so the
   client reconciles the server copy against its local one without a
   translation step. `useSpoiler` is derived: a stored spoiler means the

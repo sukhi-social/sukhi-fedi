@@ -3,10 +3,9 @@
 # One place to start from. `make` on its own lists everything.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev dev-web ui-lab test test-shared test-elixir test-delivery test-api test-web check-specs \
-        test-pgrust test-e2e check check-presets env-audit script-tests need-tsubaki up down preflight \
-        push-static push-styles clear-static static-status \
-        push-natadeco natadeco-images
+.PHONY: help setup dev ui-lab test test-shared test-elixir test-delivery test-api test-web check-specs \
+        test-pgrust check check-presets env-audit script-tests need-tsubaki up down preflight \
+        natadeco-images
 
 # The toolchain lives in mise.toml (elixir / erlang / node). mise puts
 # those on PATH through a *shell* hook, which make's own /bin/sh never
@@ -36,7 +35,7 @@ setup:  ## fetch every project's dependencies
 	@if [ -n "$(MISE)" ]; then $(MISE) trust >/dev/null 2>&1 && $(MISE) install; fi
 	@command -v nats-server >/dev/null 2>&1 || echo "note: nats-server is missing — 'make dev' runs without streaming (brew install nats-server nats)"
 	for d in elixir delivery api combined; do (cd $$d && $(RUN) mix deps.get); done
-	cd web && $(RUN) pnpm install
+	cd web-next && $(RUN) pnpm install
 	cd web-natadeco && $(RUN) pnpm install
 
 # ── Running it locally ──────────────────────────────────────────────────────
@@ -46,9 +45,6 @@ dev:  ## run the whole thing locally, no Docker (:4000, IEx shell)
 
 ui-lab:  ## web-next UI mocks side by side (:5180) — web-next/ui-lab/README.md
 	cd web-next/ui-lab && $(RUN) node serve.mjs
-
-dev-web:  ## the SPA dev server (:5173), in a second terminal
-	cd web && $(RUN) pnpm run dev
 
 up:  ## the full docker-compose stack instead (:4000)
 	@docker info >/dev/null 2>&1 || { echo "Docker isn't answering — start it first (colima start / Docker Desktop)."; exit 1; }
@@ -75,8 +71,8 @@ test-delivery:
 test-api:
 	cd api && $(RUN) mix test --no-start
 
-test-web:
-	cd web && $(RUN) pnpm run check
+test-web:  ## web-next (the web front): node --test against a mock gateway
+	cd web-next && $(RUN) pnpm test
 
 # The maintenance page (docs/OPS_MAINTENANCE_PAGE.ja.md): the nginx rules against a
 # real nginx (skipped, with a message, when there is none), and the switch script
@@ -95,18 +91,11 @@ test-maintenance:  ## scripts/sukhi-maintenance, with a fake container tool (nee
 test-pgrust:  ## DB integration tests on pgrust (no Docker)
 	@bash scripts/test-pgrust.sh $(ARGS)
 
-# Cross-browser smoke for the SPA (Chromium + Firefox) via Playwright.
-# Builds the SPA and runs the flow in web/e2e against `vite preview`.
-#   make test-e2e ARGS="--project=firefox"
-test-e2e:  ## cross-browser SPA smoke (Playwright)
-	cd web && $(RUN) pnpm exec playwright test $(ARGS)
-
 # `mix credo --strict` is deliberately not here: credo 1.7.18 crashes on
 # Elixir 1.20's sigil tokens (`Protocol.UndefinedError ... for Tuple` out
 # of Credo.Code.Token) and exits 1 on every run, so it can only make this
 # target useless. Run it by hand once credo catches up.
 check: check-presets  ## linters and type checks
-	cd web && $(RUN) pnpm run check
 
 check-specs:  ## run the CUE types in docs/specs against their examples
 	node docs/specs/check/check.cjs
@@ -138,78 +127,13 @@ preflight:  ## pre-deploy verification (see infra/preflight.sh)
 # ── Deploying ───────────────────────────────────────────────────────────────
 # export DEPLOY_HOST=<box ip or hostname> before these.
 DEPLOY_HOST ?=
-DEPLOY_USER ?= rocky
-STATIC_DIR  ?= /var/lib/sukhi-fedi/static
-DOMAIN      ?= sukhi.f3liz.casa
-
-# Rebuild the SPA locally and rsync it to the host override dir. The app
-# serves /static/* and /_app/* from there, so this lands on the next
-# request — no release, no restart. `make push-styles` is the lighter
-# "only the raw token CSS" variant.
-#
-# Which of the two trees answers is decided by *when each was built*, not
-# by file mtimes: `pnpm run build` leaves a .static-build.json behind and
-# it rides along in the rsync. So a later deploy (a newer image) supersedes
-# this push, on purpose. To keep a push in place across deploys, set
-# STATIC_OVERRIDE=prefer in the app's env (haloy.yaml). See
-# docs/static-override.ja.md.
-#
-# `--chmod=D755,F644` も要る。ここに置くものは全部 HTTP で配る公開
-# ファイルで、アプリは root ではない uid で動いている ── 手元の umask
-# や zip の中の mode がそのまま渡ると、読めないファイルが並ぶ(絵文字
-# 983 個が 0700 で来て、9時間 502 を返していた)。
-#
-# `--delete --exclude=styles` 一行が肝。styles/ は build 出力に居な
-# いので、素朴に --delete をかけると styles/ ごと吹き飛ばしてしまい
-# /login の素のCSSがその瞬間に行方不明になる。styles/ は別の
-# rsync で別途同期する役割なので、build rsync の delete 対象から
-# 外しておく。emojis/ も同じ(あちらは実行時に増える)。
-push-static:  ## build the SPA and rsync it to the host override dir
-	cd web && SUKHI_STATIC_SOURCE=push $(RUN) pnpm run build
-	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(STATIC_DIR) && sudo chown $(DEPLOY_USER) $(STATIC_DIR)"
-	rsync -av --delete --chmod=D755,F644 --exclude=styles --exclude=emojis web/build/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/
-	rsync -av --delete --chmod=D755,F644 web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
-	@$(MAKE) --no-print-directory static-status
-
-# Take the push back off. emojis/ stays — nothing bakes those, they are
-# uploaded at runtime and the override dir is where they live.
-clear-static:  ## remove the pushed SPA/CSS, falling back to the release's
-	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "find $(STATIC_DIR) -mindepth 1 -maxdepth 1 ! -name emojis -exec rm -rf {} +"
-	@$(MAKE) --no-print-directory static-status
-
-# Which tree is actually answering. This is the question that went
-# unasked for ten days while `push-static` quietly did nothing.
-static-status:  ## ask the live site which static tree is answering
-	@echo "host $(STATIC_DIR):"
-	@ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "ls -1 $(STATIC_DIR) 2>/dev/null | sed 's/^/  /'; cat $(STATIC_DIR)/.static-build.json 2>/dev/null | sed 's/^/  /' || echo '  (no .static-build.json — pushed by hand?)'"
-	@echo "serving:"
-	@curl -sS -D- -o /dev/null https://$(DOMAIN)/static/index.html 2>/dev/null \
-	  | grep -i '^x-static-source' | sed 's/^/  /' \
-	  || echo "  (set DOMAIN=<host> to ask a live site)"
-
-push-styles:  ## rsync only the raw token CSS (server-rendered pages)
-	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(STATIC_DIR)/styles && sudo chown -R $(DEPLOY_USER) $(STATIC_DIR)"
-	rsync -av --delete --chmod=D755,F644 web/src/styles/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(STATIC_DIR)/styles/
 
 # ── natadeco ────────────────────────────────────────────────────────────────
 # natadeco.com rides this repo's deco addon and its combined image, but has
-# a frontend of its own (web-natadeco/, brought in 2026-08-25). Like sukhi it
-# is deployed with haloy (sukhi-deploy/natadeco); its version travels as an
-# image.
+# a web front of its own (web-natadeco/, built and run as its own image; the
+# gateway only forwards to it, like any front). Like sukhi it is deployed with
+# haloy (sukhi-deploy/natadeco); its version travels as an image.
 #
-# Built with pnpm, like web/ (it used to be bun, then npm).
-NATADECO_STATIC_DIR ?= /var/lib/natadeco/static
-
-# Since 2026-09-03 the pages are rendered by a Node next door (see
-# SukhiFedi.Web.SSR and web-natadeco/Dockerfile); what goes into the
-# override dir is only the client side of the build (`build/client/`).
-# Push the static side and the ssr image from the same commit, so the
-# HTML the Node renders names the chunks that are actually there.
-push-natadeco:  ## build web-natadeco and rsync its client assets to natadeco's override dir
-	cd web-natadeco && $(RUN) pnpm run build
-	ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo mkdir -p $(NATADECO_STATIC_DIR) && sudo chown $(DEPLOY_USER) $(NATADECO_STATIC_DIR)"
-	rsync -av --delete --chmod=D755,F644 web-natadeco/build/client/ $(DEPLOY_USER)@$(DEPLOY_HOST):$(NATADECO_STATIC_DIR)/
-
 # natadeco's backend. One image: the combined release carries :sukhi_api
 # too, and natadeco stopped running a separate api node on 2026-08-26.
 natadeco-images:  ## (re)build natadeco's combined image on the box

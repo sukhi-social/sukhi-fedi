@@ -5,10 +5,12 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { extname } from 'node:path';
 import { config } from './config.ts';
+import { themedManifest } from './theme.ts';
 import { locate, locateIn } from './assets.ts';
 import { detectLocale, makeT, type Locale, type T } from './i18n.ts';
 import { validTz } from './time.ts';
@@ -21,6 +23,10 @@ export type Reply = {
   status: number;
   headers: Record<string, string>;
   body: string;
+  // 流しつづける返事(SSE)。あれば、`body` は空で、長さは決まらない。
+  // `write` で書き、相手が切ったら `gone` が鳴る ── そこで手を止めて、握っているものを放す。
+  // この手が返ったら、返事はそこで閉じる。
+  stream?: (write: (chunk: string) => void, gone: AbortSignal) => Promise<void>;
 };
 
 export function ok(body: SafeHtml | string, status = 200, headers: Record<string, string> = {}): Reply {
@@ -70,7 +76,7 @@ export type Ctx = {
 
 const YEAR = 60 * 60 * 24 * 365;
 
-function parseCookies(header: string | undefined): Record<string, string> {
+export function parseCookies(header: string | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   for (const part of (header ?? '').split(';')) {
     const i = part.indexOf('=');
@@ -253,7 +259,31 @@ const ROOT_FILES = new Set([
 // 更新が、最長 4 時間おくれる。scope は / のまま(道が / 直下にあるので)。
 const ROOT_ALIAS: Record<string, string> = { '/sw': 'sw.js' };
 
+// manifest は、紙の色だけテーマ(SITE_THEME)に合わせて返す。ほかは、public/ のファイルのまま。
+async function serveManifest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  const at = locateIn(config.publicDir, 'manifest.webmanifest', false);
+  const raw = at ? await readFile(at.full, 'utf8').catch(() => null) : null;
+  if (raw === null) return false;
+  const body = themedManifest(raw, config.theme);
+  const etag = `W/"${createHash('sha256').update(body).digest('hex').slice(0, 16)}"`;
+  const headers = {
+    'content-type': MIME['.webmanifest'],
+    'content-length': String(Buffer.byteLength(body)),
+    etag,
+    'cache-control': 'no-cache'
+  };
+  if (req.headers['if-none-match'] === etag) {
+    res.writeHead(304, headers);
+    res.end();
+    return true;
+  }
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : body);
+  return true;
+}
+
 async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<boolean> {
+  if (pathname === '/manifest.webmanifest') return serveManifest(req, res);
   const at = ROOT_FILES.has(pathname)
     ? locateIn(config.publicDir, pathname.slice(1), false)
     : ROOT_ALIAS[pathname]
@@ -310,7 +340,12 @@ const HOP = new Set([
   'content-encoding'
 ]);
 
+// /oauth/ のうち、頁(同意・アカウントの選択)は、この郵便局が描く。決めるのは gateway の api(routes/oauth.ts)。
+// 通すのは、コードをトークンに替える口(/oauth/token)と、取り消す口(/oauth/revoke)など、頁でないほう。
+const OWN_PAGES = new Set(['/oauth/authorize']);
+
 function isProxied(pathname: string): boolean {
+  if (OWN_PAGES.has(pathname)) return false;
   return PROXY_PREFIXES.some((p) => pathname === p.replace(/\/$/, '') || pathname.startsWith(p));
 }
 
@@ -447,6 +482,22 @@ export function serve(port: number): ReturnType<typeof createServer> {
       status = reply.status;
       const headers: Record<string, string | string[]> = { ...reply.headers, vary: 'X-Up-Version, Cookie' };
       if (ctx.cookies.length) headers['set-cookie'] = ctx.cookies;
+      if (reply.stream) {
+        // 流す返事は、長さを持たない。HEAD には、はじめから「もう居ない」と伝えて、すぐ手を放させる。
+        if (!headers['cache-control']) headers['cache-control'] = 'no-store';
+        res.writeHead(reply.status, headers);
+        res.flushHeaders();
+        const gone = new AbortController();
+        if (req.method === 'HEAD') gone.abort();
+        res.on('close', () => gone.abort());
+        try {
+          await reply.stream((chunk) => void (gone.signal.aborted || res.write(chunk)), gone.signal);
+        } catch (e) {
+          console.error(`[error] ${req.method} ${pathname} (stream)`, e);
+        }
+        res.end();
+        return;
+      }
       headers['content-length'] = String(Buffer.byteLength(reply.body));
       if (reply.body && !headers['cache-control']) headers['cache-control'] = 'no-store';
       res.writeHead(reply.status, headers);

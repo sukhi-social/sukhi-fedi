@@ -11,11 +11,13 @@
 //   SITE_NAME         ナビ・入口の帯・<title> に出すサイトの名前(既定 sukhi-fedi)
 //   SITE_LOGO         その横に出すロゴの画像。`/…` のパスか `https://…`(既定 /favicon.png)。
 //                     image を焼きなおさずに替えるなら、data/brand/ にファイルを置いて /brand/<ファイル名> を書く
+//   SITE_THEME        見た目のテーマ(about / ink。既定 about)。server/theme.ts。知らない名前は about
 //   ME_TTL_MS         手元にひかえた「自分」(設定を含む)を、gateway に引きなおすまでの間(ms、既定 15000)。
 //                     別の端末・別のタブで変えた設定が、この間のうちに届く
 //   SUKHI_DEV_TOKEN   dev のときだけ。入った状態から始める(mock 用)
 
 import { fileURLToPath } from 'node:url';
+import { parseTheme } from './theme.ts';
 
 const port = Number(process.env.PORT ?? 5174);
 // URL.pathname は、日本語・韓国語のフォルダー名を %XX にしてしまう。ディスクのパスには fileURLToPath。
@@ -30,6 +32,7 @@ export const config = {
   siteLogo: /^(\/(?!\/)|https?:\/\/)/.test((process.env.SITE_LOGO ?? '').trim())
     ? (process.env.SITE_LOGO ?? '').trim()
     : '/favicon.png',
+  theme: parseTheme(process.env.SITE_THEME),
   aboutUrl: (process.env.ABOUT_URL ?? 'https://about.sukhi.social').replace(/\/$/, ''),
   secureCookie: process.env.COOKIE_SECURE === '1',
   postDelayMin: Number(process.env.POST_DELAY_MIN ?? 15),

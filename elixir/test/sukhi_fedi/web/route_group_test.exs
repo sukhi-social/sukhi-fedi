@@ -16,7 +16,7 @@ defmodule SukhiFedi.Web.RouteGroupTest do
     assert group("/login") == "auth"
     assert group("/users/alice/inbox") == "federation"
     assert group("/.well-known/webfinger") == "federation"
-    assert group("/_app/immutable/a.js") == "static"
+    assert group("/static/emojis/a.png") == "static"
     assert group("/nowhere") == "other"
   end
 

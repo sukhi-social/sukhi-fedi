@@ -4,10 +4,10 @@ defmodule SukhiFedi.Web.Auth.LoginController do
   `POST /login` — validate username + password; `POST /login/totp` —
   the second step when the account has app-2FA turned on.
 
-  The sign-in *form* lives in the SPA (`web/src/routes/login`); these
+  The sign-in *form* lives in the web front (`web-next`); these
   are the JSON endpoints behind it. A first factor alone answers either
   `{ok: true}` with the `session_token` cookie set, or
-  `{second_factor: "totp", pending: …}` with **no** cookie — the SPA
+  `{second_factor: "totp", pending: …}` with **no** cookie — the front
   then asks for the 6-digit code and finishes via `/login/totp`.
 
   `finish_first_factor/2` is shared with the email-code door

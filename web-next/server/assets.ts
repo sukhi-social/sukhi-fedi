@@ -15,6 +15,7 @@ const MOUNTS: [string, string, boolean][] = [
   ['/assets/vendor/unpoly/', `${config.nodeModules}unpoly/`, true],
   ['/assets/vendor/alpine/', `${config.nodeModules}alpinejs/dist/`, true],
   ['/assets/fonts/', `${config.nodeModules}@fontsource/`, true],
+  ['/assets/fonts-variable/', `${config.nodeModules}@fontsource-variable/`, true],
   ['/twemoji/svg/', `${config.nodeModules}@twemoji/svg/`, true],
   // ロゴなど、image を焼きなおさずに差し替えたいもの(SITE_LOGO=/brand/<ファイル名>)。volume の中。
   ['/brand/', `${config.dataDir}brand/`, false],

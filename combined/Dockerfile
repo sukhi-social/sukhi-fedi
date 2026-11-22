@@ -4,20 +4,9 @@
 # Combined image: gateway + delivery + api in one BEAM, for single-box
 # deployments. Build context is the repo root (like elixir/Dockerfile):
 #   docker build -f combined/Dockerfile .
-# The SPA stage and runtime stage mirror elixir/Dockerfile — the
-# combined release serves the same web UI on :4000.
-
-# ── SPA build ─────────────────────────────────────────────────────────────
-FROM node:24.22.1-alpine AS spa-deps
-
-WORKDIR /spa
-RUN corepack enable
-COPY web/package.json web/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
-
-FROM spa-deps AS spa
-COPY web/ ./
-RUN pnpm run build
+# The runtime stage mirrors elixir/Dockerfile. The release holds no web UI:
+# the pages come from a web front (web-next, web-natadeco…) that is built and
+# run on its own and sits in front of this one on :4000.
 
 # ── Elixir release build ──────────────────────────────────────────────────
 FROM elixir:1.20-alpine AS deps
@@ -67,8 +56,8 @@ RUN --mount=type=cache,target=/build-cache,id=sukhi-fedi-combined-build,sharing=
 
 # Everything above changes only with a lockfile; everything below changes
 # with every commit. CI exports its layer cache from `cache-warm` (below)
-# and only reads it for the full build, so the per-commit layers (SPA
-# output, the release) aren't uploaded just to be thrown away.
+# and only reads it for the full build, so the per-commit layers (the
+# release) aren't uploaded just to be thrown away.
 FROM deps AS build
 
 WORKDIR /repo
@@ -86,16 +75,9 @@ COPY combined/config combined/config
 # assembled without it boots with neither.
 COPY combined/rel combined/rel
 
-# Same SPA embedding as elixir/Dockerfile, into the gateway's priv/.
-COPY --from=spa /spa/build /spa-build
-COPY web/src/styles /spa-styles
-RUN mkdir -p elixir/priv/static elixir/priv/static/styles && \
-    cp -r /spa-build/. elixir/priv/static/ && \
-    cp /spa-styles/tokens.css /spa-styles/base.css /spa-styles/app.css elixir/priv/static/styles/
-
 WORKDIR /repo/combined
 # Keep each app's own compile output (manifests + .beam) between builds so
-# a change in one app, or only in web/, doesn't recompile the other three.
+# a change in one app doesn't recompile the other three.
 # Deps stay with the step above (their fingerprints live there); only these
 # four dirs are restored over it. Mix decides staleness itself, from its
 # manifests — this cache only carries them across builds.
@@ -111,10 +93,9 @@ RUN --mount=type=cache,target=/app-cache,id=sukhi-fedi-combined-app,sharing=lock
     '
 
 # ── CI cache export target ────────────────────────────────────────────────
-# Builds the two slow-to-change stages and nothing else:
+# Builds the slow-to-change stage and nothing else:
 #   docker build --target cache-warm --cache-to ... -f combined/Dockerfile .
 FROM scratch AS cache-warm
-COPY --from=spa-deps /spa/package.json /spa-deps
 COPY --from=deps /repo/combined/mix.exs /deps
 
 # ── dtlv ────────────────────────────────────────────────────────────────────

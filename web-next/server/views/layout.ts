@@ -10,8 +10,11 @@ import { assetUrl } from '../assets.ts';
 import { config } from '../config.ts';
 import { html, type SafeHtml } from '../html.ts';
 import type { Ctx } from '../http.ts';
+import { nudgeSlot } from '../nudge.ts';
+import { THEMES } from '../theme.ts';
 import type { Account } from '../types.ts';
 import { avatar, icon, entranceBar, legalFooter, type IconName } from './parts.ts';
+import { notifSlots, type Where } from './notify.ts';
 import type { TranslationKey } from '../i18n.ts';
 
 type Page = {
@@ -34,12 +37,13 @@ const FLOW: Record<string, Flow> = {
   search: { href: '/search', key: 'nav.search', icon: 'search' }
 };
 
-function flowLink(ctx: Ctx, f: Flow): SafeHtml {
+function flowLink(ctx: Ctx, f: Flow, where: Where): SafeHtml {
   const current = ctx.url.pathname === f.href || (f.href === '/' && ctx.url.pathname === '/timeline');
-  // 数字も、点も、バッジも、付けない。通知は「あるかどうか」を急かさない。
+  // 通知だけ、未見のしるしを抱える。置き場は空で来て、頁が描かれたあとに public/js/app.js が満たす
+  // (頁を待たせない。数え方は server/notify.ts)。バッジにはしない ── 赤も丸もなく、ただの数と、育つかたち。
   return html`<a class="nav-link nav-flow" href="${f.href}" up-preload aria-current="${current ? 'page' : null}">
     ${icon(f.icon)}
-    <span class="nav-text"><span class="nav-label">${ctx.t(f.key)}</span></span>
+    <span class="nav-text"><span class="nav-label">${ctx.t(f.key)}</span>${f === FLOW.notifications ? notifSlots(ctx, where) : ''}</span>
   </a>`;
 }
 
@@ -48,13 +52,13 @@ function appNav(ctx: Ctx, me: Account): SafeHtml {
   const top = [FLOW.compose, FLOW.home, FLOW.notifications, FLOW.search];
   const bottom = [FLOW.home, FLOW.search, FLOW.compose, FLOW.notifications];
   const profileHref = `/@${me.acct}`;
-  return html`<header class="app-nav">
+  return html`<header class="app-nav" data-notif="/notifications/unseen" data-notif-stream="/notifications/stream">
     <div class="wrap app-nav-row">
       <a class="app-nav-name" href="/" up-preload>
         <img class="app-nav-mark" src="${config.siteLogo}" alt="" width="64" height="64" />${config.siteName}
       </a>
       <nav class="nav-top" aria-label="${ctx.t('nav.label')}" up-nav>
-        ${top.map((f) => flowLink(ctx, f))}
+        ${top.map((f) => flowLink(ctx, f, 'top'))}
         <div class="nav-menu" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false" @closemenus.document="open = false">
           <button type="button" class="nav-link nav-menu-trigger nav-avatar-trigger" aria-haspopup="menu" :aria-expanded="open" aria-label="${ctx.t('nav.account')}" @click="open = !open">
             ${avatar(me.avatar, name, 'nav-avatar')}
@@ -76,15 +80,16 @@ function appNav(ctx: Ctx, me: Account): SafeHtml {
     </div>
   </header>
   <nav class="nav-bottom" aria-label="${ctx.t('nav.bottomLabel')}" up-nav>
-    ${bottom.map((f) => flowLink(ctx, f))}
+    ${bottom.map((f) => flowLink(ctx, f, 'bottom'))}
   </nav>`;
 }
 
 export function layout(ctx: Ctx, p: Page): SafeHtml {
   const flash = ctx.takeFlash();
   const title = p.title ? `${p.title} · ${config.siteName}` : config.siteName;
+  const theme = THEMES[config.theme];
   return html`<!doctype html>
-<html lang="${ctx.locale}">
+<html lang="${ctx.locale}" data-theme="${config.theme}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
@@ -98,12 +103,13 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="${config.siteName}" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="theme-color" content="#fffaf3" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#1f1915" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="${theme.color.light}" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="${theme.color.dark}" media="(prefers-color-scheme: dark)" />
   <link rel="stylesheet" href="${assetUrl('/assets/vendor/unpoly/unpoly.min.css')}" />
   <link rel="stylesheet" href="${assetUrl('/assets/css/app.css')}" />
   <link rel="stylesheet" href="${assetUrl('/assets/css/components.css')}" />
   <link rel="stylesheet" href="${assetUrl('/assets/css/extra.css')}" />
+  ${theme.css ? html`<link rel="stylesheet" href="${assetUrl(theme.css)}" />` : ''}
   <script src="${assetUrl('/assets/vendor/unpoly/unpoly.min.js')}"></script>
   <script src="${assetUrl('/assets/js/app.js')}"></script>
   <script defer src="${assetUrl('/assets/js/pwa.js')}"></script>
@@ -122,6 +128,7 @@ export function layout(ctx: Ctx, p: Page): SafeHtml {
     <div id="flash-container" up-hungry>
       ${flash ? html`<p class="${flash.kind === 'error' ? 'error' : 'notice'}" role="status">${flash.text}</p>` : ''}
     </div>
+    ${nudgeSlot(ctx, Boolean(p.me) && !p.entrance && !p.legal)}
     <!--email_off-->
     ${p.body}
     <!--/email_off-->

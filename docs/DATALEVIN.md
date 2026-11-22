@@ -126,11 +126,11 @@ Be careful with this list; it is the honest part.
 delivery node's queue tests. `scripts/test-pgrust.sh` and `docs/TESTING.md`
 say how to run it.
 
-## The web app (`web/`)
+## The web client
 
-The SPA only speaks the Mastodon-style REST API, so it does not know which
-store is behind it. Checked 2026-10-29 with the combined **prod** release
-(SPA embedded, no NATS) and a real browser, once on Datalevin and once on
+The web client only speaks the Mastodon-style REST API, so it does not know
+which store is behind it. Checked 2026-10-29, with the SPA then embedded in the
+combined **prod** release (no NATS) and a real browser, once on Datalevin and once on
 Postgres 16, same script, same answers: sign-up with the mailed code, post,
 home / tag / profile / notifications / bookmarks / lists / settings pages,
 follow, favourite, boost, bookmark, reply, DM, delete. The three requests

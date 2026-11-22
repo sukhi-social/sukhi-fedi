@@ -10,7 +10,7 @@
 
 - **バックエンドは Datalevin**(`SUKHI_STORE=datalevin`、`combined` image、`docker-compose.datalevin.yml` を重ねる)。
 - **フロントは `web-next`**(Unpoly + Alpine.js の郵便局。image は `sukhi-fedi-web-next`)。
-- Postgres 版と、SvelteKit の SPA(`web/`)は**維持のみ**。新機能の対象にしない。
+- Postgres 版は**維持のみ**。新機能の対象にしない。(SvelteKit の SPA `web/` は消した。)
 - 公開 image: `ghcr.io/sukhi-social/sukhi-fedi-combined:v1`(`v1.0.0` のタグで出る)。更新は [`OPS_UPDATE_QUADLET.ja.md`](OPS_UPDATE_QUADLET.ja.md)。
 
 ## 1. 考え方

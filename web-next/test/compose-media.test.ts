@@ -40,7 +40,9 @@ async function go(path: string, init: RequestInit = {}) {
   if (set) sid = set;
   return res;
 }
-const log = async (): Promise<string[]> => (await fetch(`${MOCK}/__mock/requests-log`)).json();
+// 投稿のあとの「書きかけを消す」呼び(draft …)は、ここでは見ない。それを見張るのは test/draft.test.ts。
+const log = async (): Promise<string[]> =>
+  ((await (await fetch(`${MOCK}/__mock/requests-log`)).json()) as string[]).filter((l) => !l.startsWith('draft '));
 const held = async (): Promise<{ params: { text: string; media_ids: string[] | null } }[]> => (await fetch(`${MOCK}/api/v1/scheduled_statuses`)).json();
 
 // 中身のある、ちいさな「画像」(サーバーは中身を見ない。mock は大きさと名前だけ受け取る)。

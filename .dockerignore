@@ -18,10 +18,6 @@ config/tls
 **/deps
 **/.elixir_ls
 **/node_modules
-web/build
-web/.svelte-kit
-web/test-results
-web/playwright-report
 
 # Not consumed by any image build
 docs
