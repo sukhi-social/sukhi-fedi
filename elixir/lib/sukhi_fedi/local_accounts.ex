@@ -36,7 +36,8 @@ defmodule SukhiFedi.LocalAccounts do
           required(:email_proof) => String.t(),
           optional(:password) => String.t() | nil,
           optional(:display_name) => String.t() | nil,
-          optional(:invite_code) => String.t()
+          optional(:invite_code) => String.t(),
+          optional(:entry_key) => String.t()
         }
 
   @spec create(signup_attrs() | map()) ::
@@ -75,6 +76,7 @@ defmodule SukhiFedi.LocalAccounts do
       Multi.new()
       |> Multi.insert(:account, changeset)
       |> consume_invite(normalized.invite_code)
+      |> consume_entry(normalized.entry_key)
       |> Repo.transaction()
       |> case do
         {:ok, %{account: a, invite: invite}} ->
@@ -307,6 +309,7 @@ defmodule SukhiFedi.LocalAccounts do
     username = get.(["username", :username]) |> trim_or_nil()
     password = get.(["password", :password])
     invite = get.(["invite_code", :invite_code, "token", :token]) |> trim_or_nil()
+    entry = get.(["entry_key", :entry_key]) |> trim_or_nil()
     proof = get.(["email_proof", :email_proof])
     display_name = get.(["display_name", :display_name]) |> trim_or_nil()
 
@@ -314,7 +317,7 @@ defmodule SukhiFedi.LocalAccounts do
     # never as a raw address — required regardless of whether a
     # password is set. The password itself is optional/legacy.
     cond do
-      is_nil(invite) and SukhiFedi.Config.invite_required?() ->
+      is_nil(invite) and is_nil(entry) and SukhiFedi.Config.invite_required?() ->
         {:error, :invite_missing}
 
       is_nil(username) ->
@@ -328,6 +331,7 @@ defmodule SukhiFedi.LocalAccounts do
                username: String.downcase(username),
                password: password,
                invite_code: invite,
+               entry_key: entry,
                email: email,
                display_name: display_name
              }}
@@ -661,6 +665,22 @@ defmodule SukhiFedi.LocalAccounts do
         {:error, :invalid} -> {:error, :invite_invalid}
         {:error, :already_used} -> {:error, :invite_used}
         {:error, :expired} -> {:error, :invite_expired}
+      end
+    end)
+  end
+
+  # The key a greeter's welcome mail carried (docs/JOIN.md). Spent in the
+  # same transaction as the account, so a sign-up that fails does not use
+  # it up, and two sign-ups on one key cannot both get in.
+  defp consume_entry(multi, nil), do: multi
+
+  defp consume_entry(multi, key) do
+    Multi.run(multi, :entry, fn _repo, _changes ->
+      case SukhiFedi.JoinApplications.consume_entry(key) do
+        {:ok, app} -> {:ok, app}
+        {:error, :invalid} -> {:error, :entry_invalid}
+        {:error, :used} -> {:error, :entry_used}
+        {:error, :expired} -> {:error, :entry_expired}
       end
     end)
   end

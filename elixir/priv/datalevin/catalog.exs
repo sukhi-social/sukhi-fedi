@@ -895,7 +895,7 @@
         null: false
       },
       %{default: nil, name: "receipt", type: "character varying", null: false},
-      %{default: nil, name: "email", type: "character varying", null: false},
+      %{default: nil, name: "email", type: "character varying", null: true},
       %{default: nil, name: "call_name", type: "character varying", null: true},
       %{default: nil, name: "found", type: "text", null: true},
       %{default: nil, name: "hope", type: "text", null: true},
@@ -904,12 +904,17 @@
       %{default: nil, name: "claim_hash", type: "character varying", null: false},
       %{default: nil, name: "edit_hash", type: "character varying", null: true},
       %{default: nil, name: "confirmed_at", type: "timestamp without time zone", null: true},
+      %{default: nil, name: "entry_hash", type: "character varying", null: true},
+      %{default: nil, name: "entry_expires_at", type: "timestamp without time zone", null: true},
+      %{default: nil, name: "welcomed_at", type: "timestamp without time zone", null: true},
+      %{default: nil, name: "joined_at", type: "timestamp without time zone", null: true},
       %{default: nil, name: "created_at", type: "timestamp without time zone", null: false},
       %{default: nil, name: "updated_at", type: "timestamp without time zone", null: false}
     ],
     unique: [
       %{name: "join_applications_claim_hash_index", keys: [col: "claim_hash"], where: []},
       %{name: "join_applications_edit_hash_index", keys: [col: "edit_hash"], where: []},
+      %{name: "join_applications_entry_hash_index", keys: [col: "entry_hash"], where: []},
       %{name: "join_applications_receipt_index", keys: [col: "receipt"], where: []}
     ],
     fks: [],
