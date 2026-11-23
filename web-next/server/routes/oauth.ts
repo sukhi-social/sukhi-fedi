@@ -15,7 +15,7 @@ import { config } from '../config.ts';
 import { gwBrowser } from '../gateway.ts';
 import { ok, redirect, route, type Ctx, type Reply } from '../http.ts';
 import { saveSession } from '../session.ts';
-import { consentPage, CONSENT_CSP, pickPage, problemPage, type Asked } from '../views/oauth.ts';
+import { consentPage, CONSENT_CSP, deniedPage, pickPage, problemPage, type Asked } from '../views/oauth.ts';
 
 const API = '/api/v1/sukhi/oauth/authorize';
 // api に渡す問いの名前。これ以外は、渡さない。
@@ -25,7 +25,8 @@ const ASKED = ['client_id', 'redirect_uri', 'scope', 'state', 'response_type', '
 type Decision =
   | { decision: 'login' }
   | { decision: 'pick'; accounts: { id: number; username: string }[] }
-  | { decision: 'consent'; app: { name: string }; scopes: string[] }
+  | { decision: 'consent'; app: { name: string }; scopes: string[]; account?: { username: string } }
+  | { decision: 'denied'; reason: string; account: { username: string } }
   | { decision: 'redirect'; location: string };
 type Problem = { error?: string; error_description?: string };
 
@@ -51,6 +52,7 @@ function ownHost(uri: string | null): boolean {
 }
 
 function problem(ctx: Ctx, status: number, body: Problem): Reply {
+  if (body.error === 'admin_required') return ok(deniedPage(ctx, '', ''), 403);
   return ok(problemPage(ctx, body.error ?? 'error', body.error_description ?? '', status === 503), status);
 }
 
@@ -65,6 +67,8 @@ route('GET', '/oauth/authorize', async (ctx) => {
     const v = ctx.url.searchParams.get(k);
     if (v !== null) asked.set(k, v);
   }
+  // 「別のアカウントで入る」。同じ問いに戻れるよう置いて、入りなおしへ。
+  if (ctx.url.searchParams.get('relogin') === '1') return toLogin(ctx, asked);
 
   const r = await gwBrowser<Decision & Problem>(ctx, 'GET', `${API}?${asked}`);
   if (r.status !== 200 || !('decision' in r.body)) return problem(ctx, r.status, r.body);
@@ -79,8 +83,10 @@ route('GET', '/oauth/authorize', async (ctx) => {
     case 'consent': {
       const q = (k: string) => asked.get(k) ?? '';
       const form: Asked = { client_id: q('client_id'), redirect_uri: q('redirect_uri'), scope: q('scope') || 'read', state: q('state'), code_challenge: q('code_challenge'), code_challenge_method: q('code_challenge_method') };
-      return ok(consentPage(ctx, d.app, d.scopes, form), 200, { 'content-security-policy': CONSENT_CSP });
+      return ok(consentPage(ctx, d.app, d.scopes, form, d.account?.username, reloginHref(asked)), 200, { 'content-security-policy': CONSENT_CSP });
     }
+    case 'denied':
+      return ok(deniedPage(ctx, d.account.username, reloginHref(asked)), 403);
     case 'redirect':
       return redirect(d.location);
   }
@@ -99,6 +105,11 @@ route('POST', '/oauth/authorize', async (ctx) => {
   if (r.status !== 200 || !('decision' in r.body) || r.body.decision !== 'redirect') return problem(ctx, r.status, r.body);
   return redirect(r.body.location);
 });
+
+// 同じ問いに relogin=1 を足したリンク。
+function reloginHref(asked: URLSearchParams): string {
+  return `/oauth/authorize?${new URLSearchParams([...asked, ['relogin', '1']])}`;
+}
 
 function withoutChoose(q: URLSearchParams): URLSearchParams {
   const out = new URLSearchParams(q);

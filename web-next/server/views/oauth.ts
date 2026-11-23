@@ -52,7 +52,7 @@ export function pickPage(ctx: Ctx, accounts: { id: number; username: string }[],
   });
 }
 
-export function consentPage(ctx: Ctx, app: { name: string }, scopes: string[], asked: Asked): SafeHtml {
+export function consentPage(ctx: Ctx, app: { name: string }, scopes: string[], asked: Asked, username?: string, switchHref?: string): SafeHtml {
   const t = ctx.t;
   return layout(ctx, {
     title: t('oauth.consentTitle', { app: app.name }),
@@ -62,6 +62,7 @@ export function consentPage(ctx: Ctx, app: { name: string }, scopes: string[], a
         <h1>${t('oauth.consentTitle', { app: app.name })}</h1>
         <p class="tagline">${t('oauth.consentLead')}</p>
       </section>
+      ${username ? html`<p class="prose-small">${t('oauth.signedInAs', { name: username })} ${switchHref ? html`<a href="${switchHref}">${t('oauth.switchAccount')}</a>` : ''}</p>` : ''}
       <ul class="scope-list">
         ${scopes.map((s) => {
           const keys = SCOPES[s];
@@ -80,6 +81,23 @@ export function consentPage(ctx: Ctx, app: { name: string }, scopes: string[], a
         <button type="submit" class="btn px-6 py-2">${t('oauth.consentYes')}</button>
       </form>
       <p class="prose-small"><a href="/">${t('oauth.consentNo')}</a></p>
+    </div>`
+  });
+}
+
+// 管理の権限を求められたのに、入っているのは管理するアカウントではないとき。だれで入っているかを見せて、入りなおせるように。
+export function deniedPage(ctx: Ctx, username: string, switchHref: string): SafeHtml {
+  const t = ctx.t;
+  return layout(ctx, {
+    title: t('oauth.deniedTitle'),
+    entrance: true,
+    body: html`<div class="measure stack">
+      <section class="hero">
+        <h1>${t('oauth.deniedTitle')}</h1>
+        ${username ? html`<p class="tagline">${t('oauth.deniedLead', { name: username })}</p>` : ''}
+      </section>
+      ${switchHref ? html`<p><a class="btn px-6 py-2" href="${switchHref}">${t('oauth.switchAccount')}</a></p>` : ''}
+      <p class="prose-small"><a href="/">${t('common.backToTop')}</a></p>
     </div>`
   });
 }

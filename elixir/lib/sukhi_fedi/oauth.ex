@@ -98,7 +98,7 @@ defmodule SukhiFedi.OAuth do
   """
   @spec create_authorization_code(OauthApp.t(), SukhiFedi.Schema.Account.t(), map()) ::
           {:ok, %{code: String.t(), state: String.t() | nil}}
-          | {:error, :invalid_redirect_uri | :invalid_scope | :invalid_request}
+          | {:error, :invalid_redirect_uri | :invalid_scope | :invalid_request | :admin_required}
   def create_authorization_code(%OauthApp{} = app, %{id: account_id}, %{} = params) do
     redirect_uri = params[:redirect_uri] || params["redirect_uri"]
     scopes = normalize_scopes(params[:scopes] || params["scopes"] || app.scopes)
@@ -210,9 +210,13 @@ defmodule SukhiFedi.OAuth do
   # place that is checked: every route behind `admin:*` sees only what is minted here.
   defp check_admin_scope(scopes, %OauthApp{} = app, account_id) do
     if Enum.any?(split_scopes(scopes), &(&1 == "admin" or String.starts_with?(&1, "admin:"))) do
-      if admin?(account_id) and admin?(app.owner_account_id),
-        do: :ok,
-        else: {:error, :invalid_scope}
+      cond do
+        # このアカウントは管理者ではない(人に「権限がありません」と言える理由)。
+        not admin?(account_id) -> {:error, :admin_required}
+        # app の持ち主が管理者でない(運営の登録の誤り。人の側では直せない)。
+        not admin?(app.owner_account_id) -> {:error, :invalid_scope}
+        true -> :ok
+      end
     else
       :ok
     end
