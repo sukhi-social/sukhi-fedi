@@ -276,6 +276,132 @@ defmodule SukhiFedi.Integration.OAuthTest do
     end
   end
 
+  describe "PKCE (a client with no secret)" do
+    @redirect "https://gov.example/"
+    @verifier String.duplicate("a1B2c3D4e5", 5)
+
+    defp challenge(v), do: :crypto.hash(:sha256, v) |> Base.url_encode64(padding: false)
+
+    defp ask(app, account, extra \\ %{}) do
+      OAuth.create_authorization_code(
+        app,
+        account,
+        Map.merge(%{redirect_uri: @redirect, scopes: "read"}, extra)
+      )
+    end
+
+    defp pkce(app, code, verifier) do
+      OAuth.exchange_code_for_token(%{
+        "client_id" => app.client_id,
+        "code" => code,
+        "redirect_uri" => @redirect,
+        "code_verifier" => verifier
+      })
+    end
+
+    test "the verifier alone (no secret) turns the code into a token" do
+      {:ok, %{app: app}} = register("Pkce1", @redirect)
+      account = create_account!("u_pkce1")
+
+      {:ok, %{code: code}} =
+        ask(app, account, %{code_challenge: challenge(@verifier), code_challenge_method: "S256"})
+
+      assert {:ok, %{access_token: t}} = pkce(app, code, @verifier)
+      assert is_binary(t)
+    end
+
+    test "a wrong verifier is refused, and the code is spent" do
+      {:ok, %{app: app}} = register("Pkce2", @redirect)
+      account = create_account!("u_pkce2")
+
+      {:ok, %{code: code}} =
+        ask(app, account, %{code_challenge: challenge(@verifier), code_challenge_method: "S256"})
+
+      assert {:error, :invalid_grant} = pkce(app, code, String.duplicate("z", 43))
+      assert {:error, :invalid_grant} = pkce(app, code, @verifier)
+    end
+
+    test "no verifier for a code that has a challenge is refused" do
+      {:ok, %{app: app}} = register("Pkce3", @redirect)
+      account = create_account!("u_pkce3")
+
+      {:ok, %{code: code}} =
+        ask(app, account, %{code_challenge: challenge(@verifier), code_challenge_method: "S256"})
+
+      assert {:error, :invalid_grant} = pkce(app, code, nil)
+    end
+
+    test "a code without a challenge still needs the secret; a verifier cannot stand in" do
+      {:ok, %{app: app, client_secret: secret}} = register("Pkce4", @redirect)
+      account = create_account!("u_pkce4")
+      {:ok, %{code: code}} = ask(app, account)
+
+      assert {:error, :invalid_client} = pkce(app, code, nil)
+      assert {:error, :invalid_grant} = pkce(app, code, @verifier)
+
+      assert {:ok, _} =
+               OAuth.exchange_code_for_token(%{
+                 "client_id" => app.client_id,
+                 "client_secret" => secret,
+                 "code" => code,
+                 "redirect_uri" => @redirect
+               })
+    end
+
+    test "only S256, well-formed challenges are accepted" do
+      {:ok, %{app: app}} = register("Pkce5", @redirect)
+      account = create_account!("u_pkce5")
+
+      for extra <- [
+            %{code_challenge: @verifier, code_challenge_method: "plain"},
+            %{code_challenge: challenge(@verifier)},
+            %{code_challenge: "short", code_challenge_method: "S256"},
+            %{code_challenge_method: "S256"}
+          ] do
+        assert {:error, :invalid_request} = ask(app, account, extra)
+      end
+    end
+  end
+
+  describe "admin scope" do
+    @redirect "https://gov.example/"
+
+    defp admin!(username),
+      do: Repo.insert!(%Account{username: username, display_name: username, summary: "t", is_admin: true})
+
+    defp admin_app(owner_id) do
+      OAuth.register_app(%{
+        "client_name" => "gov",
+        "redirect_uris" => @redirect,
+        "scopes" => "admin:read admin:write",
+        owner_account_id: owner_id
+      })
+    end
+
+    defp want_admin(app, account),
+      do: OAuth.create_authorization_code(app, account, %{redirect_uri: @redirect, scopes: "admin:read admin:write"})
+
+    test "an admin, through an app an admin owns, gets the code" do
+      owner = admin!("adm_owner")
+      {:ok, %{app: app}} = admin_app(owner.id)
+      assert {:ok, %{code: _}} = want_admin(app, admin!("adm_who"))
+    end
+
+    test "an account that is not an admin does not" do
+      owner = admin!("adm_owner2")
+      {:ok, %{app: app}} = admin_app(owner.id)
+      assert {:error, :invalid_scope} = want_admin(app, create_account!("not_admin"))
+    end
+
+    test "an app nobody (or a non-admin) owns does not, even for an admin" do
+      {:ok, %{app: unowned}} = admin_app(nil)
+      {:ok, %{app: by_user}} = admin_app(create_account!("plain_owner").id)
+      who = admin!("adm_who2")
+      assert {:error, :invalid_scope} = want_admin(unowned, who)
+      assert {:error, :invalid_scope} = want_admin(by_user, who)
+    end
+  end
+
   defp register(name, redirect \\ "urn:ietf:wg:oauth:2.0:oob", scopes \\ "read") do
     OAuth.register_app(%{
       "client_name" => name,

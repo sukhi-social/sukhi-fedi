@@ -34,6 +34,8 @@ export type Session = {
   join?: { claim: string; receipt: string; email: string; weekday: number; daysAfter: number; confirmed?: boolean };
   // 加入のやりかけ。/signup に戻ったとき、入力を埋めるため(同意は埋めない)。
   signupDraft?: { username: string; email: string; invite: string };
+  // 迎えのメールの入場リンク(/welcome/:key)から来た人の鍵。URL には残さず、ここに預けて /signup で使う(一度きり・14日)。
+  entry?: string;
   // ログイン後に戻る先(/oauth/authorize から弾かれて来たとき)。
   next?: string;
   // 次の一枚の頁にだけ見せる、ひとこと。

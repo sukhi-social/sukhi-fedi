@@ -198,6 +198,10 @@ export const jaExtra = {
   'oauth.scope.writeFollows.d': 'あなたに代わって、フォロー/アンフォローします。',
   'oauth.scope.writeNotifications': '通知を整える',
   'oauth.scope.writeNotifications.d': '通知を消したり、まとめて既読にしたりします。',
+  'oauth.scope.adminRead': '管理: 読む',
+  'oauth.scope.adminRead.d': 'このサーバの管理の画面(申し込みなど)を、読みます。管理する人にだけ、渡せます。',
+  'oauth.scope.adminWrite': '管理: 書く',
+  'oauth.scope.adminWrite.d': '申し込みへの返事など、管理の操作をします。管理する人にだけ、渡せます。',
 } as const;
 
 export const koExtra: Record<keyof typeof jaExtra, string> = {
@@ -396,6 +400,10 @@ export const koExtra: Record<keyof typeof jaExtra, string> = {
   'oauth.scope.writeFollows.d': '당신을 대신해 팔로우/언팔로우합니다.',
   'oauth.scope.writeNotifications': '알림 정리',
   'oauth.scope.writeNotifications.d': '알림을 지우거나 한꺼번에 읽음으로 표시합니다.',
+  'oauth.scope.adminRead': '관리: 읽기',
+  'oauth.scope.adminRead.d': '이 서버의 관리 화면(신청 등)을 읽어요. 관리하는 사람만 줄 수 있어요.',
+  'oauth.scope.adminWrite': '관리: 쓰기',
+  'oauth.scope.adminWrite.d': '신청에 답하는 등 관리 작업을 해요. 관리하는 사람만 줄 수 있어요.',
 };
 
 // English. The voice is described in docs/ENGLISH_VOICE.md: plain, warm, in no hurry.
@@ -595,4 +603,8 @@ export const enExtra: Record<keyof typeof jaExtra, string> = {
   'oauth.scope.writeFollows.d': 'Follows and unfollows on your behalf.',
   'oauth.scope.writeNotifications': 'Tidy notifications',
   'oauth.scope.writeNotifications.d': 'Clears notifications or marks them all as read.',
+  'oauth.scope.adminRead': 'Admin: read',
+  'oauth.scope.adminRead.d': 'Read this server’s admin screens (such as join applications). Only an admin can grant this.',
+  'oauth.scope.adminWrite': 'Admin: write',
+  'oauth.scope.adminWrite.d': 'Act on them, such as answering join applications. Only an admin can grant this.',
 };

@@ -26,10 +26,12 @@ const SCOPES: Record<string, [TranslationKey, TranslationKey]> = {
   'write:media': ['oauth.scope.writeMedia', 'oauth.scope.writeMedia.d'],
   'write:accounts': ['oauth.scope.writeAccounts', 'oauth.scope.writeAccounts.d'],
   'write:follows': ['oauth.scope.writeFollows', 'oauth.scope.writeFollows.d'],
-  'write:notifications': ['oauth.scope.writeNotifications', 'oauth.scope.writeNotifications.d']
+  'write:notifications': ['oauth.scope.writeNotifications', 'oauth.scope.writeNotifications.d'],
+  'admin:read': ['oauth.scope.adminRead', 'oauth.scope.adminRead.d'],
+  'admin:write': ['oauth.scope.adminWrite', 'oauth.scope.adminWrite.d']
 };
 
-export type Asked = { client_id: string; redirect_uri: string; scope: string; state: string };
+export type Asked = { client_id: string; redirect_uri: string; scope: string; state: string; code_challenge?: string; code_challenge_method?: string };
 
 export function pickPage(ctx: Ctx, accounts: { id: number; username: string }[], asked: URLSearchParams): SafeHtml {
   const t = ctx.t;
@@ -74,6 +76,7 @@ export function consentPage(ctx: Ctx, app: { name: string }, scopes: string[], a
         <input type="hidden" name="redirect_uri" value="${asked.redirect_uri}" />
         <input type="hidden" name="scope" value="${asked.scope}" />
         <input type="hidden" name="state" value="${asked.state}" />
+        ${asked.code_challenge ? html`<input type="hidden" name="code_challenge" value="${asked.code_challenge}" /><input type="hidden" name="code_challenge_method" value="${asked.code_challenge_method ?? ''}" />` : ''}
         <button type="submit" class="btn px-6 py-2">${t('oauth.consentYes')}</button>
       </form>
       <p class="prose-small"><a href="/">${t('oauth.consentNo')}</a></p>

@@ -9,6 +9,8 @@ defmodule SukhiFedi.Schema.OauthAuthorizationCode do
     field :scopes, :string
     field :expires_at, :utc_datetime
     field :used_at, :utc_datetime
+    # PKCE (RFC 7636, S256 only): what the one who asked committed to. Set → the exchange needs the verifier.
+    field :code_challenge, :string
     belongs_to :app, SukhiFedi.Schema.OauthApp
     belongs_to :account, SukhiFedi.Schema.Account
 
@@ -16,7 +18,7 @@ defmodule SukhiFedi.Schema.OauthAuthorizationCode do
   end
 
   @required [:code_hash, :redirect_uri, :scopes, :expires_at, :app_id, :account_id]
-  @optional [:used_at]
+  @optional [:used_at, :code_challenge]
 
   def changeset(code, attrs) do
     code

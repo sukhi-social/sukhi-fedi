@@ -30,6 +30,13 @@ defmodule SukhiFedi.Schema.JoinApplication do
     field(:claim_hash, :string)
     field(:edit_hash, :string)
     field(:confirmed_at, :utc_datetime)
+    # Step 2: the greeter welcomed them. `entry_hash` is the sha256 of the
+    # one-time entry key that went out by mail; it lives until
+    # `entry_expires_at` and is spent once (`joined_at`).
+    field(:entry_hash, :string)
+    field(:entry_expires_at, :utc_datetime)
+    field(:welcomed_at, :utc_datetime)
+    field(:joined_at, :utc_datetime)
 
     timestamps(type: :utc_datetime, inserted_at: :created_at)
   end
@@ -70,6 +77,30 @@ defmodule SukhiFedi.Schema.JoinApplication do
   @doc "Undo `confirm_changeset/2` when the mail that carried the link did not go."
   @spec unconfirm_changeset(%__MODULE__{}) :: Ecto.Changeset.t()
   def unconfirm_changeset(%__MODULE__{} = app), do: change(app, edit_hash: nil, confirmed_at: nil)
+
+  @doc "Welcomed: the entry key's hash, when it stops working, and the day."
+  @spec welcome_changeset(%__MODULE__{}, String.t(), DateTime.t()) :: Ecto.Changeset.t()
+  def welcome_changeset(%__MODULE__{} = app, entry_hash, %DateTime{} = expires_at)
+      when is_binary(entry_hash) do
+    change(app,
+      entry_hash: entry_hash,
+      entry_expires_at: DateTime.truncate(expires_at, :second),
+      welcomed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    )
+  end
+
+  @doc "Undo `welcome_changeset/3` when the mail that carried the link did not go."
+  @spec unwelcome_changeset(%__MODULE__{}) :: Ecto.Changeset.t()
+  def unwelcome_changeset(%__MODULE__{} = app),
+    do: change(app, entry_hash: nil, entry_expires_at: nil, welcomed_at: nil)
+
+  @doc """
+  After the welcome mail went: what they wrote and where they wrote from
+  are not kept. What stays is the day, and that they were welcomed.
+  """
+  @spec scrub_changeset(%__MODULE__{}) :: Ecto.Changeset.t()
+  def scrub_changeset(%__MODULE__{} = app),
+    do: change(app, email: nil, call_name: nil, found: nil, hope: nil, edit_hash: nil)
 
   defp answers(cs) do
     cs

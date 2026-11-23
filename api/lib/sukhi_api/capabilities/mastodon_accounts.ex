@@ -86,6 +86,16 @@ defmodule SukhiApi.Capabilities.MastodonAccounts do
           {:error, :invite_expired} ->
             ok(422, %{error: "invite_expired"})
 
+          # The entry link from a welcome mail (docs/JOIN.md).
+          {:error, :entry_invalid} ->
+            ok(422, %{error: "entry_invalid"})
+
+          {:error, :entry_used} ->
+            ok(422, %{error: "entry_used"})
+
+          {:error, :entry_expired} ->
+            ok(422, %{error: "entry_expired"})
+
           {:error, :password_too_short} ->
             ok(422, %{error: "password_too_short"})
 

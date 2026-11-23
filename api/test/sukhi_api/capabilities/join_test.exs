@@ -185,6 +185,21 @@ defmodule SukhiApi.Capabilities.JoinTest do
       assert {404, _} = json(post("/api/v1/join/lookup", %{"key" => "k"}))
     end
 
+    test "entry says whether the link is still good, and why not" do
+      answer(%{entry_status: :ok})
+      assert {200, %{"valid" => true}} = json(post("/api/v1/join/entry", %{"key" => "k"}))
+      assert_received {:rpc, :entry_status, ["k"]}
+
+      for r <- [:invalid, :used, :expired] do
+        answer(%{entry_status: {:error, r}})
+        assert {410, %{"error" => err}} = json(post("/api/v1/join/entry", %{"key" => "k"}))
+        assert err == "entry_#{r}"
+      end
+
+      assert {410, _} = json(post("/api/v1/join/entry", %{}))
+      assert_received {:rpc, :entry_status, [""]}
+    end
+
     test "edit forwards the three words only" do
       answer(%{edit: {:ok, app()}})
 

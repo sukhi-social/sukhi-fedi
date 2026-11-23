@@ -19,7 +19,8 @@ import { consentPage, CONSENT_CSP, pickPage, problemPage, type Asked } from '../
 
 const API = '/api/v1/sukhi/oauth/authorize';
 // api に渡す問いの名前。これ以外は、渡さない。
-const ASKED = ['client_id', 'redirect_uri', 'scope', 'state', 'response_type', 'choose'] as const;
+// code_challenge(+method) は PKCE(静的な頁のアプリが、secret なしで入るため)。そのまま、同意の form にも運ぶ。
+const ASKED = ['client_id', 'redirect_uri', 'scope', 'state', 'response_type', 'choose', 'code_challenge', 'code_challenge_method'] as const;
 
 type Decision =
   | { decision: 'login' }
@@ -77,7 +78,7 @@ route('GET', '/oauth/authorize', async (ctx) => {
       return ok(pickPage(ctx, d.accounts, withoutChoose(asked)));
     case 'consent': {
       const q = (k: string) => asked.get(k) ?? '';
-      const form: Asked = { client_id: q('client_id'), redirect_uri: q('redirect_uri'), scope: q('scope') || 'read', state: q('state') };
+      const form: Asked = { client_id: q('client_id'), redirect_uri: q('redirect_uri'), scope: q('scope') || 'read', state: q('state'), code_challenge: q('code_challenge'), code_challenge_method: q('code_challenge_method') };
       return ok(consentPage(ctx, d.app, d.scopes, form), 200, { 'content-security-policy': CONSENT_CSP });
     }
     case 'redirect':
@@ -88,7 +89,8 @@ route('GET', '/oauth/authorize', async (ctx) => {
 route('POST', '/oauth/authorize', async (ctx) => {
   const f = await ctx.form();
   const str = (k: string) => String(f.get(k) ?? '');
-  const sent = { client_id: str('client_id'), redirect_uri: str('redirect_uri'), scope: str('scope') || 'read', state: str('state') };
+  const sent: Record<string, string> = { client_id: str('client_id'), redirect_uri: str('redirect_uri'), scope: str('scope') || 'read', state: str('state') };
+  for (const k of ['code_challenge', 'code_challenge_method']) if (str(k)) sent[k] = str(k);
   const r = await gwBrowser<Decision & Problem>(ctx, 'POST', API, sent);
   if (r.status === 401) {
     // 同意を押すまでのあいだに、入っていたのが切れた。もういちど入って、同じ問いから。

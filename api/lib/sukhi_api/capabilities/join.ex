@@ -11,6 +11,7 @@ defmodule SukhiApi.Capabilities.Join do
     * `POST /api/v1/join/email`     — `{claim, email}`: fix the address, before any "yes"
     * `POST /api/v1/join/lookup`    — `{key}`: the words behind an edit link
     * `POST /api/v1/join/edit`      — `{key, ...}`: rewrite them
+    * `POST /api/v1/join/entry`     — `{key}`: is this entry link still good (step 2)
 
   All open: nobody has an account yet. The two secrets (`claim` for the
   browser that applied, `key` for the mailed link) travel in bodies, never
@@ -35,7 +36,8 @@ defmodule SukhiApi.Capabilities.Join do
       {:post, "/api/v1/join/received", &received/1},
       {:post, "/api/v1/join/email", &email/1},
       {:post, "/api/v1/join/lookup", &lookup/1},
-      {:post, "/api/v1/join/edit", &edit/1}
+      {:post, "/api/v1/join/edit", &edit/1},
+      {:post, "/api/v1/join/entry", &entry/1}
     ]
   end
 
@@ -102,6 +104,18 @@ defmodule SukhiApi.Capabilities.Join do
       {:ok, app} -> ok(200, Join.render_application(app))
       {:error, reason} -> failure(reason)
       {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
+    end
+  end
+
+  # Only asks; spending the key is the sign-up's own transaction.
+  def entry(req) do
+    key = req |> decode_body() |> secret("key")
+
+    case GatewayRpc.run(SukhiFedi.JoinApplications, :entry_status, [key]) do
+      {:ok, :ok} -> ok(200, %{valid: true})
+      {:error, reason} when reason in [:invalid, :used, :expired] -> ok(410, %{error: "entry_#{reason}"})
+      {:unavailable, why} -> ok(503, GatewayRpc.unavailable_body(why))
+      _ -> ok(500, %{error: "internal_error"})
     end
   end
 

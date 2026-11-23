@@ -433,4 +433,69 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
       assert id == account.id
     end
   end
+
+  # ── 入場の鍵(docs/JOIN.md): 迎えのメールのリンク ────────────────────
+  #
+  # 門が閉じていても、鍵があれば入れる。鍵は一度きりで、登録が転んだら
+  # 使い切らない(アカウントを作るのと同じ transaction で使うから)。
+
+  describe "create/1 with an entry key" do
+    setup do
+      SukhiFedi.Mailer.Capture.clear()
+      n = System.unique_integer([:positive])
+      email = "applicant_#{n}@example.test"
+
+      {:ok, %{claim: claim, application: app}} =
+        SukhiFedi.JoinApplications.submit(%{"email" => email, "lang" => "ja"})
+
+      {:ok, _} = SukhiFedi.JoinApplications.received(claim)
+      {:ok, _} = SukhiFedi.JoinApplications.welcome(app.receipt, nil, 1)
+
+      %{body: body} = SukhiFedi.Mailer.Capture.last_to(email)
+      [_, key] = Regex.run(~r{/welcome/([A-Za-z0-9_-]+)}, body)
+      %{key: key}
+    end
+
+    defp entry_attrs(key, overrides \\ %{}) do
+      n = System.unique_integer([:positive])
+
+      Map.merge(
+        %{
+          "username" => "entry_#{n}",
+          "email_proof" => proof_for("entry_#{n}@example.test"),
+          "entry_key" => key
+        },
+        overrides
+      )
+    end
+
+    test "門が閉じていても、鍵があれば入れる", %{key: key} do
+      assert SukhiFedi.Config.invite_required?()
+      assert {:ok, account} = LocalAccounts.create(entry_attrs(key))
+      assert is_nil(account.domain)
+    end
+
+    test "鍵は一度きり", %{key: key} do
+      assert {:ok, _} = LocalAccounts.create(entry_attrs(key))
+      assert {:error, :entry_used} = LocalAccounts.create(entry_attrs(key))
+    end
+
+    test "登録が転んだら、鍵は使い切らない", %{key: key} do
+      # the mailbox proof is missing: no account, and the key is still good
+      assert {:error, :email_proof_invalid} =
+               LocalAccounts.create(%{"username" => "nokey_proof", "entry_key" => key})
+
+      assert :ok = SukhiFedi.JoinApplications.entry_status(key)
+      assert {:ok, _} = LocalAccounts.create(entry_attrs(key))
+    end
+
+    test "でたらめな鍵は、門が閉じていても開けない" do
+      assert {:error, :entry_invalid} = LocalAccounts.create(entry_attrs("nope"))
+    end
+
+    test "期限を過ぎた鍵は使えない", %{key: key} do
+      late = DateTime.add(DateTime.utc_now(), 15 * 24 * 3600, :second)
+      assert {:error, :expired} = SukhiFedi.JoinApplications.consume_entry(key, late)
+    end
+  end
 end

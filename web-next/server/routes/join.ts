@@ -8,6 +8,7 @@
 //   /join/email        アドレスを見直して、受付のメールを送り直す
 //   /join/done         ありがとう。いつ確認するか
 //   /join/edit/:key    メールのリンクから、書き直す
+//   /welcome/:key      迎えのメールの入場リンク。鍵を session に預けて /signup へ(招待コードの代わり・一度きり・14日)
 //
 // 鍵は二つ。claim は、申し込んだこのブラウザ(session)だけが持つ ── 「はい」と言えるのは、ここから。
 // key は、「はい」のあとにメールで届く編集のリンク。メールのアドレスを打ち間違えても、
@@ -357,5 +358,53 @@ route('POST', '/join/edit/:key', async (ctx) => {
         <p class="tagline">${t('join.savedLead')}</p>
       </section>
       <p class="prose-small"><a href="/">${t('join.back')}</a></p>`
+  );
+});
+
+// ── 迎えのメールから、入る ────────────────────────────────────────
+// 鍵は URL に残さない: ここで確かめて session に預け、/signup の頁には出さない。
+// 確かめるだけで、使い切るのは登録のとき(gateway が口座と同じ transaction で)。
+
+route('GET', '/welcome/:key', async (ctx) => {
+  if (ctx.session?.token) return redirect('/');
+  const t = ctx.t;
+  const key = ctx.params.key;
+  try {
+    await gw(ctx, 'POST', '/api/v1/join/entry', { auth: false, json: { key } });
+  } catch (e) {
+    if (e instanceof GatewayError && e.status === 410) {
+      const why = ['entry_used', 'entry_expired'].includes(e.message) ? e.message : 'entry_invalid';
+      return frame(
+        ctx,
+        t('welcome.deadTitle'),
+        html`<section class="hero">
+            <h1>${t('welcome.deadTitle')}</h1>
+            <p class="tagline">${t(`welcome.dead.${why}` as TranslationKey)}</p>
+          </section>
+          <p class="prose-small">${t('welcome.deadHelp')}</p>
+          <p class="prose-small"><a class="btn primary px-6 py-2" href="/join">${t('join.deadLink')}</a></p>`,
+        404
+      );
+    }
+    return frame(
+      ctx,
+      t('welcome.deadTitle'),
+      html`<section class="hero"><p class="tagline">${t('welcome.error')}</p></section>
+        <p><a class="btn px-6 py-2" href="/welcome/${encodeURIComponent(key)}">${t('welcome.retry')}</a></p>`,
+      503
+    );
+  }
+  const s = ctx.sess();
+  s.entry = key;
+  saveSession(s);
+  return frame(
+    ctx,
+    t('welcome.title'),
+    html`<section class="hero">
+        <h1>${t('welcome.title')}</h1>
+        <p class="tagline">${t('welcome.lead')}</p>
+      </section>
+      <p class="prose-small">${t('welcome.note')}</p>
+      <p><a class="btn primary px-6 py-2" href="/signup">${t('welcome.go')}</a></p>`
   );
 });
