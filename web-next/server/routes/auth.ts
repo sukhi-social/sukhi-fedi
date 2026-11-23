@@ -527,6 +527,9 @@ const SIGNUP_ERRORS: Record<string, TranslationKey> = {
   invite_invalid: "check.err.invite_invalid",
   invite_used: "check.err.invite_used",
   invite_expired: "check.err.invite_expired",
+  entry_invalid: "check.err.entry_invalid",
+  entry_used: "check.err.entry_used",
+  entry_expired: "check.err.entry_expired",
   password_too_short: "check.err.password_too_short",
   email_proof_invalid: "check.err.email_proof_invalid",
   validation_failed: "check.err.validation_failed",
@@ -546,6 +549,8 @@ const SIGNUP_FIELDS: Record<string, TranslationKey> = {
 // 招待コードが要るサーバかどうかは、サーバが決める。訊けなかったら「要る」に倒す
 // (欄が余分に出るより、隠れた必須欄のほうが困る)。
 async function inviteRequired(ctx: Ctx): Promise<boolean> {
+  // 迎えのメールの入場リンクから来た人は、招待コードのかわりに鍵がある。
+  if (ctx.session?.entry) return false;
   try {
     const i = await gwJson<{ registrations?: { approval_required?: boolean } }>(
       ctx,
@@ -606,6 +611,7 @@ function signupPage(ctx: Ctx, v: SignupView = {}, status = 200): Reply {
       <p class="tagline">${t("signup.tagline")}</p>
     </section>
     ${v.error ? html`<p class="error" role="alert">${v.error}</p>` : ""}
+    ${ctx.session?.entry ? html`<p class="prose-small">${t("signup.welcomed")}</p>` : ""}
     ${
       v.step === "code"
         ? html`<p class="prose-small">
@@ -948,6 +954,7 @@ async function finishSignup(
       body: JSON.stringify({
         username: v.username,
         invite_code: v.invite,
+        ...(ctx.session?.entry ? { entry_key: ctx.session.entry } : {}),
         email_proof: proof,
       }),
     });
@@ -966,6 +973,7 @@ async function finishSignup(
     s.token = made;
     s.me = undefined;
     s.signupDraft = undefined;
+    s.entry = undefined;
     saveSession(s);
     await ctx.me().catch(() => null);
 
@@ -996,6 +1004,12 @@ async function finishSignup(
         },
         422,
       );
+    }
+    // 入場の鍵が使えなくなっていたら、もう持たない(招待コードの欄が戻る)。
+    if (msg.startsWith("entry_") && ctx.session?.entry) {
+      const s = ctx.sess();
+      s.entry = undefined;
+      saveSession(s);
     }
     let error = t("check.failedGeneric");
     if (msg === "validation_failed" && e instanceof GatewayError && e.details) {

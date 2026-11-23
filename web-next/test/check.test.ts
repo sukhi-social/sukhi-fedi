@@ -217,3 +217,43 @@ test('ログインの頁に、パスキーで入る口がある。通れば関�
   assert.deepEqual(await fin.json(), { ok: true, redirect: '/check?intent=login' });
   assert.equal((await b('/check?intent=login')).status, 303);
 });
+
+// ── 迎えのメールの入場リンク(/welcome/:key)──────────────────────────
+
+test('入場リンク: 生きた鍵なら歓迎の頁。鍵は URL に出ず、/signup では招待コードの欄が消える', async () => {
+  const b = browser();
+  const before = await (await b('/signup')).text();
+  assert.match(before, /name="invite_code"[^>]*required/);
+
+  const res = await b('/welcome/mock-entry');
+  assert.equal(res.status, 200);
+  const page = await res.text();
+  assert.match(page, /お迎えします/);
+  assert.match(page, /一回だけ、14日/);
+  // 言語切り替えの「戻る先」(この頁のパスそのもの)のほかには、鍵はどこにも出ない。
+  assert.doesNotMatch(page, /(href|action)="[^"]*mock-entry/);
+  assert.match(page, /href="\/signup"/);
+
+  const signup = await (await b('/signup')).text();
+  assert.match(signup, /お迎えのメールから来てくれました/);
+  assert.doesNotMatch(signup, /<input[^>]*type="text"[^>]*name="invite_code"/);
+  assert.ok(!signup.includes('mock-entry'));
+});
+
+test('入場リンク: 使えない鍵は、理由ごとのことばと、申し込みへの道。session に鍵は残らない', async () => {
+  const b = browser();
+  for (const [key, re] of [
+    ['used-entry', /もう使われたみたい/],
+    ['old-entry', /14日がすぎて/],
+    ['nope', /見つかりませんでした/]
+  ] as const) {
+    const res = await b(`/welcome/${key}`);
+    assert.equal(res.status, 404);
+    const page = await res.text();
+    assert.match(page, re);
+    assert.match(page, /href="\/join"/);
+  }
+  const signup = await (await b('/signup')).text();
+  assert.doesNotMatch(signup, /お迎えのメールから来てくれました/);
+  assert.match(signup, /name="invite_code"[^>]*required/);
+});

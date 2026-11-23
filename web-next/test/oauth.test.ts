@@ -173,6 +173,24 @@ test('「いいよ」: コードを持った戻り先へ。外のアプリの cu
   assert.match(await lastLog(), /oauth POST client=app .*cookie=\[session_token=tok_1\] bearer=no/);
 });
 
+test('PKCE: 問いの challenge は、同意の form を通って、そのまま api へ。admin の権限は、ことばで見える', async () => {
+  const ch = 'A'.repeat(43);
+  const q = ask({ code_challenge: ch, code_challenge_method: 'S256', scope: 'admin:read admin:write' });
+  const page = await (await get(`/oauth/authorize?${q}`, 'session_token=tok_1')).text();
+  assert.match(page, new RegExp(`name="code_challenge" value="${ch}"`));
+  assert.match(page, /name="code_challenge_method" value="S256"/);
+  assert.match(page, /管理: 読む/);
+  assert.doesNotMatch(page, /説明はまだ/);
+
+  const res = await post('/oauth/authorize', { client_id: 'app', redirect_uri: 'cx-test://done', scope: 'admin:read', state: 's1', code_challenge: ch, code_challenge_method: 'S256' }, 'session_token=tok_1');
+  assert.equal(res.status, 303);
+  assert.match(await lastLog(), new RegExp(`oauth POST .* pkce=${ch}/S256`));
+
+  // 付けなかった問いには、何も足さない。
+  const plain = await (await get(`/oauth/authorize?${ask()}`, 'session_token=tok_1')).text();
+  assert.doesNotMatch(plain, /code_challenge/);
+});
+
 test('「いいよ」を押すまでに、入っていたのが切れたら、入りなおしへ', async () => {
   const res = await post('/oauth/authorize', { client_id: 'app', redirect_uri: 'cx-test://done', scope: 'read', state: 's1' });
   assert.equal(res.status, 303);

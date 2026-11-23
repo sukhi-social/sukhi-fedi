@@ -480,6 +480,10 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
           requestLog.push(pathname === '/api/v1/join/email' ? `join/email ${email}` : 'join/received');
           return reply(200, { receipt: '482913' });
         }
+        if (pathname === '/api/v1/join/entry') {
+          if (json?.key === 'mock-entry') return reply(200, { valid: true });
+          return reply(410, { error: json?.key === 'used-entry' ? 'entry_used' : json?.key === 'old-entry' ? 'entry_expired' : 'entry_invalid' });
+        }
         if (pathname === '/api/v1/join/lookup' || pathname === '/api/v1/join/edit') {
           if (json?.key !== 'mock-key') return reply(404, { error: 'join_not_found' });
           if (pathname === '/api/v1/join/edit') requestLog.push(`join/edit ${json?.call_name ?? ''}`);
@@ -512,7 +516,7 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
       };
       const cookie = String(req.headers.cookie ?? '');
       const ask = method === 'GET' ? Object.fromEntries(new URL(req.url ?? '/', 'http://localhost').searchParams) : (json ?? {});
-      requestLog.push(`oauth ${method} client=${ask.client_id ?? ''} choose=${ask.choose ?? ''} cookie=[${cookie}] bearer=${req.headers.authorization ? 'yes' : 'no'}`);
+      requestLog.push(`oauth ${method} client=${ask.client_id ?? ''} choose=${ask.choose ?? ''} cookie=[${cookie}] bearer=${req.headers.authorization ? 'yes' : 'no'}${ask.code_challenge ? ` pkce=${ask.code_challenge}/${ask.code_challenge_method ?? ''}` : ''}`);
       const signedIn = cookie.split(';').some((c) => c.trim().startsWith('session_token='));
       if (!signedIn) return method === 'POST' ? say(401, { error: 'unauthorized', error_description: 'log in first to authorize this app' }) : say(200, { decision: 'login' });
       if (ask.client_id === 'ghost') return say(404, { error: 'invalid_client', error_description: 'unknown client_id' });
