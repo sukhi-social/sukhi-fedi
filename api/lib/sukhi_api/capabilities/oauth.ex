@@ -58,6 +58,7 @@ defmodule SukhiApi.Capabilities.OAuth do
     redirect_uri = params["redirect_uri"] || ""
     scope = params["scope"] || "read"
     state = params["state"] || ""
+    pkce = Map.take(params, ["code_challenge", "code_challenge_method"])
     response_type = params["response_type"] || "code"
     choose = params["choose"]
     headers = req[:headers] || []
@@ -95,6 +96,7 @@ defmodule SukhiApi.Capabilities.OAuth do
                   redirect_uri,
                   scope,
                   state,
+                  pkce,
                   session_set_cookie_headers(new_primary, new_extras)
                 )
 
@@ -111,7 +113,7 @@ defmodule SukhiApi.Capabilities.OAuth do
             decision(%{decision: "login"})
 
           [%{account: account}] ->
-            authorize_with_session(account, client_id, redirect_uri, scope, state)
+            authorize_with_session(account, client_id, redirect_uri, scope, state, pkce)
 
           # 2 個以上サインインしてるときだけ、consent の手前に一枚
           # 「どのアカウントで続ける?」を挟む。1個しか無い人には今まで
@@ -142,11 +144,11 @@ defmodule SukhiApi.Capabilities.OAuth do
   # ときは従来どおり consent。`extra_headers` はピッカーで選んだ直後
   # だけ乗る、並べ替えた Set-Cookie(このリクエストの応答が最初にそれを
   # 運ぶ唯一の機会)。
-  defp authorize_with_session(account, client_id, redirect_uri, scope, state, extra_headers \\ []) do
+  defp authorize_with_session(account, client_id, redirect_uri, scope, state, pkce, extra_headers \\ []) do
     case GatewayRpc.run(@gateway, :find_app_by_client_id, [client_id]) do
       {:ok, app} ->
         if first_party?(redirect_uri) do
-          mint_and_redirect(app, account, redirect_uri, scope, state, extra_headers)
+          mint_and_redirect(app, account, redirect_uri, scope, state, pkce, extra_headers)
         else
           decision(
             %{
@@ -166,14 +168,17 @@ defmodule SukhiApi.Capabilities.OAuth do
     end
   end
 
-  defp mint_and_redirect(app, account, redirect_uri, scope, state, extra_headers) do
+  defp mint_and_redirect(app, account, redirect_uri, scope, state, pkce, extra_headers) do
     case GatewayRpc.run(@gateway, :create_authorization_code, [
            app,
            account,
-           %{redirect_uri: redirect_uri, scopes: scope, state: state}
+           Map.merge(pkce, %{redirect_uri: redirect_uri, scopes: scope, state: state})
          ]) do
       {:ok, %{code: code, state: returned_state}} ->
         redirect(redirect_uri, [code: code, state: returned_state], extra_headers)
+
+      {:error, :invalid_request} ->
+        error(400, "invalid_request", "code_challenge must be S256 with a 43-character value")
 
       {:error, :invalid_redirect_uri} ->
         error(400, "invalid_redirect_uri", "redirect_uri does not match registered URIs")
@@ -222,6 +227,7 @@ defmodule SukhiApi.Capabilities.OAuth do
     redirect_uri = body["redirect_uri"] || ""
     scope = body["scope"] || "read"
     state = body["state"]
+    pkce = Map.take(body, ["code_challenge", "code_challenge_method"])
     token_candidates = session_tokens_from_cookies(req[:headers] || [])
 
     cond do
@@ -229,18 +235,18 @@ defmodule SukhiApi.Capabilities.OAuth do
         error(400, "invalid_request", "missing client_id")
 
       true ->
-        do_approve(client_id, redirect_uri, scope, state, token_candidates)
+        do_approve(client_id, redirect_uri, scope, state, pkce, token_candidates)
     end
   end
 
-  defp do_approve(client_id, redirect_uri, scope, state, token_candidates) do
+  defp do_approve(client_id, redirect_uri, scope, state, pkce, token_candidates) do
     with {:ok, account} <- resolve_session_any(token_candidates),
          {:ok, app} <- GatewayRpc.run(@gateway, :find_app_by_client_id, [client_id]),
          {:ok, %{code: code, state: returned_state}} <-
            GatewayRpc.run(@gateway, :create_authorization_code, [
              app,
              account,
-             %{redirect_uri: redirect_uri, scopes: scope, state: state}
+             Map.merge(pkce, %{redirect_uri: redirect_uri, scopes: scope, state: state})
            ]) do
       redirect(redirect_uri, code: code, state: returned_state)
     else
@@ -255,6 +261,9 @@ defmodule SukhiApi.Capabilities.OAuth do
 
       {:error, :invalid_scope} ->
         error(400, "invalid_scope", "requested scope exceeds the app's allowed scopes")
+
+      {:error, :invalid_request} ->
+        error(400, "invalid_request", "code_challenge must be S256 with a 43-character value")
 
       {:unavailable, why} ->
         unavailable(why)

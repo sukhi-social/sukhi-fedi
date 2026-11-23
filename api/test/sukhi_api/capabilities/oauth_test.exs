@@ -526,6 +526,61 @@ defmodule SukhiApi.Capabilities.OAuthTest do
       assert location =~ "state=xyz"
     end
 
+    test "the PKCE challenge goes to the gateway exactly as asked; a bad one is a 400" do
+      app = %{id: 1, name: "gov", client_id: "c", redirect_uri: "https://gov.example/"}
+      alice = %{id: 11, username: "alice"}
+      ch = String.duplicate("A", 43)
+      Application.put_env(:sukhi_api, :fake_sessions, %{"good_session" => alice})
+
+      # この形の引数でしか答えない ── challenge が落ちたり形が変わったりすれば、not_connected(503)になる。
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        :find_app_by_client_id => {:ok, app},
+        {:create_authorization_code,
+         [
+           app,
+           alice,
+           %{
+             "code_challenge" => ch,
+             "code_challenge_method" => "S256",
+             redirect_uri: "https://gov.example/",
+             scopes: "admin:read",
+             state: "s"
+           }
+         ]} => {:ok, %{code: "pk", state: "s"}}
+      })
+
+      {:ok, resp} =
+        approve(
+          [@json, {"cookie", "session_token=good_session"}],
+          JSON.encode!(%{
+            client_id: "c",
+            redirect_uri: "https://gov.example/",
+            scope: "admin:read",
+            state: "s",
+            code_challenge: ch,
+            code_challenge_method: "S256"
+          })
+        )
+
+      assert resp.status == 200
+      assert %{"location" => "https://gov.example/?" <> q} = body(resp)
+      assert q =~ "code=pk"
+
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        find_app_by_client_id: {:ok, app},
+        create_authorization_code: {:error, :invalid_request}
+      })
+
+      {:ok, bad} =
+        approve(
+          [@json, {"cookie", "session_token=good_session"}],
+          JSON.encode!(%{client_id: "c", redirect_uri: "https://gov.example/", code_challenge: "x", code_challenge_method: "plain"})
+        )
+
+      assert bad.status == 400
+      assert %{"error" => "invalid_request"} = body(bad)
+    end
+
     test "a custom-scheme redirect (a phone app's) is carried through as it is" do
       Application.put_env(:sukhi_api, :fake_sessions, %{"good_session" => %{id: 11, username: "alice"}})
 

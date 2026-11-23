@@ -87,6 +87,8 @@ defmodule SukhiFedi.OAuth do
     end
   end
 
+  def verify_app_secret(_app, _no_secret), do: {:error, :invalid_client}
+
   # ── authorization codes ──────────────────────────────────────────────────
 
   @doc """
@@ -96,14 +98,16 @@ defmodule SukhiFedi.OAuth do
   """
   @spec create_authorization_code(OauthApp.t(), SukhiFedi.Schema.Account.t(), map()) ::
           {:ok, %{code: String.t(), state: String.t() | nil}}
-          | {:error, :invalid_redirect_uri | :invalid_scope}
+          | {:error, :invalid_redirect_uri | :invalid_scope | :invalid_request}
   def create_authorization_code(%OauthApp{} = app, %{id: account_id}, %{} = params) do
     redirect_uri = params[:redirect_uri] || params["redirect_uri"]
     scopes = normalize_scopes(params[:scopes] || params["scopes"] || app.scopes)
     state = params[:state] || params["state"]
 
     with :ok <- check_redirect_uri(app, redirect_uri),
-         :ok <- check_scope_subset(scopes, app.scopes) do
+         :ok <- check_scope_subset(scopes, app.scopes),
+         :ok <- check_admin_scope(scopes, app, account_id),
+         {:ok, challenge} <- check_challenge(params) do
       code = generate_token()
       expires_at = utc_now() |> DateTime.add(@code_ttl_seconds, :second)
 
@@ -115,7 +119,8 @@ defmodule SukhiFedi.OAuth do
           account_id: account_id,
           redirect_uri: redirect_uri,
           scopes: scopes,
-          expires_at: expires_at
+          expires_at: expires_at,
+          code_challenge: challenge
         })
         |> Repo.insert()
 
@@ -136,16 +141,91 @@ defmodule SukhiFedi.OAuth do
   def exchange_code_for_token(%{} = params) do
     client_id = params[:client_id] || params["client_id"]
     client_secret = params[:client_secret] || params["client_secret"]
+    verifier = params[:code_verifier] || params["code_verifier"]
     code = params[:code] || params["code"]
     redirect_uri = params[:redirect_uri] || params["redirect_uri"]
 
     with {:ok, app} <- find_app_by_client_id(client_id),
-         :ok <- verify_app_secret(app, client_secret),
+         # A code asked with a PKCE challenge is proven by the verifier (a client
+         # with no secret, like a static page, cannot hold one). Any other code
+         # is proven by the client secret, as before — and a verifier sent for
+         # a code that had no challenge is refused (RFC 9700 §2.1.1).
+         challenge = challenge_of(code, app.id),
+         :ok <- if(challenge, do: :ok, else: verify_secret_and_no_verifier(app, client_secret, verifier)),
          {:ok, code_row} <- claim_code(code, app.id),
+         :ok <- if(challenge, do: verify_pkce(verifier, challenge), else: :ok),
          :ok <- check_redirect_uri_equals(redirect_uri, code_row.redirect_uri) do
       mint_token(app.id, code_row.account_id, code_row.scopes, refresh: true)
     end
   end
+
+  defp verify_secret_and_no_verifier(_app, _secret, verifier) when is_binary(verifier),
+    do: {:error, :invalid_grant}
+
+  defp verify_secret_and_no_verifier(app, secret, _), do: verify_app_secret(app, secret)
+
+  # The challenge of a live code, or nil (unknown / spent code: `claim_code` then refuses it).
+  defp challenge_of(code, app_id) when is_binary(code) do
+    case Repo.get_by(OauthAuthorizationCode, code_hash: hash(code), app_id: app_id) do
+      %OauthAuthorizationCode{code_challenge: c} when is_binary(c) -> c
+      _ -> nil
+    end
+  end
+
+  defp challenge_of(_, _), do: nil
+
+  # S256: BASE64URL(SHA256(verifier)) == challenge. The verifier is 43..128 of
+  # the unreserved characters (RFC 7636 §4.1).
+  defp verify_pkce(verifier, challenge) when is_binary(verifier) do
+    if Regex.match?(~r/\A[A-Za-z0-9\-._~]{43,128}\z/, verifier) and
+         Plug.Crypto.secure_compare(
+           :crypto.hash(:sha256, verifier) |> Base.url_encode64(padding: false),
+           challenge
+         ) do
+      :ok
+    else
+      {:error, :invalid_grant}
+    end
+  end
+
+  defp verify_pkce(_, _), do: {:error, :invalid_grant}
+
+  # No challenge is fine (the client then proves itself with its secret). One
+  # that is sent must be S256 and well-formed: `plain` gives nothing a leaked
+  # URL would not already give away.
+  defp check_challenge(params) do
+    challenge = params[:code_challenge] || params["code_challenge"]
+    method = params[:code_challenge_method] || params["code_challenge_method"]
+
+    cond do
+      challenge in [nil, ""] and method in [nil, ""] -> {:ok, nil}
+      method == "S256" and is_binary(challenge) and Regex.match?(~r/\A[A-Za-z0-9_-]{43}\z/, challenge) -> {:ok, challenge}
+      true -> {:error, :invalid_request}
+    end
+  end
+
+  # `admin` / `admin:*` tokens open the operator's doors. A code carrying one is
+  # minted only for an admin account, through an app that an admin owns (apps can
+  # be registered by anyone, so the app's own say is not enough). This is the one
+  # place that is checked: every route behind `admin:*` sees only what is minted here.
+  defp check_admin_scope(scopes, %OauthApp{} = app, account_id) do
+    if Enum.any?(split_scopes(scopes), &(&1 == "admin" or String.starts_with?(&1, "admin:"))) do
+      if admin?(account_id) and admin?(app.owner_account_id),
+        do: :ok,
+        else: {:error, :invalid_scope}
+    else
+      :ok
+    end
+  end
+
+  defp admin?(id) when is_integer(id) do
+    case Accounts.get(id) do
+      %{is_admin: true} -> true
+      _ -> false
+    end
+  end
+
+  defp admin?(_), do: false
 
   @doc """
   Refresh-token grant (RFC 6749 §6). The refresh token rotates: a new
