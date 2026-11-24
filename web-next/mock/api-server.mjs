@@ -536,13 +536,15 @@ export async function startApiServer({ port = Number(process.env.PORT ?? 4000), 
         if (ask.state) to.searchParams.set('state', String(ask.state));
         return { decision: 'redirect', location: to.toString() };
       };
+      // client_id=noadmin: 管理の権限を求めたが、入っているのは管理するアカウントではない。
+      if (ask.client_id === 'noadmin') return method === 'POST' ? say(403, { error: 'admin_required', error_description: 'this account is not an administrator' }) : say(200, { decision: 'denied', reason: 'admin_required', account: { username: 'kuro' } });
       if (method === 'POST') return say(200, back('posted-code'));
       if (cookie.includes('session_tokens=') && !ask.choose) {
         return say(200, { decision: 'pick', accounts: [{ id: 1, username: 'kuro' }, { id: 2, username: 'nabi' }] });
       }
       const swapped = ask.choose ? { 'set-cookie': ['session_token=tok_2; HttpOnly; Path=/', 'sf_signed_in=1; Path=/', 'session_tokens=tok_1; HttpOnly; Path=/'] } : {};
       if (target?.hostname === 'localhost') return say(200, back('first-party-code'), swapped);
-      return say(200, { decision: 'consent', app: { name: 'テストの道具', client_id: ask.client_id }, scopes: String(ask.scope ?? 'read').split(/[ +]/).filter(Boolean) }, swapped);
+      return say(200, { decision: 'consent', app: { name: 'テストの道具', client_id: ask.client_id }, scopes: String(ask.scope ?? 'read').split(/[ +]/).filter(Boolean), account: { username: 'kuro' } }, swapped);
     }
     // フォロー招待。本物は code だけを返す(作るのも、一覧も)。
     if (pathname === '/api/v1/follow_invites' && (method === 'GET' || method === 'POST')) {

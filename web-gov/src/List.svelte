@@ -46,6 +46,5 @@
       {/each}
     </ul>
     {#if data.applications.length === 0}<p class="muted">いま、待っている申し込みは、ありません。</p>{/if}
-    <p class="small muted">「はい」を押していない申し込みは、ここには出ません(3時間で消えます)。</p>
   {/if}
 </section>

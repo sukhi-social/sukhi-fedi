@@ -163,7 +163,7 @@ defmodule SukhiApi.Capabilities.AdminJoinTest do
   end
 
   describe "GET one" do
-    test "read in full, without the address or any hash" do
+    test "read in full, with the address to write to, and no hash" do
       answer(%{fetch_waiting: {:ok, app()}})
 
       {200, body} = json(call("GET", "#{@list}/482913", ["admin:read"], account(true)))
@@ -171,10 +171,10 @@ defmodule SukhiApi.Capabilities.AdminJoinTest do
       assert body["receipt"] == "482913"
       assert body["found"] =~ "友だち"
       assert body["hope"] =~ "ゆっくり"
+      assert body["email"] == "yuki@example.test"
       assert_received {:rpc, :fetch_waiting, ["482913"]}
 
       raw = JSON.encode!(body)
-      refute raw =~ "yuki@example.test"
       refute raw =~ "hash"
       refute raw =~ "secret"
     end

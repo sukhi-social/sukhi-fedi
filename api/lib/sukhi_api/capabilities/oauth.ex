@@ -147,17 +147,28 @@ defmodule SukhiApi.Capabilities.OAuth do
   defp authorize_with_session(account, client_id, redirect_uri, scope, state, pkce, extra_headers \\ []) do
     case GatewayRpc.run(@gateway, :find_app_by_client_id, [client_id]) do
       {:ok, app} ->
-        if first_party?(redirect_uri) do
-          mint_and_redirect(app, account, redirect_uri, scope, state, pkce, extra_headers)
-        else
-          decision(
-            %{
-              decision: "consent",
-              app: %{name: app.name, client_id: app.client_id},
-              scopes: scope_names(scope)
-            },
-            extra_headers
-          )
+        cond do
+          # 管理の権限を求められたのに、このアカウントは管理者ではない。同意を聞く前に、
+          # 「権限がありません」と、だれで入っているかを見せる(別のアカウントで入りなおせるように)。
+          admin_scope?(scope) and not Map.get(account, :is_admin, false) ->
+            decision(
+              %{decision: "denied", reason: "admin_required", account: account_view(account)},
+              extra_headers
+            )
+
+          first_party?(redirect_uri) ->
+            mint_and_redirect(app, account, redirect_uri, scope, state, pkce, extra_headers)
+
+          true ->
+            decision(
+              %{
+                decision: "consent",
+                app: %{name: app.name, client_id: app.client_id},
+                scopes: scope_names(scope),
+                account: account_view(account)
+              },
+              extra_headers
+            )
         end
 
       {:error, :not_found} ->
@@ -186,6 +197,9 @@ defmodule SukhiApi.Capabilities.OAuth do
       {:error, :invalid_scope} ->
         error(400, "invalid_scope", "requested scope exceeds the app's allowed scopes")
 
+      {:error, :admin_required} ->
+        error(403, "admin_required", "this account is not an administrator")
+
       {:unavailable, why} ->
         unavailable(why)
     end
@@ -208,6 +222,11 @@ defmodule SukhiApi.Capabilities.OAuth do
   # scope は空白区切り (Mastodon 互換)。"read write follow" や
   # "read:statuses write:statuses" のような形で来る。言い換え(その人の
   # ことばへ)は front の仕事 ── ここは名前を並べるだけ。
+  defp admin_scope?(scope),
+    do: Enum.any?(scope_names(scope), &(&1 == "admin" or String.starts_with?(&1, "admin:")))
+
+  defp account_view(account), do: %{username: account.username}
+
   defp scope_names(scope) do
     scope
     |> to_string()
@@ -261,6 +280,9 @@ defmodule SukhiApi.Capabilities.OAuth do
 
       {:error, :invalid_scope} ->
         error(400, "invalid_scope", "requested scope exceeds the app's allowed scopes")
+
+      {:error, :admin_required} ->
+        error(403, "admin_required", "this account is not an administrator")
 
       {:error, :invalid_request} ->
         error(400, "invalid_request", "code_challenge must be S256 with a 43-character value")

@@ -390,7 +390,8 @@ defmodule SukhiFedi.Integration.OAuthTest do
     test "an account that is not an admin does not" do
       owner = admin!("adm_owner2")
       {:ok, %{app: app}} = admin_app(owner.id)
-      assert {:error, :invalid_scope} = want_admin(app, create_account!("not_admin"))
+      # 人に「権限がありません」と言える理由(app の持ち主の誤りの :invalid_scope とは分ける)
+      assert {:error, :admin_required} = want_admin(app, create_account!("not_admin"))
     end
 
     test "an app nobody (or a non-admin) owns does not, even for an admin" do

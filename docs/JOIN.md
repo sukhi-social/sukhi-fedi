@@ -89,7 +89,7 @@ gets the words of anyone else.
 The greeter's side needs an `admin:read` / `admin:write` token **and** an admin account:
 
 - `GET /api/admin/join_applications` → who is waiting and the next check day
-- `GET /api/admin/join_applications/:receipt` → one, in full (never the address)
+- `GET /api/admin/join_applications/:receipt` → one, in full, with the address to write to (the list never carries it; it is erased with the words once the answer is sent)
 - `POST /api/admin/join_applications/:receipt/welcome {note}`, `/decline {reason}`
   (each up to 500 characters; 502 `send_failed` if the mail did not go, and then nothing is deleted)
 
@@ -139,11 +139,13 @@ VITE_API_BASE=https://sukhi.social VITE_CLIENT_ID=<client_id> pnpm build
 
    `redirect_uris` must match the page's address character for character (the trailing `/`).
 2. Build with that `client_id` (above), and copy `dist/` to `/srv/sukhi-gov` on the box.
-3. nginx: [`infra/nginx/sukhi-gov.conf`](../infra/nginx/sukhi-gov.conf). `gov.sukhi.social`
-   goes through Cloudflare (proxied), and the origin holds a **Cloudflare Origin CA**
-   certificate (`/etc/nginx/ssl/gov.sukhi.social.{pem,key}`, key readable by root only) with
-   the SSL mode on Full (strict). The config lists `X25519MLKEM768` first, or Cloudflare
-   gets a 525.
+3. nginx: [`infra/nginx/sukhi-gov.conf`](../infra/nginx/sukhi-gov.conf). The box's 443 is a
+   `stream` that routes by SNI to an inner http server on 127.0.0.1:8443, so gov is
+   one more line in the stream `map` (`gov.sukhi.social 127.0.0.1:8443;`), this
+   server in `conf.d/`, and the name added to the port-80 redirect. `gov.sukhi.social`
+   goes through Cloudflare (proxied, Full (strict)) and reuses the Cloudflare Origin CA
+   certificate that covers `*.sukhi.social`. The config lists `X25519MLKEM768` first, or
+   Cloudflare gets a 525.
 4. `JOIN_GREETER` and `JOIN_CHECK_DAYS` ([`ENV.md`](ENV.md)) set on the gateway.
 
 CORS: the gateway already answers `*` with the `Authorization` header, so nothing to add.

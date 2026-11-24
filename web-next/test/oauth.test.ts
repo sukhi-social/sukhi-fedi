@@ -117,6 +117,30 @@ test('外のアプリ: 許可を聞く頁。権限は、その人のことばで
   assert.match(await lastLog(), /cookie=\[session_token=tok_1\] bearer=no/);
 });
 
+test('許可の頁には、いま入っているアカウントと、別のアカウントで入るリンクが出る', async () => {
+  const page = await (await get(`/oauth/authorize?${ask()}`, 'session_token=tok_1')).text();
+  assert.match(page, /いま、@kuro として入っています/);
+  assert.match(page, /href="\/oauth\/authorize\?[^"]*relogin=1[^"]*">別のアカウントで入る</);
+  // リンクを辿ると、同じ問いを持って入りなおしへ(札を外して /login へ)。
+  const res = await get(`/oauth/authorize?${ask({ relogin: '1' })}`, 'session_token=tok_1');
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get('location'), '/login?again=true');
+});
+
+test('管理の権限を、管理するアカウントでない人が求めたら: 「権限がありません」と、だれで入っているか', async () => {
+  const res = await get(`/oauth/authorize?${ask({ client_id: 'noadmin', scope: 'admin:read admin:write' })}`, 'session_token=tok_1');
+  assert.equal(res.status, 403);
+  const page = await res.text();
+  assert.match(page, /このアカウントには、権限がありません/);
+  assert.match(page, /@kuro は、管理するアカウントではありません/);
+  assert.match(page, /relogin=1/);
+  assert.doesNotMatch(page, /invalid_scope/);
+  // 「いいよ」の POST で同じ理由が返っても、同じことばで。
+  const post403 = await post('/oauth/authorize', { client_id: 'noadmin', redirect_uri: 'cx-test://done', scope: 'admin:read', state: 's' }, 'session_token=tok_1');
+  assert.equal(post403.status, 403);
+  assert.match(await post403.text(), /このアカウントには、権限がありません/);
+});
+
 test('ことば: cookie のことばで出る。知らない権限は、名前のまま', async () => {
   const page = await (await get(`/oauth/authorize?${ask()}`, 'session_token=t; sukhi_locale=ko')).text();
   assert.match(page, /<strong>읽기<\/strong>/);

@@ -323,11 +323,53 @@ defmodule SukhiApi.Capabilities.OAuthTest do
       assert body(resp) == %{
                "decision" => "consent",
                "app" => %{"name" => "ConsentApp", "client_id" => "cid_in_form"},
-               "scopes" => ["read"]
+               "scopes" => ["read"],
+               "account" => %{"username" => "alice"}
              }
 
       # 同意の前には、コードを作らない(create_authorization_code は設定していない ── 呼ばれれば 503 になる)。
       assert set_cookies(resp) == []
+    end
+
+    test "admin scope asked by an account that is not an admin → denied (who, and why), no consent" do
+      Application.put_env(:sukhi_api, :fake_sessions, %{
+        "sess" => %{id: 5, username: "alice", is_admin: false}
+      })
+
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        find_app_by_client_id: {:ok, %{id: 1, name: "gov", client_id: "c", redirect_uri: "https://gov.example/"}}
+      })
+
+      {:ok, resp} =
+        decide("client_id=c&redirect_uri=https://gov.example/&scope=admin:read+admin:write&response_type=code", [
+          {"cookie", "session_token=sess"}
+        ])
+
+      assert resp.status == 200
+
+      assert body(resp) == %{
+               "decision" => "denied",
+               "reason" => "admin_required",
+               "account" => %{"username" => "alice"}
+             }
+    end
+
+    test "admin scope asked by an admin gets the consent, with who is signed in" do
+      Application.put_env(:sukhi_api, :fake_sessions, %{
+        "sess" => %{id: 1, username: "kuro_admin", is_admin: true}
+      })
+
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        find_app_by_client_id: {:ok, %{id: 1, name: "gov", client_id: "c", redirect_uri: "https://gov.example/"}}
+      })
+
+      {:ok, resp} =
+        decide("client_id=c&redirect_uri=https://gov.example/&scope=admin:read&response_type=code", [
+          {"cookie", "session_token=sess"}
+        ])
+
+      assert %{"decision" => "consent", "scopes" => ["admin:read"], "account" => %{"username" => "kuro_admin"}} =
+               body(resp)
     end
 
     test "scopes come as a list of names, split on space or +, once each" do
@@ -579,6 +621,24 @@ defmodule SukhiApi.Capabilities.OAuthTest do
 
       assert bad.status == 400
       assert %{"error" => "invalid_request"} = body(bad)
+    end
+
+    test "the gateway's admin_required on approving is a 403 the page can name" do
+      Application.put_env(:sukhi_api, :fake_sessions, %{"good_session" => %{id: 11, username: "alice"}})
+
+      Application.put_env(:sukhi_api, :fake_oauth, %{
+        find_app_by_client_id: {:ok, %{id: 1, name: "gov", client_id: "c", redirect_uri: "https://gov.example/"}},
+        create_authorization_code: {:error, :admin_required}
+      })
+
+      {:ok, resp} =
+        approve(
+          [@json, {"cookie", "session_token=good_session"}],
+          JSON.encode!(%{client_id: "c", redirect_uri: "https://gov.example/", scope: "admin:read"})
+        )
+
+      assert resp.status == 403
+      assert %{"error" => "admin_required"} = body(resp)
     end
 
     test "a custom-scheme redirect (a phone app's) is carried through as it is" do
