@@ -4,8 +4,10 @@ defmodule SukhiApi.Views.AdminJoin do
   JSON shapes for the greeter's screen (docs/JOIN.md, step 2).
 
   What leaves is what is read: the receipt number, the three answers, when
-  it came and the day it is to be looked at. **Never the address, never a
-  hash** — the address is for sending to, once, from the gateway.
+  it came and the day it is to be looked at. The address goes out only in
+  the one application the greeter opens (`render/1`), so a question can be
+  asked from their own mail client before the answer; never in the list,
+  and **never a hash**. It is erased with the words once the answer is sent.
   """
 
   @snippet_max 60
@@ -39,6 +41,7 @@ defmodule SukhiApi.Views.AdminJoin do
     %{
       receipt: app.receipt,
       call_name: app.call_name,
+      email: app.email,
       found: app.found,
       hope: app.hope,
       lang: app.lang,

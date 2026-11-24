@@ -6,7 +6,7 @@ defmodule SukhiApi.Capabilities.AdminJoin do
   `SukhiFedi.JoinApplications`'.
 
     * `GET  /api/admin/join_applications`                    — who is waiting, and the next day it is looked at
-    * `GET  /api/admin/join_applications/:receipt`           — one, in full (never the address)
+    * `GET  /api/admin/join_applications/:receipt`           — one, in full, with the address to write to
     * `POST /api/admin/join_applications/:receipt/welcome`   — `{note}`: the entry link goes out
     * `POST /api/admin/join_applications/:receipt/decline`   — `{reason}`: the gentle answer goes out
 

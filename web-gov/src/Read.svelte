@@ -74,7 +74,15 @@
         <div><dt>2. どこで、sukhi のことを知りましたか？</dt><dd>{app.found || '—'}</dd></div>
         <div><dt>3. ここで、どんなふうに過ごせたらいいなと思いますか？</dt><dd>{app.hope || '—'}</dd></div>
       </dl>
-      <p class="note">メールアドレスは、ここには出しません。送るときだけ、サーバが使います。</p>
+      {#if app.email}
+        <div class="card">
+          <p class="small muted">聞き直したいことがあれば、自分のメールソフトで書けます。お返事を送ると、このアドレスは消えます。</p>
+          <div class="row">
+            <a class="btn" href={`mailto:${app.email}?subject=${encodeURIComponent(`sukhi.social 受付番号 ${receiptText(app.receipt)}`)}`}>メールで聞く</a>
+            <span class="small muted">{app.email}</span>
+          </div>
+        </div>
+      {/if}
 
       <h2>返事</h2>
       <div class="card">

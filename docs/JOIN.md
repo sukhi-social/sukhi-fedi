@@ -89,7 +89,7 @@ gets the words of anyone else.
 The greeter's side needs an `admin:read` / `admin:write` token **and** an admin account:
 
 - `GET /api/admin/join_applications` → who is waiting and the next check day
-- `GET /api/admin/join_applications/:receipt` → one, in full (never the address)
+- `GET /api/admin/join_applications/:receipt` → one, in full, with the address to write to (the list never carries it; it is erased with the words once the answer is sent)
 - `POST /api/admin/join_applications/:receipt/welcome {note}`, `/decline {reason}`
   (each up to 500 characters; 502 `send_failed` if the mail did not go, and then nothing is deleted)
 
