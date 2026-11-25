@@ -3,12 +3,12 @@ defmodule SukhiFedi.Store.Adapter do
   @moduledoc """
   The `Ecto.Adapter` that `SukhiFedi.Repo` is built with. It owns no behaviour
   of its own: `SukhiShared.StoreAdapter` hands every callback to
-  `SukhiFedi.Datalevin.Adapter`, the only store there is (docs/DATALEVIN.md).
+  `Ecto.Adapters.Hosi` (ecto_hosi), the only store there is (docs/HOSI.md).
 
-  This repo owns the Datalevin processes; the delivery node's repo joins them.
+  This repo owns the hosigraph processes; the delivery node's repo joins them.
   """
 
   use SukhiShared.StoreAdapter,
-    datalevin: SukhiFedi.Datalevin.Adapter,
+    datalevin: Ecto.Adapters.Hosi,
     owner?: true
 end

@@ -35,7 +35,7 @@ export MIX_ENV=test
 
 # The store: a fresh Datalevin directory per run, without fsync (a test
 # directory is thrown away; durability is not what is under test).
-command -v "${DATALEVIN_BIN:-dtlv}" >/dev/null || {
+command -v "${DATALEVIN_BIN:-dtlv}" >/dev/null || [ -n "${HOSI_JAR:-}" ] || {
   echo "dtlv not found: the business data is in Datalevin, so every integration test needs it." >&2
   echo "Install it (see .github/workflows/test.yml) or point DATALEVIN_BIN at it." >&2
   exit 1

@@ -20,13 +20,10 @@ defmodule SukhiFedi.Release do
   def migrate_all do
     load_app()
 
-    # The Datalevin schema is derived (priv/datalevin/catalog.exs)
-    # and installed when the store opens; what needs doing is the versioned
-    # migrations, a store new or old, and a check that it opens
-    # (SukhiFedi.Datalevin.Migrator).
-    Logger.info("store_init_start store=datalevin")
-    migrate_datalevin!()
-    Logger.info("store_init_complete store=datalevin")
+    # hosigraph derives its schema from the Ecto schemas when the Repo opens
+    # (SukhiFedi.Store.Hosi.schemas/0): there is nothing to migrate. Data kept
+    # by the old Datalevin store is not carried over (docs/HOSI.md).
+    Logger.info("store_init_complete store=hosi")
     :ok
   end
 
@@ -146,18 +143,6 @@ defmodule SukhiFedi.Release do
     after
       GenServer.stop(conn)
     end
-  end
-
-  defp migrate_datalevin! do
-    SukhiFedi.Datalevin.Migrator.run_all!()
-    Logger.info("datalevin_init_complete")
-  rescue
-    error ->
-      raise "datalevin initialization failed; inspect DATALEVIN_DIR and run " <>
-              "`podman logs <container>` as the sukhi user; startup stopped. A migration " <>
-              "that stopped midway runs again from its start next time; the copy taken " <>
-              "before it began is in datalevin-premigrate/ beside DATALEVIN_DIR: " <>
-              Exception.message(error)
   end
 
   # The migration version the main store reports, or 0 for a store that has

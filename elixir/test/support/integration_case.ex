@@ -50,7 +50,7 @@ defmodule SukhiFedi.IntegrationCase do
   end
 
   defp wipe do
-    SukhiFedi.Datalevin.Admin.wipe!()
+    SukhiFedi.Store.Hosi.wipe!()
     SukhiFedi.QueueRepo.delete_all("oban_jobs")
 
     # The accounts' tables: CASCADE reaches every table that points at
