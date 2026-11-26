@@ -95,9 +95,7 @@ Be careful with this list; it is the honest part.
 - **Raw SQL** (`Repo.query!`) does not work, so the code that runs on both
   stores is written as Ecto queries. That is done for the pull federation,
   `SukhiShared.PullStats` and `SukhiShared.PeerCapabilities` (the shared
-  library now depends on Ecto, which every node already has). The two
-  repair tasks, `Maintenance.RebuildRemoteNotes` and
-  `Maintenance.RebuildRemoteNoteIds`, are plain Ecto too.
+  library now depends on Ecto, which every node already has).
 - **Oban's tables are in PostgreSQL, not in `Repo`.** Code that reads `oban_jobs`
   goes through `SukhiFedi.Queue.repo/0` (the delivery status, the server
   activity page and the metrics do). Jobs are not in the same store as the

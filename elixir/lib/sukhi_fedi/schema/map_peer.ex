@@ -6,6 +6,9 @@ defmodule SukhiFedi.Schema.MapPeer do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:domain)
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:created_by_id, to: "accounts", on_delete: :nilify, name: "map_peers_created_by_id_fkey")
+
   schema "map_peers" do
     field(:domain, :string)
     belongs_to(:created_by, SukhiFedi.Schema.Account)

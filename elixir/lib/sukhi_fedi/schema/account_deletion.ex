@@ -13,6 +13,9 @@ defmodule SukhiFedi.Schema.AccountDeletion do
     where: [null: [:cancelled_at, :finished_at]]
   )
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :none, name: "account_deletions_account_id_fkey")
+
   schema "account_deletions" do
     field(:account_id, :integer)
     field(:requested_at, :utc_datetime)

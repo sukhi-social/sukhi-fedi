@@ -14,6 +14,10 @@ defmodule SukhiFedi.Schema.InviteCodeUse do
     name: "invite_code_uses_invite_code_id_account_id_index"
   )
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :nilify, name: "invite_code_uses_account_id_fkey")
+  hosi_ref(:invite_code_id, to: "invite_codes", on_delete: :cascade, name: "invite_code_uses_invite_code_id_fkey")
+
   schema "invite_code_uses" do
     field(:used_at, :utc_datetime)
 

@@ -9,6 +9,9 @@ defmodule SukhiFedi.Schema.PreviewCard do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:note_id)
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:note_id, to: "notes", on_delete: :cascade, name: "preview_cards_note_id_fkey")
+
   schema "preview_cards" do
     field(:note_id, :integer)
     field(:url, :string)

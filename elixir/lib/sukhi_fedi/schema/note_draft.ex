@@ -14,6 +14,9 @@ defmodule SukhiFedi.Schema.NoteDraft do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:account_id)
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "notes_drafts_account_id_fkey")
+
   schema "notes_drafts" do
     field(:account_id, :integer)
     field(:text, :string, default: "")

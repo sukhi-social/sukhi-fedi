@@ -15,6 +15,10 @@ defmodule SukhiFedi.Schema.NoteMedia do
   hosi_unique([:note_id, :media_id], name: "note_media_note_id_media_id_index")
 
   @primary_key {:id, :id, autogenerate: true}
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:media_id, to: "media", on_delete: :cascade, name: "note_media_media_id_fkey")
+  hosi_ref(:note_id, to: "notes", on_delete: :cascade, name: "note_media_note_id_fkey")
+
   schema "note_media" do
     field(:note_id, :integer)
     field(:media_id, :integer)

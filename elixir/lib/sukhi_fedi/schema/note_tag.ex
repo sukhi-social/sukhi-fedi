@@ -15,6 +15,10 @@ defmodule SukhiFedi.Schema.NoteTag do
   hosi_unique([:note_id, :tag_id], name: "note_tags_note_id_tag_id_index")
 
   @primary_key {:id, :id, autogenerate: true}
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:note_id, to: "notes", on_delete: :cascade, name: "note_tags_note_id_fkey")
+  hosi_ref(:tag_id, to: "tags", on_delete: :cascade, name: "note_tags_tag_id_fkey")
+
   schema "note_tags" do
     field(:note_id, :integer)
     field(:tag_id, :integer)

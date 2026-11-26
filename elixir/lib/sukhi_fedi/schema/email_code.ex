@@ -19,6 +19,9 @@ defmodule SukhiFedi.Schema.EmailCode do
     where: [null: [:account_id]]
   )
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "email_codes_account_id_fkey")
+
   schema "email_codes" do
     field(:email, :string)
     field(:purpose, :string)

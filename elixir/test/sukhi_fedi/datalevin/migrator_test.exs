@@ -11,6 +11,10 @@ defmodule SukhiFedi.Datalevin.MigratorTest do
 
   @moduletag :dtlv
   @moduletag :integration
+  # `--only integration` includes these again whatever test_helper excluded, so say it here too.
+  @moduletag skip:
+               is_nil(System.find_executable(System.get_env("DATALEVIN_BIN", "dtlv"))) &&
+                 "needs a dtlv binary"
 
   alias SukhiFedi.Datalevin.{Client, Config, Manifest, Migrator}
   alias SukhiFedi.Datalevin.Migration.{Ctx, Ops}

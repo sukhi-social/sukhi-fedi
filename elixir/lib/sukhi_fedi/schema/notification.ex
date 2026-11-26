@@ -11,6 +11,11 @@ defmodule SukhiFedi.Schema.Notification do
   # the catalog's unique indexes, kept by the store
   hosi_unique([:account_id, :from_account_id, :type, :note_id], name: "notifications_dedup_index")
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "notifications_account_id_fkey")
+  hosi_ref(:from_account_id, to: "accounts", on_delete: :cascade, name: "notifications_from_account_id_fkey")
+  hosi_ref(:note_id, to: "notes", on_delete: :cascade, name: "notifications_note_id_fkey")
+
   schema "notifications" do
     field(:type, :string)
     field(:read_at, :utc_datetime)

@@ -9,9 +9,14 @@ defmodule SukhiFedi.Schema.FeedbackItem do
   the context sets it from the verified viewer.
   """
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
   @body_max 2000
+
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :nilify, name: "feedback_items_account_id_fkey")
+  hosi_ref(:handled_by_id, to: "accounts", on_delete: :nilify, name: "feedback_items_handled_by_id_fkey")
 
   schema "feedback_items" do
     field(:body, :string)

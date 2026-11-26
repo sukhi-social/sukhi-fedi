@@ -10,7 +10,11 @@ defmodule SukhiFedi.Schema.AdminAudit do
   post content.
   """
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
+
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_append_only()
 
   schema "admin_audits" do
     field(:action, :string)

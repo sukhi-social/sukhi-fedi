@@ -7,6 +7,10 @@ defmodule SukhiFedi.Schema.OauthAuthorizationCode do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:code_hash)
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "oauth_authorization_codes_account_id_fkey")
+  hosi_ref(:app_id, to: "oauth_apps", on_delete: :cascade, name: "oauth_authorization_codes_app_id_fkey")
+
   schema "oauth_authorization_codes" do
     field(:code_hash, :string)
     field(:redirect_uri, :string)

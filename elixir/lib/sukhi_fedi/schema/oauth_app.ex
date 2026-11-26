@@ -7,6 +7,9 @@ defmodule SukhiFedi.Schema.OauthApp do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:client_id)
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:owner_account_id, to: "accounts", on_delete: :nilify, name: "oauth_apps_owner_account_id_fkey")
+
   schema "oauth_apps" do
     field(:client_id, :string)
     field(:client_secret_hash, :string)

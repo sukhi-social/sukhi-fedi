@@ -20,6 +20,9 @@ defmodule SukhiFedi.Schema.QuoteAuthorization do
     name: "quote_authorizations_note_id_interacting_object_uri_index"
   )
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:note_id, to: "notes", on_delete: :cascade, name: "quote_authorizations_note_id_fkey")
+
   schema "quote_authorizations" do
     belongs_to(:note, SukhiFedi.Schema.Note)
     field(:requester_actor_uri, :string)

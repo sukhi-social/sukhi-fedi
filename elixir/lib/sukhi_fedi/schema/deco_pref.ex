@@ -12,6 +12,10 @@ defmodule SukhiFedi.Schema.DecoPref do
   # the catalog's unique indexes, kept by the store
   hosi_unique([:account_id, :deco_id], name: "deco_reads_account_id_deco_id_index")
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "deco_reads_account_id_fkey")
+  hosi_ref(:deco_id, to: "decos", on_delete: :cascade, name: "deco_reads_deco_id_fkey")
+
   schema "deco_prefs" do
     field(:account_id, :integer)
     field(:deco_id, :integer)

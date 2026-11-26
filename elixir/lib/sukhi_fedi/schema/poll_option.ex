@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.PollOption do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
+
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:poll_id, to: "polls", on_delete: :cascade, name: "poll_options_poll_id_fkey")
 
   schema "poll_options" do
     field(:title, :string)

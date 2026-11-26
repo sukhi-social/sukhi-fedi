@@ -7,6 +7,9 @@ defmodule SukhiFedi.Schema.Relay do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:actor_uri)
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:created_by_id, to: "accounts", on_delete: :nilify, name: "relays_created_by_id_fkey")
+
   schema "relays" do
     field(:actor_uri, :string)
     field(:inbox_uri, :string)

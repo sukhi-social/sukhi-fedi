@@ -12,6 +12,10 @@ defmodule SukhiFedi.Schema.OauthAccessToken do
 
   hosi_unique(:token_hash)
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "oauth_access_tokens_account_id_fkey")
+  hosi_ref(:app_id, to: "oauth_apps", on_delete: :cascade, name: "oauth_access_tokens_app_id_fkey")
+
   schema "oauth_access_tokens" do
     field(:token_hash, :string)
     field(:refresh_token_hash, :string)

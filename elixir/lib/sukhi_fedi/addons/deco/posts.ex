@@ -16,7 +16,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
   import Ecto.Query
 
   alias SukhiFedi.Accounts
-  alias SukhiFedi.{Notes, Notifications, Repo, Snowflake}
+  alias SukhiFedi.{Notes, Notifications, Repo}
   alias SukhiFedi.Addons.Deco.{Boards, Federation, View}
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Notes.Create, as: NotesCreate
@@ -597,7 +597,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
   # 両方来たら id のほうが具体的なので、そちらを採る。
   defp since_bound(opts) do
     case {opts[:since_id], opts[:since]} do
-      {nil, %DateTime{} = dt} -> Snowflake.encode(DateTime.to_unix(dt, :millisecond), 0)
+      {nil, %DateTime{} = dt} -> SukhiFedi.Store.Ids.encode(DateTime.to_unix(dt, :millisecond), 0)
       {nil, _} -> nil
       {id, _} -> to_int(id)
     end

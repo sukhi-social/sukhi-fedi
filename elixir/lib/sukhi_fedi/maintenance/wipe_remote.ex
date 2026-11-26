@@ -45,7 +45,7 @@ defmodule SukhiFedi.Maintenance.WipeRemote do
   import Ecto.Query
   require Logger
 
-  alias SukhiFedi.Maintenance.{Progress, RebuildRemoteNotes}
+  alias SukhiFedi.Maintenance.Progress
   alias SukhiFedi.{Notes, Repo}
   alias SukhiFedi.Schema.{Account, Note}
 
@@ -56,7 +56,7 @@ defmodule SukhiFedi.Maintenance.WipeRemote do
     count = Repo.aggregate(scope, :count, :id)
     # Every (table, column) that cascades when a notes row goes — read from
     # the catalog so a table added later is reported, not silently missed.
-    cascades = RebuildRemoteNotes.note_fk_refs()
+    cascades = note_fk_refs()
 
     Logger.info(
       "wipe_remote: mode=#{mode}, domain=#{domain || "(all)"}, " <>
@@ -87,5 +87,16 @@ defmodule SukhiFedi.Maintenance.WipeRemote do
     # read first, then `in ^ids`: the store has no subquery in a where
     account_ids = Repo.all(from(a in Account, where: a.domain == ^domain, select: a.id))
     from(n in Notes.remote_notes(Note), where: n.account_id in ^account_ids)
+  end
+
+  @doc """
+  Every `(table, column)` whose foreign key points at `notes(id)`: the rows a wipe takes with it
+  (or detaches). The catalog is the list of foreign keys.
+  """
+  def note_fk_refs do
+    for {child, fk} <- SukhiFedi.Datalevin.Catalog.referencing("notes"),
+        fk.ref_columns == ["id"],
+        column <- fk.columns,
+        do: {child, column}
   end
 end

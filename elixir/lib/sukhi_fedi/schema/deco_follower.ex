@@ -9,6 +9,9 @@ defmodule SukhiFedi.Schema.DecoFollower do
   # the catalog's unique indexes, kept by the store
   hosi_unique([:deco_id, :follower_uri], name: "deco_followers_deco_id_follower_uri_index")
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:deco_id, to: "decos", on_delete: :cascade, name: "deco_followers_deco_id_fkey")
+
   schema "deco_followers" do
     field(:deco_id, :integer)
     field(:follower_uri, :string)

@@ -14,6 +14,9 @@ defmodule SukhiFedi.Schema.NoteCleanupLedger do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:note_id)
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "note_cleanup_ledger_account_id_fkey")
+
   schema "note_cleanup_ledger" do
     field(:account_id, :integer)
     field(:note_id, :integer)

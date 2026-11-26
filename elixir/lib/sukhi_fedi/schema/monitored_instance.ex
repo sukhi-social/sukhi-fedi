@@ -7,6 +7,9 @@ defmodule SukhiFedi.Schema.MonitoredInstance do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:domain)
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:actor_id, to: "accounts", on_delete: :cascade, name: "monitored_instances_actor_id_fkey")
+
   schema "monitored_instances" do
     field(:domain, :string)
     field(:last_polled_at, :utc_datetime_usec)

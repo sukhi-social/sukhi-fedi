@@ -15,6 +15,10 @@ defmodule SukhiFedi.Schema.ListAccount do
   hosi_unique([:list_id, :account_id], name: "list_accounts_list_id_account_id_index")
 
   @primary_key {:id, :id, autogenerate: true}
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "list_accounts_account_id_fkey")
+  hosi_ref(:list_id, to: "lists", on_delete: :cascade, name: "list_accounts_list_id_fkey")
+
   schema "list_accounts" do
     field(:list_id, :integer)
     field(:account_id, :integer)

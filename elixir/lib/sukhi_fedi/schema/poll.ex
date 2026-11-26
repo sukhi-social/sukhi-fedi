@@ -7,6 +7,9 @@ defmodule SukhiFedi.Schema.Poll do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:note_id)
 
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:note_id, to: "notes", on_delete: :cascade, name: "polls_note_id_fkey")
+
   schema "polls" do
     field(:expires_at, :utc_datetime)
     field(:multiple, :boolean, default: false)
