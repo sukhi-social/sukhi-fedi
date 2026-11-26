@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.NoteDraft do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
   # A compose draft — the server-side, cross-device twin of the SPA's
@@ -10,12 +11,15 @@ defmodule SukhiFedi.Schema.NoteDraft do
   # note is posted. The visibility set is the composer's, not the Note's
   # stored set — a draft echoes what the box holds, and the post path maps
   # it.
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:account_id)
+
   schema "notes_drafts" do
-    field :account_id, :integer
-    field :text, :string, default: ""
-    field :spoiler, :string, default: ""
-    field :sensitive, :boolean, default: false
-    field :visibility, :string, default: "public"
+    field(:account_id, :integer)
+    field(:text, :string, default: "")
+    field(:spoiler, :string, default: "")
+    field(:sensitive, :boolean, default: false)
+    field(:visibility, :string, default: "public")
     timestamps()
   end
 

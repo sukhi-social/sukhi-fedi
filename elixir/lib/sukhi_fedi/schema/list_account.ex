@@ -9,10 +9,14 @@ defmodule SukhiFedi.Schema.ListAccount do
   """
 
   use Ecto.Schema
+  use Ecto.Hosi.Schema
+
+  # the catalog's unique indexes, kept by the store
+  hosi_unique([:list_id, :account_id], name: "list_accounts_list_id_account_id_index")
 
   @primary_key {:id, :id, autogenerate: true}
   schema "list_accounts" do
-    field :list_id, :integer
-    field :account_id, :integer
+    field(:list_id, :integer)
+    field(:account_id, :integer)
   end
 end

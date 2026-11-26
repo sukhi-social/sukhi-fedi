@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.WebauthnChallenge do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
 
   @moduledoc """
   An in-flight WebAuthn ceremony: the `Wax.Challenge` struct (external
@@ -10,13 +11,16 @@ defmodule SukhiFedi.Schema.WebauthnChallenge do
   Rows are one-shot — consumed on use, swept by expiry.
   """
 
-  schema "webauthn_challenges" do
-    field :ref, :string
-    field :purpose, :string
-    field :challenge, :binary
-    field :expires_at, :utc_datetime
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:ref)
 
-    belongs_to :account, SukhiFedi.Schema.Account
+  schema "webauthn_challenges" do
+    field(:ref, :string)
+    field(:purpose, :string)
+    field(:challenge, :binary)
+    field(:expires_at, :utc_datetime)
+
+    belongs_to(:account, SukhiFedi.Schema.Account)
 
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end

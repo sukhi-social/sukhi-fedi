@@ -12,10 +12,10 @@ defmodule SukhiFedi.Schema.PullPeer do
 
   @primary_key {:id, :id, autogenerate: true}
   schema "pull_peers" do
-    field :host, :string
-    field :notified_through, :integer, default: 0
-    field :notified_at, :naive_datetime_usec
-    field :failures, :integer, default: 0
-    field :last_error, :string
+    field(:host, :string)
+    field(:notified_through, :integer, default: 0)
+    field(:notified_at, :naive_datetime_usec)
+    field(:failures, :integer, default: 0)
+    field(:last_error, :string)
   end
 end

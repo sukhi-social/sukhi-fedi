@@ -5,6 +5,13 @@ defmodule SukhiFedi.Schema.AccountDeletion do
   `finished_at` is set. See `SukhiFedi.AccountDeletion`.
   """
   use Ecto.Schema
+  use Ecto.Hosi.Schema
+
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:account_id,
+    name: "account_deletions_live_index",
+    where: [null: [:cancelled_at, :finished_at]]
+  )
 
   schema "account_deletions" do
     field(:account_id, :integer)

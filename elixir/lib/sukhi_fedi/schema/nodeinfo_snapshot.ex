@@ -4,12 +4,12 @@ defmodule SukhiFedi.Schema.NodeinfoSnapshot do
   import Ecto.Changeset
 
   schema "nodeinfo_snapshots" do
-    field :polled_at, :utc_datetime_usec
-    field :version, :string
-    field :software_name, :string
-    field :raw, :map
+    field(:polled_at, :utc_datetime_usec)
+    field(:version, :string)
+    field(:software_name, :string)
+    field(:raw, :map)
 
-    belongs_to :monitored_instance, SukhiFedi.Schema.MonitoredInstance
+    belongs_to(:monitored_instance, SukhiFedi.Schema.MonitoredInstance)
 
     timestamps(type: :utc_datetime_usec, updated_at: false)
   end

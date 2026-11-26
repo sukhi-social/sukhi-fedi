@@ -9,13 +9,17 @@ defmodule SukhiFedi.Schema.DeliveryReceipt do
   """
 
   use Ecto.Schema
+  use Ecto.Hosi.Schema
+
+  # the catalog's unique indexes, kept by the store
+  hosi_unique([:activity_id, :inbox_url], name: "delivery_receipts_activity_id_inbox_url_index")
 
   @primary_key {:id, :id, autogenerate: true}
   schema "delivery_receipts" do
-    field :activity_id, :string
-    field :inbox_url, :string
-    field :status, :string
-    field :delivered_at, :naive_datetime_usec
-    field :inserted_at, :naive_datetime_usec, autogenerate: {NaiveDateTime, :utc_now, []}
+    field(:activity_id, :string)
+    field(:inbox_url, :string)
+    field(:status, :string)
+    field(:delivered_at, :naive_datetime_usec)
+    field(:inserted_at, :naive_datetime_usec, autogenerate: {NaiveDateTime, :utc_now, []})
   end
 end

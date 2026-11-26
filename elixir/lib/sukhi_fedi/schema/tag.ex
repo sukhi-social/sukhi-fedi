@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.Tag do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
-  schema "tags" do
-    field :name, :string
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:name)
 
-    many_to_many :notes, SukhiFedi.Schema.Note, join_through: "note_tags"
+  schema "tags" do
+    field(:name, :string)
+
+    many_to_many(:notes, SukhiFedi.Schema.Note, join_through: "note_tags")
 
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end

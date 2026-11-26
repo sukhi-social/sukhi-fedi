@@ -12,9 +12,9 @@ defmodule SukhiFedi.Schema.PullPeerStat do
 
   @primary_key {:id, :id, autogenerate: true}
   schema "pull_peer_stats" do
-    field :host, :string
-    field :kind, :string
-    field :n, :integer, default: 0
-    field :last_at, :naive_datetime_usec
+    field(:host, :string)
+    field(:kind, :string)
+    field(:n, :integer, default: 0)
+    field(:last_at, :naive_datetime_usec)
   end
 end

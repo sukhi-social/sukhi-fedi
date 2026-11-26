@@ -12,10 +12,10 @@ defmodule SukhiFedi.Schema.PeerCapability do
 
   @primary_key {:id, :id, autogenerate: true}
   schema "peer_capabilities" do
-    field :host, :string
-    field :hrefs, {:array, :string}, default: []
-    field :seen_at, :naive_datetime_usec
-    field :pull_notify, :string
-    field :pull_stream, :string
+    field(:host, :string)
+    field(:hrefs, {:array, :string}, default: [])
+    field(:seen_at, :naive_datetime_usec)
+    field(:pull_notify, :string)
+    field(:pull_stream, :string)
   end
 end

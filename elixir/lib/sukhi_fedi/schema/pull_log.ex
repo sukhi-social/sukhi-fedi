@@ -9,13 +9,18 @@ defmodule SukhiFedi.Schema.PullLog do
   """
 
   use Ecto.Schema
+  use Ecto.Hosi.Schema
+
+  # the catalog's unique indexes, kept by the store
+  hosi_unique([:account_id, :seq], name: "pull_log_account_id_seq_index")
+  hosi_unique(:activity_id)
 
   @primary_key {:id, :id, autogenerate: true}
   schema "pull_log" do
-    field :account_id, :integer
-    field :seq, :integer
-    field :activity_id, :string
-    field :body, :map
-    field :inserted_at, :naive_datetime_usec, autogenerate: {NaiveDateTime, :utc_now, []}
+    field(:account_id, :integer)
+    field(:seq, :integer)
+    field(:activity_id, :string)
+    field(:body, :map)
+    field(:inserted_at, :naive_datetime_usec, autogenerate: {NaiveDateTime, :utc_now, []})
   end
 end

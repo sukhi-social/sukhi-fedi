@@ -12,8 +12,8 @@ defmodule SukhiFedi.Schema.PullHead do
 
   @primary_key {:id, :id, autogenerate: true}
   schema "pull_heads" do
-    field :account_id, :integer
-    field :seq, :integer, default: 0
-    field :pruned_through, :integer, default: 0
+    field(:account_id, :integer)
+    field(:seq, :integer, default: 0)
+    field(:pruned_through, :integer, default: 0)
   end
 end

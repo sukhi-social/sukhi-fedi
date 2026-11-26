@@ -1,17 +1,22 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.CustomEmoji do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:shortcode, name: "custom_emojis_local_shortcode_index", where: [null: [:domain]])
+  hosi_unique([:shortcode, :domain], name: "custom_emojis_shortcode_domain_index")
+
   schema "custom_emojis" do
-    field :shortcode, :string
-    field :domain, :string
-    field :image_url, :string
-    field :static_url, :string
-    field :category, :string
-    field :aliases, {:array, :string}, default: []
-    field :visible_in_picker, :boolean, default: true
-    field :last_fetched_at, :utc_datetime
+    field(:shortcode, :string)
+    field(:domain, :string)
+    field(:image_url, :string)
+    field(:static_url, :string)
+    field(:category, :string)
+    field(:aliases, {:array, :string}, default: [])
+    field(:visible_in_picker, :boolean, default: true)
+    field(:last_fetched_at, :utc_datetime)
 
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end

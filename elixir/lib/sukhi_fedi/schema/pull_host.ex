@@ -12,10 +12,10 @@ defmodule SukhiFedi.Schema.PullHost do
 
   @primary_key {:id, :id, autogenerate: true}
   schema "pull_hosts" do
-    field :host, :string
-    field :next_pull_at, :naive_datetime_usec
-    field :failures, :integer, default: 0
-    field :last_ok_at, :naive_datetime_usec
-    field :last_error, :string
+    field(:host, :string)
+    field(:next_pull_at, :naive_datetime_usec)
+    field(:failures, :integer, default: 0)
+    field(:last_ok_at, :naive_datetime_usec)
+    field(:last_error, :string)
   end
 end

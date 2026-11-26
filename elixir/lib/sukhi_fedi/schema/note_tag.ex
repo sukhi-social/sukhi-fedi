@@ -9,10 +9,14 @@ defmodule SukhiFedi.Schema.NoteTag do
   """
 
   use Ecto.Schema
+  use Ecto.Hosi.Schema
+
+  # the catalog's unique indexes, kept by the store
+  hosi_unique([:note_id, :tag_id], name: "note_tags_note_id_tag_id_index")
 
   @primary_key {:id, :id, autogenerate: true}
   schema "note_tags" do
-    field :note_id, :integer
-    field :tag_id, :integer
+    field(:note_id, :integer)
+    field(:tag_id, :integer)
   end
 end

@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.InboundEvent do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
   @moduledoc """
   Index row over one archived inbound original. See the
   `CreateInboundEvents` migration and `SukhiFedi.Federation.InboundArchive`.
   """
+
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:body_sha256)
 
   schema "inbound_events" do
     field(:received_at, :utc_datetime_usec)

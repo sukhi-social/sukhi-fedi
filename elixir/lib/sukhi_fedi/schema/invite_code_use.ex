@@ -7,11 +7,17 @@ defmodule SukhiFedi.Schema.InviteCodeUse do
   """
 
   use Ecto.Schema
+  use Ecto.Hosi.Schema
+
+  # the catalog's unique indexes, kept by the store
+  hosi_unique([:invite_code_id, :account_id],
+    name: "invite_code_uses_invite_code_id_account_id_index"
+  )
 
   schema "invite_code_uses" do
-    field :used_at, :utc_datetime
+    field(:used_at, :utc_datetime)
 
-    belongs_to :invite_code, SukhiFedi.Schema.InviteCode
-    belongs_to :account, SukhiFedi.Schema.Account
+    belongs_to(:invite_code, SukhiFedi.Schema.InviteCode)
+    belongs_to(:account, SukhiFedi.Schema.Account)
   end
 end

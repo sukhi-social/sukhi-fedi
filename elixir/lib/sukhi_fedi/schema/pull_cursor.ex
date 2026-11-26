@@ -12,9 +12,9 @@ defmodule SukhiFedi.Schema.PullCursor do
 
   @primary_key {:id, :id, autogenerate: true}
   schema "pull_cursors" do
-    field :actor_uri, :string
-    field :host, :string
-    field :seq, :integer
-    field :updated_at, :naive_datetime_usec
+    field(:actor_uri, :string)
+    field(:host, :string)
+    field(:seq, :integer)
+    field(:updated_at, :naive_datetime_usec)
   end
 end

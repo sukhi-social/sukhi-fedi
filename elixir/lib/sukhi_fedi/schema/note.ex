@@ -5,7 +5,10 @@ defmodule SukhiFedi.Schema.Note do
   import Ecto.Changeset
 
   # the newest rows of some authors: Repo.highest_in/5, for timelines
-  hosi_tuple :account_id, :created_at
+  hosi_tuple(:account_id, :created_at)
+
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:ap_id)
 
   schema "notes" do
     field(:content, :string)

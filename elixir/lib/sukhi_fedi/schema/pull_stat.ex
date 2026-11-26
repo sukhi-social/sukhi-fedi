@@ -12,10 +12,10 @@ defmodule SukhiFedi.Schema.PullStat do
 
   @primary_key {:id, :id, autogenerate: true}
   schema "pull_stats" do
-    field :bucket, :naive_datetime_usec
-    field :kind, :string
-    field :n, :integer, default: 0
-    field :sum_ms, :integer, default: 0
-    field :max_ms, :integer, default: 0
+    field(:bucket, :naive_datetime_usec)
+    field(:kind, :string)
+    field(:n, :integer, default: 0)
+    field(:sum_ms, :integer, default: 0)
+    field(:max_ms, :integer, default: 0)
   end
 end

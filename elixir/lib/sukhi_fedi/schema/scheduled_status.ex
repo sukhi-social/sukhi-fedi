@@ -10,10 +10,10 @@ defmodule SukhiFedi.Schema.ScheduledStatus do
   # `create_status` — the same gate a live POST takes — so this changeset
   # only guards the envelope.
   schema "scheduled_statuses" do
-    field :account_id, :integer
-    field :params, :map, default: %{}
-    field :scheduled_at, :utc_datetime
-    field :oban_job_id, :integer
+    field(:account_id, :integer)
+    field(:params, :map, default: %{})
+    field(:scheduled_at, :utc_datetime)
+    field(:oban_job_id, :integer)
     timestamps()
   end
 

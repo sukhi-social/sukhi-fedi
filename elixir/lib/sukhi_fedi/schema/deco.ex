@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.Deco do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
   # 板一枚（natadeco の「デコ」）。`slug` が URL に出る名前で、
   # `name` が人の読む名前。AP の Group actor は `{slug}-deco@domain` ──
   # 個人アカウントの username はハイフンを使えない(`^[a-z0-9_]+$`)ので、
   # ハイフン入りのこの形は個人アカウントの名前空間と構造的にぶつからない。
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:slug)
+
   schema "decos" do
     field(:slug, :string)
     field(:name, :string)

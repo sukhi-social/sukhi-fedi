@@ -8,7 +8,11 @@ defmodule SukhiFedi.Schema.NoteCleanupLedger do
   never updated.
   """
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
+
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:note_id)
 
   schema "note_cleanup_ledger" do
     field(:account_id, :integer)

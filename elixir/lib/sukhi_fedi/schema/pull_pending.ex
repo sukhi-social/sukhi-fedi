@@ -12,9 +12,9 @@ defmodule SukhiFedi.Schema.PullPending do
 
   @primary_key {:id, :id, autogenerate: true}
   schema "pull_pending" do
-    field :host, :string
-    field :actor_uri, :string
-    field :head, :integer
-    field :received_at, :naive_datetime_usec
+    field(:host, :string)
+    field(:actor_uri, :string)
+    field(:head, :integer)
+    field(:received_at, :naive_datetime_usec)
   end
 end

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.DecoPref do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
   # その人と、その板の関わりかた。読んだ位置と、知らせかた。
@@ -8,6 +9,9 @@ defmodule SukhiFedi.Schema.DecoPref do
   # 「入る」は無い ── 自分が書いた板は、書いた時点で自分の場所に
   # なっている（宣言ではなく事実）。ここが持つのは、その既定から
   # ずらしたいときの一行だけ。
+  # the catalog's unique indexes, kept by the store
+  hosi_unique([:account_id, :deco_id], name: "deco_reads_account_id_deco_id_index")
+
   schema "deco_prefs" do
     field(:account_id, :integer)
     field(:deco_id, :integer)

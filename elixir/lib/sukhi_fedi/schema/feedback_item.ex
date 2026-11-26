@@ -14,13 +14,13 @@ defmodule SukhiFedi.Schema.FeedbackItem do
   @body_max 2000
 
   schema "feedback_items" do
-    field :body, :string
-    field :screen, :string
-    field :lang, :string
-    field :version, :string
-    field :account_id, :integer
-    field :handled_at, :utc_datetime
-    field :handled_by_id, :integer
+    field(:body, :string)
+    field(:screen, :string)
+    field(:lang, :string)
+    field(:version, :string)
+    field(:account_id, :integer)
+    field(:handled_at, :utc_datetime)
+    field(:handled_by_id, :integer)
 
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end
