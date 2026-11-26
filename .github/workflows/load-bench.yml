@@ -56,6 +56,13 @@ jobs:
           install: true
           cache: true
 
+      # The head checkout's store is hosigraph (libhosi has no prebuilt release yet); main's is
+      # Datalevin, which needs the dtlv below.
+      - uses: ./head/.github/actions/libhosi
+        with:
+          lock: head/elixir/mix.lock
+          jar: "true"
+
       - name: Cache deps and builds
         uses: actions/cache@v4
         with:

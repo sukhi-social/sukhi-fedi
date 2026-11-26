@@ -66,6 +66,8 @@ jobs:
           install: true
           cache: true
 
+      - uses: ./.github/actions/libhosi
+
       - name: Cache deps and builds
         uses: actions/cache@v4
         with:
