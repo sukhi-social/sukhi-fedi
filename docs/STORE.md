@@ -46,8 +46,12 @@ the standalone jar on a JVM instead). The durability and size knobs (`DATALEVIN_
 ## A new instance
 
 Run the combined release with PostgreSQL for the job queues (`DB_*`) and a directory for
-`DATALEVIN_DIR`. `combined/Dockerfile` gives `dtlv` its own glibc; it does **not** build libhosi
-yet, so a release image cannot open the store until it does.
+`DATALEVIN_DIR`. `combined/Dockerfile` gives `dtlv` its own glibc. Both release images
+(`combined/Dockerfile`, `elixir/Dockerfile`) build libhosi from the hosigraph commit that
+`elixir/mix.lock` pins for `hosi` (`elixir/rel/build-libhosi-alpine.sh`, in a stage of its own), because
+hosigraph has no prebuilt release for that commit; they carry it at `/opt/libhosi`. That stage is the
+slow part of a cold build and reruns only when the pinned commit moves. The gateway image has no `dtlv`
+or JVM, so it cannot open the store by itself.
 
 ## Switching an existing instance
 

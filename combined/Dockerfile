@@ -8,6 +8,23 @@
 # the pages come from a web front (web-next, web-natadeco…) that is built and
 # run on its own and sits in front of this one on :4000.
 
+# ── libhosi ───────────────────────────────────────────────────────────────
+# `hosi` (the store, through ecto_hosi) compiles a NIF against libhosi, and
+# hosigraph has no prebuilt release for the commit mix.lock pins ("... is not
+# in checksum.txt"), so this stage builds libhosi from that commit, on the
+# Alpine the release runs on. The commit reaches it as a file with nothing but
+# the sha, so the (long) build reruns only when that sha moves, not on every
+# mix.lock change. /opt/libhosi has to be at the same path in the runtime
+# image: the NIF finds libhosi there. (elixir/Dockerfile has the same stages.)
+FROM elixir:1.20-alpine AS libhosi-ref
+COPY elixir/mix.lock /mix.lock
+RUN sed -n 's/^  "hosi": {:git, "[^"]*", "\([0-9a-f]*\)".*/\1/p' /mix.lock > /ref && test -s /ref
+
+FROM elixir:1.20-alpine AS libhosi
+COPY --from=libhosi-ref /ref /ref
+COPY elixir/rel/build-libhosi-alpine.sh /build-libhosi-alpine.sh
+RUN apk add --no-cache bash && bash /build-libhosi-alpine.sh /ref /opt/libhosi
+
 # ── Elixir release build ──────────────────────────────────────────────────
 FROM elixir:1.20-alpine AS deps
 
@@ -19,6 +36,10 @@ WORKDIR /repo
 # from GitHub Releases, which fails the same way ojak's download did on OTP 29.
 RUN apk add --no-cache build-base git pkgconf vips-dev
 ENV VIX_COMPILATION_MODE=PLATFORM_PROVIDED_LIBVIPS
+
+# The NIF of `hosi` is compiled against this libhosi (see the stage above).
+COPY --from=libhosi /opt/libhosi /opt/libhosi
+ENV HOSI_BUILD=source HOSI_LIB_DIR=/opt/libhosi/lib HOSI_INCLUDE_DIR=/opt/libhosi/include
 
 COPY VERSION ./VERSION
 # Path dependency of elixir/ and delivery/; needed in full before deps.get.
@@ -152,6 +173,7 @@ RUN apk add --no-cache libstdc++ openssl ncurses-libs vips gcompat zlib
 COPY --from=dtlv /dtlv-wrapper /usr/local/bin/dtlv
 COPY --from=dtlv /g/ /opt/glibc/
 
+COPY --from=libhosi /opt/libhosi /opt/libhosi
 COPY --from=build /repo/combined/_build/prod/rel/combined ./
 COPY combined/rel/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
