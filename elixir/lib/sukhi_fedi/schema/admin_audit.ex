@@ -3,7 +3,7 @@ defmodule SukhiFedi.Schema.AdminAudit do
   @moduledoc """
   One row per admin / moderation action — the append-only audit trail.
   Write-only from the app's side (insert via `changeset/1`); never updated or
-  deleted (`SukhiFedi.Datalevin.Writer` refuses both).
+  deleted (`hosi_append_only`: the adapter refuses both).
 
   Keep it minimal: the action, who did it, the subject, an optional reason,
   and small structured `metadata` (severity, report id, role flag) — never

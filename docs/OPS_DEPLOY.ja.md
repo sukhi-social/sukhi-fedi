@@ -26,7 +26,7 @@ docker compose \
 ```
 
 - 起動のとき、`entrypoint` が `migrate_all()` を実行する。**Datalevin では何も移行しない**
-  (スキーマは `priv/datalevin/catalog.exs` から導かれ、ストアを開くときに入る)。Postgres では移行が走る。
+  (スキーマは Ecto スキーマ(`SukhiFedi.Schema.*`)から導かれ、ストアを開くときに入る)。Postgres では移行が走る。
 - `ERLANG_COOKIE` が既定のままだと、**起動を断る**(安全のため)。
 - `DOMAIN` と `SECRET_KEY_BASE` が無い場合も起動を断る。Datalevin 構成では
   `DATALEVIN_DIR` (既定 `/var/lib/sukhi/datalevin`) を作成でき、書き込めることを

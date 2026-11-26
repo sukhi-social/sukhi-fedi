@@ -54,10 +54,10 @@ read the same variables.
 | `ADMISSION_MAX_WAIT_BG_MS` | no | `120000` | The same limit for requests that send `x-sukhi-purpose: background` (polls, read-marker syncs — nobody watching): they queue behind every interactive request and are refused only past this. |
 | `ADMISSION_QUEUE_MAX` | no | `500` | Longest line. Past it, a plain 503 with no ticket. |
 
-## Store (gateway) — Datalevin
+## Store (gateway) — hosigraph
 
-The business data is in Datalevin (`dtlv` on the PATH); there is no other
-store. `docs/DATALEVIN.md` says what works, what does not, and what to set on
+The business data is in hosigraph (over `dtlv` on the PATH); there is no other
+store. `docs/STORE.md` says what works, what does not, and what to set on
 a small box. A node that still sets `SUKHI_STORE` to anything but `datalevin`
 refuses to start.
 
@@ -85,8 +85,6 @@ refuses to start.
 | `DATALEVIN_CACHE_LIMIT` | no | dtlv's | Datalevin's own cache bound. |
 | `DATALEVIN_BATCH` | no | `500` | Rows per request when writing in bulk (max 5000). |
 | `DATALEVIN_TIMEOUT_MS` | no | `30000` | One request to `dtlv`. |
-| `DATALEVIN_PREMIGRATE_BACKUP` | no | `1` | Copy the store's files before the first Datalevin migration of a run. `0` skips it. Needs room for a second copy ([DATALEVIN_MIGRATIONS.md](DATALEVIN_MIGRATIONS.md)). |
-| `DATALEVIN_PREMIGRATE_DIR` | no | `datalevin-premigrate/` beside `DATALEVIN_DIR` | Where those copies go. Nothing deletes them. |
 
 ## NATS (gateway, delivery)
 

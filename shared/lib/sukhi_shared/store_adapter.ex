@@ -1,28 +1,23 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiShared.StoreAdapter do
   @moduledoc """
-  The `Ecto.Adapter` a repo over the Datalevin store is built with.
+  The `Ecto.Adapter` a repo over the store (hosigraph, through `Ecto.Adapters.Hosi`) is built with.
 
       use SukhiShared.StoreAdapter,
-        datalevin: SukhiFedi.Datalevin.Adapter,
+        adapter: Ecto.Adapters.Hosi,
         owner?: true
 
-  The Datalevin module holds what each callback does but is not itself an
-  Ecto adapter (no behaviours, no `__before_compile__`); this is the thin
-  layer Ecto sees, and every call goes straight through to it.
+  Every call goes straight through to the adapter module, by name at runtime, so an app compiled
+  without it (the delivery node, on its own) still builds.
 
-  The Datalevin adapter lives in the gateway app (`elixir/`) and is called
-  by name at runtime, so an app compiled without it (the delivery node, on
-  its own) still builds.
-
-  `owner?: true` means this repo's boot starts the Datalevin processes (the
-  `dtlv` child, the writer lock). A second repo in the same BEAM that reads
-  and writes the same database (`owner?: false`, the delivery node inside a
-  combined release) must not start another: it joins the one already running.
+  `owner?: true` means this repo's boot starts the store. A second repo in the same BEAM that
+  reads and writes the same database (`owner?: false`, the delivery node inside a combined
+  release) must not start another: give it `join: SukhiFedi.Repo` in its config and it shares
+  the one already running (see `Ecto.Adapters.Hosi`).
   """
 
   defmacro __using__(opts) do
-    datalevin = Keyword.fetch!(opts, :datalevin)
+    datalevin = Keyword.fetch!(opts, :adapter)
     owner? = Keyword.get(opts, :owner?, true)
 
     quote bind_quoted: [datalevin: datalevin, owner?: owner?] do
@@ -58,7 +53,7 @@ defmodule SukhiShared.StoreAdapter do
       end
 
       # Every call below is a dynamic one (`apply/3`), so this app need not
-      # contain the Datalevin adapter to compile.
+      # contain the store adapter to compile.
       @impl Ecto.Adapter
       def loaders(p, t), do: apply(@d, :loaders, [p, t])
       @impl Ecto.Adapter

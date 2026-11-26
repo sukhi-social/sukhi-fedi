@@ -91,12 +91,10 @@ defmodule SukhiFedi.Maintenance.WipeRemote do
 
   @doc """
   Every `(table, column)` whose foreign key points at `notes(id)`: the rows a wipe takes with it
-  (or detaches). The catalog is the list of foreign keys.
+  (or detaches). The schemas' `hosi_ref`s are the list of foreign keys.
   """
   def note_fk_refs do
-    for {child, fk} <- SukhiFedi.Datalevin.Catalog.referencing("notes"),
-        fk.ref_columns == ["id"],
-        column <- fk.columns,
-        do: {child, column}
+    meta = Ecto.Adapter.lookup_meta(SukhiFedi.Repo.get_dynamic_repo())
+    for ref <- Map.get(meta.refs, "notes", []), do: {ref.child, Atom.to_string(ref.field)}
   end
 end

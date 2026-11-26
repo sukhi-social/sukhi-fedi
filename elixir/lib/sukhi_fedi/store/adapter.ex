@@ -9,6 +9,6 @@ defmodule SukhiFedi.Store.Adapter do
   """
 
   use SukhiShared.StoreAdapter,
-    datalevin: Ecto.Adapters.Hosi,
+    adapter: Ecto.Adapters.Hosi,
     owner?: true
 end

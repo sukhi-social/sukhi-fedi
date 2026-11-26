@@ -47,8 +47,7 @@ We would rather say so than hand you a machine translation; if you can help, ple
 | What visitors see while the app is stopped (maintenance page, read-only copy) | [`OPS_MAINTENANCE_PAGE.ja.md`](OPS_MAINTENANCE_PAGE.ja.md) (ja) |
 | One private network for admin access (Tailscale) | [`TAILSCALE.ja.md`](TAILSCALE.ja.md) (ja) |
 | Every environment variable | [`ENV.md`](ENV.md) |
-| Where Datalevin keeps data, and its settings | [`DATALEVIN.md`](DATALEVIN.md) |
-| Upgrading a Datalevin store; writing a migration | [`DATALEVIN_MIGRATIONS.md`](DATALEVIN_MIGRATIONS.md) |
+| The store (hosigraph): what it is, what differs from SQL, backups | [`STORE.md`](STORE.md) |
 | The bot gate (Anubis) | [`anubis.ja.md`](anubis.ja.md) (ja) |
 | The static files the gateway serves (custom emoji, avatar placeholder) | [`static-override.ja.md`](static-override.ja.md) (ja) |
 | Correcting data that went in wrong | [`data-correction.ja.md`](data-correction.ja.md) (ja) |
@@ -69,7 +68,7 @@ Start at [`DEVELOPING.md`](DEVELOPING.md), then [`ARCHITECTURE.md`](ARCHITECTURE
 | What a press, key and back gesture do, per OS | [`UX_CONTRACT.md`](UX_CONTRACT.md) |
 | How sukhi sounds in English, and why | [`ENGLISH_VOICE.md`](ENGLISH_VOICE.md) |
 | The HTML / CSS subset we use | [`CSS_SUBSET.md`](CSS_SUBSET.md) (ja) |
-| Datalevin data structure | [`DATALEVIN_SCHEMA.md`](DATALEVIN_SCHEMA.md) (ja) |
+| Data structure (written for the earlier Datalevin store) | [`DATALEVIN_SCHEMA.md`](DATALEVIN_SCHEMA.md) (ja) |
 | Pausing delivery while a peer is under maintenance (FEP-f799) | [`DELIVERY_SUSPENSION.md`](DELIVERY_SUSPENSION.md) (ja) |
 | Web Push: design, and what shipped | [`WEBPUSH.md`](WEBPUSH.md) |
 | Making the backend unhurried | [`UNHURRIED_BACKEND.md`](UNHURRIED_BACKEND.md) (ja) |

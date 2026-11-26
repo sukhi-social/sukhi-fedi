@@ -98,8 +98,8 @@ Statuses: 404 `join_not_found` (also: expired), 409 `join_confirmed`, 422
 
 ## Storage
 
-Table `join_applications` (Postgres migration `20261107000001`; Datalevin takes it from
-`priv/datalevin/catalog.exs`, a new table needs no Datalevin migration). Tests run on
+Table `join_applications` (Postgres migration `20261107000001`; the store derives
+its schema from the Ecto schema, a new table needs no migration). Tests run on
 both stores.
 
 ## web-gov

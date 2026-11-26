@@ -7,7 +7,7 @@ defmodule SukhiFedi.Maintenance.Backup do
       <root>/<UTC stamp>/
         datalevin/            dtlv copy of DATALEVIN_DIR   (the business data)
         datalevin/.sukhi-store.json
-        backup-manifest.json  the restore inventory `Release.check_datalevin_backup_manifest!/1` reads
+        backup-manifest.json  the restore inventory `Release.check_backup_manifest!/1` reads
         backup-info.json      what this run copied: sizes, versions, the door's state
 
   The directory is built as `<stamp>.partial` and renamed only after every
@@ -33,7 +33,7 @@ defmodule SukhiFedi.Maintenance.Backup do
   `{:error, :already_running}` at once.
   """
 
-  alias SukhiFedi.Datalevin.{Config, Manifest}
+  alias SukhiFedi.Store.{Config, Manifest}
 
   @default_root "/var/lib/sukhi/backups"
   @default_keep 3
@@ -57,7 +57,7 @@ defmodule SukhiFedi.Maintenance.Backup do
 
   Options (all for tests, apart from `:keep`): `:root`, `:keep` (how many
   complete backups to retain, default #{@default_keep}; `nil` keeps all),
-  `:config` (a `Datalevin.Config`), `:cmd`, `:free_bytes`,
+  `:config` (a `Store.Config`), `:cmd`, `:free_bytes`,
   `:now`, `:manifest`.
   """
   @spec run(keyword()) :: {:ok, info()} | {:error, term()}
@@ -273,7 +273,7 @@ defmodule SukhiFedi.Maintenance.Backup do
       free_bytes: Keyword.get(opts, :free_bytes, &free_bytes/1),
       manifest:
         Keyword.get(opts, :manifest, fn path ->
-          SukhiFedi.Release.write_datalevin_backup_manifest!(path)
+          SukhiFedi.Release.write_backup_manifest!(path)
         end),
       now: Keyword.get(opts, :now, fn -> DateTime.utc_now() |> DateTime.truncate(:second) end)
     }

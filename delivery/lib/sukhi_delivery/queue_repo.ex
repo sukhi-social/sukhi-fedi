@@ -4,7 +4,7 @@ defmodule SukhiDelivery.QueueRepo do
   The PostgreSQL connection for the delivery node's job queues: Oban's
   `oban_jobs`, the same table the gateway's `SukhiFedi.QueueRepo` points at.
 
-  This is all PostgreSQL is for. The business data is in Datalevin, which
+  This is all PostgreSQL is for. The business data is in hosigraph, which
   `SukhiDelivery.Repo` joins from the gateway; see `SukhiDelivery.Queue`.
   """
 

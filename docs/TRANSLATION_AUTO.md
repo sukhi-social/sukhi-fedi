@@ -81,7 +81,7 @@ quota. See open question 3.
 ## How it is built (small, reuses the press)
 
 1. **Account field** `translate_auto` (boolean, default false) beside `translate_reads` /
-   `translate_learns`: Postgres migration `20261105000002`, `priv/datalevin/catalog.exs`,
+   `translate_learns`: Postgres migration `20261105000002`, the Ecto schema,
    `Account.changeset_credentials`, `update_credentials`, `source.translate_auto` in the account view.
 2. **Gateway**: `Translate.status/4` takes `auto: true`; the consent check is first, then
    the content-warning check, then the existing `with` chain; `Gate.run/4` takes `auto: true`

@@ -296,7 +296,7 @@ if System.get_env("SUKHI_HOSI_SHADOW") in ["1", "true"] do
 end
 
 # The business data is in Datalevin (docs/DATALEVIN.md); everything about it is
-# read by SukhiFedi.Datalevin.Config when the store starts. SUKHI_STORE used to
+# read by SukhiFedi.Store.Config when the store starts. SUKHI_STORE used to
 # choose between Datalevin and PostgreSQL. Only Datalevin is left, so a node
 # still asking for the other one stops here, rather than starting on an empty
 # store and looking healthy.

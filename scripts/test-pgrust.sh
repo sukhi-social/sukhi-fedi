@@ -62,7 +62,7 @@ cd "$ROOT/elixir"
 # fail here, loudly, instead of scrolling past. See docs/CODE_STYLE.md §8.
 echo "→ compiling (warnings are errors)"
 mix compile --warnings-as-errors
-echo "→ migrating (Datalevin)"
+echo "→ opening the store"
 mix sukhi.migrate
 echo "→ running tests"
 mix test --only integration "$@"

@@ -4,7 +4,7 @@ import Config
 # PostgreSQL holds the accounts and how they sign in (`SukhiFedi.AccountRepo`)
 # and the job queues (`SukhiFedi.QueueRepo`): one database, a pool each. The
 # rest of the business data is in Datalevin (`SukhiFedi.Repo`, configured by
-# `SukhiFedi.Datalevin.Config`).
+# `SukhiFedi.Store.Config`).
 db = [
   database: "sukhi_fedi",
   username: "postgres",

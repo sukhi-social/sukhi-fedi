@@ -45,7 +45,7 @@ defmodule SukhiFedi.Repo do
   # native `dtlv`: for development and tests.
   @impl true
   def init(_type, config) do
-    c = SukhiFedi.Datalevin.Config.current()
+    c = SukhiFedi.Store.Config.current()
 
     config =
       config

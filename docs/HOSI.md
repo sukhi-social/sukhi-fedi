@@ -1,5 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# hosigraph beside the store
+# hosigraph beside the store (the mirror)
+
+> **Out of date.** `SukhiFedi.Repo` now *is* hosigraph (through `ecto_hosi`; see [`STORE.md`](STORE.md)), so this mirror,
+> which copied a store into a second hosigraph, has nothing left to follow. It is kept until it is removed.
 
 > **Intent:** say what the hosigraph mirror is, how to turn it on, and what it does
 > and does not do, so a developer can try hosigraph as sukhi's data layer without

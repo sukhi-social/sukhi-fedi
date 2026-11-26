@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiDelivery.PullFederation.OriginTest do
-  # Needs the Datalevin store the gateway owns (`SukhiDelivery.Repo` only joins
+  # Needs the hosigraph store the gateway owns (`SukhiDelivery.Repo` only joins
   # it) and PostgreSQL for the job tables, so it runs against the combined
   # stack (docs/TESTING.md, `--only integration`), not under a bare `mix test`.
   use ExUnit.Case, async: false

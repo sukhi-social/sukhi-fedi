@@ -148,9 +148,9 @@ application code reaches the store as if it were Ecto.
 ```
                          SukhiFedi.Repo  (looks like Ecto)
                                 │
-                  SukhiFedi.Datalevin.Adapter
+                  Ecto.Adapters.Hosi (ecto_hosi)
                   Ecto queries compiled to Datalog;
-                  one `dtlv` child, one database, one writer.
+                  hosigraph over one `dtlv`, one database, one writer.
                   Not crash-atomic. docs/DATALEVIN.md
 
    Job queues (Oban) ── PostgreSQL (`DB_*`): one `oban_jobs` table for the
@@ -599,9 +599,8 @@ end
 `@sukhi_fedi_addon` attribute at boot, verifies each addon's
 `abi_version` major against core (`"1"`), applies the enable/disable
 filter, and returns supervision children + NATS subscriptions. Major-
-version mismatch is a boot-time crash. An addon's tables are in the store's
-catalog (`priv/datalevin/catalog.exs`); changes to it go through
-`lib/sukhi_fedi/datalevin/migrations/`.
+version mismatch is a boot-time crash. An addon's tables are Ecto schemas the
+store derives its schema from (docs/STORE.md); nothing to migrate.
 
 ### Bun (`bun/addons/`)
 
