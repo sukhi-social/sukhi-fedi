@@ -94,3 +94,65 @@ jobs:
           mode: walltime
           working-directory: elixir
           run: ELIXIR_ERL_OPTIONS="+JPperf true" mix run --no-start bench/pure_bench.exs
+
+  # The load benchmark (scripts/load/): the gateway booted with a seeded store, one benchmark per
+  # route group (a fixed number of requests; scripts/load/codspeed.yml), in walltime mode. The
+  # server is pinned to core 0, the client to core 1. `load-bench.yml` is the head-against-main
+  # comparison on a shared runner; this is the history on a steady one.
+  load:
+    name: Run load benchmarks
+    runs-on: codspeed-macro
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+
+      - uses: ./.github/actions/libhosi
+        with:
+          jar: "true"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Cache deps and builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            combined/deps
+            combined/_build
+          key: codspeed-load-${{ runner.os }}-${{ hashFiles('combined/mix.lock') }}
+          restore-keys: |
+            codspeed-load-${{ runner.os }}-
+
+      - name: Cache pgrust
+        uses: actions/cache@v4
+        with:
+          path: .pgrust
+          key: pgrust-bin-${{ runner.os }}-${{ hashFiles('scripts/lib/pgrust.sh') }}
+
+      - name: Hex and rebar
+        run: mix local.hex --force && mix local.rebar --force
+
+      - name: Start the server
+        env:
+          OUT: ${{ runner.temp }}/load
+        run: |
+          scripts/load/codspeed-up.sh
+          cat "$OUT/env" >> "$GITHUB_ENV"
+
+      - name: Run benchmarks
+        uses: CodSpeedHQ/action@v5
+        with:
+          mode: walltime
+          config: scripts/load/codspeed.yml
+
+      - name: Stop the server
+        if: always()
+        env:
+          OUT: ${{ runner.temp }}/load
+        run: scripts/load/codspeed-down.sh
