@@ -10,6 +10,11 @@ defmodule SukhiFedi.Schema.Note do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:ap_id)
 
+  # A string here, a keyword (`:public`) in the store. The list is `Visibility.all/0`, the one
+  # place that says what this server accepts: a value outside it raises before anything is
+  # written or asked, so the changeset's `validate_inclusion` is not the only gate.
+  hosi_keyword(:visibility, SukhiFedi.Visibility.all())
+
   # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
   hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "notes_account_id_fkey")
 

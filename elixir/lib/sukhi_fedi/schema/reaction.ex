@@ -5,7 +5,11 @@ defmodule SukhiFedi.Schema.Reaction do
   import Ecto.Changeset
 
   # the catalog's unique indexes, kept by the store
-  hosi_unique([:account_id, :note_id, :emoji], name: "reactions_account_id_note_id_emoji_index")
+  # kept as hosigraph's own tuple (the three fields are required by the changeset)
+  hosi_unique([:account_id, :note_id, :emoji],
+    name: "reactions_account_id_note_id_emoji_index",
+    tuple: true
+  )
 
   # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
   hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "reactions_account_id_fkey")

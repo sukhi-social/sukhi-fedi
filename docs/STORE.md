@@ -2,7 +2,7 @@
 
 The business data is kept in [hosigraph](https://github.com/sukhi-social/hosigraph) (an
 append-only event log with Datalevin as its "now"), through the Ecto adapter
-[`ecto_hosi`](https://github.com/sukhi-social/ecto_hosi). PostgreSQL holds the job queues (Oban),
+[`ecto_hosi`](https://github.com/sukhi-social/hosigraph/tree/main/ecto_hosi). PostgreSQL holds the job queues (Oban),
 the outbox, accounts (`AccountRepo`) and raw blobs, and nothing else.
 
 Read `ARCHITECTURE.md` first. This page covers what the store changes.
