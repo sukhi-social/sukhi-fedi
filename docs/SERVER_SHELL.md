@@ -25,7 +25,7 @@
 | --- | --- | --- | --- |
 | リリースの `eval` | `combined/rel/entrypoint.sh` が `bin/combined eval 'SukhiFedi.Release.migrate_all()'` を呼ぶ | 起動前のマイグレーション。`check_migration_sanity/0` で順序の狂いを止める | 実行中のノードには入れない(別 BEAM が立つ)。出力は文字列のまま |
 | `rpc` | リリース標準。`rel/env.sh.eex` が cookie を fail-closed で強制 | 動いているノードの中で式を評価 | 認証は cookie だけ。cookie を知れば**何でも**できる(任意コード実行)。権限の段階も監査もない |
-| mix タスク | `elixir/lib/mix/tasks/sukhi.*.ex`(migrate, emoji.add/list, datalevin.catalog) | 開発時の入口 | リリースには Mix がない。本番では使えない |
+| mix タスク | `elixir/lib/mix/tasks/sukhi.*.ex`(migrate, emoji.add/list) | 開発時の入口 | リリースには Mix がない。本番では使えない |
 | メンテナンス・スクリプト | `SukhiFedi.Maintenance.*`(RebuildRemoteNoteIds, RebuildFromArchive, RefetchActors, WipeRemote, RebuildDirectVisibility, ArchiveIntegrity …) | `run(:dry_run \| :execute)` という共通の形。`Progress` が `maintenance_runs` に進み具合を書く | 一覧がない。呼ぶには `eval '…run(:execute)'` を手で打つ。同時実行の制限・タイムアウトがない |
 | 管理ダッシュボード | `Web.Admin.*`(`/admin`)、`Schema.AdminAudit`(追記専用・DB のトリガで更新削除を禁止) | 進捗の表示、モデレーションの監査 | 人がブラウザで見る用。操作の入口としては作られていない |
 | デプロイ | combined-sha.yml が main ごとに sha タグを GHCR へ、haloy が本番へ。Watchtower は自前ホスト向け(`docker-compose.yml`) | 自動で更新される | 「今の版は何か」「更新前に確かめる」「戻す」の入口がない |
@@ -217,7 +217,7 @@ Watchtower は公開 compose の利用者向けで、本番とは別。同じ「
 
 | | Datalevin(主) | Postgres(維持) |
 | --- | --- | --- |
-| マイグレーション | なし。スキーマは `priv/datalevin/catalog.exs` から導き、store を開くときに入れる(`Release.migrate_all/0` は何もせず返す) | `migrate_all/0`。`check_migration_sanity/0` が順序の狂いを止める |
+| マイグレーション | なし。スキーマは Ecto スキーマから導き、store を開くときに入れる(`Release.migrate_all/0` は何もせず返す) | `migrate_all/0`。`check_migration_sanity/0` が順序の狂いを止める |
 | 更新前の安全網 | `dtlv` のコピー(スナップショット)を必ず取る | `pg_dump` 相当(既存の backup を使う) |
 | 戻し | 前のイメージへ戻す。スキーマ追加だけの変更なら読める見込み。**非互換の変更があった版は、スナップショットから戻す** | マイグレーションは前進のみ。戻しは「前のイメージ + バックアップから復元」。down は書かない |
 
@@ -427,7 +427,7 @@ MCP のツールは level で**別のサーバー設定**に分ける。クラ�
 ### 7.2 実行の管理
 
 - **実行履歴**は既存の `maintenance_runs`(`Progress` が書く)を使う。足りない列(依頼した主体、
-  引数、終了コード)は追加するが、Datalevin 側のスキーマ(`priv/datalevin/catalog.exs`)にも同じ変更が要る。
+  引数、終了コード)は追加するが、store 側は Ecto スキーマ(`SukhiFedi.Schema.*`)から導かれるので、そちらにも同じ変更が要る。
   Postgres の移行ファイルを新しく足すかどうかは §12 Q4。
 - **同時実行の制限**: `lock` が同じものは同時に一つだけ(`:maintenance` は排他)。取れなければ、
   待たずに即座に失敗して「誰がいつから持っているか」を返す。

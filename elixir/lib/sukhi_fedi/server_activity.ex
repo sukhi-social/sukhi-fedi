@@ -66,8 +66,6 @@ defmodule SukhiFedi.ServerActivity do
   @scripts %{
     "refetch_actors" => "RefetchActors",
     "rebuild_from_archive" => "RebuildFromArchive",
-    "rebuild_remote_notes" => "RebuildRemoteNotes",
-    "rebuild_remote_note_ids" => "RebuildRemoteNoteIds",
     "rebuild_direct_visibility" => "RebuildDirectVisibility",
     "wipe_remote" => "WipeRemote"
   }

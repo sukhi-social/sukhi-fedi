@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule Mix.Tasks.Sukhi.Migrate do
   @moduledoc """
-  Dev equivalent of `SukhiFedi.Release.migrate_all/0`: runs the versioned
-  Datalevin migrations (docs/DATALEVIN_MIGRATIONS.md) against the dev store.
+  Dev equivalent of `SukhiFedi.Release.migrate_all/0`.
   """
 
   use Mix.Task
 
-  @shortdoc "Run the Datalevin migrations"
+  @shortdoc "Open the store (nothing to migrate)"
 
   @impl Mix.Task
   def run(_args) do

@@ -1,19 +1,26 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.OauthApp do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
-  schema "oauth_apps" do
-    field :client_id, :string
-    field :client_secret_hash, :string
-    field :name, :string
-    field :redirect_uri, :string
-    field :scopes, :string, default: "read"
-    field :website, :string
-    belongs_to :owner_account, SukhiFedi.Schema.Account
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:client_id)
 
-    has_many :access_tokens, SukhiFedi.Schema.OauthAccessToken, foreign_key: :app_id
-    has_many :authorization_codes, SukhiFedi.Schema.OauthAuthorizationCode, foreign_key: :app_id
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:owner_account_id, to: "accounts", on_delete: :nilify, name: "oauth_apps_owner_account_id_fkey")
+
+  schema "oauth_apps" do
+    field(:client_id, :string)
+    field(:client_secret_hash, :string)
+    field(:name, :string)
+    field(:redirect_uri, :string)
+    field(:scopes, :string, default: "read")
+    field(:website, :string)
+    belongs_to(:owner_account, SukhiFedi.Schema.Account)
+
+    has_many(:access_tokens, SukhiFedi.Schema.OauthAccessToken, foreign_key: :app_id)
+    has_many(:authorization_codes, SukhiFedi.Schema.OauthAuthorizationCode, foreign_key: :app_id)
 
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end

@@ -5,7 +5,7 @@ defmodule SukhiDelivery.Outbox.Relay do
   `SukhiFedi.Outbox.enqueue_multi/6`) and hands each one to
   `SukhiDelivery.Outbox.DispatchWorker`.
 
-  The rows are in Datalevin and the jobs in PostgreSQL, so the two halves
+  The rows are in hosigraph and the jobs in PostgreSQL, so the two halves
   (insert the job, flip the row to `published`) cannot share a transaction.
   The hop is at-least-once: a crash between them leaves a `pending` row that
   already has a job, and `Queue.enqueued_outbox_ids/1` lets the next batch

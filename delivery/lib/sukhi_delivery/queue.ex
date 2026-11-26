@@ -9,7 +9,7 @@ defmodule SukhiDelivery.Queue do
   its own config names, so a job one node inserts for the other's queue is
   picked up there.
 
-  The business rows are in Datalevin, so the outbox row and its dispatch job
+  The business rows are in hosigraph, so the outbox row and its dispatch job
   are in different stores and the hop between them is at-least-once:
   `enqueued_outbox_ids/1` lets the relay skip rows already queued after a
   crash between the two writes, and `Delivery.Worker` absorbs any remaining

@@ -7,12 +7,19 @@ defmodule SukhiFedi.Schema.GroupMembership do
   """
 
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
+  # the catalog's unique indexes, kept by the store
+  hosi_unique([:member_uri, :group_id], name: "group_memberships_member_uri_group_id_index")
+
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:group_id, to: "accounts", on_delete: :none, name: "group_memberships_group_id_fkey")
+
   schema "group_memberships" do
-    field :member_uri, :string
-    field :group_id, :integer
-    field :state, :string, default: "pending"
+    field(:member_uri, :string)
+    field(:group_id, :integer)
+    field(:state, :string, default: "pending")
 
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end

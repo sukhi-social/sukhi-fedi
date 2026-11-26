@@ -16,7 +16,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
   import Ecto.Query
 
   alias SukhiFedi.Accounts
-  alias SukhiFedi.{Notes, Notifications, Repo, Snowflake}
+  alias SukhiFedi.{Notes, Notifications, Repo}
   alias SukhiFedi.Addons.Deco.{Boards, Federation, View}
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Notes.Create, as: NotesCreate
@@ -94,7 +94,11 @@ defmodule SukhiFedi.Addons.Deco.Posts do
   # 直接ポケットを鳴らしてよい tier に既に入っているのが "mention" だけ
   # なので、WebPush.deliverable?/3 側の一覧は増やさずに済む)。
   # 自分自身への返信は Notifications.create/1 が黙って無視する。
-  defp notify_reply_author({:ok, %{id: reply_note_id}} = result, %Note{account_id: recipient_id}, from_account_id) do
+  defp notify_reply_author(
+         {:ok, %{id: reply_note_id}} = result,
+         %Note{account_id: recipient_id},
+         from_account_id
+       ) do
     Notifications.create(%{
       account_id: recipient_id,
       from_account_id: from_account_id,
@@ -145,6 +149,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
 
   defp write(account_id, deco_id, params, default_local) when is_integer(account_id) do
     params = stringify(params)
+
     # 板の側だけが持つもの(もう一つの言語ぶん、場所)は notes に渡さない。
     {overlay, rest} = Map.split(params, ["title_i18n", "content_i18n", "place"])
 
@@ -160,6 +165,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
         {_, nil} -> deco_local_default(deco_id)
         {_, inherited} -> inherited
       end
+
     # FEP-1b12 の `audience` ── どの板の投稿か。掲示板を持つ実装は
     # ここを読んで、板の中に置いてくれる。`to` には入れない: 入れると
     # Mastodon が板を silent mention として解決してしまうし、FEP-1b12 も
@@ -368,7 +374,9 @@ defmodule SukhiFedi.Addons.Deco.Posts do
 
   defp do_update(note, dn, account, params) do
     with :ok <- validate_title(params) do
-      note_attrs = %{} |> maybe_put("content", params["status"]) |> maybe_put("title", params["title"])
+      note_attrs =
+        %{} |> maybe_put("content", params["status"]) |> maybe_put("title", params["title"])
+
       dn_attrs = Map.take(params, ["title_i18n", "content_i18n", "place"])
 
       Repo.transaction(fn ->
@@ -386,7 +394,10 @@ defmodule SukhiFedi.Addons.Deco.Posts do
             do: SukhiFedi.Tags.sync_for_note(updated_note.id, updated_note.content)
 
           unless updated_dn.local_only, do: NotesCreate.enqueue_update(updated_note.id)
-          view = updated_note |> post_view(updated_dn, account) |> List.wrap() |> with_tags() |> hd()
+
+          view =
+            updated_note |> post_view(updated_dn, account) |> List.wrap() |> with_tags() |> hd()
+
           {:ok, view}
 
         {:error, %Ecto.Changeset{} = cs} ->
@@ -427,52 +438,68 @@ defmodule SukhiFedi.Addons.Deco.Posts do
       before_activity_at = opts[:before_activity_at]
       before_id = opts[:before_id]
 
-      last_reply_at =
-        from(r in Note,
-          where: not is_nil(r.in_reply_to_ap_id) and r.visibility == "public",
-          group_by: r.in_reply_to_ap_id,
-          select: %{parent_ap_id: r.in_reply_to_ap_id, at: max(r.created_at)}
-        )
-
-      # 一段のクエリのまま(select と order_by/where で coalesce(...) を
-      # 繰り返す)。%{note: n, ...} を subquery の select に置くと、
-      # Ecto は構造体を subquery の map 値として許さない ── いったん
-      # 別の subquery に包んでからだと弾かれる。
-      q =
+      # 三段 ── 板の親投稿(id, ap_id, 時刻だけ)、それらへの最新の返信時刻、
+      # 順位の決まった一頁ぶんの本体。ストアには JOIN subquery が無いので、
+      # 集計(group_by)は返信の側で一度だけ取り、並べるのはここ。
+      heads =
         from(dn in DecoNote,
           join: n in Note,
           on: n.id == dn.note_id,
-          join: a in Account,
-          on: a.id == n.account_id,
-          left_join: la in subquery(last_reply_at),
-          on: la.parent_ap_id == n.ap_id,
           where: dn.deco_id == ^deco_id and is_nil(n.in_reply_to_ap_id),
-          order_by: [desc: coalesce(la.at, n.created_at), desc: n.id],
-          limit: ^limit,
-          select: {n, dn, a, coalesce(la.at, n.created_at)}
+          select: {n.id, n.ap_id, n.created_at}
         )
+        |> with_tag(opts[:tag])
+        |> Repo.all()
 
-      q = with_tag(q, opts[:tag])
+      ap_ids = for {_, ap, _} <- heads, is_binary(ap), do: ap
 
-      q =
-        if before_activity_at && before_id do
-          where(
-            q,
-            [dn, n, a, la],
-            fragment(
-              "(?, ?) < (?, ?)",
-              coalesce(la.at, n.created_at),
-              n.id,
-              ^before_activity_at,
-              ^to_int(before_id)
-            )
-          )
+      last_reply =
+        if ap_ids == [] do
+          %{}
         else
-          q
+          from(r in Note,
+            where: r.in_reply_to_ap_id in ^ap_ids and r.visibility == "public",
+            group_by: r.in_reply_to_ap_id,
+            select: {r.in_reply_to_ap_id, max(r.created_at)}
+          )
+          |> Repo.all()
+          |> Map.new(fn {ap, at} -> {ap, to_utc(at)} end)
         end
 
+      cursor =
+        if before_activity_at && before_id,
+          do: {DateTime.to_unix(to_utc(before_activity_at), :microsecond), to_int(before_id)}
+
+      ranked =
+        heads
+        |> Enum.map(fn {id, ap, created} -> {id, to_utc(Map.get(last_reply, ap) || created)} end)
+        |> Enum.map(fn {id, at} -> {{DateTime.to_unix(at, :microsecond), id}, id, at} end)
+        |> Enum.filter(fn {key, _, _} -> cursor == nil or key < cursor end)
+        |> Enum.sort_by(&elem(&1, 0), :desc)
+        |> Enum.take(limit)
+
+      page_ids = Enum.map(ranked, &elem(&1, 1))
+
+      by_id =
+        if page_ids == [] do
+          %{}
+        else
+          from(dn in DecoNote,
+            join: n in Note,
+            on: n.id == dn.note_id,
+            join: a in Account,
+            on: a.id == n.account_id,
+            where: dn.deco_id == ^deco_id and n.id in ^page_ids,
+            select: {n, dn, a}
+          )
+          |> Repo.all()
+          |> Map.new(fn {n, dn, a} -> {n.id, {n, dn, a}} end)
+        end
+
+      q = for {_, id, at} <- ranked, {n, dn, a} <- [by_id[id]], do: {n, dn, a, at}
+
       {:ok,
-       Repo.all(q)
+       q
        |> Enum.map(fn {n, dn, a, at} ->
          Map.put(post_view(n, dn, a), :last_activity_at, to_utc(at))
        end)
@@ -520,7 +547,9 @@ defmodule SukhiFedi.Addons.Deco.Posts do
         )
 
       q = with_tag(q, opts[:tag])
-      q = if before_id = opts[:before_id], do: where(q, [dn, n], n.id < ^to_int(before_id)), else: q
+
+      q =
+        if before_id = opts[:before_id], do: where(q, [dn, n], n.id < ^to_int(before_id)), else: q
 
       q =
         case since_bound(opts) do
@@ -550,22 +579,25 @@ defmodule SukhiFedi.Addons.Deco.Posts do
   defp with_tag(q, tag) when is_binary(tag) do
     name = tag |> String.trim_leading("#") |> String.trim() |> String.downcase()
 
+    # read first, then `in ^ids`: the store has no subquery in a where
     tagged =
-      from(nt in "note_tags",
-        join: t in Tag,
-        on: t.id == nt.tag_id,
-        where: t.name == ^name,
-        select: nt.note_id
+      Repo.all(
+        from(nt in "note_tags",
+          join: t in Tag,
+          on: t.id == nt.tag_id,
+          where: t.name == ^name,
+          select: nt.note_id
+        )
       )
 
-    where(q, [dn, n], n.id in subquery(tagged))
+    where(q, [dn, n], n.id in ^tagged)
   end
 
   # 下限。id で言われればそのまま、時刻で言われれば snowflake に直す。
   # 両方来たら id のほうが具体的なので、そちらを採る。
   defp since_bound(opts) do
     case {opts[:since_id], opts[:since]} do
-      {nil, %DateTime{} = dt} -> Snowflake.encode(DateTime.to_unix(dt, :millisecond), 0)
+      {nil, %DateTime{} = dt} -> SukhiFedi.Store.Ids.encode(DateTime.to_unix(dt, :millisecond), 0)
       {nil, _} -> nil
       {id, _} -> to_int(id)
     end

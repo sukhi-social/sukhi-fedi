@@ -485,7 +485,7 @@ git status
       - 決めること: Postgres のスキーマを正本のままにして Datalevin 側だけ作り直すか、
         どちらからも導ける「論理スキーマ」を一つ持つか(CODE_STYLE §1 の「一か所」)。
       - 先に: 計測(タイムライン 1 回の往復数、書き込み 1 行の往復数 ≒ いま 2〜3 ms)。
-- [ ] **Datalevin の残り(グラフストアは畳んだ。投稿・タイムラインの役目は hosi_store / hosigraph へ)。**
+- [ ] **Datalevin の残り(グラフストアは畳んだ。投稿・タイムラインの役目は hosigraph(`ecto_hosi`)へ)。**
       - Postgres → Datalevin(正本のほう)のデータ移行。新しいインスタンスは Datalevin
         だけで立つ(`docker-compose.datalevin.yml`、docs/DATALEVIN.md)。既存の Postgres
         インスタンスから持ってくる道具は無い。あわせて、Alpine イメージで `dtlv`(glibc 版)

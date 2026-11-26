@@ -36,7 +36,7 @@ export LOAD_TOKEN_FILE="$OUT/$LABEL.token"
 export DATALEVIN_DIR="$OUT/$LABEL.datalevin"
 rm -rf "$DATALEVIN_DIR"
 
-psql -h localhost -U postgres -c 'DROP DATABASE IF EXISTS sukhi_fedi_dev' -c 'CREATE DATABASE sukhi_fedi_dev'
+psql -h localhost -U postgres -c 'DROP DATABASE IF EXISTS sukhi_fedi_dev WITH (FORCE)' -c 'CREATE DATABASE sukhi_fedi_dev'
 
 cd "$SRC/combined"
 mix deps.get
@@ -46,7 +46,8 @@ mix run "$HERE/seed.exs"
 
 taskset -c 0 mix run --no-halt >"$OUT/$LABEL.server.log" 2>&1 &
 server=$!
-trap 'kill $server 2>/dev/null || true' EXIT
+# wait: the next pass drops the database, and a server still shutting down holds sessions on it
+trap 'kill $server 2>/dev/null || true; wait $server 2>/dev/null || true' EXIT
 
 for _ in $(seq 1 120); do
   curl -fs http://127.0.0.1:4000/api/v1/instance >/dev/null && break

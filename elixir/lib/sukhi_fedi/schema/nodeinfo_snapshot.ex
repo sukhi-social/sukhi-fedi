@@ -1,15 +1,19 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.NodeinfoSnapshot do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
-  schema "nodeinfo_snapshots" do
-    field :polled_at, :utc_datetime_usec
-    field :version, :string
-    field :software_name, :string
-    field :raw, :map
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:monitored_instance_id, to: "monitored_instances", on_delete: :cascade, name: "nodeinfo_snapshots_monitored_instance_id_fkey")
 
-    belongs_to :monitored_instance, SukhiFedi.Schema.MonitoredInstance
+  schema "nodeinfo_snapshots" do
+    field(:polled_at, :utc_datetime_usec)
+    field(:version, :string)
+    field(:software_name, :string)
+    field(:raw, :map)
+
+    belongs_to(:monitored_instance, SukhiFedi.Schema.MonitoredInstance)
 
     timestamps(type: :utc_datetime_usec, updated_at: false)
   end

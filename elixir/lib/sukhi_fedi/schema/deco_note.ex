@@ -1,10 +1,18 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.DecoNote do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
   # 「この note は、この板のもの」という一行。本文も、書いた人も、
   # notes 側にある。
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:note_id)
+
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:deco_id, to: "decos", on_delete: :cascade, name: "deco_notes_deco_id_fkey")
+  hosi_ref(:note_id, to: "notes", on_delete: :cascade, name: "deco_notes_note_id_fkey")
+
   schema "deco_notes" do
     field(:deco_id, :integer)
     field(:note_id, :integer)
@@ -37,7 +45,15 @@ defmodule SukhiFedi.Schema.DecoNote do
 
   def changeset(deco_note, attrs) do
     deco_note
-    |> cast(attrs, [:deco_id, :note_id, :title_i18n, :content_i18n, :local_only, :as_article, :place])
+    |> cast(attrs, [
+      :deco_id,
+      :note_id,
+      :title_i18n,
+      :content_i18n,
+      :local_only,
+      :as_article,
+      :place
+    ])
     |> validate_required([:deco_id, :note_id])
     |> unique_constraint(:note_id)
     |> validate_i18n_map(:title_i18n, 120)
@@ -72,7 +88,12 @@ defmodule SukhiFedi.Schema.DecoNote do
             add_error(changeset, :place, "のリンクが長すぎます")
 
           true ->
-            put_change(changeset, :place, %{"name" => name, "url" => url, "lat" => lat, "lng" => lng})
+            put_change(changeset, :place, %{
+              "name" => name,
+              "url" => url,
+              "lat" => lat,
+              "lng" => lng
+            })
         end
 
       _ ->

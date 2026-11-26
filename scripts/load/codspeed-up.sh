@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Start what the CodSpeed load benchmark (scripts/load/codspeed.yml) runs against, and leave it
+# running: it expects a PostgreSQL on :5432 (postgres/postgres) for the job queues, then boots
+# the combined release, seeded like ci.sh does it, pinned to one core. The next step of the job runs the benchmarks; codspeed-down.sh stops it.
+#
+#   scripts/load/codspeed-up.sh        # writes $OUT/env (BASE, LOAD_TOKEN_FILE) and $OUT/pids
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+OUT="${OUT:-$ROOT/scripts/load/out}"
+mkdir -p "$OUT"
+
+# PostgreSQL on :5432 with user postgres / password postgres (the workflow installs it; any
+# server will do).
+export PGPASSWORD=postgres
+psql -h localhost -U postgres -c 'DROP DATABASE IF EXISTS sukhi_fedi_dev WITH (FORCE)' -c 'CREATE DATABASE sukhi_fedi_dev'
+
+export MIX_ENV=dev DOMAIN=localhost DB_POOL_SIZE="${DB_POOL_SIZE:-10}"
+export SUKHI_INSTANCE_CONFIG="$HERE/instance.json" LEGAL_FLAVOR=sukhi METRICS_TOKEN=bench-metrics
+export LOAD_TOKEN_FILE="$OUT/head.token"
+export DATALEVIN_DIR="$OUT/head.datalevin"
+rm -rf "$DATALEVIN_DIR"
+
+cd "$ROOT/combined"
+mix deps.get
+mix compile
+mix sukhi.migrate
+mix run "$HERE/seed.exs"
+
+# The CPUs this job may use (a benchmark runner's cgroup need not include core 0): the server
+# gets the first, the client (bench.sh) the second, or the first again when there is only one.
+mapfile -t cpus < <(taskset -cp $$ | sed 's/.*: //' | tr ',' '\n' | awk -F- '{ e = ($2 == "" ? $1 : $2); for (i = $1; i <= e; i++) print i }')
+SERVER_CPU="${cpus[0]}"
+CLIENT_CPU="${cpus[1]:-${cpus[0]}}"
+
+setsid nohup taskset -c "$SERVER_CPU" mix run --no-halt >"$OUT/server.log" 2>&1 &
+server=$!
+echo "$server" >"$OUT/pids"
+
+for _ in $(seq 1 120); do
+  curl -fs http://127.0.0.1:4000/api/v1/instance >/dev/null && break
+  sleep 1
+done
+curl -fs http://127.0.0.1:4000/api/v1/instance >/dev/null || { tail -50 "$OUT/server.log"; exit 1; }
+echo "BASE=http://127.0.0.1:4000" >"$OUT/env"
+echo "LOAD_TOKEN_FILE=$LOAD_TOKEN_FILE" >>"$OUT/env"
+echo "CLIENT_CPU=$CLIENT_CPU" >>"$OUT/env"

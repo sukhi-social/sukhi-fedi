@@ -3,7 +3,7 @@ defmodule SukhiFedi.Maintenance.BackupTest do
   # Not async: it reads the intake state for the info file.
   use ExUnit.Case, async: false
 
-  alias SukhiFedi.Datalevin.Config
+  alias SukhiFedi.Store.Config
   alias SukhiFedi.Maintenance.Backup
 
   setup do

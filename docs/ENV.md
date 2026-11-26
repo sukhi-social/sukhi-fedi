@@ -54,10 +54,10 @@ read the same variables.
 | `ADMISSION_MAX_WAIT_BG_MS` | no | `120000` | The same limit for requests that send `x-sukhi-purpose: background` (polls, read-marker syncs — nobody watching): they queue behind every interactive request and are refused only past this. |
 | `ADMISSION_QUEUE_MAX` | no | `500` | Longest line. Past it, a plain 503 with no ticket. |
 
-## Store (gateway) — Datalevin
+## Store (gateway) — hosigraph
 
-The business data is in Datalevin (`dtlv` on the PATH); there is no other
-store. `docs/DATALEVIN.md` says what works, what does not, and what to set on
+The business data is in hosigraph (over `dtlv` on the PATH); there is no other
+store. `docs/STORE.md` says what works, what does not, and what to set on
 a small box. A node that still sets `SUKHI_STORE` to anything but `datalevin`
 refuses to start.
 
@@ -65,9 +65,6 @@ refuses to start.
 |---|---|---|---|
 | `SUKHI_INTAKE_FILE` | no | `/var/lib/sukhi/intake.json` | The marker the gateway writes when intake is closed/opened (JSON: state, since, reason, until, retry_after_s, settled_at, backup). For a static maintenance page to read while the gateway is down. A fresh start writes `open`. docs/OPS_DRAIN_BACKUP.ja.md §5. |
 | `SUKHI_BACKUP_DIR` | no | `/var/lib/sukhi/backups` | Where `Maintenance.Backup` puts `<UTC stamp>/` (a `dtlv` copy of the data; PostgreSQL is not in it). The newest 3 complete ones are kept. docs/OPS_DRAIN_BACKUP.ja.md §4. |
-| `SUKHI_HOSI_MIRROR` | no | off | `1`/`true`: copy the new people and posts of the store into hosigraph (`SukhiFedi.HosiMirror`). Only does anything in a build made with `SUKHI_HOSI=1` (a build-time switch, not read at runtime). docs/HOSI.md. |
-| `SUKHI_HOSI_SHADOW` | no | off | `1`/`true`: also ask hosigraph the like view (how many favourited a post, and whether the viewer did), compare with the store's answer, and log when they differ. The answer on screen is still the store's. Needs `SUKHI_HOSI_MIRROR`. docs/HOSI.md. |
-| `SUKHI_HOSI_DIR` | no | `<DATALEVIN_DIR>/hosi` | Where hosigraph keeps its files. It runs on the `dtlv` that `DATALEVIN_BIN` names. |
 | `SUKHI_RAW_BACKEND` | no | `postgres` | Where large originals (`raw`) go: `postgres` (the `raw_blobs` table of the queue database) or `s3` (S3-compatible, same credentials as media). |
 | `SUKHI_RAW_INLINE_MAX` | no | `4096` | Bytes of `raw` kept on the entity itself; larger is stored as a pointer. |
 | `SUKHI_RAW_GRACE_S` | no | `86400` | How old an unreferenced blob must be before GC may delete it. |
@@ -85,8 +82,6 @@ refuses to start.
 | `DATALEVIN_CACHE_LIMIT` | no | dtlv's | Datalevin's own cache bound. |
 | `DATALEVIN_BATCH` | no | `500` | Rows per request when writing in bulk (max 5000). |
 | `DATALEVIN_TIMEOUT_MS` | no | `30000` | One request to `dtlv`. |
-| `DATALEVIN_PREMIGRATE_BACKUP` | no | `1` | Copy the store's files before the first Datalevin migration of a run. `0` skips it. Needs room for a second copy ([DATALEVIN_MIGRATIONS.md](DATALEVIN_MIGRATIONS.md)). |
-| `DATALEVIN_PREMIGRATE_DIR` | no | `datalevin-premigrate/` beside `DATALEVIN_DIR` | Where those copies go. Nothing deletes them. |
 
 ## NATS (gateway, delivery)
 

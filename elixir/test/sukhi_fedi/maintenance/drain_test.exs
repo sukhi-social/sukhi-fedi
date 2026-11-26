@@ -5,7 +5,7 @@ defmodule SukhiFedi.Maintenance.DrainTest do
 
   import ExUnit.CaptureIO
 
-  alias SukhiFedi.Datalevin.Config
+  alias SukhiFedi.Store.Config
   alias SukhiFedi.Maintenance.Drain
   alias SukhiShared.Intake
 

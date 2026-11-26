@@ -4,14 +4,14 @@ defmodule SukhiFedi.Schema.Announcement do
   import Ecto.Changeset
 
   schema "announcements" do
-    field :content, :string
-    field :published, :boolean, default: false
-    field :all_day, :boolean, default: false
-    field :starts_at, :utc_datetime
-    field :ends_at, :utc_datetime
-    field :published_at, :utc_datetime
+    field(:content, :string)
+    field(:published, :boolean, default: false)
+    field(:all_day, :boolean, default: false)
+    field(:starts_at, :utc_datetime)
+    field(:ends_at, :utc_datetime)
+    field(:published_at, :utc_datetime)
 
-    has_many :dismissals, SukhiFedi.Schema.AnnouncementDismissal
+    has_many(:dismissals, SukhiFedi.Schema.AnnouncementDismissal)
 
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: :updated_at)
   end

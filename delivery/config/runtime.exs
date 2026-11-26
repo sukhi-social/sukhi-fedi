@@ -14,7 +14,7 @@ end
 
 if config_env() == :prod do
   # PostgreSQL holds the job queues and nothing else (the business data is the
-  # gateway's Datalevin store, which this node joins). The gateway reads the
+  # gateway's hosigraph store, which this node joins). The gateway reads the
   # same DB_* variables, so both nodes land on one `oban_jobs` table.
   config :sukhi_delivery, SukhiDelivery.QueueRepo,
     database: System.get_env("DB_NAME", "sukhi_fedi"),

@@ -24,7 +24,6 @@ Practical notes:
 - Tests: `make test` (unit, every layer), `make test-pgrust`
   (DB integration, no docker).
 - `scripts/lib/pgrust.sh` fetches and starts the pgrust server (a
-  PostgreSQL-compatible binary) that `make dev`, `make test-pgrust` and
-  `hosi_store/`'s tests use.
+  PostgreSQL-compatible binary) that `make dev` and `make test-pgrust` use.
 - Every source file starts with
   `# SPDX-License-Identifier: AGPL-3.0-or-later`.

@@ -29,7 +29,7 @@ defmodule SukhiDelivery.MixProject do
       # Code the gateway and delivery must decide identically (UrlGuard).
       {:sukhi_shared, path: "../shared"},
 
-      # Postgres for the job queues (Oban); the business data is the gateway's Datalevin store
+      # Postgres for the job queues (Oban); the business data is the gateway's hosigraph store
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.18"},
 

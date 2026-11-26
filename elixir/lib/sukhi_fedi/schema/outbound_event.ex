@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.OutboundEvent do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
   @moduledoc """
@@ -9,6 +10,9 @@ defmodule SukhiFedi.Schema.OutboundEvent do
   The mirror of `SukhiFedi.Schema.InboundEvent`, keyed per delivery
   `(activity_id, inbox_url)` and carrying the remote's response status.
   """
+
+  # the catalog's unique indexes, kept by the store
+  hosi_unique([:activity_id, :inbox_url], name: "outbound_events_activity_id_inbox_url_index")
 
   schema "outbound_events" do
     field(:delivered_at, :utc_datetime_usec)

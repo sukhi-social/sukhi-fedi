@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.Account do
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
   @max_fields 4
@@ -10,93 +11,112 @@ defmodule SukhiFedi.Schema.Account do
   @translate_engines ~w(libre deepl)
   @max_langs 8
 
+  # the catalog's unique indexes, kept by the store
+  hosi_unique(:actor_uri, name: "accounts_actor_uri_index", where: [not_null: [:actor_uri]])
+
+  hosi_unique(:email,
+    name: "accounts_local_email_index",
+    lower: [:email],
+    where: [null: [:domain], not_null: [:email, :email_verified_at]]
+  )
+
+  hosi_unique(:username, name: "accounts_local_username_index", where: [null: [:domain]])
+
+  hosi_unique(:monitored_domain,
+    name: "accounts_monitored_domain_index",
+    where: [not_null: [:monitored_domain]]
+  )
+
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:suspended_by_id, to: "accounts", on_delete: :nilify, name: "accounts_suspended_by_id_fkey")
+
   schema "accounts" do
-    field :username, :string
-    field :display_name, :string
-    field :summary, :string
+    field(:username, :string)
+    field(:display_name, :string)
+    field(:summary, :string)
     # Local bios only: the Markdown as typed. `summary` is its rendered HTML.
-    field :summary_source, :string
-    field :emojis, {:array, :map}, default: []
+    field(:summary_source, :string)
+    field(:emojis, {:array, :map}, default: [])
     # Profile fields: a person's own static key/value rows (Mastodon
     # `fields` / AP `attachment` PropertyValue). They federate, so a
     # remote viewer sees exactly what the person wrote. Each row is
     # `%{"name" => String.t(), "value" => String.t()}`; for remote rows
     # this mirrors the upstream actor's `attachment`.
-    field :fields, {:array, :map}, default: []
+    field(:fields, {:array, :map}, default: [])
     # Secrets are `redact: true`: `inspect/1`, crash reports and logger
     # metadata print `**redacted**` instead of the key / hash. (RpcGate
     # blanks the same fields on their way to the api node.)
-    field :private_key_jwk, :map, redact: true
-    field :public_key_jwk, :map
+    field(:private_key_jwk, :map, redact: true)
+    field(:public_key_jwk, :map)
     # PEM-encoded SubjectPublicKeyInfo — read by actor_controller.ex for
     # ActivityPub actor JSON publication.
-    field :public_key_pem, :string
+    field(:public_key_pem, :string)
     # Ed25519 pair for FEP-8b32 Object Integrity Proofs. The public key
     # is stored in its Multikey `publicKeyMultibase` form so both
     # ActorJson modules publish `assertionMethod` by reading it — same
     # precomputed pattern as `public_key_pem`.
-    field :ed25519_private_key_jwk, :map, redact: true
-    field :ed25519_public_multibase, :string
+    field(:ed25519_private_key_jwk, :map, redact: true)
+    field(:ed25519_public_multibase, :string)
     # Auto-created actors for the NodeInfo monitor bot.
-    field :is_bot, :boolean, default: false
-    field :monitored_domain, :string
-    field :avatar_url, :string
-    field :banner_url, :string
+    field(:is_bot, :boolean, default: false)
+    field(:monitored_domain, :string)
+    field(:avatar_url, :string)
+    field(:banner_url, :string)
     # Misskey-family avatar decorations (the ornament drawn over the icon).
     # ActivityPub actors don't carry them, so remote rows get them from the
     # origin's own API (`Federation.MisskeyDecorations`). Each row is
     # `%{"url", "angle", "flip_h", "offset_x", "offset_y"}`.
-    field :avatar_decorations, {:array, :map}, default: []
-    field :is_admin, :boolean, default: false
+    field(:avatar_decorations, {:array, :map}, default: [])
+    field(:is_admin, :boolean, default: false)
     # Misskey-style profile entries (`vcard:Address` / `vcard:bday`): plain
     # text and a calendar date. Local rows are edited by their person; remote
     # rows mirror the origin.
-    field :location, :string
-    field :birthday, :date
+    field(:location, :string)
+    field(:birthday, :date)
     # Public badges an admin gave this local account. Each row is
     # `%{"name" => String.t(), "color" => String.t()}`; see `changeset_roles/2`.
-    field :roles, {:array, :map}, default: []
+    field(:roles, {:array, :map}, default: [])
     # Manual follow approval (Mastodon `locked` / AP
     # `manuallyApprovesFollowers`). For remote rows this mirrors the
     # value from the upstream actor JSON.
-    field :locked, :boolean, default: false
+    field(:locked, :boolean, default: false)
     # Search-indexing consent (FEP-5feb), federated as Mastodon's
     # `toot:discoverable` / `toot:indexable`. Both default to false —
     # consent is given, not assumed. `discoverable` gates discovery
     # surfaces (directories, suggestions); `indexable` gates full-text
     # search/indexing of this actor's posts.
-    field :discoverable, :boolean, default: false
-    field :indexable, :boolean, default: false
+    field(:discoverable, :boolean, default: false)
+    field(:indexable, :boolean, default: false)
     # Pace of ambient notifications (SukhiFedi.Notifications). `hold_minutes`
     # is NULL until someone chooses (see the migration); grouping is opt-in.
-    field :notification_hold_minutes, :integer
-    field :notification_grouping, :boolean, default: false
+    field(:notification_hold_minutes, :integer)
+    field(:notification_grouping, :boolean, default: false)
     # How the person likes their home timeline shown (web-next reads these
     # back from verify_credentials). `home_filter` is the filter the home
     # timeline starts with — a comma list of @home_filters, NULL = none.
     # `boost_hide_name` hides the booster's name in a boost row.
-    field :home_filter, :string
-    field :boost_hide_name, :boolean, default: false
+    field(:home_filter, :string)
+    field(:boost_hide_name, :boolean, default: false)
     # Translating posts (SukhiFedi.Translate). `translate_reads` / `translate_learns`
     # are comma lists of language codes; `translate_engine` is "libre" or "deepl"
     # (NULL = libre). The DeepL key is sealed and write-only: it is redacted from
     # inspect, blanked at the RPC door, and only `translate_deepl_key_hint` (the
     # last four characters) is ever shown. The two virtual fields carry what a
     # settings form sends; the changeset turns them into the sealed column.
-    field :translate_reads, :string
-    field :translate_learns, :string
-    field :translate_engine, :string
-    field :translate_deepl_key, :binary, redact: true
-    field :translate_deepl_key_hint, :string
+    field(:translate_reads, :string)
+    field(:translate_learns, :string)
+    field(:translate_engine, :string)
+    field(:translate_deepl_key, :binary, redact: true)
+    field(:translate_deepl_key_hint, :string)
     # Whether the page may translate posts by itself as they stay on screen
     # (docs/TRANSLATION_AUTO.md). Off until the person turns it on; the gateway
     # refuses an `auto` request from anyone else.
-    field :translate_auto, :boolean, default: false
-    field :translate_deepl_key_input, :string, virtual: true, redact: true
-    field :translate_deepl_key_clear, :boolean, virtual: true
-    field :suspended_at, :utc_datetime
-    field :suspended_by_id, :id
-    field :suspension_reason, :string
+    field(:translate_auto, :boolean, default: false)
+    field(:translate_deepl_key_input, :string, virtual: true, redact: true)
+    field(:translate_deepl_key_clear, :boolean, virtual: true)
+    field(:suspended_at, :utc_datetime)
+    field(:suspended_by_id, :id)
+    field(:suspension_reason, :string)
 
     # Account migration (Mastodon Move + AP `alsoKnownAs` / `movedTo`).
     # `aliases` is the set of other identities this person declares as
@@ -104,50 +124,50 @@ defmodule SukhiFedi.Schema.Account do
     # confirm bidirectional consent). `moved_to_uri` is set on the *old*
     # identity once it has moved away, so every screen shows the truthful
     # "moved to @new" state. For remote rows both mirror the upstream actor.
-    field :aliases, {:array, :string}, default: []
-    field :moved_to_uri, :string
+    field(:aliases, {:array, :string}, default: [])
+    field(:moved_to_uri, :string)
 
     # Remote-actor mirror columns. `domain IS NULL` ⇔ local account.
     # For remote rows `actor_uri` is the canonical AP id and `inbox_url`
     # / `shared_inbox_url` come from the actor JSON.
-    field :domain, :string
-    field :actor_uri, :string
-    field :inbox_url, :string
-    field :shared_inbox_url, :string
-    field :public_key_id, :string
-    field :last_fetched_at, :utc_datetime
+    field(:domain, :string)
+    field(:actor_uri, :string)
+    field(:inbox_url, :string)
+    field(:shared_inbox_url, :string)
+    field(:public_key_id, :string)
+    field(:last_fetched_at, :utc_datetime)
 
     # こちらから follow した remote の過去投稿 backfill の進行状態。
     # 詳しくは `Federation.OutboxBackfill`。
-    field :backfill_state, :string
-    field :backfill_attempted_at, :utc_datetime
-    field :backfill_mirrored, :integer, default: 0
-    field :backfill_error, :string
+    field(:backfill_state, :string)
+    field(:backfill_attempted_at, :utc_datetime)
+    field(:backfill_mirrored, :integer, default: 0)
+    field(:backfill_error, :string)
 
     # Local-account credentials. All `domain IS NULL` only. `email` is
     # required at signup since 2026-06; rows from before may still lack
     # it (the SPA nudges them). `email_verified_at` marks an address
     # that completed the code round-trip — email login keys off it.
-    field :email, :string
-    field :email_verified_at, :utc_datetime
-    field :password_hash, :string, redact: true
+    field(:email, :string)
+    field(:email_verified_at, :utc_datetime)
+    field(:password_hash, :string, redact: true)
     # Authenticator-app 2FA. `totp_secret` is set at setup time but the
     # factor counts only once `totp_enabled_at` is non-NULL (the user
     # proved they scanned it). `totp_last_used_step` rejects replay of
     # the current 30-second code.
-    field :totp_secret, :binary, redact: true
-    field :totp_enabled_at, :utc_datetime
-    field :totp_last_used_step, :integer, redact: true
+    field(:totp_secret, :binary, redact: true)
+    field(:totp_enabled_at, :utc_datetime)
+    field(:totp_last_used_step, :integer, redact: true)
 
     # おやすみ. While `now` is before this, no push leaves the building —
     # for every device at once, which is why it sits on the account and
     # not on the per-device subscription. NULL = not quiet. It gates the
     # doorbell only; the notification list is unaffected.
-    field :quiet_until, :utc_datetime
+    field(:quiet_until, :utc_datetime)
 
     # Closed by its owner (`SukhiFedi.AccountDeletion`). The row stays so
     # the username can never be taken again; the personal columns are blank.
-    field :deleted_at, :utc_datetime
+    field(:deleted_at, :utc_datetime)
 
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end
@@ -218,7 +238,11 @@ defmodule SukhiFedi.Schema.Account do
         [
           %{
             "name" => SukhiFedi.HTML.escape(name),
-            "color" => if(Regex.match?(~r/\A#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\z/, color), do: color, else: "")
+            "color" =>
+              if(Regex.match?(~r/\A#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\z/, color),
+                do: color,
+                else: ""
+              )
           }
         ]
     end
@@ -333,9 +357,7 @@ defmodule SukhiFedi.Schema.Account do
     # norm since 2026-06; the verified-at-birth email is the door.
     # `LocalAccounts` enforces the 8-byte floor when one IS set.
     |> validate_required([:username, :public_key_pem])
-    |> validate_format(:username, ~r/^[a-z0-9_]{1,30}$/,
-      message: "は小文字英数字とアンダースコアのみ、30字までです"
-    )
+    |> validate_format(:username, ~r/^[a-z0-9_]{1,30}$/, message: "は小文字英数字とアンダースコアのみ、30字までです")
     |> validate_length(:display_name, max: 100)
     |> validate_email()
     |> unique_constraint(:username, name: :accounts_local_username_index)
@@ -349,9 +371,7 @@ defmodule SukhiFedi.Schema.Account do
   """
   def validate_email(changeset) do
     changeset
-    |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      message: "の形が、メールアドレスに見えません"
-    )
+    |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "の形が、メールアドレスに見えません")
     |> validate_length(:email, max: 254)
     |> unique_constraint(:email,
       name: :accounts_local_email_index,
@@ -393,7 +413,12 @@ defmodule SukhiFedi.Schema.Account do
 
   defp one_local_field(row) when is_map(row) do
     name = row |> field_str("name") |> String.slice(0, @max_field_name)
-    source = row |> field_str("value_source") |> then(&if(&1 == "", do: field_str(row, "value"), else: &1))
+
+    source =
+      row
+      |> field_str("value_source")
+      |> then(&if(&1 == "", do: field_str(row, "value"), else: &1))
+
     source = String.slice(source, 0, @max_field_value)
 
     case String.trim(name) do
@@ -546,7 +571,9 @@ defmodule SukhiFedi.Schema.Account do
     end
   end
 
-  defp blank_to_nil(v) when is_binary(v), do: if(String.trim(v) == "", do: nil, else: String.trim(v))
+  defp blank_to_nil(v) when is_binary(v),
+    do: if(String.trim(v) == "", do: nil, else: String.trim(v))
+
   defp blank_to_nil(v), do: v
 
   # The DeepL key: sealed here, once, and nowhere else (`Translate.Key`). A key
@@ -570,14 +597,18 @@ defmodule SukhiFedi.Schema.Account do
     |> put_change(:translate_deepl_key, nil)
     |> put_change(:translate_deepl_key_hint, nil)
     |> then(fn cs ->
-      if get_field(cs, :translate_engine) == "deepl", do: put_change(cs, :translate_engine, nil), else: cs
+      if get_field(cs, :translate_engine) == "deepl",
+        do: put_change(cs, :translate_engine, nil),
+        else: cs
     end)
   end
 
   defp seal_deepl_key(cs, false, input) when is_binary(input) do
     case SukhiFedi.Translate.Key.seal(input, cs.data.id) do
       {:ok, sealed, hint} ->
-        cs |> put_change(:translate_deepl_key, sealed) |> put_change(:translate_deepl_key_hint, hint)
+        cs
+        |> put_change(:translate_deepl_key, sealed)
+        |> put_change(:translate_deepl_key_hint, hint)
 
       :error ->
         add_error(cs, :translate_deepl_key, "is not a DeepL API key")
@@ -596,8 +627,11 @@ defmodule SukhiFedi.Schema.Account do
 
   defp normalize_alias(attrs, from, to) do
     case Map.get(attrs, from) || Map.get(attrs, String.to_existing_atom(from)) do
-      nil -> attrs
-      v -> attrs |> Map.put(to, v) |> Map.delete(from) |> Map.delete(String.to_existing_atom(from))
+      nil ->
+        attrs
+
+      v ->
+        attrs |> Map.put(to, v) |> Map.delete(from) |> Map.delete(String.to_existing_atom(from))
     end
   rescue
     ArgumentError -> attrs

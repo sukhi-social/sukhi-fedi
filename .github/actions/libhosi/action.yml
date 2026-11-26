@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# libhosi, built from source at the hosigraph commit elixir/mix.lock pins, for the `hosi` mix
+# dependency (the store is hosigraph, through ecto_hosi). hosigraph has no prebuilt release yet,
+# so `mix compile` of `hosi` would stop at "not in checksum.txt". This builds the shared library
+# (GHC + cabal, cached) and exports what hosigraph-ex looks for: HOSI_BUILD, HOSI_LIB_DIR and
+# HOSI_INCLUDE_DIR. With `jar: true` it also fetches the Datalevin standalone jar the store runs
+# on (HOSI_JAR, HOSI_JAVA).
+name: libhosi
+description: Build libhosi for the hosi dependency and point mix at it
+
+inputs:
+  lock:
+    description: The mix.lock that pins hosi
+    default: elixir/mix.lock
+  jar:
+    description: Also fetch the Datalevin jar and a JDK (HOSI_JAR, HOSI_JAVA)
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Which hosigraph
+      id: ref
+      shell: bash
+      run: |
+        ref=$(sed -n 's/^  "hosi": {:git, "[^"]*", "\([0-9a-f]*\)".*/\1/p' "$GITHUB_WORKSPACE/${{ inputs.lock }}")
+        test -n "$ref" || { echo "${{ inputs.lock }} has no hosi entry" >&2; exit 1; }
+        echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/checkout@v4
+      with:
+        repository: sukhi-social/hosigraph
+        ref: ${{ steps.ref.outputs.ref }}
+        path: .hosigraph
+
+    - uses: haskell-actions/setup@v2
+      id: setup
+      with:
+        ghc-version: "9.10.3"
+        cabal-version: "3.14.2.0"
+
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ${{ steps.setup.outputs.cabal-store }}
+          .hosigraph/dist-newstyle
+        key: libhosi-${{ runner.os }}-${{ runner.arch }}-${{ steps.ref.outputs.ref }}
+        restore-keys: |
+          libhosi-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Build libhosi
+      shell: bash
+      working-directory: .hosigraph
+      run: |
+        cabal update
+        cabal build hosigraph-abi:flib:hosi
+        lib=$(find dist-newstyle -type f \( -name 'libhosi.so*' -o -name 'libhosi.dylib' \) | head -n 1)
+        test -n "$lib" || { echo "libhosi was not built" >&2; exit 1; }
+        {
+          echo "HOSI_BUILD=source"
+          echo "HOSI_LIB_DIR=$PWD/$(dirname "$lib")"
+          echo "HOSI_INCLUDE_DIR=$PWD/hosigraph-abi/gen/include"
+        } >> "$GITHUB_ENV"
+
+    - uses: actions/setup-java@v4
+      if: inputs.jar == 'true'
+      with:
+        distribution: temurin
+        java-version: "21"
+
+    - name: Fetch the Datalevin jar
+      if: inputs.jar == 'true'
+      shell: bash
+      env:
+        DATALEVIN_VERSION: "1.2.10"
+        # sha256 of datalevin-1.2.10-standalone.jar, from the release page of datalevin/datalevin
+        DATALEVIN_JAR_SHA256: "0e8aba6d4022e63e9b34eafc39e257d1efa8ec2a920f089836c459e987605513"
+      run: |
+        jar="$RUNNER_TEMP/datalevin-${DATALEVIN_VERSION}-standalone.jar"
+        curl -fsSL -o "$jar" \
+          "https://github.com/datalevin/datalevin/releases/download/${DATALEVIN_VERSION}/datalevin-${DATALEVIN_VERSION}-standalone.jar"
+        echo "${DATALEVIN_JAR_SHA256}  ${jar}" | sha256sum -c -
+        echo "HOSI_JAR=${jar}" >> "$GITHUB_ENV"
+        echo "HOSI_JAVA=${JAVA_HOME}/bin/java" >> "$GITHUB_ENV"

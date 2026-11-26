@@ -40,10 +40,8 @@ environment passthrough.
 ## Data changes
 
 The business data is in Datalevin, and an addon's attributes are in the same
-catalog as core's (`elixir/priv/datalevin/catalog.exs`, edited by hand).
-`SukhiFedi.Release.migrate_all/0` runs the Datalevin migrations on every
-start (docs/DATALEVIN_MIGRATIONS.md); an addon has no migration directory of
-its own.
+schema as core's: the store derives it from the Ecto schemas (docs/STORE.md), so an addon has
+no migration directory of its own.
 
 - **Disabling an addon does NOT remove its data.** The attributes stay;
   re-enabling is a no-op store-wise.
@@ -65,8 +63,9 @@ its own.
    end
    ```
 
-2. (Optional) Add the addon's tables to `elixir/priv/datalevin/catalog.exs`
-   (and a migration, if an existing one changes: docs/DATALEVIN_MIGRATIONS.md).
+2. Nothing to register: the store derives its schema from the Ecto schemas under
+   `SukhiFedi.Schema` (docs/STORE.md). Declare unique rules and foreign keys on the schema
+   (`hosi_unique`, `hosi_ref`).
 
 3. (Optional) Add REST routes as SukhiApi capabilities in
    `api/lib/sukhi_api/capabilities/` tagged with `addon: :my_feature`.

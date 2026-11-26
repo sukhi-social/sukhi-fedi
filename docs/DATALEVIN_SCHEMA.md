@@ -78,7 +78,7 @@ B 層まで手で設計し直す価値は小さく、変えるほどバグの面
 ## 実装の状況
 
 この設計で作った `SukhiFedi.Graph`(別の `dtlv`、受信の取り込み、掃除、タイムラインの読み取り)は畳んだ。
-投稿・フォロー・タイムラインの役目は hosigraph(`hosi_store/`、[DESIGN.md](../hosi_store/DESIGN.md))が、
+投稿・フォロー・タイムラインの役目は hosigraph(`ecto_hosi`、[STORE.md](STORE.md))が、
 アカウント・認証・設定・鍵は PostgreSQL(`AccountRepo`)が引き継ぐ。
 
 実測で分かったことのうち、`dtlv` 一般に効くもの:

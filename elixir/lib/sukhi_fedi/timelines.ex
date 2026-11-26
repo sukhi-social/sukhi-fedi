@@ -15,7 +15,8 @@ defmodule SukhiFedi.Timelines do
 
   import Ecto.Query
 
-  alias SukhiFedi.{HotCache, Repo, Snowflake}
+  alias SukhiFedi.{HotCache, Repo}
+  alias SukhiFedi.Store.Ids
   alias SukhiFedi.Lists
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Schema.{Account, Boost, Follow, Note, Tag}
@@ -25,7 +26,7 @@ defmodule SukhiFedi.Timelines do
 
   # A boost has no snowflake id of its own — it's a plain `bigserial` row — so
   # the home feed mints a cursor from the boost's `created_at` via
-  # `SukhiFedi.Snowflake` (the same layout as a note id). That puts boosts and
+  # `SukhiFedi.Store.Ids` (the same layout as a note id). That puts boosts and
   # notes in one time-sortable id space, which is what lets us interleave them
   # and keep id-based (`max_id`/`since_id`) pagination working across both.
 
@@ -89,51 +90,55 @@ defmodule SukhiFedi.Timelines do
     mine = if opts[:exclude_self], do: [], else: [id]
 
     note_account_ids = mine ++ (following_account_ids -- hidden)
-    boost_account_ids = mine ++ (following_account_ids -- excluded -- pl.hide_boosts -- hidden)
+
+    boost_account_ids =
+      mine ++ (following_account_ids -- (excluded -- (pl.hide_boosts -- hidden)))
 
     load_notes = fn ->
-      Note
-      |> where([n], n.account_id in ^note_account_ids)
-      # These five are `account not in <members> or <condition>`. With no
-      # members the clause is always true, so `gated/3` leaves it out: on
-      # Datalevin an `or` with `like`/`EXISTS` is re-checked in Elixir on
-      # every candidate row, ~1.2 s each for someone who follows a lot.
-      |> gated(excluded, fn q, ids ->
-        where(q, [n], n.account_id not in ^ids or like(n.in_reply_to_ap_id, ^reply_here))
+      newest(Note, note_account_ids, limit, opts, fn ids ->
+        Note
+        |> where([n], n.id in ^ids)
+        # These five are `account not in <members> or <condition>`. With no
+        # members the clause is always true, so `gated/3` leaves it out: on
+        # Datalevin an `or` with `like`/`EXISTS` is re-checked in Elixir on
+        # every candidate row, ~1.2 s each for someone who follows a lot.
+        |> gated(excluded, fn q, ids ->
+          where(q, [n], n.account_id not in ^ids or like(n.in_reply_to_ap_id, ^reply_here))
+        end)
+        |> where([n], n.visibility in ^SukhiFedi.Visibility.not_direct())
+        |> gated(pl.only_media, fn q, ids ->
+          where(
+            q,
+            [n],
+            n.account_id not in ^ids or
+              fragment("EXISTS (SELECT 1 FROM note_media nm WHERE nm.note_id = ?)", n.id)
+          )
+        end)
+        |> gated(pl.hide_sensitive, fn q, ids ->
+          where(q, [n], n.account_id not in ^ids or (n.sensitive == false and is_nil(n.cw)))
+        end)
+        |> gated(pl.hide_replies, fn q, ids ->
+          where(q, [n], n.account_id not in ^ids or is_nil(n.in_reply_to_ap_id))
+        end)
+        |> gated(pl.replies_to_me, fn q, ids ->
+          where(
+            q,
+            [n],
+            n.account_id not in ^ids or is_nil(n.in_reply_to_ap_id) or
+              like(n.in_reply_to_ap_id, ^reply_here)
+          )
+        end)
+        # Keyword gate: a post from an author who sits in a keyword-carrying
+        # (non-exclusive) list of the viewer's must match that keyword — in its
+        # content, or as a hashtag when the keyword leads with `#`. Each such
+        # list is its own constraint (a violation is a missed keyword), so a post
+        # is dropped if *any* containing keyword list goes unmatched.
+        |> keyword_gate(id)
+        |> maybe_only_media(opts[:only_media])
+        |> maybe_hide_sensitive(opts[:hide_sensitive])
+        |> apply_paging(opts)
+        |> Repo.all()
       end)
-      |> where([n], n.visibility in ^SukhiFedi.Visibility.not_direct())
-      |> gated(pl.only_media, fn q, ids ->
-        where(
-          q,
-          [n],
-          n.account_id not in ^ids or
-            fragment("EXISTS (SELECT 1 FROM note_media nm WHERE nm.note_id = ?)", n.id)
-        )
-      end)
-      |> gated(pl.hide_sensitive, fn q, ids ->
-        where(q, [n], n.account_id not in ^ids or (n.sensitive == false and is_nil(n.cw)))
-      end)
-      |> gated(pl.hide_replies, fn q, ids ->
-        where(q, [n], n.account_id not in ^ids or is_nil(n.in_reply_to_ap_id))
-      end)
-      |> gated(pl.replies_to_me, fn q, ids ->
-        where(
-          q,
-          [n],
-          n.account_id not in ^ids or is_nil(n.in_reply_to_ap_id) or
-            like(n.in_reply_to_ap_id, ^reply_here)
-        )
-      end)
-      # Keyword gate: a post from an author who sits in a keyword-carrying
-      # (non-exclusive) list of the viewer's must match that keyword — in its
-      # content, or as a hashtag when the keyword leads with `#`. Each such
-      # list is its own constraint (a violation is a missed keyword), so a post
-      # is dropped if *any* containing keyword list goes unmatched.
-      |> keyword_gate(id)
-      |> maybe_only_media(opts[:only_media])
-      |> maybe_hide_sensitive(opts[:hide_sensitive])
-      |> apply_paging(opts)
-      |> Repo.all()
       |> Repo.preload([:account, :media, :tags])
       |> SukhiFedi.Notes.with_refs(id)
     end
@@ -181,22 +186,24 @@ defmodule SukhiFedi.Timelines do
     # visibility rules — hidden authors, public/unlisted — apply as `where`s
     # on `n` rather than through the pipe form.
     rows =
-      from(b in Boost,
-        join: n in Note,
-        on: n.id == b.note_id,
-        join: ba in Account,
-        on: ba.id == b.account_id,
-        where: b.account_id in ^account_ids,
-        where: n.visibility in ^SukhiFedi.Visibility.public_only(),
-        order_by: [desc: b.created_at],
-        limit: ^limit,
-        select: %{boost_id: b.id, created_at: b.created_at, booster: ba, note: n}
-      )
-      # Nobody hidden is the usual case, and `not in []` is then always true:
-      # on Datalevin it still turned a ~0.3 s query into ~9 s, so leave it out.
-      |> gated(hidden, fn q, ids -> where(q, [_b, n], n.account_id not in ^ids) end)
-      |> boost_time_bounds(opts)
-      |> Repo.all()
+      newest(Boost, account_ids, limit, opts, fn ids ->
+        from(b in Boost,
+          join: n in Note,
+          on: n.id == b.note_id,
+          join: ba in Account,
+          on: ba.id == b.account_id,
+          where: b.id in ^ids,
+          where: n.visibility in ^SukhiFedi.Visibility.public_only(),
+          order_by: [desc: b.created_at],
+          limit: ^limit,
+          select: %{boost_id: b.id, created_at: b.created_at, booster: ba, note: n}
+        )
+        # Nobody hidden is the usual case, and `not in []` is then always true:
+        # on Datalevin it still turned a ~0.3 s query into ~9 s, so leave it out.
+        |> gated(hidden, fn q, ids -> where(q, [_b, n], n.account_id not in ^ids) end)
+        |> boost_time_bounds(opts)
+        |> Repo.all()
+      end)
 
     enriched =
       rows
@@ -219,9 +226,49 @@ defmodule SukhiFedi.Timelines do
     |> boost_exact_paging(opts)
   end
 
+  # The newest rows of some authors (`account_id`, by `created_at`), through the store's
+  # (account_id, created_at) index: about one seek per author, not a scan of everything they ever
+  # wrote. `run` gets the ids of that many candidates and returns the rows that pass the gates
+  # (visibility, hidden authors, paging…); if that is fewer than `limit` while the candidates
+  # filled the page, there may be more further down, so it asks again for twice as many.
+  # `created_at` has second precision, so the bounds taken from a cursor are widened by a second;
+  # `run` does the exact comparison on ids.
+  defp newest(_schema, [], _limit, _opts, _run), do: []
+
+  defp newest(schema, account_ids, limit, opts, run) do
+    place =
+      case opts[:max_id] do
+        id when is_integer(id) -> %{at: bound(id, 1), id: 9_223_372_036_854_775_807}
+        _ -> nil
+      end
+
+    floor =
+      case opts[:since_id] || opts[:min_id] do
+        id when is_integer(id) -> bound(id, -1)
+        _ -> nil
+      end
+
+    newest(schema, account_ids, limit, run, place, floor, max(limit * 2, 40))
+  end
+
+  defp newest(schema, account_ids, limit, run, place, floor, n) do
+    places = Repo.highest_in(schema, {:account_id, :created_at}, account_ids, n, after: place)
+    rows = run.(Enum.map(places, & &1.id))
+
+    cond do
+      length(rows) >= limit -> rows
+      length(places) < n -> rows
+      floor != nil and DateTime.compare(List.last(places).at, floor) != :gt -> rows
+      true -> newest(schema, account_ids, limit, run, place, floor, n * 2)
+    end
+  end
+
+  defp bound(id, seconds),
+    do: id |> Ids.to_datetime() |> DateTime.add(seconds, :second) |> DateTime.truncate(:second)
+
   # Mint a note-id-compatible cursor for a boost from its timestamp.
   defp boost_cursor(%DateTime{} = created_at, boost_id),
-    do: Snowflake.encode(DateTime.to_unix(created_at, :millisecond), boost_id)
+    do: Ids.encode(DateTime.to_unix(created_at, :millisecond), boost_id)
 
   # DB-side pre-filter: bound `created_at` by the millisecond a cursor encodes
   # (inclusive, since the 16-bit counter tail is resolved exactly in Elixir by
@@ -235,12 +282,12 @@ defmodule SukhiFedi.Timelines do
   defp maybe_boost_upper(q, nil), do: q
 
   defp maybe_boost_upper(q, max_id) when is_integer(max_id),
-    do: where(q, [b], b.created_at <= ^Snowflake.to_datetime(max_id))
+    do: where(q, [b], b.created_at <= ^Ids.to_datetime(max_id))
 
   defp maybe_boost_lower(q, nil), do: q
 
   defp maybe_boost_lower(q, since_id) when is_integer(since_id),
-    do: where(q, [b], b.created_at >= ^Snowflake.to_datetime(since_id))
+    do: where(q, [b], b.created_at >= ^Ids.to_datetime(since_id))
 
   # Exact cursor comparison on the synthesized ids (the DB bound was inclusive).
   defp boost_exact_paging(wrappers, opts) do
@@ -484,13 +531,22 @@ defmodule SukhiFedi.Timelines do
     Enum.reduce(Lists.keyword_gates(viewer_id), query, fn {members, keyword}, q ->
       pattern = "%" <> String.downcase(keyword) <> "%"
       tag = keyword |> String.trim_leading("#") |> String.downcase()
-      tagged = from(nt in "note_tags", join: t in "tags", on: t.id == nt.tag_id, where: t.name == ^tag, select: nt.note_id)
+      # read first, then `in ^ids`: the store has no subquery in a where
+      tagged =
+        Repo.all(
+          from(nt in "note_tags",
+            join: t in "tags",
+            on: t.id == nt.tag_id,
+            where: t.name == ^tag,
+            select: nt.note_id
+          )
+        )
 
       where(
         q,
         [n],
         n.account_id not in ^members or is_nil(n.content) or
-          like(fragment("lower(?)", n.content), ^pattern) or n.id in subquery(tagged)
+          like(fragment("lower(?)", n.content), ^pattern) or n.id in ^tagged
       )
     end)
   end

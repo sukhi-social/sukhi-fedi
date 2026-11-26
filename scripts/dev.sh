@@ -97,7 +97,7 @@ export DB_PORT="$PGRUST_PORT"
 export NATS_PORT
 
 cd "$ROOT/combined"
-echo "→ migrating (Datalevin)"
+echo "→ opening the store"
 mix sukhi.migrate
 
 echo "→ http://localhost:4000   (web client: \`pnpm run dev\` in web-next/, in another terminal)"

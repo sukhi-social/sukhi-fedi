@@ -981,12 +981,12 @@ defmodule SukhiFedi.Integration.DecoTest do
 
     test "時刻で切れる ── 「今日」の境目は読む人の時計", %{author: author, talk: talk} do
       {:ok, _old} = Deco.post(author, talk.slug, %{"status" => "きのう"})
-      # 境目は投稿そのものの時刻から取る。id を打つのは DB の
+      # 境目は投稿そのものの時刻から取る。id を打つのは store の
       # `clock_timestamp()` なので、こちらの `DateTime.utc_now()` と
       # 突き合わせると、二つの時計のズレを測るテストになってしまう。
       Process.sleep(10)
       {:ok, fresh} = Deco.post(author, talk.slug, %{"status" => "きょう"})
-      cut = SukhiFedi.Snowflake.to_datetime(fresh.id)
+      cut = SukhiFedi.Store.Ids.to_datetime(fresh.id)
 
       assert {:ok, [row]} = Deco.list_flow(talk.slug, since: cut)
       assert row.id == fresh.id

@@ -44,18 +44,12 @@ remote account のスキャンは部分インデックス
 |---|---|---|
 | `Maintenance.RebuildFromArchive` | remote note の取りこぼし列（cw / 公開時刻 / emoji） | 受信原本から replay、ネット不要。**まず試す**外科的訂正 |
 | `Maintenance.RefetchActors` | remote actor の影（名前 / bio / avatar / emoji） | origin から再取得して in-place 更新。follow edge は保持 |
-| `Maintenance.RebuildRemoteNotes` | pre-snowflake の古い id を持つ remote note | 再取得して id を振り直し、FK を catalog から辿って付け替え |
-| `Maintenance.RebuildRemoteNoteIds` | created_at とズレた snowflake id（並び順バグ） | created_at から id を振り直し |
 | `Maintenance.WipeRemote` | 壊れた remote note を丸ごと | ミラーを捨てる。`RebuildFromArchive` と組で「作り直し」 |
-
-note の id を振り直す系（`RebuildRemoteNotes` / `RebuildRemoteNoteIds`）は、
-新 id の行を入れて FK を付け替えてから旧行を消すので、reaction / boost /
-スレッドは保たれる。スレッドは `ap_id` で繋がっていて id に依らない。
 
 ## 走っているあいだの進み具合
 
-`:execute` で走らせると、`RebuildFromArchive` / `RefetchActors` / `RebuildRemoteNotes` /
-`RebuildRemoteNoteIds` / `RebuildDirectVisibility` / `WipeRemote` は、
+`:execute` で走らせると、`RebuildFromArchive` / `RefetchActors` /
+`RebuildDirectVisibility` / `WipeRemote` は、
 `maintenance_runs` に進み（対象件数・済んだ件数・うまくいかなかった件数・段階・開始時刻）を
 約1秒に1回だけ書く（`Maintenance.Progress`）。`/admin` のトップが数秒おきに読んで見せる。
 `:dry_run` は読むだけなので載らない（`RebuildDirectVisibility` は origin を引くので載る）。

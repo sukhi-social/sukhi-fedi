@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The load benchmark as CodSpeed walltime benchmarks: one per route group, a fixed number of
+# requests against a server that codspeed-up.sh started (.github/workflows/codspeed.yml, job
+# `load`). Run by `CodSpeedHQ/action` with `config: scripts/load/codspeed.yml`.
+# The server and the client are each pinned to a core (codspeed-up.sh, bench.sh).
+$schema: https://raw.githubusercontent.com/CodSpeedHQ/codspeed/refs/heads/main/schemas/codspeed.schema.json
+options:
+  working-directory: ../..
+  warmup-time: 1s
+  max-time: 20s
+benchmarks:
+  - name: load public timeline (400 req)
+    exec: scripts/load/bench.sh public
+  - name: load home timeline (400 req)
+    exec: scripts/load/bench.sh home
+  - name: load instance (400 req)
+    exec: scripts/load/bench.sh instance
+  - name: load nodeinfo (400 req)
+    exec: scripts/load/bench.sh nodeinfo

@@ -12,13 +12,22 @@ defmodule SukhiFedi.Schema.QuoteAuthorization do
   """
 
   use Ecto.Schema
+  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
+  # the catalog's unique indexes, kept by the store
+  hosi_unique([:note_id, :interacting_object_uri],
+    name: "quote_authorizations_note_id_interacting_object_uri_index"
+  )
+
+  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
+  hosi_ref(:note_id, to: "notes", on_delete: :cascade, name: "quote_authorizations_note_id_fkey")
+
   schema "quote_authorizations" do
-    belongs_to :note, SukhiFedi.Schema.Note
-    field :requester_actor_uri, :string
-    field :interacting_object_uri, :string
-    field :state, :string, default: "approved"
+    belongs_to(:note, SukhiFedi.Schema.Note)
+    field(:requester_actor_uri, :string)
+    field(:interacting_object_uri, :string)
+    field(:state, :string, default: "approved")
 
     timestamps(type: :utc_datetime, inserted_at: :created_at, updated_at: false)
   end

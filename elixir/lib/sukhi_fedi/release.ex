@@ -5,9 +5,8 @@ defmodule SukhiFedi.Release do
 
       bin/sukhi_fedi eval 'SukhiFedi.Release.migrate_all()'
 
-  Runs the versioned Datalevin migrations (`SukhiFedi.Datalevin.Migrator`,
-  docs/DATALEVIN_MIGRATIONS.md). `Mix.Tasks.Sukhi.Migrate` routes through
-  `migrate_all/0`, so dev gets the same gate.
+  The store (hosigraph) derives its schema from the Ecto schemas when it opens, so
+  `migrate_all/0` has nothing to run; `Mix.Tasks.Sukhi.Migrate` routes through it.
 
   PostgreSQL holds the job queues only; Oban's tables are created when the
   application boots (`SukhiFedi.Queue.Migrate`), not here.
@@ -20,67 +19,41 @@ defmodule SukhiFedi.Release do
   def migrate_all do
     load_app()
 
-    # The Datalevin schema is derived (priv/datalevin/catalog.exs)
-    # and installed when the store opens; what needs doing is the versioned
-    # migrations, a store new or old, and a check that it opens
-    # (SukhiFedi.Datalevin.Migrator).
-    Logger.info("store_init_start store=datalevin")
-    migrate_datalevin!()
-    Logger.info("store_init_complete store=datalevin")
+    # hosigraph derives its schema from the Ecto schemas when the Repo opens
+    # (SukhiFedi.Store.Hosi.schemas/0): there is nothing to migrate. Data kept
+    # by the old Datalevin store is not carried over (docs/STORE.md).
+    Logger.info("store_init_complete store=hosi")
     :ok
   end
 
   @doc """
-  Where each Datalevin store stands: its migration version, what is pending,
-  and whether the schema drifted. Changes nothing.
-
-      bin/sukhi_fedi eval 'SukhiFedi.Release.datalevin_migration_status()'
-  """
-  def datalevin_migration_status do
-    load_app()
-
-    for s <- SukhiFedi.Datalevin.Migrator.status() do
-      IO.puts(
-        "store=#{s.store} state=#{s.state} version=#{inspect(s[:version])} " <>
-          "latest=#{s.latest} pending=#{inspect(s[:pending] || [])} dir=#{s.dir}" <>
-          if(s[:problem], do: "\n  #{s.problem}", else: "")
-      )
-    end
-
-    :ok
-  end
-
-  @doc """
-  Write a non-secret backup manifest describing the Datalevin restore unit.
+  Write a non-secret backup manifest describing the restore unit.
   It does not copy data or credentials.
   """
-  def write_datalevin_backup_manifest!(path \\ "/var/lib/sukhi/backup-manifest.json") do
-    config = SukhiFedi.Datalevin.Config.current()
+  def write_backup_manifest!(path \\ "/var/lib/sukhi/backup-manifest.json") do
+    config = SukhiFedi.Store.Config.current()
 
     data = %{
       "format" => 1,
-      "store" => "datalevin",
+      "store" => "hosi",
       "data_dir" => config.dir,
-      "data_dir_manifest" => SukhiFedi.Datalevin.Manifest.path(config),
+      "data_dir_manifest" => SukhiFedi.Store.Manifest.path(config),
       "raw_backend" => System.get_env("SUKHI_RAW_BACKEND", "postgres"),
       "raw_bucket" => System.get_env("SUKHI_RAW_BUCKET") || System.get_env("S3_BUCKET"),
-      "instance_config" => SukhiShared.InstanceConfig.path(),
-      "catalog_sha256" =>
-        SukhiFedi.Datalevin.Manifest.schema_sha256(SukhiFedi.Datalevin.Catalog.dtlv_schema()),
-      "schema_version" => store_schema_version(config)
+      "instance_config" => SukhiShared.InstanceConfig.path()
     }
 
     :ok = File.write!(path, JSON.encode!(data) <> "\n")
-    Logger.info("datalevin_backup_manifest_written path=#{path}")
+    Logger.info("backup_manifest_written path=#{path}")
     :ok
   end
 
-  @doc "Validate a restored Datalevin backup inventory before normal startup."
-  def check_datalevin_backup_manifest!(path \\ "/var/lib/sukhi/backup-manifest.json") do
+  @doc "Validate a restored backup inventory before normal startup."
+  def check_backup_manifest!(path \\ "/var/lib/sukhi/backup-manifest.json") do
     :ok =
-      SukhiFedi.Datalevin.Manifest.validate_backup!(
+      SukhiFedi.Store.Manifest.validate_backup!(
         path,
-        SukhiFedi.Datalevin.Config.current()
+        SukhiFedi.Store.Config.current()
       )
 
     :ok
@@ -89,7 +62,7 @@ defmodule SukhiFedi.Release do
   @doc """
   Verify the external services needed before the HTTP endpoint is opened.
 
-  Datalevin is opened by `migrate_all/0`. PostgreSQL (the job queues) and NATS
+  The store opens with the application. PostgreSQL (the job queues) and NATS
   need an explicit check because their supervisors retry asynchronously during
   a normal application boot, and a refused connection there would read as a
   crash loop rather than as a missing service.
@@ -145,27 +118,6 @@ defmodule SukhiFedi.Release do
       end
     after
       GenServer.stop(conn)
-    end
-  end
-
-  defp migrate_datalevin! do
-    SukhiFedi.Datalevin.Migrator.run_all!()
-    Logger.info("datalevin_init_complete")
-  rescue
-    error ->
-      raise "datalevin initialization failed; inspect DATALEVIN_DIR and run " <>
-              "`podman logs <container>` as the sukhi user; startup stopped. A migration " <>
-              "that stopped midway runs again from its start next time; the copy taken " <>
-              "before it began is in datalevin-premigrate/ beside DATALEVIN_DIR: " <>
-              Exception.message(error)
-  end
-
-  # The migration version the main store reports, or 0 for a store that has
-  # not been stamped yet.
-  defp store_schema_version(config) do
-    case SukhiFedi.Datalevin.Manifest.read(config) do
-      {:ok, %{"schema_version" => v}} when is_integer(v) -> v
-      _ -> 0
     end
   end
 

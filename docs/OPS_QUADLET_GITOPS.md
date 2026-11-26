@@ -297,7 +297,7 @@ podman secret ls            # 名前だけが出る。値は出ない
 image を戻しても、**書き込まれたデータは戻らない**(SERVER_SHELL.md §5.6)。Datalevin はスキーマが「開くときに入る」ので、
 新しい版で開いたあとに古い版で開けるかは、スキーマ追加だけなら見込みがあるが**検証していない**。方針:
 
-- bump PR に「データの形が変わる」印を付ける(CI が `priv/datalevin/catalog.exs` の差分から機械的に付ける)。
+- bump PR に「データの形が変わる」印を付ける(CI が `elixir/lib/sukhi_fedi/schema/` の差分から機械的に付ける)。
 - 印のある PR は、同期スクリプトが **適用前に `dtlv copy` の控えを取る**(`infra/backup/sukhi-backup.sh` を呼ぶ。OPS_MAINTAIN.md §3)。
   控えが取れなければ**適用しない**。
 - 印のある更新は、失敗しても**自動では戻さない**(止めて通知。人が控えから戻すか進めるかを決める)。

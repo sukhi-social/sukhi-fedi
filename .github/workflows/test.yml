@@ -113,6 +113,9 @@ jobs:
           install: true
           cache: true
 
+      # The store is hosigraph: `hosi` compiles against libhosi (no prebuilt release yet).
+      - uses: ./.github/actions/libhosi
+
       - name: Cache deps and builds
         uses: actions/cache@v4
         with:
@@ -150,37 +153,31 @@ jobs:
           install: true
           cache: true
 
+      - uses: ./.github/actions/libhosi
+        with:
+          jar: "true"
+
       - name: Cache deps and builds
         uses: actions/cache@v4
         with:
           path: |
             elixir/deps
             elixir/_build
-          key: pgrust-${{ runner.os }}-${{ hashFiles('elixir/mix.lock') }}
+            delivery/deps
+            delivery/_build
+          key: pgrust-${{ runner.os }}-${{ hashFiles('elixir/mix.lock', 'delivery/mix.lock') }}
           restore-keys: pgrust-${{ runner.os }}-
 
       - name: Hex and rebar
         run: mix local.hex --force && mix local.rebar --force
 
       - name: Fetch deps
-        working-directory: elixir
         env:
           MIX_ENV: test
-        run: mix deps.get
-
-      # Datalevin is the store, so every integration test needs the binary.
-      # Same release and checksum as combined/Dockerfile; keep them in step.
-      - name: Install dtlv
-        env:
-          DTLV_VERSION: 1.2.10
-          DTLV_SHA256: b42c1ef4b6a9ccf2a42b21f9c576fe774ff877c15826031755f0b94a3c0df3e5
         run: |
-          curl -fsSL -o "$RUNNER_TEMP/dtlv.zip" \
-            "https://github.com/datalevin/datalevin/releases/download/${DTLV_VERSION}/dtlv-${DTLV_VERSION}-ubuntu-22.04-amd64.zip"
-          echo "${DTLV_SHA256}  $RUNNER_TEMP/dtlv.zip" | sha256sum -c -
-          sudo unzip -j -q "$RUNNER_TEMP/dtlv.zip" dtlv -d /usr/local/bin
-          sudo chmod +x /usr/local/bin/dtlv
-          dtlv --version || true
+          for d in elixir delivery; do
+            (cd "$d" && mix deps.get)
+          done
 
       # The suite logs every SQL query, so the failure list drowns in the job
       # log; keep a copy and print just the failures when the run goes red.

@@ -2,7 +2,7 @@
 import Config
 
 # PostgreSQL holds the job queues and nothing else: the business data is in
-# Datalevin, which `SukhiDelivery.Repo` joins from the gateway.
+# hosigraph, which `SukhiDelivery.Repo` joins from the gateway.
 config :sukhi_delivery, SukhiDelivery.QueueRepo,
   database: "sukhi_fedi",
   username: "postgres",
