@@ -78,17 +78,19 @@ defmodule SukhiFedi.Addons.Moderation do
   def hidden_author_ids(nil), do: []
 
   def hidden_author_ids(account_id) when is_integer(account_id) do
-    # One round trip for both sets (blocks ∪ live mutes), not two.
+    # Blocks and live mutes: two reads merged here. The store has no UNION.
     now = DateTime.utc_now()
 
-    blocks = from b in Block, where: b.account_id == ^account_id, select: b.target_id
+    blocks = Repo.all(from b in Block, where: b.account_id == ^account_id, select: b.target_id)
 
-    Repo.all(
-      from m in Mute,
-        where: m.account_id == ^account_id and (is_nil(m.expires_at) or m.expires_at > ^now),
-        select: m.target_id,
-        union: ^blocks
-    )
+    mutes =
+      Repo.all(
+        from m in Mute,
+          where: m.account_id == ^account_id and (is_nil(m.expires_at) or m.expires_at > ^now),
+          select: m.target_id
+      )
+
+    Enum.uniq(mutes ++ blocks)
   end
 
   @doc "Subset of `target_ids` that have blocked `account_id` (reverse blocks)."

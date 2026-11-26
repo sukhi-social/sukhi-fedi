@@ -28,6 +28,10 @@ defmodule SukhiFedi.Repo do
   def highest(schema, field, limit, opts \\ []),
     do: RepoApi.highest(__MODULE__, schema, field, limit, opts)
 
+  @doc "The newest rows of some keys by a `hosi_tuple key, order` index: `[%{id, key, at}]`."
+  def highest_in(schema, tuple, keys, limit, opts \\ []),
+    do: RepoApi.highest_in(__MODULE__, schema, tuple, keys, limit, opts)
+
   @doc "Really remove entities (account removal), as hosigraph's `erase`."
   def erase(erasures), do: RepoApi.erase(__MODULE__, erasures)
 
