@@ -8,7 +8,8 @@ defmodule SukhiFedi.Schema.Boost do
   hosi_tuple(:account_id, :created_at)
 
   # the catalog's unique indexes, kept by the store
-  hosi_unique([:account_id, :note_id], name: "boosts_account_id_note_id_index")
+  # kept as hosigraph's own tuple (both fields are always set), not a derived JSON text
+  hosi_unique([:account_id, :note_id], name: "boosts_account_id_note_id_index", tuple: true)
 
   # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
   hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "boosts_account_id_fkey")
