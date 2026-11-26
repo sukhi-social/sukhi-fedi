@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Repo do
   @moduledoc """
-  The business data: hosigraph, through `ecto_hosi` (docs/HOSI.md). Job queues
+  The business data: hosigraph, through `ecto_hosi` (docs/STORE.md). Job queues
   are not here; they are in PostgreSQL (`SukhiFedi.QueueRepo`).
   """
 

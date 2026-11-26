@@ -30,8 +30,6 @@ defmodule SukhiFedi.Application do
         SukhiFedi.AccountRepo.Migrate,
         # The job queues' PostgreSQL connection, its tables, and (below) Oban.
         SukhiFedi.Queue.children(),
-        # hosigraph beside the store (SUKHI_HOSI=1 build, SUKHI_HOSI_MIRROR=1 start); nothing otherwise.
-        SukhiFedi.HosiMirror.children(),
         # FEP-f799: the delivery worker's copy of the resting notices (records in PostgreSQL).
         SukhiFedi.Fedi.DeliverySuspension.children(),
         nats_connection(),

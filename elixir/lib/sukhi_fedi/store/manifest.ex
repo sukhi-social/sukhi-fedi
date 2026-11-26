@@ -3,7 +3,7 @@ defmodule SukhiFedi.Store.Manifest do
   @moduledoc """
   The restore inventory a backup carries (`backup-manifest.json`) and its check.
 
-  The store is hosigraph (docs/HOSI.md); it derives its schema from the Ecto schemas when it
+  The store is hosigraph (docs/STORE.md); it derives its schema from the Ecto schemas when it
   opens, so there is no migration state to record. The inventory says where the data lives and
   which raw backend applied, and `validate_backup!/3` refuses a restore whose paths or raw
   backend do not match the runtime it is restored into.

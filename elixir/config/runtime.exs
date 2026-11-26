@@ -283,19 +283,7 @@ if vapid_public not in [nil, ""] do
       )
 end
 
-# hosigraph beside the store (SukhiFedi.HosiMirror): copies the new people and posts into it.
-# Only when the build has it (SUKHI_HOSI=1 at compile time); SUKHI_HOSI_DIR / DATALEVIN_BIN say where.
-if System.get_env("SUKHI_HOSI_MIRROR") in ["1", "true"] do
-  config :sukhi_fedi, :hosi_mirror, true
-end
-
-# ...and asks it the like view too, to compare with the store's answer and log when they differ
-# (needs SUKHI_HOSI_MIRROR). The answer on screen is still the store's.
-if System.get_env("SUKHI_HOSI_SHADOW") in ["1", "true"] do
-  config :sukhi_fedi, :hosi_shadow, true
-end
-
-# The business data is in Datalevin (docs/DATALEVIN.md); everything about it is
+# The business data is in hosigraph (docs/STORE.md); everything about it is
 # read by SukhiFedi.Store.Config when the store starts. SUKHI_STORE used to
 # choose between Datalevin and PostgreSQL. Only Datalevin is left, so a node
 # still asking for the other one stops here, rather than starting on an empty

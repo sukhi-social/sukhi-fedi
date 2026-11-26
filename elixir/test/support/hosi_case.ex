@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.HosiCase do
   @moduledoc """
-  Tests of the data layer on the hosi store (docs/HOSI.md): only the Repo is
+  Tests of the data layer on the hosi store (docs/STORE.md): only the Repo is
   started, on a real hosigraph in a temporary directory. Needs JDK 21+ and
   the Datalevin standalone jar:
 

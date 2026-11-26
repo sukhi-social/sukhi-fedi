@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Store.Hosi do
   @moduledoc """
-  What `SukhiFedi.Repo` hands to `Ecto.Adapters.Hosi` (docs/HOSI.md).
+  What `SukhiFedi.Repo` hands to `Ecto.Adapters.Hosi` (docs/STORE.md).
 
   `ecto_hosi` derives the hosigraph schema from Ecto schemas, so it needs the
   list of them. That list is every `SukhiFedi.Schema.*` module that is an Ecto

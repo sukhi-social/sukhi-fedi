@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # A throwaway pgrust server, in the foreground, for a program that wants a
-# PostgreSQL on a port (hosi_store's test_helper.exs starts this):
+# PostgreSQL on a port:
 #
 #   scripts/pgrust-serve.sh PORT
 #

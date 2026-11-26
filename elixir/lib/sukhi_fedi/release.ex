@@ -21,7 +21,7 @@ defmodule SukhiFedi.Release do
 
     # hosigraph derives its schema from the Ecto schemas when the Repo opens
     # (SukhiFedi.Store.Hosi.schemas/0): there is nothing to migrate. Data kept
-    # by the old Datalevin store is not carried over (docs/HOSI.md).
+    # by the old Datalevin store is not carried over (docs/STORE.md).
     Logger.info("store_init_complete store=hosi")
     :ok
   end
