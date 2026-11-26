@@ -65,10 +65,13 @@ defmodule SukhiFedi.MixProject do
       {:postgrex, "~> 0.18"},
 
       # The business data: an Ecto adapter over hosigraph (docs/STORE.md). Needs
-      # libhosi at compile time (see the ecto_hosi README); `HOSI_PATH` points
-      # its `hosi` dep at a hosigraph checkout. `ECTO_HOSI_PATH` builds against
-      # a checkout of the adapter itself.
+      # libhosi at compile time (see the ecto_hosi README). The adapter lives in
+      # the hosigraph repository (ecto_hosi/), where it asks for the sibling
+      # hosigraph-ex, which a sparse checkout does not have; so `hosi` is named
+      # here, with override. `HOSI_PATH` points it at a hosigraph-ex checkout,
+      # `ECTO_HOSI_PATH` builds against a checkout of the adapter itself.
       ecto_hosi_dep(),
+      hosi_dep(),
 
       # Job queue
       {:oban, "~> 2.18"},
@@ -146,8 +149,31 @@ defmodule SukhiFedi.MixProject do
 
   defp ecto_hosi_dep do
     case System.get_env("ECTO_HOSI_PATH") do
-      nil -> {:ecto_hosi, github: "sukhi-social/ecto_hosi"}
-      path -> {:ecto_hosi, path: path, override: true}
+      nil ->
+        {:ecto_hosi,
+         github: "sukhi-social/hosigraph", sparse: "ecto_hosi", tag: "ecto-hosi-v0.2.0"}
+
+      path ->
+        {:ecto_hosi, path: path, override: true}
+    end
+  end
+
+  # The hosigraph commit is the one mix.lock pins, and the CI action `libhosi`
+  # builds libhosi from that same commit. It is not hosigraph v0.2.0 on purpose:
+  # that release removed the `dtlv` khana (`[:dtlv, exe]`, "bad :khana"), which
+  # SukhiFedi.Repo still opens with; moving to it means moving to the
+  # `dtlv-repl` khana first.
+  defp hosi_dep do
+    case System.get_env("HOSI_PATH") do
+      nil ->
+        {:hosi,
+         github: "sukhi-social/hosigraph",
+         sparse: "hosigraph-ex",
+         ref: "506c83ca89d992c4f47634c000da70ceaf10b06d",
+         override: true}
+
+      path ->
+        {:hosi, path: path, override: true}
     end
   end
 
