@@ -3,7 +3,7 @@
 # The load benchmark as CodSpeed walltime benchmarks: one per route group, a fixed number of
 # requests against a server that codspeed-up.sh started (.github/workflows/codspeed.yml, job
 # `load`). Run by `CodSpeedHQ/action` with `config: scripts/load/codspeed.yml`.
-# The server is pinned to core 0 (codspeed-up.sh), the client to core 1.
+# The server and the client are each pinned to a core (codspeed-up.sh, bench.sh).
 $schema: https://raw.githubusercontent.com/CodSpeedHQ/codspeed/refs/heads/main/schemas/codspeed.schema.json
 options:
   working-directory: ../..
@@ -11,10 +11,10 @@ options:
   max-time: 20s
 benchmarks:
   - name: load public timeline (400 req)
-    exec: taskset -c 1 node scripts/load/bench.mjs public
+    exec: scripts/load/bench.sh public
   - name: load home timeline (400 req)
-    exec: taskset -c 1 node scripts/load/bench.mjs home
+    exec: scripts/load/bench.sh home
   - name: load instance (400 req)
-    exec: taskset -c 1 node scripts/load/bench.mjs instance
+    exec: scripts/load/bench.sh instance
   - name: load nodeinfo (400 req)
-    exec: taskset -c 1 node scripts/load/bench.mjs nodeinfo
+    exec: scripts/load/bench.sh nodeinfo

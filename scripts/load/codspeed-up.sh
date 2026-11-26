@@ -3,7 +3,7 @@
 #
 # Start what the CodSpeed load benchmark (scripts/load/codspeed.yml) runs against, and leave it
 # running: it expects a PostgreSQL on :5432 (postgres/postgres) for the job queues, then boots
-# the combined release, seeded like ci.sh does it, pinned to core 0. The next step of the job runs the benchmarks; codspeed-down.sh stops it.
+# the combined release, seeded like ci.sh does it, pinned to one core. The next step of the job runs the benchmarks; codspeed-down.sh stops it.
 #
 #   scripts/load/codspeed-up.sh        # writes $OUT/env (BASE, LOAD_TOKEN_FILE) and $OUT/pids
 set -euo pipefail
@@ -30,7 +30,13 @@ mix compile
 mix sukhi.migrate
 mix run "$HERE/seed.exs"
 
-setsid nohup taskset -c 0 mix run --no-halt >"$OUT/server.log" 2>&1 &
+# The CPUs this job may use (a benchmark runner's cgroup need not include core 0): the server
+# gets the first, the client (bench.sh) the second, or the first again when there is only one.
+mapfile -t cpus < <(taskset -cp $$ | sed 's/.*: //' | tr ',' '\n' | awk -F- '{ e = ($2 == "" ? $1 : $2); for (i = $1; i <= e; i++) print i }')
+SERVER_CPU="${cpus[0]}"
+CLIENT_CPU="${cpus[1]:-${cpus[0]}}"
+
+setsid nohup taskset -c "$SERVER_CPU" mix run --no-halt >"$OUT/server.log" 2>&1 &
 server=$!
 echo "$server" >"$OUT/pids"
 
@@ -41,3 +47,4 @@ done
 curl -fs http://127.0.0.1:4000/api/v1/instance >/dev/null || { tail -50 "$OUT/server.log"; exit 1; }
 echo "BASE=http://127.0.0.1:4000" >"$OUT/env"
 echo "LOAD_TOKEN_FILE=$LOAD_TOKEN_FILE" >>"$OUT/env"
+echo "CLIENT_CPU=$CLIENT_CPU" >>"$OUT/env"

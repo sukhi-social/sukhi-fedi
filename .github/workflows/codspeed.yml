@@ -97,7 +97,7 @@ jobs:
 
   # The load benchmark (scripts/load/): the gateway booted with a seeded store, one benchmark per
   # route group (a fixed number of requests; scripts/load/codspeed.yml), in walltime mode. The
-  # server is pinned to core 0, the client to core 1. `load-bench.yml` is the head-against-main
+  # server and the client are each pinned to a core. `load-bench.yml` is the head-against-main
   # comparison on a shared runner; this is the history on a steady one.
   load:
     name: Run load benchmarks
