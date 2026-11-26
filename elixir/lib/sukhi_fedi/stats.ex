@@ -66,7 +66,8 @@ defmodule SukhiFedi.Stats do
     resolved_reports_7d =
       Repo.aggregate(
         from(r in Report,
-          where: r.status == "resolved" and not is_nil(r.resolved_at) and r.resolved_at > ^minus_7d
+          where:
+            r.status == "resolved" and not is_nil(r.resolved_at) and r.resolved_at > ^minus_7d
         ),
         :count,
         :id
@@ -104,12 +105,14 @@ defmodule SukhiFedi.Stats do
     # Distinct accounts that touched an access token recently (the OAuth
     # layer refreshes `last_used_at` on every `verify_bearer`).
     query =
-      from t in OauthAccessToken,
-        where: not is_nil(t.account_id) and not is_nil(t.last_used_at) and t.last_used_at > ^since,
+      from(t in OauthAccessToken,
+        where:
+          not is_nil(t.account_id) and not is_nil(t.last_used_at) and t.last_used_at > ^since,
         distinct: t.account_id,
         select: t.account_id
+      )
 
-    Repo.aggregate(subquery(query), :count, :account_id)
+    query |> Repo.all() |> length()
   end
 
   defp count_known_domains do
@@ -117,10 +120,11 @@ defmodule SukhiFedi.Stats do
     # remote domains we know about is the set of distinct hosts across
     # those URIs (plus local, minus nil parses).
     query =
-      from f in Follow,
+      from(f in Follow,
         where: not is_nil(f.follower_uri),
         select: f.follower_uri,
         distinct: true
+      )
 
     query
     |> Repo.all()

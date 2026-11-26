@@ -84,7 +84,8 @@ defmodule SukhiFedi.Maintenance.WipeRemote do
   defp scope(nil), do: Notes.remote_notes(Note)
 
   defp scope(domain) when is_binary(domain) do
-    account_ids = from(a in Account, where: a.domain == ^domain, select: a.id)
-    from(n in Notes.remote_notes(Note), where: n.account_id in subquery(account_ids))
+    # read first, then `in ^ids`: the store has no subquery in a where
+    account_ids = Repo.all(from(a in Account, where: a.domain == ^domain, select: a.id))
+    from(n in Notes.remote_notes(Note), where: n.account_id in ^account_ids)
   end
 end
