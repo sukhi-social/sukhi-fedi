@@ -112,9 +112,12 @@ defmodule SukhiFedi.Integration.PullFederationTest do
       bob = remote!("bob", "flood.example")
       follow!("https://local.example/users/#{reader.username}", bob)
 
-      results = for n <- 1..8, do: Notify.accept("flood.example", [{bob.actor_uri, n}])
-      assert {:dropped, :rate_floor} in results
-      assert {:ok, 1} = hd(results)
+      # Use up the origin's bucket the way fast notifications would. Sending eight real ones
+      # depends on how quickly the store answers: on a slow machine they do not arrive within
+      # the window, and the floor is not what is being tested.
+      assert {:ok, 1} = Notify.accept("flood.example", [{bob.actor_uri, 1}])
+      for _ <- 1..5, do: Hammer.check_rate("pull_notify:flood.example", 1_000, 5)
+      assert {:dropped, :rate_floor} = Notify.accept("flood.example", [{bob.actor_uri, 2}])
     end
   end
 

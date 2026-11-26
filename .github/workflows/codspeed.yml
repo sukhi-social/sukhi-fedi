@@ -101,7 +101,9 @@ jobs:
   # comparison on a shared runner; this is the history on a steady one.
   load:
     name: Run load benchmarks
-    runs-on: codspeed-macro
+    # x64: the Datalevin jar the store runs on has no native library for Linux arm64
+    # (`codspeed-macro` can land on an arm64 machine).
+    runs-on: codspeed-macro-x64-ryzen-9950x-ubuntu-24-04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
