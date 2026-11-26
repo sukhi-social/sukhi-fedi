@@ -129,11 +129,14 @@ jobs:
           restore-keys: |
             codspeed-load-${{ runner.os }}-
 
-      - name: Cache pgrust
-        uses: actions/cache@v4
-        with:
-          path: .pgrust
-          key: pgrust-bin-${{ runner.os }}-${{ hashFiles('scripts/lib/pgrust.sh') }}
+      # pgrust cannot raise its stack limit on this runner, so the job queues get a real PostgreSQL.
+      - name: PostgreSQL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql postgresql-client
+          sudo systemctl start postgresql || sudo service postgresql start
+          sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres'"
+          PGPASSWORD=postgres psql -h localhost -U postgres -c 'select 1'
 
       - name: Hex and rebar
         run: mix local.hex --force && mix local.rebar --force

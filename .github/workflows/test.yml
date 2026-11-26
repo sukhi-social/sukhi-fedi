@@ -163,17 +163,21 @@ jobs:
           path: |
             elixir/deps
             elixir/_build
-          key: pgrust-${{ runner.os }}-${{ hashFiles('elixir/mix.lock') }}
+            delivery/deps
+            delivery/_build
+          key: pgrust-${{ runner.os }}-${{ hashFiles('elixir/mix.lock', 'delivery/mix.lock') }}
           restore-keys: pgrust-${{ runner.os }}-
 
       - name: Hex and rebar
         run: mix local.hex --force && mix local.rebar --force
 
       - name: Fetch deps
-        working-directory: elixir
         env:
           MIX_ENV: test
-        run: mix deps.get
+        run: |
+          for d in elixir delivery; do
+            (cd "$d" && mix deps.get)
+          done
 
       # The suite logs every SQL query, so the failure list drowns in the job
       # log; keep a copy and print just the failures when the run goes red.
