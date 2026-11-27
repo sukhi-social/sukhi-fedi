@@ -25,11 +25,11 @@ flowchart LR
     O([other servers]) -- "ActivityPub" --> G
     W -- "/api/v1" --> G["gateway + delivery + api<br/>(one BEAM)"]
     G == "the data" ==> D[("Datalevin<br/>a dtlv child process")]
-    G --> Q[("PostgreSQL<br/>job queues")]
+    G --> Q[("PostgreSQL<br/>accounts, job queues")]
 ```
 
 * **Thick arrow**: where the data lives. The `dtlv` binary runs as a child of the BEAM, over a pipe. One database, one writer. [`DATALEVIN.md`](DATALEVIN.md) says what differs from a SQL database.
-* **Thin arrow**: the job queues and the raw bodies, in PostgreSQL.
+* **Thin arrow**: the accounts, the audit trail, the outbox, the job queues and the raw bodies, in PostgreSQL.
 * The whole design is in [`ARCHITECTURE.md`](ARCHITECTURE.md) (long; read it when you want to, not before).
 
 ## Pick a way in

@@ -33,11 +33,11 @@ top — those win.
 | `PLUGIN_NODES` | no | empty | Gateway only. Comma list of `<name>@<host>` Erlang nodes hosting plugin capabilities. Default `api@api`. |
 | `GATEWAY_NODE` | no | — | API node only. Pin a specific gateway to RPC into. Usually inferred — set this only for multi-gateway topologies. |
 
-## Job queues and raw bodies — PostgreSQL (gateway, delivery)
+## PostgreSQL (gateway, delivery)
 
-PostgreSQL holds Oban's `oban_jobs` (both nodes, one table) and the `raw_blobs`
-table, and nothing else: the business data is in Datalevin (below). Both nodes
-read the same variables.
+PostgreSQL holds the accounts and how they sign in, the audit trail, the outbox,
+Oban's `oban_jobs` (both nodes, one table) and the `raw_blobs` table. The rest of
+the business data is in hosigraph (below). Both nodes read the same variables.
 
 | Var | Required | Default | Notes |
 |---|---|---|---|
@@ -191,12 +191,11 @@ starting the watcher just because the generic addon default is `all`.
 The delivery node's Oban runs on the same PostgreSQL as the gateway's
 (`oban_jobs`), with queues of its own; each node runs only the queues its own
 config names, so a job one inserts for the other's queue is picked up there.
-The outbox row is in Datalevin and its dispatch job in PostgreSQL, so the hop
-is at-least-once: the relay skips rows already queued, and
-`delivery_receipts` absorbs any remaining duplicate. The relay polls the
+The relay makes an outbox row's dispatch job and marks the row published in one
+transaction; `delivery_receipts` absorbs a send made twice. The relay polls the
 outbox every 2 seconds (there is no LISTEN/NOTIFY).
 
-The delivery node keeps its business data in the gateway's Datalevin store, so
+The delivery node keeps most of its business data in the gateway's hosigraph store, so
 it runs inside the `combined` release (one BEAM, one writer).
 
 ## Tuning — Oban concurrency (gateway, delivery)

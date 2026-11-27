@@ -54,9 +54,9 @@ defmodule SukhiFedi.Web.SetupController do
         Register a passkey after the first login.</p>
         <h2>3. Bring an existing Datalevin store</h2>
         <p>Stop the old instance before copying its data. Restore the complete
-        <code>DATALEVIN_DIR</code>. The job queue is in PostgreSQL (<code>DB_*</code>): bring it
-        back from the database's own backup, or start with an empty one (sends
-        still waiting in it are then not made). Raw bodies are in PostgreSQL too
+        <code>DATALEVIN_DIR</code>. Accounts, the audit trail, the outbox and the job
+        queue are in PostgreSQL (<code>DB_*</code>): bring the database back from its own
+        backup too, taken at the same time. Raw bodies are in PostgreSQL as well
         unless <code>SUKHI_RAW_BACKEND=s3</code>. If raw or media storage uses S3,
         restore those buckets and their prefixes as well.</p>
         <pre>podman stop &lt;old-gateway-container&gt;
@@ -69,12 +69,12 @@ defmodule SukhiFedi.Web.SetupController do
         <p>Before a planned backup, create a non-secret inventory with:</p>
         <pre>podman exec &lt;gateway-container&gt; \
     /app/bin/combined eval \
-    'SukhiFedi.Release.write_datalevin_backup_manifest!()'</pre>
+    'SukhiFedi.Release.write_backup_manifest!()'</pre>
         <p>After restoring the files, validate the inventory before normal
         startup:</p>
         <pre>podman exec &lt;gateway-container&gt; \
     /app/bin/combined eval \
-    'SukhiFedi.Release.check_datalevin_backup_manifest!()'</pre>
+    'SukhiFedi.Release.check_backup_manifest!()'</pre>
         <p>After updating the mounted config, restart the gateway and check its
         journal for the resolved frontend and route diagnostics.</p>
       </body>

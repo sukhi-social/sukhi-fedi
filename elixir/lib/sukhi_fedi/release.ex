@@ -63,7 +63,7 @@ defmodule SukhiFedi.Release do
   @doc """
   Verify the external services needed before the HTTP endpoint is opened.
 
-  The store opens with the application. PostgreSQL (the job queues) and NATS
+  The store opens with the application. PostgreSQL (accounts, job queues) and NATS
   need an explicit check because their supervisors retry asynchronously during
   a normal application boot, and a refused connection there would read as a
   crash loop rather than as a missing service.

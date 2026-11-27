@@ -58,12 +58,12 @@ count() {
   docker exec -e PGPASSWORD=verify "$scratch" \
     psql -U "$PG_USER" -d "$PG_DB" -tAc "SELECT count(*) FROM $1" 2>/dev/null | tr -d '[:space:]'
 }
-notes="$(count notes)"
-inbound="$(count inbound_events)"
-log "restored counts: notes=${notes:-ERR} inbound_events=${inbound:-ERR}"
+accounts="$(count accounts)"
+audits="$(count admin_audits)"
+log "restored counts: accounts=${accounts:-ERR} admin_audits=${audits:-ERR}"
 
-if ! { [ -n "${notes:-}" ] && [ "${notes}" -ge 0 ] 2>/dev/null; }; then
-  log "FAIL: notes count not readable after restore"
+if ! { [ -n "${accounts:-}" ] && [ "${accounts}" -ge 0 ] 2>/dev/null; }; then
+  log "FAIL: accounts count not readable after restore"
   exit 1
 fi
 

@@ -21,9 +21,10 @@ defmodule SukhiFedi.Maintenance.Backup do
   is what makes the moment quiet. A plain `cp` of these files is not a backup
   and is never used here.
 
-  **Not covered**: everything in PostgreSQL (the job queues, and the raw bodies
-  when `SUKHI_RAW_BACKEND=postgres`, the default; take those with the
-  database's own backup), raw bodies in S3 (the bucket's own
+  **Not covered**: everything in PostgreSQL — the accounts and how they sign
+  in, the audit trail, the outbox, the job queues, and the raw bodies when
+  `SUKHI_RAW_BACKEND=postgres`, the default. Take those with the database's own
+  backup; a restore needs both. Also not covered: raw bodies in S3 (the bucket's own
   versioning/replication), the mounted `/etc/sukhi/instance.json`, and every
   `podman secret` — a secret copied into a backup directory would be a secret
   copied to every place the backup goes. `backup-info.json` says which raw

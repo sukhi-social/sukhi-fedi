@@ -120,8 +120,8 @@ bin/sukhi_fedi rpc 'SukhiFedi.Maintenance.RebuildFromArchive.run(:execute)'
 `sukhi-backup-verify.sh`(週次)が:
 
 1. `restic check`(構造)。`DEEP=1` で `--read-data-subset=5%`(実 blob 再読、bit-rot 検知)。
-2. 最新ダンプを **使い捨て postgres コンテナ** に `pg_restore` して `notes` /
-   `inbound_events` の件数を assert、破棄。「復元できないダンプ」をここで見つける。
+2. 最新ダンプを **使い捨て postgres コンテナ** に `pg_restore` して `accounts` の件数を
+   assert(`admin_audits` の件数も出す)、破棄。「復元できないダンプ」をここで見つける。
 3. 成功で verify 用 healthcheck に ping。
 
 手で一度通すなら:

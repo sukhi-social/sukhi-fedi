@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Repo do
   @moduledoc """
-  The business data: hosigraph, through `ecto_hosi` (docs/STORE.md). Job queues
-  are not here; they are in PostgreSQL (`SukhiFedi.QueueRepo`).
+  The business data in hosigraph, through `ecto_hosi` (docs/STORE.md). Accounts,
+  the audit trail and the outbox are not here (`SukhiFedi.AccountRepo`), nor are
+  the job queues (`SukhiFedi.QueueRepo`): all of those are in PostgreSQL.
   """
 
   use Ecto.Repo,
