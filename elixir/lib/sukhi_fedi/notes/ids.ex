@@ -11,7 +11,7 @@ defmodule SukhiFedi.Notes.Ids do
 
   import Ecto.Query
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{Accounts, Repo}
   alias SukhiFedi.Schema.{Account, Note}
 
   @doc "Parse a note id from an integer or numeric string; nil otherwise."
@@ -34,24 +34,22 @@ defmodule SukhiFedi.Notes.Ids do
   """
   @spec note_ap_id(integer()) :: String.t() | nil
   def note_ap_id(note_id) do
-    query =
-      from(n in Note,
-        join: a in assoc(n, :account),
-        where: n.id == ^note_id,
-        select: {n.ap_id, a.domain, a.username}
-      )
-
-    case Repo.one(query) do
-      {ap_id, _domain, _username} when is_binary(ap_id) ->
+    case Repo.one(from(n in Note, where: n.id == ^note_id, select: {n.ap_id, n.account_id})) do
+      {ap_id, _account_id} when is_binary(ap_id) ->
         ap_id
 
-      {nil, nil, username} ->
-        "https://#{SukhiFedi.Config.domain!()}/users/#{username}/notes/#{note_id}"
+      {nil, account_id} ->
+        local_author_note_url(Accounts.get(account_id), note_id)
 
-      _ ->
+      nil ->
         nil
     end
   end
+
+  defp local_author_note_url(%Account{domain: nil, username: username}, note_id),
+    do: "https://#{SukhiFedi.Config.domain!()}/users/#{username}/notes/#{note_id}"
+
+  defp local_author_note_url(_, _), do: nil
 
   # A note's public AP id from the struct: the stored `ap_id` for remote
   # notes, or the synthesized `/notes/<id>` URL for local ones (whose

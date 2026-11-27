@@ -10,7 +10,6 @@ defmodule SukhiFedi.Schema.JoinApplication do
   the context sets them.
   """
   use Ecto.Schema
-  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
   alias SukhiFedi.Auth.EmailAuth
@@ -19,12 +18,6 @@ defmodule SukhiFedi.Schema.JoinApplication do
   @found_max 1000
   @hope_max 2000
   @langs ~w(ja ko en)
-
-  # the catalog's unique indexes, kept by the store
-  hosi_unique(:claim_hash)
-  hosi_unique(:edit_hash)
-  hosi_unique(:entry_hash)
-  hosi_unique(:receipt)
 
   schema "join_applications" do
     field(:receipt, :string)

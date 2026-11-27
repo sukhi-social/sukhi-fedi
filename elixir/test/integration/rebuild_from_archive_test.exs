@@ -155,7 +155,7 @@ defmodule SukhiFedi.Integration.RebuildFromArchiveTest do
 
   defp insert_remote_note(ap_id, opts) do
     author =
-      Repo.insert!(%Account{
+      insert_account!(%Account{
         username: "arch_#{System.unique_integer([:positive])}",
         display_name: "arch",
         summary: "",

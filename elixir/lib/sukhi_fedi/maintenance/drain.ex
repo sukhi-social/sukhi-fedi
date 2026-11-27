@@ -13,8 +13,8 @@ defmodule SukhiFedi.Maintenance.Drain do
        a short grace for the ones nobody counts (an inbox POST is verified
        and answered in one go).
     3. **flush the outbox** — wait until every accepted post has left the
-       store's `outbox` table and its dispatch job has run, so nothing is
-       half-way between Datalevin and the PostgreSQL queue. Delivery jobs
+       `outbox` table and its dispatch job has run, so nothing is half-way
+       to the queue. Delivery jobs
        (one per remote inbox) are *not* waited for: they are durable in the
        queue and resume after the restart, and a dead peer would keep this
        waiting for hours.

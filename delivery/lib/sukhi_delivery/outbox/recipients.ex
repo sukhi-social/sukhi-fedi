@@ -25,8 +25,8 @@ defmodule SukhiDelivery.Outbox.Recipients do
 
   # ── DB helpers ───────────────────────────────────────────────────────────
 
-  # A genuinely-missing account (Repo.get → nil) or an unparseable id is
-  # structural → nil → :no_actor → ACK. But a transient DB error (Repo.get
+  # A genuinely-missing account (the lookup → nil) or an unparseable id is
+  # structural → nil → :no_actor → ACK. But a transient DB error (it
   # raising on a dropped connection) must NOT be swallowed to nil: that maps a
   # retryable failure onto the permanent :no_actor path and silently drops the
   # outbound activity for an account that really exists. So we no longer
@@ -39,7 +39,7 @@ defmodule SukhiDelivery.Outbox.Recipients do
         nil
 
       id ->
-        case Repo.get(Account, id) do
+        case SukhiDelivery.Accounts.get(id) do
           nil ->
             nil
 
@@ -109,13 +109,12 @@ defmodule SukhiDelivery.Outbox.Recipients do
   # — an account Delete has to reach them too, so they let it go.
   def followed_inboxes(actor_uri) when is_binary(actor_uri) do
     from(f in Follow,
-      join: a in Account,
-      on: a.id == f.followee_id,
       where: f.follower_uri == ^actor_uri and f.state in ["accepted", "pending"],
-      where: not is_nil(a.domain),
-      select: a
+      select: f.followee_id
     )
     |> Repo.all()
+    |> SukhiDelivery.Accounts.by_ids()
+    |> Enum.reject(&is_nil(&1.domain))
     |> Enum.map(fn a -> a |> followee_endpoints() |> elem(1) end)
     |> Enum.uniq()
   end
@@ -151,7 +150,7 @@ defmodule SukhiDelivery.Outbox.Recipients do
   defp author_endpoints(author_id) do
     case safe_account_id(author_id) do
       nil -> nil
-      id -> author_endpoints_of(Repo.get(Account, id))
+      id -> author_endpoints_of(SukhiDelivery.Accounts.get(id))
     end
   end
 

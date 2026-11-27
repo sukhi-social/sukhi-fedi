@@ -17,7 +17,7 @@ defmodule SukhiFedi.Web.QuoteAuthorizationController do
   import Plug.Conn
   alias SukhiFedi.AP.ActorJson
   alias SukhiFedi.Notes.Ids
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{Accounts, Repo}
   alias SukhiFedi.Schema.{Account, Note, QuoteAuthorization}
 
   def show(conn, _opts) do
@@ -57,7 +57,7 @@ defmodule SukhiFedi.Web.QuoteAuthorizationController do
     }
   end
 
-  defp preload_account(%Note{} = note), do: Repo.preload(note, :account)
+  defp preload_account(%Note{} = note), do: Repo.preload(note, account: &Accounts.by_ids/1)
   defp preload_account(other), do: other
 
   defp send_json(conn, status, body) do

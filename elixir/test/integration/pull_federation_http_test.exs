@@ -94,10 +94,10 @@ defmodule SukhiFedi.Integration.PullFederationHttpTest do
   defp json(conn), do: JSON.decode!(conn.resp_body)
 
   defp reader_following_peer do
-    reader = Repo.insert!(%Account{username: "reader", display_name: "r", summary: ""})
+    reader = insert_account!(%Account{username: "reader", display_name: "r", summary: ""})
 
     shiro =
-      Repo.insert!(%Account{
+      insert_account!(%Account{
         username: "shiro",
         display_name: "s",
         summary: "",
@@ -219,7 +219,7 @@ defmodule SukhiFedi.Integration.PullFederationHttpTest do
 
   describe "GET /pull/v1/stream" do
     setup do
-      alice = Repo.insert!(%Account{username: "alice", display_name: "a", summary: ""})
+      alice = insert_account!(%Account{username: "alice", display_name: "a", summary: ""})
 
       Repo.insert!(%Follow{
         follower_uri: FediGolden.actor(),

@@ -30,7 +30,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert follow.state == "pending"
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from e in OutboxEvent,
             where: e.subject == "sns.outbox.follow.requested" and e.aggregate_id == ^to_string(follow.id)
         )
@@ -49,7 +49,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert f1.id == f2.id
 
       n =
-        Repo.aggregate(
+        SukhiFedi.AccountRepo.aggregate(
           from(e in OutboxEvent,
             where: e.subject == "sns.outbox.follow.requested" and e.aggregate_id == ^to_string(f1.id)
           ),
@@ -82,7 +82,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert follow.state == "accepted"
 
       n =
-        Repo.aggregate(
+        SukhiFedi.AccountRepo.aggregate(
           from(e in OutboxEvent,
             where: e.subject == "sns.outbox.follow.requested" and e.aggregate_id == ^to_string(follow.id)
           ),
@@ -170,7 +170,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       refute Repo.get(Follow, follow.id)
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from e in OutboxEvent,
             where: e.subject == "sns.outbox.follow.undone" and e.aggregate_id == ^to_string(follow.id)
         )
@@ -187,7 +187,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       refute Repo.get(Follow, follow.id)
 
       n =
-        Repo.aggregate(
+        SukhiFedi.AccountRepo.aggregate(
           from(e in OutboxEvent, where: e.subject == "sns.outbox.follow.undone"),
           :count,
           :id
@@ -338,7 +338,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert updated.display_name == "Alice Updated"
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from e in OutboxEvent,
             where: e.subject == "sns.outbox.actor.updated" and e.aggregate_id == ^to_string(a.id)
         )
@@ -464,7 +464,7 @@ defmodule SukhiFedi.Integration.SocialTest do
                %{"name" => "c", "color" => "#abc"}
              ] = updated.roles
 
-      assert Repo.get_by!(SukhiFedi.Schema.AdminAudit, action: "roles_changed", target_account_id: a.id)
+      assert SukhiFedi.AccountRepo.get_by!(SukhiFedi.Schema.AdminAudit, action: "roles_changed", target_account_id: a.id)
     end
 
     test "a remote account is not ours to badge" do
@@ -475,7 +475,7 @@ defmodule SukhiFedi.Integration.SocialTest do
           actor_uri: "https://far.example/users/far",
           summary: ""
         }
-        |> Repo.insert!()
+        |> insert_account!()
 
       admin = create_account!("badge_admin2")
       assert {:error, :not_found} = Accounts.set_roles(remote.id, admin.id, [%{"name" => "x"}])
@@ -533,7 +533,7 @@ defmodule SukhiFedi.Integration.SocialTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp keyed_account!(username) do
@@ -544,7 +544,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       private_key_jwk: %{"kty" => "RSA", "d" => "test"},
       public_key_jwk: %{"kty" => "RSA"}
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_remote_account!(username, domain) do
@@ -556,6 +556,6 @@ defmodule SukhiFedi.Integration.SocialTest do
       actor_uri: "https://#{domain}/users/#{username}",
       inbox_url: "https://#{domain}/users/#{username}/inbox"
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

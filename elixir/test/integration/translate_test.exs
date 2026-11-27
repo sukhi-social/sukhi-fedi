@@ -44,13 +44,13 @@ defmodule SukhiFedi.Integration.TranslateTest do
   end
 
   defp account!(username, attrs \\ %{}) do
-    %Account{username: username, display_name: username, summary: ""} |> struct(attrs) |> Repo.insert!()
+    %Account{username: username, display_name: username, summary: ""} |> struct(attrs) |> insert_account!()
   end
 
   defp deepl_user!(username) do
     a = account!(username)
     {:ok, sealed, hint} = Key.seal(@key, a.id)
-    a |> Ecto.Changeset.change(translate_engine: "deepl", translate_deepl_key: sealed, translate_deepl_key_hint: hint) |> Repo.update!()
+    a |> Ecto.Changeset.change(translate_engine: "deepl", translate_deepl_key: sealed, translate_deepl_key_hint: hint) |> SukhiFedi.AccountRepo.update!()
   end
 
   defp note!(author, text, visibility, extra \\ %{}) do
@@ -136,7 +136,7 @@ defmodule SukhiFedi.Integration.TranslateTest do
 
     # A sealed key copied from another account does not open on this one.
     {:ok, foreign, _} = Key.seal(@key, reader.id + 1000)
-    reader |> Ecto.Changeset.change(translate_deepl_key: foreign) |> Repo.update!()
+    reader |> Ecto.Changeset.change(translate_deepl_key: foreign) |> SukhiFedi.AccountRepo.update!()
 
     assert {:error, :no_key} = Translate.status(reader, note.id, "ja")
     refute_received {:engine, _, _, _}

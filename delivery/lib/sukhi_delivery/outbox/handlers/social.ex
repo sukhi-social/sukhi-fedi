@@ -7,7 +7,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
   `Outbox.Consumer` hands to the dispatch worker.
   """
 
-  alias SukhiDelivery.Repo
+  alias SukhiDelivery.Accounts
   alias SukhiDelivery.Schema.Account
 
   import SukhiDelivery.Outbox.Payload, only: [maybe_attach_emoji_tag: 2]
@@ -34,7 +34,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
         :no_actor
 
       %{actor_uri: actor_uri} ->
-        followee = Repo.get(Account, followee_id)
+        followee = Accounts.get(followee_id)
 
         if followee do
           {followee_uri, followee_inbox} = followee_endpoints(followee)
@@ -80,7 +80,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
         :no_actor
 
       %{actor_uri: actor_uri} ->
-        case Repo.get(Account, group_id) do
+        case Accounts.get(group_id) do
           nil ->
             :no_followee
 
@@ -318,7 +318,7 @@ defmodule SukhiDelivery.Outbox.Handlers.Social do
   def move(_), do: :missing_fields
 
   def actor_updated(%{"account_id" => account_id}) do
-    case Repo.get(Account, parse_id(account_id)) do
+    case Accounts.get(parse_id(account_id)) do
       nil ->
         :no_actor
 

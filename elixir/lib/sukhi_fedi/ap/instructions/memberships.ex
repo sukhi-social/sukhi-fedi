@@ -18,8 +18,8 @@ defmodule SukhiFedi.AP.Instructions.Memberships do
   import Ecto.Query
 
   alias SukhiFedi.AP.Instructions.Extract
-  alias SukhiFedi.Repo
-  alias SukhiFedi.Schema.{Account, GroupMembership}
+  alias SukhiFedi.{Accounts, Repo}
+  alias SukhiFedi.Schema.GroupMembership
 
   @spec maybe_handle_join_reply(map()) :: :ok
   def maybe_handle_join_reply(%{"type" => type, "actor" => actor, "object" => joined})
@@ -74,10 +74,8 @@ defmodule SukhiFedi.AP.Instructions.Memberships do
   # The one place that says who may answer: a membership is only ever found
   # through the group account it was addressed to.
   defp asked(group_uri) do
-    from(m in GroupMembership,
-      join: g in Account,
-      on: g.id == m.group_id,
-      where: g.actor_uri == ^group_uri
-    )
+    ids = group_uri |> Accounts.by_actor_uri() |> List.wrap() |> Enum.map(& &1.id)
+
+    where(GroupMembership, [m], m.group_id in ^ids)
   end
 end

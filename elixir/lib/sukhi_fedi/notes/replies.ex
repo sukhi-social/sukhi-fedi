@@ -15,21 +15,26 @@ defmodule SukhiFedi.Notes.Replies do
 
   import Ecto.Query
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{Accounts, Repo}
   alias SukhiFedi.Schema.Note
 
   @spec public_reply_uris([String.t()]) :: [String.t()]
   def public_reply_uris(parent_ap_ids) when is_list(parent_ap_ids) do
     domain = SukhiFedi.Config.domain!()
 
-    from(n in Note,
-      join: a in assoc(n, :account),
-      where: n.in_reply_to_ap_id in ^parent_ap_ids and n.visibility == "public",
-      order_by: [asc: n.created_at],
-      select: %{ap_id: n.ap_id, id: n.id, username: a.username}
-    )
-    |> Repo.all()
-    |> Enum.map(&reply_uri(&1, domain))
+    replies =
+      from(n in Note,
+        where: n.in_reply_to_ap_id in ^parent_ap_ids and n.visibility == "public",
+        order_by: [asc: n.created_at],
+        select: %{ap_id: n.ap_id, id: n.id, account_id: n.account_id}
+      )
+      |> Repo.all()
+
+    authors = Accounts.map_by_ids(Enum.map(replies, & &1.account_id))
+
+    for reply <- replies, a <- List.wrap(authors[reply.account_id]) do
+      reply_uri(Map.put(reply, :username, a.username), domain)
+    end
   end
 
   # Remote reply → its real ap_id; local reply (ap_id NULL) → synthesized.

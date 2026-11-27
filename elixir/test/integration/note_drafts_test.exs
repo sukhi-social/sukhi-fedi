@@ -62,12 +62,12 @@ defmodule SukhiFedi.Integration.NoteDraftsTest do
       assert :ok = NoteDrafts.delete(a)
 
       # A draft never rides the outbox — no Delete (or any event) is queued.
-      assert [] == Repo.all(from(e in OutboxEvent))
+      assert [] == SukhiFedi.AccountRepo.all(from(e in OutboxEvent))
     end
   end
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

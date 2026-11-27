@@ -8,7 +8,7 @@ defmodule SukhiFedi.Integration.InviteCodesTest do
   alias SukhiFedi.Schema.Account
 
   defp account!(username),
-    do: Repo.insert!(%Account{username: username, display_name: username, summary: ""})
+    do: insert_account!(%Account{username: username, display_name: username, summary: ""})
 
   test "an invite code is single-use; a second consume fails (C6)" do
     issuer = account!("inv_issuer")

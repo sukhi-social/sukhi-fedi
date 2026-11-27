@@ -11,7 +11,7 @@ defmodule SukhiFedi.Stats do
 
   import Ecto.Query
 
-  alias SukhiFedi.{HotCache, Repo}
+  alias SukhiFedi.{HotCache, AccountRepo, Repo}
 
   alias SukhiFedi.Schema.{
     Account,
@@ -37,13 +37,13 @@ defmodule SukhiFedi.Stats do
     minus_7d = DateTime.add(now, -7 * 86_400, :second)
     minus_30d = DateTime.add(now, -30 * 86_400, :second)
 
-    accounts_total = Repo.aggregate(Account, :count, :id)
+    accounts_total = AccountRepo.aggregate(Account, :count, :id)
 
     accounts_suspended =
-      Repo.aggregate(from(a in Account, where: not is_nil(a.suspended_at)), :count, :id)
+      AccountRepo.aggregate(from(a in Account, where: not is_nil(a.suspended_at)), :count, :id)
 
     accounts_admins =
-      Repo.aggregate(from(a in Account, where: a.is_admin == true), :count, :id)
+      AccountRepo.aggregate(from(a in Account, where: a.is_admin == true), :count, :id)
 
     active_7d = count_active_since(minus_7d)
     active_30d = count_active_since(minus_30d)
@@ -112,7 +112,7 @@ defmodule SukhiFedi.Stats do
         select: t.account_id
       )
 
-    query |> Repo.all() |> length()
+    query |> AccountRepo.all() |> length()
   end
 
   defp count_known_domains do

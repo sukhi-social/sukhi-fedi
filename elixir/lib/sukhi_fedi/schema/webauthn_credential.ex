@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.WebauthnCredential do
   use Ecto.Schema
-  use Ecto.Hosi.Schema
 
   @moduledoc """
   A registered passkey. `credential_id` is the base64url string the
@@ -10,12 +9,6 @@ defmodule SukhiFedi.Schema.WebauthnCredential do
   map (integer keys, integer/binary values) in external term format;
   decode with `Plug.Crypto.non_executable_binary_to_term/2`.
   """
-
-  # the catalog's unique indexes, kept by the store
-  hosi_unique(:credential_id)
-
-  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "webauthn_credentials_account_id_fkey")
 
   schema "webauthn_credentials" do
     field(:credential_id, :string)

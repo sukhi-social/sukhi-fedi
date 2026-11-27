@@ -63,7 +63,7 @@ defmodule SukhiFedi.Integration.ScheduledStatusesTest do
       assert note.content == "later"
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in OutboxEvent,
             where:
               e.subject == "sns.outbox.note.created" and e.aggregate_id == ^to_string(note.id)
@@ -125,6 +125,6 @@ defmodule SukhiFedi.Integration.ScheduledStatusesTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

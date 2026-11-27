@@ -122,7 +122,7 @@ defmodule SukhiFedi.Integration.FollowRequestsTest do
 
   defp account!(username, locked: locked) do
     %Account{username: username, display_name: username, summary: "", locked: locked}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp remote_follower!(username, actor_uri) do
@@ -134,6 +134,6 @@ defmodule SukhiFedi.Integration.FollowRequestsTest do
       actor_uri: actor_uri,
       inbox_url: "#{actor_uri}/inbox"
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

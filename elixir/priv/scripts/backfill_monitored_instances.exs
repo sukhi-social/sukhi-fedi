@@ -5,11 +5,11 @@
 #   bin/sukhi_fedi eval 'SukhiFedi.Release.run_script("backfill_monitored_instances")'
 import Ecto.Query, only: [from: 2]
 
-alias SukhiFedi.Repo
+alias SukhiFedi.{AccountRepo, Repo}
 alias SukhiFedi.Schema.{Account, MonitoredInstance}
 
 from(a in Account, where: not is_nil(a.monitored_domain))
-|> Repo.all()
+|> AccountRepo.all()
 |> Enum.map(fn a ->
   %MonitoredInstance{}
   |> MonitoredInstance.changeset(%{domain: a.monitored_domain, actor_id: a.id})

@@ -9,7 +9,7 @@ defmodule SukhiFedi.Social do
 
   alias SukhiFedi.Accounts
   alias Ecto.Multi
-  alias SukhiFedi.{Outbox, Repo}
+  alias SukhiFedi.{Outbox, AccountRepo, Repo}
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Schema.{Account, AccountNote, Follow, GroupMembership}
 
@@ -66,10 +66,7 @@ defmodule SukhiFedi.Social do
         }
       )
 
-    # Two queries, one per side, not one `or`. On the Datalevin store an `or`
-    # with an empty side (no local followers, or no remote ones) cannot be
-    # planned, so the whole condition goes to Eval and every account row is
-    # loaded. An empty side runs no query at all.
+    # One query per side; an empty side runs none.
     accounts =
       local_accounts(local_usernames, projection) ++ remote_accounts(remote_uris, projection)
 
@@ -83,7 +80,7 @@ defmodule SukhiFedi.Social do
   defp local_accounts(usernames, projection) do
     projection
     |> where([a], is_nil(a.domain) and a.username in ^usernames)
-    |> Repo.all()
+    |> AccountRepo.all()
   end
 
   defp remote_accounts([], _projection), do: []
@@ -91,7 +88,7 @@ defmodule SukhiFedi.Social do
   defp remote_accounts(uris, projection) do
     projection
     |> where([a], a.actor_uri in ^uris)
-    |> Repo.all()
+    |> AccountRepo.all()
   end
 
   defp canonical_actor_uri(%{domain: nil, username: username}, local_prefix),
@@ -99,38 +96,31 @@ defmodule SukhiFedi.Social do
 
   defp canonical_actor_uri(%{actor_uri: actor_uri}, _local_prefix), do: actor_uri
 
+  # What the follow lists show of an account. Public-safe only (no key material).
+  # `domain` + `actor_uri` are what let the Mastodon account view render a remote
+  # followee as "user@host" with its real URL; without them it falls back to a
+  # bare local handle and the profile link 404s.
+  @following_fields ~w(id username domain display_name summary emojis actor_uri avatar_url
+                       banner_url avatar_decorations locked is_bot is_admin roles created_at)a
+
   @doc """
-  Returns a compact projection of the accounts the caller follows — one
-  JOIN query, no N+1. Public-safe fields only (no key material).
+  Returns a compact projection of the accounts the caller follows — two
+  reads, no N+1. Public-safe fields only (no key material).
   """
   def list_following(follower_uri, _opts \\ []) do
     from(f in Follow,
-      join: a in Account,
-      on: a.id == f.followee_id,
       where: f.follower_uri == ^follower_uri and f.state == "accepted",
-      # Same projection as the followers list: the Mastodon account view
-      # needs `domain` + `actor_uri` to render a remote followee as
-      # "user@host" with its real URL. Without them it falls back to a
-      # bare local handle and the profile link 404s.
-      select: %{
-        id: a.id,
-        username: a.username,
-        domain: a.domain,
-        display_name: a.display_name,
-        summary: a.summary,
-        emojis: a.emojis,
-        actor_uri: a.actor_uri,
-        avatar_url: a.avatar_url,
-        banner_url: a.banner_url,
-        avatar_decorations: a.avatar_decorations,
-        locked: a.locked,
-        is_bot: a.is_bot,
-        is_admin: a.is_admin,
-        roles: a.roles,
-        created_at: a.created_at
-      }
+      select: f.followee_id
     )
     |> Repo.all()
+    |> followees()
+    |> Enum.map(&Map.take(&1, @following_fields))
+  end
+
+  # The accounts behind these followee ids, in the order of the ids.
+  defp followees(ids) do
+    accounts = Accounts.map_by_ids(ids)
+    for id <- ids, a <- List.wrap(accounts[id]), do: a
   end
 
   @doc """
@@ -156,12 +146,11 @@ defmodule SukhiFedi.Social do
     local_prefix = "https://#{SukhiFedi.Config.domain!()}/users/"
 
     from(f in Follow,
-      join: a in Account,
-      on: a.id == f.followee_id,
       where: f.follower_uri == ^follower_uri and f.state == "pending",
-      select: %{domain: a.domain, username: a.username, actor_uri: a.actor_uri}
+      select: f.followee_id
     )
     |> Repo.all()
+    |> followees()
     |> Enum.map(&canonical_actor_uri(&1, local_prefix))
   end
 
@@ -469,14 +458,14 @@ defmodule SukhiFedi.Social do
 
       blocked_domains =
         from(a in Account, where: a.id in ^target_ids and not is_nil(a.domain), select: a.domain)
-        |> Repo.all()
+        |> AccountRepo.all()
         |> Enum.uniq()
         |> Enum.filter(&Moderation.instance_blocked?/1)
         |> MapSet.new()
 
       target_domain =
         from(a in Account, where: a.id in ^target_ids, select: {a.id, a.domain})
-        |> Repo.all()
+        |> AccountRepo.all()
         |> Map.new()
 
       # The viewer's private memo about each target (local-only, never
@@ -531,7 +520,7 @@ defmodule SukhiFedi.Social do
           {:ok, AccountNote.t()} | {:error, :not_found | term()}
   def set_account_note(%Account{id: author_id}, target_id, comment)
       when is_integer(target_id) and is_binary(comment) do
-    if Repo.exists?(from(a in Account, where: a.id == ^target_id)) do
+    if AccountRepo.exists?(from(a in Account, where: a.id == ^target_id)) do
       %AccountNote{}
       |> AccountNote.changeset(%{
         author_account_id: author_id,
@@ -580,7 +569,7 @@ defmodule SukhiFedi.Social do
       where: a.id in ^target_ids,
       select: {a.id, a.username, a.actor_uri}
     )
-    |> Repo.all()
+    |> AccountRepo.all()
     |> Enum.map(fn
       {id, _u, actor_uri} when is_binary(actor_uri) -> {id, actor_uri}
       {id, username, _} -> {id, "https://#{domain}/users/#{username}"}

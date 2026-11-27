@@ -16,7 +16,8 @@ defmodule SukhiFedi.AccountDeletion do
 
   `finish_step/1` (driven by `AccountDeletion.Worker`) does the closing in
   small steps: first the account stops being usable (credentials, sessions,
-  tokens, profile gone, in one transaction), then its notes go in batches —
+  tokens, profile gone, in one transaction), then the rest of what it keeps
+  (bookmarks, mutes, drafts, …) is removed, then its notes go in batches —
   each through the same `Notes.Create.delete_note_for_cleanup/3` that
   self-cleanup uses, so every `Delete(Note)` federates — and last one
   actor `Delete`, enqueued with the "finished" mark in one transaction.
@@ -28,7 +29,7 @@ defmodule SukhiFedi.AccountDeletion do
   import Ecto.Query
 
   alias SukhiFedi.Accounts
-  alias SukhiFedi.{Mailer, Outbox, Repo}
+  alias SukhiFedi.{AccountRepo, Mailer, Outbox, Repo}
   alias SukhiFedi.Notes.Create
   alias SukhiFedi.Schema.{Account, AccountDeletion, Note}
 
@@ -43,7 +44,7 @@ defmodule SukhiFedi.AccountDeletion do
   def pending(%Account{id: id}), do: pending(id)
 
   def pending(account_id) when is_integer(account_id) do
-    Repo.one(from(d in live(), where: d.account_id == ^account_id, limit: 1))
+    AccountRepo.one(from(d in live(), where: d.account_id == ^account_id, limit: 1))
   end
 
   @doc """
@@ -69,7 +70,7 @@ defmodule SukhiFedi.AccountDeletion do
           scheduled_for: DateTime.add(now, @grace_seconds, :second)
         }
 
-        case Repo.insert(row, on_conflict: :nothing) do
+        case AccountRepo.insert(row, on_conflict: :nothing) do
           {:ok, %AccountDeletion{id: nil}} ->
             {:ok, pending(id)}
 
@@ -92,7 +93,7 @@ defmodule SukhiFedi.AccountDeletion do
 
       %AccountDeletion{} = d ->
         {1, _} =
-          Repo.update_all(from(x in AccountDeletion, where: x.id == ^d.id),
+          AccountRepo.update_all(from(x in AccountDeletion, where: x.id == ^d.id),
             set: [cancelled_at: now]
           )
 
@@ -103,7 +104,7 @@ defmodule SukhiFedi.AccountDeletion do
   @doc "Requests whose day is up (or that are already under way)."
   @spec due(DateTime.t()) :: [AccountDeletion.t()]
   def due(now \\ now()) do
-    Repo.all(
+    AccountRepo.all(
       from(d in live(),
         where: d.scheduled_for <= ^now or not is_nil(d.started_at),
         order_by: d.id
@@ -117,7 +118,7 @@ defmodule SukhiFedi.AccountDeletion do
   """
   @spec finish_step(AccountDeletion.t(), DateTime.t()) :: :more | :done | {:error, term()}
   def finish_step(%AccountDeletion{} = d, now \\ now()) do
-    d = Repo.get!(AccountDeletion, d.id)
+    d = AccountRepo.get!(AccountDeletion, d.id)
 
     cond do
       d.finished_at != nil or d.cancelled_at != nil -> :done
@@ -128,42 +129,58 @@ defmodule SukhiFedi.AccountDeletion do
 
   # ── steps ────────────────────────────────────────────────────────────────
 
-  # The account stops being usable *now*, in one transaction. The address is
-  # read first (the mail is sent to it afterwards) and then blanked.
+  # The account stops being usable *now*: the sign-in rows, the personal
+  # columns and the started mark are one transaction. The rows it keeps
+  # elsewhere are removed after it, and again before every later step, so a
+  # stop in between is made up. The address is read first (the mail is sent
+  # to it afterwards) and then blanked.
   defp start(%AccountDeletion{} = d, now) do
     account = Accounts.get!(d.account_id)
     email = if account.email_verified_at, do: account.email
 
-    Repo.transaction(fn ->
-      Repo.update_all(from(x in AccountDeletion, where: x.id == ^d.id), set: [started_at: now])
+    AccountRepo.transaction(fn ->
+      AccountRepo.update_all(from(x in AccountDeletion, where: x.id == ^d.id), set: [started_at: now])
       blank(account.id, now)
     end)
+
+    clear_kept_rows(account.id)
 
     if is_binary(email), do: mail_done(email, account.username)
     :more
   end
 
-  defp blank(account_id, now) do
-    for {schema, field} <- [
-          {SukhiFedi.Schema.Session, :account_id},
-          {SukhiFedi.Schema.OauthAccessToken, :account_id},
-          {SukhiFedi.Schema.OauthAuthorizationCode, :account_id},
-          {SukhiFedi.Schema.PushSubscription, :account_id},
-          {SukhiFedi.Schema.WebauthnCredential, :account_id},
-          {SukhiFedi.Schema.EmailCode, :account_id},
-          {SukhiFedi.Schema.PinnedNote, :account_id},
-          {SukhiFedi.Schema.Bookmark, :account_id},
-          {SukhiFedi.Schema.Mute, :account_id},
-          {SukhiFedi.Schema.Block, :account_id},
-          {SukhiFedi.Schema.NoteDraft, :account_id},
-          {SukhiFedi.Schema.ScheduledStatus, :account_id},
-          {SukhiFedi.Schema.Marker, :account_id},
-          {SukhiFedi.Schema.Notification, :account_id}
-        ] do
-      Repo.delete_all(from(r in schema, where: field(r, ^field) == ^account_id))
-    end
+  @sign_in_rows [
+    SukhiFedi.Schema.Session,
+    SukhiFedi.Schema.OauthAccessToken,
+    SukhiFedi.Schema.OauthAuthorizationCode,
+    SukhiFedi.Schema.WebauthnCredential,
+    SukhiFedi.Schema.EmailCode
+  ]
 
-    Repo.update_all(from(a in Account, where: a.id == ^account_id),
+  @kept_rows [
+    SukhiFedi.Schema.PushSubscription,
+    SukhiFedi.Schema.PinnedNote,
+    SukhiFedi.Schema.Bookmark,
+    SukhiFedi.Schema.Mute,
+    SukhiFedi.Schema.Block,
+    SukhiFedi.Schema.NoteDraft,
+    SukhiFedi.Schema.ScheduledStatus,
+    SukhiFedi.Schema.Marker,
+    SukhiFedi.Schema.Notification
+  ]
+
+  defp clear_kept_rows(account_id), do: delete_rows(Repo, @kept_rows, account_id)
+
+  defp delete_rows(repo, schemas, account_id) do
+    for schema <- schemas do
+      repo.delete_all(from(r in schema, where: r.account_id == ^account_id))
+    end
+  end
+
+  defp blank(account_id, now) do
+    delete_rows(AccountRepo, @sign_in_rows, account_id)
+
+    AccountRepo.update_all(from(a in Account, where: a.id == ^account_id),
       set: [
         deleted_at: now,
         email: nil,
@@ -189,6 +206,8 @@ defmodule SukhiFedi.AccountDeletion do
   end
 
   defp next_notes_or_finish(%AccountDeletion{} = d, now) do
+    clear_kept_rows(d.account_id)
+
     ids =
       Repo.all(
         from(n in Note,
@@ -231,7 +250,7 @@ defmodule SukhiFedi.AccountDeletion do
       fn _ -> account.id end,
       fn _ -> %{account_id: account.id, username: account.username} end
     )
-    |> Repo.transaction()
+    |> AccountRepo.transaction()
     |> case do
       {:ok, _} -> :done
       {:error, _, reason, _} -> {:error, reason}

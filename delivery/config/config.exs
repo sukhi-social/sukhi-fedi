@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import Config
 
-# PostgreSQL holds the job queues and nothing else: the business data is in
-# hosigraph, which `SukhiDelivery.Repo` joins from the gateway.
+# PostgreSQL holds the job queues, and the gateway's accounts and outbox. The
+# rest of the business data is in hosigraph, which `SukhiDelivery.Repo` joins.
 config :sukhi_delivery, SukhiDelivery.QueueRepo,
   database: "sukhi_fedi",
   username: "postgres",

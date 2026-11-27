@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Repo do
   @moduledoc """
-  The business data: hosigraph, through `ecto_hosi` (docs/STORE.md). Job queues
-  are not here; they are in PostgreSQL (`SukhiFedi.QueueRepo`).
+  The business data in hosigraph, through `ecto_hosi` (docs/STORE.md). Accounts,
+  the audit trail and the outbox are not here (`SukhiFedi.AccountRepo`), nor are
+  the job queues (`SukhiFedi.QueueRepo`): all of those are in PostgreSQL.
   """
 
   use Ecto.Repo,
@@ -17,6 +18,8 @@ defmodule SukhiFedi.Repo do
   # reached through `SukhiFedi.Store.Adapter`, so ecto_hosi's own verbs are
   # delegated here.
   alias Ecto.Hosi.{Batch, RepoApi}
+
+  @postgres_tables Enum.map(SukhiFedi.Store.Hosi.postgres(), & &1.__schema__(:source))
 
   @doc "A Datalog query against hosigraph (`Ecto.Hosi.Query.datalog/1`)."
   def datalog(query, opts \\ []), do: RepoApi.datalog(__MODULE__, query, opts)
@@ -37,6 +40,29 @@ defmodule SukhiFedi.Repo do
 
   @doc "All-or-nothing writes of several rows in one hosigraph write."
   def write_batch(steps, opts \\ []), do: Batch.run(__MODULE__, steps, opts)
+
+  # The store answers a query for a table it does not hold with no rows, so a
+  # call meant for `SukhiFedi.AccountRepo` would pass for "not found". Every
+  # query goes through here and is refused instead.
+  @impl true
+  def prepare_query(_operation, query, opts) do
+    refuse_postgres!(query)
+    {query, opts}
+  end
+
+  defp refuse_postgres!(%Ecto.Query{} = query) do
+    Enum.each([query.from | query.joins], &refuse_source!/1)
+    for %{subqueries: subqueries} <- query.wheres, sub <- subqueries, do: refuse_source!(sub)
+  end
+
+  defp refuse_source!(%Ecto.SubQuery{query: query}), do: refuse_postgres!(query)
+  defp refuse_source!(%{source: %Ecto.SubQuery{} = sub}), do: refuse_source!(sub)
+
+  defp refuse_source!(%{source: {table, _}}) when table in @postgres_tables do
+    raise ArgumentError, "#{table} is a table of SukhiFedi.AccountRepo, not of the store"
+  end
+
+  defp refuse_source!(_), do: :ok
 
   # Where hosigraph keeps its files and how it reaches Datalevin, from the same
   # variables the Datalevin store read (DATALEVIN_DIR, DATALEVIN_BIN), in a

@@ -1,13 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.Session do
   use Ecto.Schema
-  use Ecto.Hosi.Schema
-
-  # the catalog's unique indexes, kept by the store
-  hosi_unique(:token_hash)
-
-  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "sessions_account_id_fkey")
 
   schema "sessions" do
     field(:token_hash, :string)

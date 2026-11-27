@@ -57,7 +57,7 @@ defmodule SukhiFedi.Integration.AccountMigrationTest do
       # server's Accept will flip it).
       refute Repo.get(Follow, old_follow.id)
 
-      new_account = Repo.get_by!(Account, actor_uri: @new_uri)
+      new_account = SukhiFedi.AccountRepo.get_by!(Account, actor_uri: @new_uri)
       new_follow = Repo.get_by!(Follow, follower_uri: alice_uri(alice), followee_id: new_account.id)
       assert new_follow.state == "pending"
 
@@ -67,7 +67,7 @@ defmodule SukhiFedi.Integration.AccountMigrationTest do
       assert outbox_count("sns.outbox.follow.undone", old_follow.id) == 1
 
       # The old shadow is quietly stamped as moved.
-      assert Repo.get_by!(Account, actor_uri: @old_uri).moved_to_uri == @new_uri
+      assert SukhiFedi.AccountRepo.get_by!(Account, actor_uri: @old_uri).moved_to_uri == @new_uri
     end
 
     test "no consent ⇒ no re-point, no outbox, no moved stamp" do
@@ -86,10 +86,10 @@ defmodule SukhiFedi.Integration.AccountMigrationTest do
 
       # Untouched: the old follow stays, no new edge, no outbox, not moved.
       assert Repo.get(Follow, old_follow.id)
-      new_account = Repo.get_by!(Account, actor_uri: @new_uri)
+      new_account = SukhiFedi.AccountRepo.get_by!(Account, actor_uri: @new_uri)
       refute Repo.get_by(Follow, follower_uri: alice_uri(alice), followee_id: new_account.id)
       assert outbox_count("sns.outbox.follow.undone", old_follow.id) == 0
-      assert Repo.get_by!(Account, actor_uri: @old_uri).moved_to_uri == nil
+      assert SukhiFedi.AccountRepo.get_by!(Account, actor_uri: @old_uri).moved_to_uri == nil
     end
 
     test "already following the new identity ⇒ only the old edge is undone" do
@@ -129,7 +129,7 @@ defmodule SukhiFedi.Integration.AccountMigrationTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_remote_account!(username, domain, opts \\ []) do
@@ -142,7 +142,7 @@ defmodule SukhiFedi.Integration.AccountMigrationTest do
       inbox_url: "https://#{domain}/users/#{username}/inbox",
       aliases: Keyword.get(opts, :aliases, [])
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_follow!(%Account{} = follower, followee_id, state) do
@@ -153,7 +153,7 @@ defmodule SukhiFedi.Integration.AccountMigrationTest do
   defp alice_uri(%Account{username: u}), do: "https://#{SukhiFedi.Config.domain!()}/users/#{u}"
 
   defp outbox_count(subject, aggregate_id) do
-    Repo.aggregate(
+    SukhiFedi.AccountRepo.aggregate(
       from(e in OutboxEvent,
         where: e.subject == ^subject and e.aggregate_id == ^to_string(aggregate_id)
       ),

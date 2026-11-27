@@ -13,6 +13,7 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
 
   alias SukhiFedi.Accounts
   alias SukhiFedi.AP.Emojis
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
 
@@ -78,12 +79,12 @@ defmodule SukhiFedi.Federation.RemoteAccounts do
           # New row: blanks are fine; restore the historical defaults so a
           # nameless actor still shows its handle and summary is "" not nil.
           attrs = Map.merge(identity, insert_defaults(mergeable, username))
-          %Account{} |> Account.changeset_remote(attrs) |> Repo.insert() |> then_decorate(actor_json)
+          %Account{} |> Account.changeset_remote(attrs) |> AccountRepo.insert() |> then_decorate(actor_json)
 
         %Account{} = existing ->
           # Merge only the fields the fetched doc actually carries.
           attrs = Map.merge(identity, present_only(mergeable))
-          existing |> Account.changeset_remote(attrs) |> Repo.update() |> then_decorate(actor_json)
+          existing |> Account.changeset_remote(attrs) |> AccountRepo.update() |> then_decorate(actor_json)
       end
     end
   end

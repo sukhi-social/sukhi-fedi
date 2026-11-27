@@ -14,7 +14,7 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
   import Plug.Test
 
   alias SukhiFedi.{AccountDeletion, Accounts, LocalAccounts, Mailer}
-  alias SukhiFedi.Schema.{Account, Note, OutboxEvent, Session}
+  alias SukhiFedi.Schema.{Account, Mute, Note, OutboxEvent, Session}
 
   setup do
     Mailer.Capture.clear()
@@ -27,7 +27,7 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
         email: "leaver@example.com",
         email_verified_at: ~U[2026-01-01 00:00:00Z]
       }
-      |> Repo.insert!()
+      |> insert_account!()
 
     %{account: account}
   end
@@ -68,7 +68,7 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
   end
 
   test "an unverified address gets no mail but the closing is still booked", %{account: a} do
-    a = a |> Ecto.Changeset.change(email_verified_at: nil) |> Repo.update!()
+    a = a |> Ecto.Changeset.change(email_verified_at: nil) |> SukhiFedi.AccountRepo.update!()
     assert {:ok, _} = AccountDeletion.request(a)
     assert Mailer.Capture.all() == []
   end
@@ -98,9 +98,9 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
     assert :done = run_to_the_end(d)
 
     assert Repo.aggregate(from(n in Note, where: n.account_id == ^a.id), :count) == 0
-    assert Repo.aggregate(from(s in Session, where: s.account_id == ^a.id), :count) == 0
+    assert SukhiFedi.AccountRepo.aggregate(from(s in Session, where: s.account_id == ^a.id), :count) == 0
 
-    closed = Repo.get!(Account, a.id)
+    closed = SukhiFedi.AccountRepo.get!(Account, a.id)
     assert closed.deleted_at
     assert closed.email == nil
     assert closed.summary == nil
@@ -110,7 +110,7 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
     assert subject =~ "閉じました"
 
     assert [_one] =
-             Repo.all(
+             SukhiFedi.AccountRepo.all(
                from(e in OutboxEvent,
                  where:
                    e.subject == "sns.outbox.actor.deleted" and e.aggregate_id == ^to_string(a.id)
@@ -118,6 +118,17 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
              )
 
     assert AccountDeletion.pending(a) == nil
+  end
+
+  test "a stop after the closing began is made up: the next step removes what was left",
+       %{account: a} do
+    {:ok, d} = AccountDeletion.request(a, ~U[2026-10-25 12:00:00Z])
+    assert :more = AccountDeletion.finish_step(d)
+    Repo.insert!(%Mute{account_id: a.id, target_id: a.id})
+
+    assert :done = run_to_the_end(d)
+
+    assert Repo.aggregate(from(m in Mute, where: m.account_id == ^a.id), :count) == 0
   end
 
   test "a closed account is gone from lookups, and cannot sign in", %{account: a} do
@@ -150,7 +161,7 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
   test "a closed account cannot ask again", %{account: a} do
     {:ok, d} = AccountDeletion.request(a, ~U[2026-10-25 12:00:00Z])
     run_to_the_end(d)
-    assert {:error, :closed} = AccountDeletion.request(Repo.get!(Account, a.id))
+    assert {:error, :closed} = AccountDeletion.request(SukhiFedi.AccountRepo.get!(Account, a.id))
   end
 
   test "once the work has started it can no longer be cancelled", %{account: a} do

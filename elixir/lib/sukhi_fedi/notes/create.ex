@@ -3,8 +3,8 @@ defmodule SukhiFedi.Notes.Create do
   @moduledoc """
   The write path: creating notes (public/unlisted/followers statuses,
   DMs, polls, media attachment, reply/quote resolution) and deleting
-  them. Every write enqueues its outbox event in the same transaction —
-  "DB commit = event durable".
+  them. A write that federates enqueues its outbox event after the rows it
+  is about (`SukhiFedi.Outbox` says what that holds).
   """
 
   import Ecto.Query
@@ -22,11 +22,11 @@ defmodule SukhiFedi.Notes.Create do
   @title_max 120
 
   @doc """
-  Create a note and enqueue the `sns.outbox.note.created` event atomically.
+  Create a note and enqueue the `sns.outbox.note.created` event.
 
-  A single Ecto.Multi transaction does both the `notes` insert and the
-  `outbox` row. Combined with `Outbox.Relay` this delivers
-  "DB commit = event durable" semantics.
+  One Ecto.Multi does the `notes` insert and then the `outbox` row: if the
+  event cannot be written, the note is taken back. The two are not one
+  atomic write (`SukhiFedi.Outbox`).
   """
   def create_note(attrs) do
     attrs = maybe_extract_emojis(attrs)
@@ -52,7 +52,7 @@ defmodule SukhiFedi.Notes.Create do
     )
     |> Repo.transaction()
     |> case do
-      {:ok, %{note: note}} -> {:ok, Repo.preload(note, [:account, :media])}
+      {:ok, %{note: note}} -> {:ok, Repo.preload(note, [:media, account: &Accounts.by_ids/1])}
       {:error, :note, %Ecto.Changeset{} = cs, _} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
       {:error, _step, reason, _} -> {:error, reason}
     end
@@ -226,7 +226,7 @@ defmodule SukhiFedi.Notes.Create do
           maybe_request_quote(note)
           maybe_enqueue_preview(note)
           notify_local_mentions(note)
-          {:ok, Repo.preload(note, [:account, :media]) |> Read.with_refs()}
+          {:ok, Repo.preload(note, [:media, account: &Accounts.by_ids/1]) |> Read.with_refs()}
 
         {:error, :note, %Ecto.Changeset{} = cs, _} ->
           {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
@@ -397,7 +397,7 @@ defmodule SukhiFedi.Notes.Create do
       |> case do
         {:ok, %{dm: note}} ->
           notify_local_mentions(note)
-          {:ok, Repo.preload(note, [:account, :media]) |> Read.with_refs()}
+          {:ok, Repo.preload(note, [:media, account: &Accounts.by_ids/1]) |> Read.with_refs()}
 
         {:error, :note, %Ecto.Changeset{} = cs, _} ->
           {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}

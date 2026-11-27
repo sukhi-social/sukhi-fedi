@@ -8,7 +8,7 @@ defmodule SukhiFedi.Accounts do
   import Ecto.Query
 
   alias Ecto.Multi
-  alias SukhiFedi.{HotCache, Outbox, Repo}
+  alias SukhiFedi.{HotCache, Outbox, AccountRepo, Repo}
   alias SukhiFedi.Schema.{Account, Follow, Note, Session}
 
   # ── origin ────────────────────────────────────────────────────────────────
@@ -37,23 +37,49 @@ defmodule SukhiFedi.Accounts do
 
   @doc "The account with this id, or `nil`."
   @spec get(integer() | binary()) :: Account.t() | nil
-  def get(id), do: Repo.get(Account, id)
+  def get(id), do: AccountRepo.get(Account, id)
 
   @doc "As `get/1`; raises `Ecto.NoResultsError` when there is none."
   @spec get!(integer() | binary()) :: Account.t()
-  def get!(id), do: Repo.get!(Account, id)
+  def get!(id), do: AccountRepo.get!(Account, id)
 
   @doc "The account whose `actor_uri` this is (a remote's stored one), or `nil`."
   @spec by_actor_uri(String.t()) :: Account.t() | nil
-  def by_actor_uri(actor_uri), do: Repo.get_by(Account, actor_uri: actor_uri)
+  def by_actor_uri(actor_uri), do: AccountRepo.get_by(Account, actor_uri: actor_uri)
 
   @doc "The remote account `username` at `domain`, or `nil`."
   @spec by_handle(String.t(), String.t()) :: Account.t() | nil
-  def by_handle(username, domain), do: Repo.get_by(Account, username: username, domain: domain)
+  def by_handle(username, domain), do: AccountRepo.get_by(Account, username: username, domain: domain)
 
   @doc "The monitor actor of this instance `domain`, or `nil`."
   @spec by_monitored_domain(String.t()) :: Account.t() | nil
-  def by_monitored_domain(domain), do: Repo.get_by(Account, monitored_domain: domain)
+  def by_monitored_domain(domain), do: AccountRepo.get_by(Account, monitored_domain: domain)
+
+  # ── many accounts ─────────────────────────────────────────────────────────
+
+  # Other tables name accounts by id or actor URI. Read their rows first, then
+  # ask here once for the whole batch: nothing joins into `accounts`, which is
+  # moving to a database of its own. `by_ids/1` is also the preload function
+  # for every association that points at an account.
+
+  @doc "The accounts with these ids, in no particular order. An id with no row is absent."
+  @spec by_ids([integer()]) :: [Account.t()]
+  def by_ids([]), do: []
+  def by_ids(ids), do: AccountRepo.all(from(a in Account, where: a.id in ^ids))
+
+  @doc "`by_ids/1`, keyed by id."
+  @spec map_by_ids([integer()]) :: %{integer() => Account.t()}
+  def map_by_ids(ids), do: ids |> Enum.uniq() |> by_ids() |> Map.new(&{&1.id, &1})
+
+  @doc "The accounts whose `actor_uri` is one of these, keyed by it."
+  @spec map_by_actor_uris([String.t()]) :: %{String.t() => Account.t()}
+  def map_by_actor_uris([]), do: %{}
+
+  def map_by_actor_uris(uris) do
+    from(a in Account, where: a.actor_uri in ^uris)
+    |> AccountRepo.all()
+    |> Map.new(&{&1.actor_uri, &1})
+  end
 
   # ── reads ─────────────────────────────────────────────────────────────────
 
@@ -72,7 +98,7 @@ defmodule SukhiFedi.Accounts do
   def by_local_username(nil), do: nil
 
   def by_local_username(username) when is_binary(username) do
-    Repo.one(
+    AccountRepo.one(
       from(a in Account,
         where: a.username == ^username and is_nil(a.domain) and is_nil(a.deleted_at),
         limit: 1
@@ -87,7 +113,7 @@ defmodule SukhiFedi.Accounts do
   """
   @spec closed_local_username?(String.t() | nil) :: boolean()
   def closed_local_username?(username) when is_binary(username) do
-    Repo.exists?(
+    AccountRepo.exists?(
       from(a in Account,
         where: a.username == ^username and is_nil(a.domain) and not is_nil(a.deleted_at)
       )
@@ -116,7 +142,7 @@ defmodule SukhiFedi.Accounts do
         limit: 1
       )
 
-    SukhiFedi.Keys.identity(Repo.one(query), SukhiFedi.Config.domain!())
+    SukhiFedi.Keys.identity(AccountRepo.one(query), SukhiFedi.Config.domain!())
   end
 
   @doc """
@@ -147,7 +173,7 @@ defmodule SukhiFedi.Accounts do
   end
 
   defp oldest_admin do
-    Repo.one(
+    AccountRepo.one(
       from(a in local_accounts(),
         where: a.is_admin == true and is_nil(a.deleted_at),
         order_by: [asc: a.id],
@@ -244,7 +270,7 @@ defmodule SukhiFedi.Accounts do
     h = :crypto.hash(:sha256, token) |> Base.encode16(case: :lower)
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    case Repo.get_by(Session, token_hash: h) do
+    case AccountRepo.get_by(Session, token_hash: h) do
       nil ->
         nil
 
@@ -363,7 +389,7 @@ defmodule SukhiFedi.Accounts do
     cs = account |> Account.changeset_credentials(attrs) |> put_emojis()
 
     if cs.valid? and Map.keys(cs.changes) -- @pace_keys == [] do
-      case Repo.update(cs) do
+      case AccountRepo.update(cs) do
         {:ok, a} -> {:ok, a}
         {:error, %Ecto.Changeset{} = cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
       end
@@ -382,7 +408,7 @@ defmodule SukhiFedi.Accounts do
       & &1.account.id,
       fn %{account: a} -> %{account_id: a.id, username: a.username} end
     )
-    |> Repo.transaction()
+    |> AccountRepo.transaction()
     |> case do
       {:ok, %{account: a}} ->
         HotCache.forget({:counts, a.id})
@@ -478,14 +504,14 @@ defmodule SukhiFedi.Accounts do
       when is_map(filter) and is_integer(offset) and is_integer(limit) do
     base = filter_accounts(Account, filter)
 
-    total = Repo.aggregate(base, :count, :id)
+    total = AccountRepo.aggregate(base, :count, :id)
 
     accounts =
       base
       |> order_by([a], desc: a.id)
       |> offset(^offset)
       |> limit(^limit)
-      |> Repo.all()
+      |> AccountRepo.all()
 
     {:ok, {accounts, total}}
   end
@@ -549,7 +575,7 @@ defmodule SukhiFedi.Accounts do
             %{account_id: a.id, by_id: by_id, is_admin: a.is_admin}
           end
         )
-        |> Repo.transaction()
+        |> AccountRepo.transaction()
         |> case do
           {:ok, %{account: a}} ->
             # who counts as the contact may just have changed
@@ -582,7 +608,7 @@ defmodule SukhiFedi.Accounts do
             metadata: %{roles: Enum.map(a.roles, & &1["name"])}
           })
         end)
-        |> Repo.transaction()
+        |> AccountRepo.transaction()
         |> case do
           {:ok, %{account: a}} -> {:ok, a}
           {:error, _step, reason, _} -> {:error, reason}
@@ -651,7 +677,7 @@ defmodule SukhiFedi.Accounts do
       query
       |> limit(^limit)
       |> Repo.all()
-      |> Repo.preload([:account, :media, :tags])
+      |> Repo.preload([:media, :tags, account: &by_ids/1])
       |> SukhiFedi.Notes.with_refs()
 
     cond do

@@ -21,7 +21,7 @@ defmodule SukhiFedi.LocalAccounts do
 
   alias SukhiFedi.Accounts
   alias Ecto.Multi
-  alias SukhiFedi.{InviteCodes, Keys, OAuth, Repo}
+  alias SukhiFedi.{InviteCodes, Keys, OAuth, AccountRepo}
   alias SukhiFedi.Schema.{Account, AdminAudit, OauthApp, Session}
 
   require Logger
@@ -77,7 +77,7 @@ defmodule SukhiFedi.LocalAccounts do
       |> Multi.insert(:account, changeset)
       |> consume_invite(normalized.invite_code)
       |> consume_entry(normalized.entry_key)
-      |> Repo.transaction()
+      |> AccountRepo.transaction()
       |> case do
         {:ok, %{account: a, invite: invite}} ->
           follow_inviter(a, invite)
@@ -135,7 +135,7 @@ defmodule SukhiFedi.LocalAccounts do
       %Account{}
       |> Account.changeset_local(attrs)
       |> Ecto.Changeset.put_change(:is_admin, true)
-      |> Repo.insert()
+      |> AccountRepo.insert()
       |> case do
         {:ok, a} -> {:ok, a}
         {:error, cs} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
@@ -194,7 +194,7 @@ defmodule SukhiFedi.LocalAccounts do
         target_account_id: a.id
       })
     end)
-    |> Repo.transaction()
+    |> AccountRepo.transaction()
     |> case do
       {:ok, %{account: a, token: %{access_token: token}}} ->
         {:ok, %{account: a, token: token}}
@@ -220,7 +220,7 @@ defmodule SukhiFedi.LocalAccounts do
           {:ok, %{account: Account.t(), token: String.t()}} | {:error, :not_found | term()}
   def rotate_bot_token(admin_id, bot_id) when is_integer(admin_id) and is_integer(bot_id) do
     with %Account{is_bot: true, domain: nil} = bot <- Accounts.get(bot_id),
-         %OauthApp{} = app <- Repo.get_by(OauthApp, owner_account_id: bot.id) do
+         %OauthApp{} = app <- AccountRepo.get_by(OauthApp, owner_account_id: bot.id) do
       Multi.new()
       |> Multi.run(:revoked, fn _repo, _ -> {:ok, OAuth.revoke_account_tokens(bot.id)} end)
       |> Multi.run(:token, fn _repo, _ -> OAuth.issue_bot_token(app.id, bot.id) end)
@@ -232,7 +232,7 @@ defmodule SukhiFedi.LocalAccounts do
           target_account_id: bot.id
         })
       )
-      |> Repo.transaction()
+      |> AccountRepo.transaction()
       |> case do
         {:ok, %{token: %{access_token: token}}} -> {:ok, %{account: bot, token: token}}
         {:error, _step, reason, _} -> {:error, reason}
@@ -276,7 +276,7 @@ defmodule SukhiFedi.LocalAccounts do
       |> Multi.run(:token, fn _repo, %{app: app} ->
         OAuth.issue_personal_token(app.id, account_id, days * 86_400)
       end)
-      |> Repo.transaction()
+      |> AccountRepo.transaction()
       |> case do
         {:ok, %{token: %{access_token: token}}} ->
           {:ok, %{name: name, token: token, expires_in_days: days}}
@@ -438,7 +438,7 @@ defmodule SukhiFedi.LocalAccounts do
         ),
         set: [revoked_at: DateTime.utc_now() |> DateTime.truncate(:second)]
       )
-      |> Repo.transaction()
+      |> AccountRepo.transaction()
       |> case do
         {:ok, %{account: a}} -> {:ok, a}
         {:error, _step, reason, _} -> {:error, reason}
@@ -464,7 +464,7 @@ defmodule SukhiFedi.LocalAccounts do
     with {:ok, hash} <- hash_password(new) do
       account
       |> Ecto.Changeset.change(%{password_hash: hash})
-      |> Repo.update()
+      |> AccountRepo.update()
     end
   end
 
@@ -484,7 +484,7 @@ defmodule SukhiFedi.LocalAccounts do
     # just as it seconded the password one.
     account
     |> Ecto.Changeset.change(%{password_hash: nil})
-    |> Repo.update()
+    |> AccountRepo.update()
   end
 
   def remove_password(%Account{}), do: {:error, :no_verified_email}
@@ -545,7 +545,7 @@ defmodule SukhiFedi.LocalAccounts do
         },
         [:token_hash, :expires_at, :account_id, :ip_text, :user_agent, :last_seen_at]
       )
-      |> Repo.insert()
+      |> AccountRepo.insert()
 
     if new_device?, do: notify_new_device(account_id, ip)
 
@@ -566,7 +566,7 @@ defmodule SukhiFedi.LocalAccounts do
       where: s.account_id == ^account_id and s.expires_at > ^now,
       order_by: [desc: s.created_at]
     )
-    |> Repo.all()
+    |> AccountRepo.all()
   end
 
   @doc """
@@ -581,7 +581,7 @@ defmodule SukhiFedi.LocalAccounts do
       when is_integer(account_id) and is_integer(session_id) do
     {count, _} =
       from(s in Session, where: s.id == ^session_id and s.account_id == ^account_id)
-      |> Repo.delete_all()
+      |> AccountRepo.delete_all()
 
     if count == 0, do: {:error, :not_found}, else: :ok
   end
@@ -597,7 +597,7 @@ defmodule SukhiFedi.LocalAccounts do
   @spec revoke_session_by_token(String.t()) :: :ok
   def revoke_session_by_token(token) when is_binary(token) and token != "" do
     hash = :crypto.hash(:sha256, token) |> Base.encode16(case: :lower)
-    from(s in Session, where: s.token_hash == ^hash) |> Repo.delete_all()
+    from(s in Session, where: s.token_hash == ^hash) |> AccountRepo.delete_all()
     :ok
   end
 
@@ -619,7 +619,7 @@ defmodule SukhiFedi.LocalAccounts do
 
   defp prior_fingerprints(account_id) do
     from(s in Session, where: s.account_id == ^account_id, select: {s.ip_text, s.user_agent})
-    |> Repo.all()
+    |> AccountRepo.all()
   end
 
   # One plain mail to the account's own verified address — no push, no

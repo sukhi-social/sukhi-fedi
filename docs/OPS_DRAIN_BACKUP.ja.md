@@ -67,14 +67,16 @@ scripts/sukhi-drain.sh open            # やめる。キューを再開して受
 | `datalevin/`(`DATALEVIN_DIR`) | `dtlv -d <src> copy <dest>`。使用中でも取れる、と `dtlv` 自身のヘルプにある |
 | `datalevin/.sukhi-store.json` | ファイルコピー(カタログの指紋。復元後の起動検査が読む) |
 | `queue.db` / `delivery_queue.db` | SQLite の `VACUUM INTO`。**ファイルを直接コピーしない** |
-| `backup-manifest.json` | 既存の控えの目録(`Release.write_datalevin_backup_manifest!`)。復元後の検査がそのまま読む |
+| `backup-manifest.json` | 既存の控えの目録(`Release.write_backup_manifest!`)。復元後の検査がそのまま読む |
 | `backup-info.json` | この回に取ったもの(大きさ、版、受付の状態) |
 
 - 取り方の約束: `<時刻>.partial` で作り、**全部コピーして、開くか読み戻したあとで**名前を変える
   (`dtlv stat` を各コピーに、`PRAGMA quick_check` を各 SQLite に)。時刻だけの名前のディレクトリは、開けた控え。失敗したら partial を消す。
 - 取る前にディスクの空き(元の 1.1 倍)を見て、足りなければ**何もコピーせずに**断る。
 - 新しい控えが開けたあとで、古い控えを**最新の 3 つだけ残して**消す(`SukhiFedi.Maintenance.Backup.prune/2`)。消すのは時刻の名前で、中に自分の `backup-info.json` があるものだけ。ほかの人が置いたものは触らない。
-- **入らないもの:** `SUKHI_RAW_BACKEND=s3` のときの原本(バケット側の版管理・複製で守る。`backup-info.json` の `raw_covered` で分かる)、
+- **入らないもの:** PostgreSQL の中身(アカウントとログイン、監査の記録、`outbox`、ジョブのキュー、既定の原本)。
+  `infra/backup/` の `pg_dump` などで別に取る。**戻すには両方が要る。**
+  ほかに `SUKHI_RAW_BACKEND=s3` のときの原本(バケット側の版管理・複製で守る。`backup-info.json` の `raw_covered` で分かる)、
   `/etc/sukhi/instance.json`(目録に場所だけ書く)、`podman secret`(控えの置き場所ごとに秘密が増えるので、入れない。OPS_QUADLET_GITOPS.md §6)。
 - 取り出した先の `dtlv` は**もう一つ起動する**(`-Xmx` は常駐の子と同じ)。0.5 OCPU / 512 MB の箱では、控えを取る間だけメモリが一時的に増える。空きを見てから回す。
 - 受付を止めずに、いまの状態の控えだけ取りたいとき(夜の定期など)は `bin/combined rpc 'IO.inspect(SukhiFedi.Maintenance.Backup.run())'`。
@@ -104,7 +106,7 @@ scripts/sukhi-drain.sh open            # やめる。キューを再開して受
 2. 控えの `datalevin/` を `DATALEVIN_DIR` に、`queue.db` を `SUKHI_QUEUE_DB` の位置に、`delivery_queue.db` を `DELIVERY_QUEUE_DB` に戻す。
    持ち主は元と同じ(`sukhi`)。
 3. 控えの `backup-manifest.json` を `/var/lib/sukhi/backup-manifest.json` に置き、起動前に検査する:
-   `podman run --rm … combined eval 'SukhiFedi.Release.check_datalevin_backup_manifest!()'`(DATALEVIN.md の「Switching an existing instance」と同じ)。
+   `podman run --rm … combined eval 'SukhiFedi.Release.check_backup_manifest!()'`(DATALEVIN.md の「Switching an existing instance」と同じ)。
    カタログの指紋が違えば、起動が断られる。
 4. 起動する。起動した gateway は開いている。ログに `datalevin store manifest` の警告が出ないこと、ログインして読めることを確かめる。
 

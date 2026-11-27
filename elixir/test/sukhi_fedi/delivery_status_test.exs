@@ -129,13 +129,13 @@ defmodule SukhiFedi.DeliveryStatusTest do
   defp view(result), do: Map.new(result, fn {id, p} -> {id, {p.state, p.stage, p.percent}} end)
 
   defp create_account!(username) do
-    Repo.insert!(%Account{username: username, display_name: username})
+    insert_account!(%Account{username: username, display_name: username})
   end
 
   defp mark_outbox(subject, note_id, status) do
     aggregate_id = to_string(note_id)
 
-    Repo.update_all(
+    SukhiFedi.AccountRepo.update_all(
       from(o in "outbox", where: o.subject == ^subject and o.aggregate_id == ^aggregate_id),
       set: [status: status]
     )

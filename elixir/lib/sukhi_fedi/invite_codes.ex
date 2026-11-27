@@ -18,7 +18,7 @@ defmodule SukhiFedi.InviteCodes do
 
   import Ecto.Query
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Schema.{Account, InviteCode, InviteCodeUse}
 
   @code_bytes 9
@@ -59,7 +59,7 @@ defmodule SukhiFedi.InviteCodes do
       :expires_at
     ])
     |> Ecto.Changeset.validate_required([:code, :max_uses])
-    |> Repo.insert()
+    |> AccountRepo.insert()
   end
 
   @spec list(keyword()) :: [InviteCode.t()]
@@ -67,8 +67,8 @@ defmodule SukhiFedi.InviteCodes do
     limit = Keyword.get(opts, :limit, 100)
 
     from(c in InviteCode, order_by: [desc: c.id], limit: ^limit)
-    |> Repo.all()
-    |> Repo.preload([:issued_by, :on_behalf_of, uses: :account])
+    |> AccountRepo.all()
+    |> AccountRepo.preload([:issued_by, :on_behalf_of, uses: :account])
   end
 
   @doc """
@@ -80,7 +80,7 @@ defmodule SukhiFedi.InviteCodes do
       has reached `max_uses`)
     * `{:error, :expired}` if past `expires_at`
 
-  Intended to be called inside the signup `Repo.transaction/1` so a
+  Intended to be called inside the signup `AccountRepo.transaction/1` so a
   failed account insert rolls the claim back.
   """
   @spec consume(String.t(), integer()) ::
@@ -88,7 +88,7 @@ defmodule SukhiFedi.InviteCodes do
   def consume(code, consumer_id) when is_binary(code) and is_integer(consumer_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    case Repo.get_by(InviteCode, code: code) do
+    case AccountRepo.get_by(InviteCode, code: code) do
       nil ->
         {:error, :invalid}
 
@@ -119,7 +119,7 @@ defmodule SukhiFedi.InviteCodes do
   def preview(code) when is_binary(code) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    case Repo.get_by(InviteCode, code: code) do
+    case AccountRepo.get_by(InviteCode, code: code) do
       nil ->
         {:error, :invalid}
 
@@ -127,7 +127,7 @@ defmodule SukhiFedi.InviteCodes do
         case classify(ic, now) do
           :ok ->
             %{issued_by: issuer, on_behalf_of: behalf} =
-              Repo.preload(ic, [:issued_by, :on_behalf_of])
+              AccountRepo.preload(ic, [:issued_by, :on_behalf_of])
 
             who = behalf || issuer
 
@@ -174,13 +174,13 @@ defmodule SukhiFedi.InviteCodes do
           c.id == ^id and c.uses_count < c.max_uses and
             (is_nil(c.expires_at) or c.expires_at > ^now)
       )
-      |> Repo.update_all(inc: [uses_count: 1])
+      |> AccountRepo.update_all(inc: [uses_count: 1])
 
     case n do
       1 ->
         %InviteCodeUse{}
         |> Ecto.Changeset.change(invite_code_id: id, account_id: consumer_id, used_at: now)
-        |> Repo.insert!()
+        |> AccountRepo.insert!()
 
         {:ok, %{ic | uses_count: ic.uses_count + 1}}
 

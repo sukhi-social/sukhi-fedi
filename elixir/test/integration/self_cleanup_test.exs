@@ -78,7 +78,7 @@ defmodule SukhiFedi.Integration.SelfCleanupTest do
 
       # the SAME federated Delete a manual delete emits
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in OutboxEvent,
             where:
               e.subject == "sns.outbox.note.deleted" and e.aggregate_id == ^to_string(note_id)
@@ -170,7 +170,7 @@ defmodule SukhiFedi.Integration.SelfCleanupTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   # A direct (DM) note: minimal insert with visibility "direct".

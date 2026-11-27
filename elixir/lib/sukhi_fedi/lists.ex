@@ -22,7 +22,7 @@ defmodule SukhiFedi.Lists do
 
   import Ecto.Query
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{Accounts, AccountRepo, Repo}
   alias SukhiFedi.Schema.{Account, List, Note}
 
   # ── lists CRUD ──────────────────────────────────────────────────────────
@@ -78,30 +78,22 @@ defmodule SukhiFedi.Lists do
 
   # ── membership ──────────────────────────────────────────────────────────
 
+  # What a circle's roster shows of each member.
+  @member_fields ~w(id username display_name summary domain actor_uri avatar_url
+                    banner_url avatar_decorations is_admin roles)a
+
   @spec list_accounts(integer(), integer() | String.t()) ::
           {:ok, [map()]} | {:error, :not_found}
   def list_accounts(viewer_id, id) do
     with {:ok, %List{id: lid}} <- get(viewer_id, id) do
-      rows =
+      ids =
         Repo.all(
-          from la in "list_accounts",
-            join: a in SukhiFedi.Schema.Account,
-            on: a.id == la.account_id,
-            where: la.list_id == ^lid,
-            select: %{
-              id: a.id,
-              username: a.username,
-              display_name: a.display_name,
-              summary: a.summary,
-              domain: a.domain,
-              actor_uri: a.actor_uri,
-              avatar_url: a.avatar_url,
-              banner_url: a.banner_url,
-              avatar_decorations: a.avatar_decorations,
-              is_admin: a.is_admin,
-              roles: a.roles
-            }
+          from la in "list_accounts", where: la.list_id == ^lid, select: la.account_id
         )
+
+      accounts = Accounts.map_by_ids(ids)
+      rows =
+        for id <- ids, Map.has_key?(accounts, id), do: Map.take(accounts[id], @member_fields)
 
       {:ok, rows}
     end
@@ -119,7 +111,7 @@ defmodule SukhiFedi.Lists do
   def add_accounts(viewer_id, id, account_ids) do
     with {:ok, %List{id: lid}} <- get(viewer_id, id) do
       ids = Enum.map(account_ids, &SukhiFedi.Coercion.parse_id/1) |> Enum.reject(&is_nil/1)
-      existing = Repo.all(from a in Account, where: a.id in ^ids, select: a.id)
+      existing = AccountRepo.all(from a in Account, where: a.id in ^ids, select: a.id)
 
       rows = Enum.map(existing, fn aid -> %{list_id: lid, account_id: aid} end)
 
@@ -181,7 +173,7 @@ defmodule SukhiFedi.Lists do
       |> order_by([n], desc: n.id)
       |> limit(^limit)
       |> Repo.all()
-      |> Repo.preload([:account, :media, :tags])
+      |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1])
 
     {:ok, results}
   end

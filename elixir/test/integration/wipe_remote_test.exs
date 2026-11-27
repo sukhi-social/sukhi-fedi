@@ -31,7 +31,7 @@ defmodule SukhiFedi.Integration.WipeRemoteTest do
       # A local user's reaction on the remote note — cascades away with it.
       Repo.insert!(%Reaction{emoji: "🐾", account_id: local.id, note_id: remote.id})
 
-      accounts_before = Repo.aggregate(Account, :count, :id)
+      accounts_before = SukhiFedi.AccountRepo.aggregate(Account, :count, :id)
 
       assert %{mode: :execute, deleted: deleted} = WipeRemote.run(:execute)
       assert deleted >= 1
@@ -42,7 +42,7 @@ defmodule SukhiFedi.Integration.WipeRemoteTest do
 
       # local note and every account survive
       assert Repo.get(Note, local_note.id) != nil
-      assert Repo.aggregate(Account, :count, :id) == accounts_before
+      assert SukhiFedi.AccountRepo.aggregate(Account, :count, :id) == accounts_before
     end
 
     test "domain: scopes the wipe to one peer" do
@@ -62,7 +62,7 @@ defmodule SukhiFedi.Integration.WipeRemoteTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_remote_account!(username, domain) do
@@ -74,7 +74,7 @@ defmodule SukhiFedi.Integration.WipeRemoteTest do
       actor_uri: "https://#{domain}/users/#{username}",
       inbox_url: "https://#{domain}/users/#{username}/inbox"
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_remote_note!(%Account{id: account_id}, ap_id) do

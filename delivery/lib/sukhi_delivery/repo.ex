@@ -2,8 +2,8 @@
 defmodule SukhiDelivery.Repo do
   @moduledoc """
   The business data this node reads and writes: the gateway's hosigraph store,
-  joined through `SukhiDelivery.Store.Adapter`. Job queues are not here; they
-  are in PostgreSQL (`SukhiDelivery.QueueRepo`).
+  joined through `SukhiDelivery.Store.Adapter`. Accounts, the outbox and the
+  job queues are not here; they are in PostgreSQL (`SukhiDelivery.QueueRepo`).
   """
 
   use Ecto.Repo,

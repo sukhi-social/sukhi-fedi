@@ -31,7 +31,7 @@ defmodule SukhiFedi.Integration.SiteContactTest do
 
   defp person!(username, attrs \\ %{}) do
     struct!(Account, Map.merge(%{username: username, display_name: username, summary: ""}, attrs))
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   test "nobody is an admin: nobody is named" do

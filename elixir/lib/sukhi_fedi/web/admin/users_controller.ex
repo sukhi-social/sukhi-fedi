@@ -12,7 +12,7 @@ defmodule SukhiFedi.Web.Admin.UsersController do
 
   alias SukhiFedi.Accounts
   alias SukhiFedi.Addons.Moderation
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Schema.Account
   alias SukhiFedi.Web.Admin.Render
 
@@ -39,7 +39,7 @@ defmodule SukhiFedi.Web.Admin.UsersController do
       base
       |> limit(@page_size)
       |> offset(^((page - 1) * @page_size))
-      |> Repo.all()
+      |> AccountRepo.all()
 
     Render.send_page(conn, "users/index.html.eex",
       page_title: "Users",

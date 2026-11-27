@@ -46,7 +46,7 @@ defmodule SukhiFedi.Integration.BackfillTest do
     assert reload(remote).backfill_state == "pending"
 
     # 走っている最中に enqueue されても pending へは戻さない。
-    Repo.update_all(from(a in Account, where: a.id == ^remote.id),
+    SukhiFedi.AccountRepo.update_all(from(a in Account, where: a.id == ^remote.id),
       set: [backfill_state: "running"]
     )
 
@@ -54,7 +54,7 @@ defmodule SukhiFedi.Integration.BackfillTest do
     assert reload(remote).backfill_state == "running"
   end
 
-  defp reload(account), do: Repo.get!(Account, account.id)
+  defp reload(account), do: SukhiFedi.AccountRepo.get!(Account, account.id)
 
   defp accept_follow!(follower, followee) do
     %Follow{follower_uri: actor_uri(follower), followee_id: followee.id, state: "accepted"}
@@ -70,7 +70,7 @@ defmodule SukhiFedi.Integration.BackfillTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_remote_account!(username, domain) do
@@ -82,6 +82,6 @@ defmodule SukhiFedi.Integration.BackfillTest do
       actor_uri: "https://#{domain}/users/#{username}",
       inbox_url: "https://#{domain}/users/#{username}/inbox"
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

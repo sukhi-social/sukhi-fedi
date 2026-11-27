@@ -141,9 +141,10 @@ from its own route table. Design notes and the migration order:
 
 ### 2.1 Where the data lives
 
-The business data (accounts, notes, follows, the outbox) is in Datalevin.
-PostgreSQL holds the job queues and the raw bodies, and nothing else. The
-application code reaches the store as if it were Ecto.
+Accounts and how they sign in, the audit trail and the outbox are in
+PostgreSQL (`SukhiFedi.AccountRepo`), with the job queues and the raw bodies.
+The rest of the business data (notes, follows, …) is in hosigraph, which the
+application code reaches as if it were Ecto (`docs/STORE.md`).
 
 ```
                          SukhiFedi.Repo  (looks like Ecto)
@@ -151,13 +152,17 @@ application code reaches the store as if it were Ecto.
                   Ecto.Adapters.Hosi (ecto_hosi)
                   Ecto queries compiled to Datalog;
                   hosigraph over one `dtlv`, one database, one writer.
-                  Not crash-atomic. docs/DATALEVIN.md
+                  Not crash-atomic. docs/STORE.md
+
+   Accounts, audit, outbox ── PostgreSQL (`DB_*`, `SukhiFedi.AccountRepo`);
+        the delivery node reads them through `SukhiDelivery.QueueRepo`, and
+        its relay turns an outbox row into a job in one transaction.
 
    Job queues (Oban) ── PostgreSQL (`DB_*`): one `oban_jobs` table for the
         gateway's and the delivery node's queues. Jobs are not in the same
         store as the business rows, so "enqueue in the same transaction"
-        does not hold: the row is written first, the job after, and a job
-        that runs twice must be harmless (`delivery_receipts`). The outbox
+        does not hold for them: the row is written first, the job after, and a
+        job that runs twice must be harmless (`delivery_receipts`). The outbox
         relay polls the outbox every 2 seconds; there is no LISTEN/NOTIFY.
 
    Raw bodies ── the `raw_blobs` table of the same PostgreSQL (or S3,

@@ -14,6 +14,8 @@ defmodule SukhiFedi.PullFederation.Notify do
 
   import Ecto.Query
 
+  alias SukhiFedi.AccountRepo
+
   alias SukhiFedi.Repo
   alias SukhiShared.{PeerCapabilities, PullStats}
 
@@ -88,16 +90,22 @@ defmodule SukhiFedi.PullFederation.Notify do
   defp remember(origin, heads, now) do
     uris = Enum.map(heads, &elem(&1, 0))
 
-    followed =
+    remote =
       from(a in "accounts",
-        join: f in "follows",
-        on: f.followee_id == a.id and f.state == "accepted",
         where: a.actor_uri in ^uris and not is_nil(a.domain),
+        select: {a.id, a.actor_uri}
+      )
+      |> AccountRepo.all()
+      |> Map.new()
+
+    followed =
+      from(f in "follows",
+        where: f.followee_id in ^Map.keys(remote) and f.state == "accepted",
         distinct: true,
-        select: a.actor_uri
+        select: f.followee_id
       )
       |> Repo.all()
-      |> MapSet.new()
+      |> MapSet.new(&Map.fetch!(remote, &1))
 
     cursors =
       from(c in "pull_cursors", where: c.actor_uri in ^uris, select: {c.actor_uri, c.seq})

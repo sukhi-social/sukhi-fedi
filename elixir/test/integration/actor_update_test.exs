@@ -10,13 +10,12 @@ defmodule SukhiFedi.Integration.ActorUpdateTest do
   @moduletag :integration
 
   alias SukhiFedi.AP.Instructions.ActorUpdate
-  alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
 
   @uri "https://remote.example/users/nuno"
 
   defp remote!(uri \\ @uri) do
-    Repo.insert!(%Account{
+    insert_account!(%Account{
       username: "nuno",
       display_name: "nuno",
       summary: "",
@@ -49,7 +48,7 @@ defmodule SukhiFedi.Integration.ActorUpdateTest do
   test "Update(Person) re-fetches and refreshes the avatar" do
     acct = remote!()
     assert :ok = ActorUpdate.maybe_handle(update(@uri, @uri), fetch_ok(person(@uri)))
-    assert %Account{avatar_url: "https://remote.example/new.png"} = Repo.get(Account, acct.id)
+    assert %Account{avatar_url: "https://remote.example/new.png"} = SukhiFedi.AccountRepo.get(Account, acct.id)
   end
 
   test "an object id that is not the actor is ignored" do
@@ -66,12 +65,12 @@ defmodule SukhiFedi.Integration.ActorUpdateTest do
 
     assert :ok = ActorUpdate.maybe_handle(update(@uri, other), fetch)
     refute_received {:fetched, _}
-    assert %Account{avatar_url: "https://remote.example/old.png"} = Repo.get(Account, acct.id)
+    assert %Account{avatar_url: "https://remote.example/old.png"} = SukhiFedi.AccountRepo.get(Account, acct.id)
   end
 
   test "an actor we have no row for is not created" do
     assert :ok = ActorUpdate.maybe_handle(update(@uri, @uri), fetch_ok(person(@uri)))
-    assert Repo.get_by(Account, actor_uri: @uri) == nil
+    assert SukhiFedi.AccountRepo.get_by(Account, actor_uri: @uri) == nil
   end
 
   test "a local actor is never re-fetched" do
@@ -87,13 +86,13 @@ defmodule SukhiFedi.Integration.ActorUpdateTest do
 
     assert :ok = ActorUpdate.maybe_handle(update(local, local), fetch)
     refute_received {:fetched, _}
-    assert %Account{avatar_url: "https://remote.example/old.png"} = Repo.get(Account, acct.id)
+    assert %Account{avatar_url: "https://remote.example/old.png"} = SukhiFedi.AccountRepo.get(Account, acct.id)
   end
 
   test "a document from another host does not overwrite the row" do
     acct = remote!()
     evil = person("https://evil.example/users/nuno")
     assert :ok = ActorUpdate.maybe_handle(update(@uri, @uri), fetch_ok(evil))
-    assert %Account{avatar_url: "https://remote.example/old.png"} = Repo.get(Account, acct.id)
+    assert %Account{avatar_url: "https://remote.example/old.png"} = SukhiFedi.AccountRepo.get(Account, acct.id)
   end
 end

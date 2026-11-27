@@ -23,7 +23,7 @@ defmodule SukhiFedi.Maintenance.RefetchActors do
 
   alias SukhiFedi.Federation.{ActorFetcher, RemoteAccounts}
   alias SukhiFedi.Maintenance.Progress
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Schema.Account
 
   @spec run(:dry_run | :execute) :: map()
@@ -55,7 +55,7 @@ defmodule SukhiFedi.Maintenance.RefetchActors do
       select: a.actor_uri,
       order_by: a.id
     )
-    |> Repo.all()
+    |> AccountRepo.all()
   end
 
   defp refetch(uri) do

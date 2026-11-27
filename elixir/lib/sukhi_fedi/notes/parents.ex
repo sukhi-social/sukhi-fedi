@@ -17,7 +17,7 @@ defmodule SukhiFedi.Notes.Parents do
 
   import Ecto.Query
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{Accounts, Repo}
   alias SukhiFedi.Schema.{Account, Note}
 
   @excerpt_len 80
@@ -47,14 +47,10 @@ defmodule SukhiFedi.Notes.Parents do
     if ap_ids == [] do
       %{}
     else
-      from(n in Note,
-        join: a in Account,
-        on: a.id == n.account_id,
-        where: n.ap_id in ^ap_ids,
-        select: {n.ap_id, n, a}
-      )
+      from(n in Note, where: n.ap_id in ^ap_ids)
       |> Repo.all()
-      |> Map.new(fn {ap_id, n, a} -> {ap_id, summarize(n, a)} end)
+      |> summaries()
+      |> Map.new(fn {n, summary} -> {n.ap_id, summary} end)
     end
   end
 
@@ -104,16 +100,18 @@ defmodule SukhiFedi.Notes.Parents do
     ids = Map.values(uri_to_id)
 
     rows =
-      from(n in Note,
-        join: a in Account,
-        on: a.id == n.account_id,
-        where: n.id in ^ids,
-        select: {n.id, n, a}
-      )
+      from(n in Note, where: n.id in ^ids)
       |> Repo.all()
-      |> Map.new(fn {id, n, a} -> {id, summarize(n, a)} end)
+      |> summaries()
+      |> Map.new(fn {n, summary} -> {n.id, summary} end)
 
     Map.new(uri_to_id, fn {uri, id} -> {uri, Map.get(rows, id)} end)
+  end
+
+  # `{note, summary}` for each note whose author we have.
+  defp summaries(notes) do
+    authors = Accounts.map_by_ids(Enum.map(notes, & &1.account_id))
+    for n <- notes, a <- List.wrap(authors[n.account_id]), do: {n, summarize(n, a)}
   end
 
   defp summarize(%Note{} = n, %Account{} = a) do

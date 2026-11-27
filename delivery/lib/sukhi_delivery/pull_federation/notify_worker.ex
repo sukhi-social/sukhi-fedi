@@ -34,6 +34,7 @@ defmodule SukhiDelivery.PullFederation.NotifyWorker do
 
   import Ecto.Query
 
+  alias SukhiDelivery.Accounts
   alias SukhiDelivery.Delivery.Worker
   alias SukhiDelivery.PullFederation.{Fallback, Peers}
   alias SukhiDelivery.Repo
@@ -125,26 +126,38 @@ defmodule SukhiDelivery.PullFederation.NotifyWorker do
   end
 
   # The newest log row per followed local actor that this host has not been
-  # told about: `{actor_uri, seq, max_id}`.
+  # told about: `{actor_uri, seq, max_id}`. Three reads: the new rows, who on
+  # the host follows those actors, and the names of the ones that are followed.
   defp heads(host, through) do
     domain = SukhiDelivery.Config.domain!()
-    host = String.downcase(host)
 
-    from(l in "pull_log",
-      join: a in "accounts",
-      on: a.id == l.account_id,
-      where: l.id > ^through,
-      where:
-        fragment(
-          "EXISTS (SELECT 1 FROM follows f WHERE f.followee_id = ? AND f.state = 'accepted' AND lower(split_part(f.follower_uri, '/', 3)) = ?)",
-          l.account_id,
-          ^host
-        ),
-      group_by: a.username,
-      select: %{username: a.username, seq: max(l.seq), max_id: max(l.id)}
+    newest =
+      from(l in "pull_log",
+        where: l.id > ^through,
+        group_by: l.account_id,
+        select: %{account_id: l.account_id, seq: max(l.seq), max_id: max(l.id)}
+      )
+      |> Repo.all()
+
+    followed = followed_from(String.downcase(host), Enum.map(newest, & &1.account_id))
+    usernames = Accounts.usernames(MapSet.to_list(followed))
+
+    for head <- newest, username <- List.wrap(usernames[head.account_id]) do
+      Map.put(head, :actor_uri, "https://#{domain}/users/#{username}")
+    end
+  end
+
+  # Which of these accounts someone on `host` follows.
+  defp followed_from(_host, []), do: MapSet.new()
+
+  defp followed_from(host, account_ids) do
+    from(f in "follows",
+      where: f.followee_id in ^account_ids and f.state == "accepted",
+      select: {f.followee_id, f.follower_uri}
     )
     |> Repo.all()
-    |> Enum.map(&Map.put(&1, :actor_uri, "https://#{domain}/users/#{&1.username}"))
+    |> Enum.filter(fn {_, uri} -> PeerCapabilities.host_of(uri) == host end)
+    |> MapSet.new(fn {id, _} -> id end)
   end
 
   defp notified_through(host) do

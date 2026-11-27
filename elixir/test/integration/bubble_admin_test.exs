@@ -10,7 +10,7 @@ defmodule SukhiFedi.Integration.BubbleAdminTest do
 
   defp remote!(username, domain),
     do:
-      Repo.insert!(%Account{
+      insert_account!(%Account{
         username: username,
         display_name: username,
         summary: "",
@@ -21,7 +21,7 @@ defmodule SukhiFedi.Integration.BubbleAdminTest do
     remote!("a", "misskey.io")
     remote!("b", "misskey.io")
     remote!("c", "hackers.pub")
-    Repo.insert!(%Account{username: "local", display_name: "local", summary: ""})
+    insert_account!(%Account{username: "local", display_name: "local", summary: ""})
 
     all = Moderation.known_domains()
 

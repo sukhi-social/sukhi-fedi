@@ -102,7 +102,7 @@ defmodule SukhiFedi.Integration.EmailAuthTest do
 
       {1, _} =
         from(c in EmailCode, where: c.account_id == ^account.id)
-        |> Repo.update_all(set: [expires_at: past])
+        |> SukhiFedi.AccountRepo.update_all(set: [expires_at: past])
 
       assert {:error, :expired} = EmailAuth.confirm_verification(account, code_from_mail(email))
     end

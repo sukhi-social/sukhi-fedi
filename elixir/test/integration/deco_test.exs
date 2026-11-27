@@ -35,7 +35,7 @@ defmodule SukhiFedi.Integration.DecoTest do
 
     account
     |> Ecto.Changeset.change(created_at: old)
-    |> SukhiFedi.Repo.update!()
+    |> SukhiFedi.AccountRepo.update!()
   end
 
   describe "板" do
@@ -381,7 +381,7 @@ defmodule SukhiFedi.Integration.DecoTest do
         Deco.post(author, deco.slug, %{"title" => "だまって", "status" => "だまって", "visibility" => "local"})
 
       ev =
-        SukhiFedi.Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in SukhiFedi.Schema.OutboxEvent,
             where: e.subject == "sns.outbox.note.created" and e.aggregate_id == ^to_string(post.id)
           )
@@ -516,7 +516,7 @@ defmodule SukhiFedi.Integration.DecoTest do
       {:ok, post} = Deco.post(author, deco.slug, %{"title" => "ひろく", "status" => "もと"})
       {:ok, _} = Deco.update_post(author, post.id, %{"status" => "なおした"})
 
-      assert SukhiFedi.Repo.exists?(
+      assert SukhiFedi.AccountRepo.exists?(
                from(e in SukhiFedi.Schema.OutboxEvent,
                  where: e.subject == "sns.outbox.note.updated" and e.aggregate_id == ^to_string(post.id)
                )
@@ -529,7 +529,7 @@ defmodule SukhiFedi.Integration.DecoTest do
 
       {:ok, _} = Deco.update_post(author, post.id, %{"status" => "なおした"})
 
-      refute SukhiFedi.Repo.exists?(
+      refute SukhiFedi.AccountRepo.exists?(
                from(e in SukhiFedi.Schema.OutboxEvent,
                  where: e.subject == "sns.outbox.note.updated" and e.aggregate_id == ^to_string(post.id)
                )
@@ -1202,7 +1202,7 @@ defmodule SukhiFedi.Integration.DecoTest do
     # が本当に取りに行って、fedify(NATS)が要る ── ここで試したいのは
     # 「板に結べるか」なので、取ってくるところは外す。
     setup do
-      SukhiFedi.Repo.insert!(%SukhiFedi.Schema.Account{
+      insert_account!(%SukhiFedi.Schema.Account{
         username: "someone",
         display_name: "someone",
         summary: "",

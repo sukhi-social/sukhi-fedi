@@ -38,7 +38,7 @@ defmodule SukhiFedi.Integration.DecoMarkdownTest do
 
     account
     |> Ecto.Changeset.change(created_at: old)
-    |> SukhiFedi.Repo.update!()
+    |> SukhiFedi.AccountRepo.update!()
   end
 
   defp get(path, headers \\ []) do

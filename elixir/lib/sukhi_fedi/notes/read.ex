@@ -37,7 +37,7 @@ defmodule SukhiFedi.Notes.Read do
 
           note ->
             if visible_to?(note, viewer_id) do
-              {:ok, Repo.preload(note, [:account, :media, :poll, :reactions]) |> with_refs(viewer_id)}
+              {:ok, Repo.preload(note, [:media, :poll, :reactions, account: &Accounts.by_ids/1]) |> with_refs(viewer_id)}
             else
               {:error, :not_found}
             end
@@ -233,7 +233,7 @@ defmodule SukhiFedi.Notes.Read do
       else
         from(n in Note, where: n.ap_id in ^remote_uris)
         |> Repo.all()
-        |> Repo.preload(:account)
+        |> Repo.preload(account: &Accounts.by_ids/1)
         |> Map.new(fn n -> {n.ap_id, n} end)
       end
 
@@ -245,7 +245,7 @@ defmodule SukhiFedi.Notes.Read do
       else
         from(n in Note, where: n.id in ^local_ids)
         |> Repo.all()
-        |> Repo.preload(:account)
+        |> Repo.preload(account: &Accounts.by_ids/1)
         |> Map.new(fn n -> {n.id, n} end)
       end
 

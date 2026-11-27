@@ -12,7 +12,7 @@ defmodule SukhiDelivery.Delivery.FollowersSync do
 
   import Ecto.Query
   alias SukhiDelivery.Repo
-  alias SukhiDelivery.Schema.{Follow, Account}
+  alias SukhiDelivery.Schema.Follow
 
   @doc """
   Extract the authoritative item list from a fetched collection body. Only an
@@ -93,7 +93,7 @@ defmodule SukhiDelivery.Delivery.FollowersSync do
     # believes follow it). We reconcile our local "local-user follows sender"
     # edges against that list. A local sender has no actor_uri row, so this
     # no-ops — we never touch a local actor's own follow edges.
-    sender = Repo.one(from a in Account, where: a.actor_uri == ^sender_actor_uri, limit: 1)
+    sender = SukhiDelivery.Accounts.by_actor_uri(sender_actor_uri)
 
     if sender do
       local_follows =

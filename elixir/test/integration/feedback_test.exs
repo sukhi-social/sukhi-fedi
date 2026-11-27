@@ -8,7 +8,7 @@ defmodule SukhiFedi.Integration.FeedbackTest do
   alias SukhiFedi.Schema.Account
 
   defp create_account!(username) do
-    %Account{username: username, display_name: username, summary: ""} |> Repo.insert!()
+    %Account{username: username, display_name: username, summary: ""} |> insert_account!()
   end
 
   defp errors_on(%Ecto.Changeset{} = cs) do
@@ -106,13 +106,6 @@ defmodule SukhiFedi.Integration.FeedbackTest do
       assert 1 == Feedback.purge_handled_before(DateTime.add(DateTime.utc_now(), 3600))
       assert {[%{id: id}], 1} = Feedback.list(%{offset: 0, limit: 10})
       assert id == open.id
-    end
-
-    test "deleting the sender's account keeps the item, detached" do
-      sender = create_account!("fb_gone")
-      {:ok, item} = Feedback.submit(%{"body" => "bye"}, sender.id)
-      Repo.delete!(sender)
-      assert %{account_id: nil} = Repo.get!(SukhiFedi.Schema.FeedbackItem, item.id)
     end
   end
 end

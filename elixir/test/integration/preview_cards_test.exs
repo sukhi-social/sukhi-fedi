@@ -10,7 +10,7 @@ defmodule SukhiFedi.Integration.PreviewCardsTest do
 
   describe "for_notes/1" do
     test "returns stored cards keyed by note id" do
-      alice = %Account{username: "alice_pc", display_name: "alice", summary: ""} |> Repo.insert!()
+      alice = %Account{username: "alice_pc", display_name: "alice", summary: ""} |> insert_account!()
       note = %Note{account_id: alice.id, content: "see example.com", visibility: "public"} |> Repo.insert!()
 
       %PreviewCard{
@@ -31,7 +31,7 @@ defmodule SukhiFedi.Integration.PreviewCardsTest do
     end
 
     test "is empty for a note with no card" do
-      alice = %Account{username: "bob_pc", display_name: "bob", summary: ""} |> Repo.insert!()
+      alice = %Account{username: "bob_pc", display_name: "bob", summary: ""} |> insert_account!()
       note = %Note{account_id: alice.id, content: "no links", visibility: "public"} |> Repo.insert!()
 
       assert PreviewCards.for_notes([note.id]) == %{}

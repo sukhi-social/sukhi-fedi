@@ -92,7 +92,7 @@ defmodule SukhiFedi.Integration.ModerationTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_remote_account!(username, domain) do
@@ -103,6 +103,6 @@ defmodule SukhiFedi.Integration.ModerationTest do
       summary: "",
       actor_uri: "https://#{domain}/users/#{username}"
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

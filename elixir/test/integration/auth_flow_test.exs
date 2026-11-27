@@ -153,7 +153,7 @@ defmodule SukhiFedi.Integration.AuthFlowTest do
 
     {1, _} =
       from(a in SukhiFedi.Schema.Account, where: a.id == ^account.id)
-      |> Repo.update_all(set: [totp_last_used_step: current_step() - 5])
+      |> SukhiFedi.AccountRepo.update_all(set: [totp_last_used_step: current_step() - 5])
 
     conn = post_json("/login", %{username: u, password: p})
     %{"pending" => pending} = body!(conn)

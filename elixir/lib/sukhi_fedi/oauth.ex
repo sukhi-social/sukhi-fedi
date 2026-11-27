@@ -17,7 +17,7 @@ defmodule SukhiFedi.OAuth do
 
   alias SukhiFedi.Accounts
   alias Ecto.Multi
-  alias SukhiFedi.{Outbox, Repo}
+  alias SukhiFedi.{Outbox, AccountRepo}
   alias SukhiFedi.Schema.{OauthAccessToken, OauthApp, OauthAuthorizationCode}
 
   # 10-minute lifetime per RFC 6749 §4.1.2
@@ -61,7 +61,7 @@ defmodule SukhiFedi.OAuth do
         %{app_id: app.id, name: app.name, owner_account_id: app.owner_account_id}
       end
     )
-    |> Repo.transaction()
+    |> AccountRepo.transaction()
     |> case do
       {:ok, %{app: app}} -> {:ok, %{app: app, client_secret: client_secret}}
       {:error, :app, %Ecto.Changeset{} = cs, _} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
@@ -71,7 +71,7 @@ defmodule SukhiFedi.OAuth do
 
   @spec find_app_by_client_id(String.t()) :: {:ok, OauthApp.t()} | {:error, :not_found}
   def find_app_by_client_id(client_id) when is_binary(client_id) do
-    case Repo.get_by(OauthApp, client_id: client_id) do
+    case AccountRepo.get_by(OauthApp, client_id: client_id) do
       nil -> {:error, :not_found}
       app -> {:ok, app}
     end
@@ -122,7 +122,7 @@ defmodule SukhiFedi.OAuth do
           expires_at: expires_at,
           code_challenge: challenge
         })
-        |> Repo.insert()
+        |> AccountRepo.insert()
 
       {:ok, %{code: code, state: state}}
     end
@@ -166,7 +166,7 @@ defmodule SukhiFedi.OAuth do
 
   # The challenge of a live code, or nil (unknown / spent code: `claim_code` then refuses it).
   defp challenge_of(code, app_id) when is_binary(code) do
-    case Repo.get_by(OauthAuthorizationCode, code_hash: hash(code), app_id: app_id) do
+    case AccountRepo.get_by(OauthAuthorizationCode, code_hash: hash(code), app_id: app_id) do
       %OauthAuthorizationCode{code_challenge: c} when is_binary(c) -> c
       _ -> nil
     end
@@ -248,7 +248,7 @@ defmodule SukhiFedi.OAuth do
       _ =
         OauthAccessToken
         |> where([t], t.id == ^old.id)
-        |> Repo.update_all(set: [revoked_at: utc_now()])
+        |> AccountRepo.update_all(set: [revoked_at: utc_now()])
 
       mint_token(app.id, old.account_id, old.scopes, refresh: true)
     end
@@ -291,7 +291,7 @@ defmodule SukhiFedi.OAuth do
   def verify_bearer(token) when is_binary(token) do
     h = hash(token)
 
-    case Repo.get_by(OauthAccessToken, token_hash: h) do
+    case AccountRepo.get_by(OauthAccessToken, token_hash: h) do
       nil ->
         {:error, :invalid_token}
 
@@ -332,7 +332,7 @@ defmodule SukhiFedi.OAuth do
         from(t in OauthAccessToken,
           where: t.app_id == ^app.id and (t.token_hash == ^h or t.refresh_token_hash == ^h)
         )
-        |> Repo.update_all(set: [revoked_at: utc_now()])
+        |> AccountRepo.update_all(set: [revoked_at: utc_now()])
     end
 
     :ok
@@ -352,7 +352,7 @@ defmodule SukhiFedi.OAuth do
     # Enforce the app's scope ceiling here too (the other grants already
     # do), so signup can't mint a token with scopes beyond what the app
     # registered.
-    case Repo.get(OauthApp, app_id) do
+    case AccountRepo.get(OauthApp, app_id) do
       nil ->
         {:error, :invalid_client}
 
@@ -396,7 +396,7 @@ defmodule SukhiFedi.OAuth do
   def revoke_account_tokens(account_id) when is_integer(account_id) do
     {n, _} =
       from(t in OauthAccessToken, where: t.account_id == ^account_id and is_nil(t.revoked_at))
-      |> Repo.update_all(set: [revoked_at: utc_now()])
+      |> AccountRepo.update_all(set: [revoked_at: utc_now()])
 
     n
   end
@@ -434,7 +434,7 @@ defmodule SukhiFedi.OAuth do
     {:ok, _row} =
       %OauthAccessToken{}
       |> OauthAccessToken.changeset(attrs)
-      |> Repo.insert()
+      |> AccountRepo.insert()
 
     {:ok,
      %{
@@ -461,7 +461,7 @@ defmodule SukhiFedi.OAuth do
             c.expires_at > ^now,
         select: c
       )
-      |> Repo.update_all(set: [used_at: now])
+      |> AccountRepo.update_all(set: [used_at: now])
 
     case {n, rows} do
       {1, [row]} -> {:ok, row}
@@ -474,7 +474,7 @@ defmodule SukhiFedi.OAuth do
   defp find_refresh_token(token, app_id) when is_binary(token) do
     h = hash(token)
 
-    case Repo.get_by(OauthAccessToken, refresh_token_hash: h, app_id: app_id) do
+    case AccountRepo.get_by(OauthAccessToken, refresh_token_hash: h, app_id: app_id) do
       nil -> {:error, :invalid_grant}
       %OauthAccessToken{revoked_at: %DateTime{}} -> {:error, :invalid_grant}
       tok -> {:ok, tok}
@@ -484,7 +484,7 @@ defmodule SukhiFedi.OAuth do
   defp find_refresh_token(_, _), do: {:error, :invalid_grant}
 
   defp load_token(%OauthAccessToken{} = tok) do
-    app = Repo.get(OauthApp, tok.app_id)
+    app = AccountRepo.get(OauthApp, tok.app_id)
 
     account =
       case tok.account_id do
@@ -496,7 +496,7 @@ defmodule SukhiFedi.OAuth do
     _ =
       OauthAccessToken
       |> where([t], t.id == ^tok.id)
-      |> Repo.update_all(set: [last_used_at: utc_now()])
+      |> AccountRepo.update_all(set: [last_used_at: utc_now()])
 
     {:ok, %{account: account, app: app, scopes: split_scopes(tok.scopes)}}
   end

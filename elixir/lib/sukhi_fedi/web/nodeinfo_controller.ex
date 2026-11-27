@@ -15,7 +15,7 @@ defmodule SukhiFedi.Web.NodeinfoController do
   import Plug.Conn
   import Ecto.Query
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{AccountRepo, Repo}
   alias SukhiFedi.Schema.{Account, Note}
 
   def discovery(conn, _opts) do
@@ -70,11 +70,11 @@ defmodule SukhiFedi.Web.NodeinfoController do
       },
       usage: %{
         users: %{
-          total: count_safe(from a in Account, where: is_nil(a.domain)),
+          total: count_safe(AccountRepo, from(a in Account, where: is_nil(a.domain))),
           activeMonth: 0,
           activeHalfyear: 0
         },
-        localPosts: count_safe(from n in Note, where: is_nil(n.domain))
+        localPosts: count_safe(Repo, from(n in Note, where: is_nil(n.domain)))
       },
       # 招待制サーバ。完全 open になる日が来たら
       # `SukhiFedi.Config` か runtime env でひっくり返せるようにする。
@@ -87,8 +87,8 @@ defmodule SukhiFedi.Web.NodeinfoController do
     |> send_resp(200, JSON.encode!(body))
   end
 
-  defp count_safe(queryable) do
-    Repo.aggregate(queryable, :count, :id)
+  defp count_safe(repo, queryable) do
+    repo.aggregate(queryable, :count, :id)
   rescue
     _ -> 0
   end

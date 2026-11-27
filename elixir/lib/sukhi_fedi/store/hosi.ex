@@ -6,17 +6,30 @@ defmodule SukhiFedi.Store.Hosi do
   `ecto_hosi` derives the hosigraph schema from Ecto schemas, so it needs the
   list of them. That list is every `SukhiFedi.Schema.*` module that is an Ecto
   schema, found from the application's module list: a new schema file joins
-  the store without anyone remembering to register it.
+  the store without anyone remembering to register it. The ones named in
+  `@postgres` are `SukhiFedi.AccountRepo`'s tables and stay out;
+  `SukhiFedi.Repo` refuses a query for one.
   """
 
-  @doc "Every Ecto schema module under `SukhiFedi.Schema`, sorted."
+  @postgres Enum.map(
+              ~w(Account AccountDeletion AdminAudit EmailCode InviteCode InviteCodeUse JoinApplication
+                 OauthAccessToken OauthApp OauthAuthorizationCode OutboxEvent Session
+                 WebauthnChallenge WebauthnCredential),
+              &Module.concat(SukhiFedi.Schema, &1)
+            )
+
+  @doc "The schemas whose tables are in PostgreSQL."
+  @spec postgres() :: [module()]
+  def postgres, do: @postgres
+
+  @doc "The Ecto schema modules under `SukhiFedi.Schema` that the store holds, sorted."
   @spec schemas() :: [module()]
   def schemas do
     Application.load(:sukhi_fedi)
     {:ok, modules} = :application.get_key(:sukhi_fedi, :modules)
 
     modules
-    |> Enum.filter(&schema?/1)
+    |> Enum.filter(&(schema?(&1) and &1 not in @postgres))
     |> Enum.sort()
   end
 

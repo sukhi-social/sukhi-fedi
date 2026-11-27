@@ -365,7 +365,7 @@ defmodule SukhiFedi.Integration.RelaysTest do
   # ── helpers ──────────────────────────────────────────────────────────────
 
   defp local!(username) do
-    Repo.insert!(%Account{username: username, display_name: username, summary: ""})
+    insert_account!(%Account{username: username, display_name: username, summary: ""})
   end
 
   defp pending_relay! do
@@ -392,7 +392,7 @@ defmodule SukhiFedi.Integration.RelaysTest do
   # reaching for the network, so the ingest path is testable end to end.
   defp remote_note!(ap_id) do
     author =
-      Repo.insert!(%Account{
+      insert_account!(%Account{
         username: "rn_#{System.unique_integer([:positive])}",
         display_name: "rn",
         summary: "",
@@ -413,7 +413,7 @@ defmodule SukhiFedi.Integration.RelaysTest do
   # The shadow Account a mirrored note hangs off. Without it `Mirror`
   # would ingest the actor over the network, which this env cannot do.
   defp remote_author!(host) do
-    Repo.insert!(%Account{
+    insert_account!(%Account{
       username: "ra_#{System.unique_integer([:positive])}",
       display_name: "ra",
       summary: "",

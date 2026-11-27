@@ -26,7 +26,7 @@ defmodule SukhiFedi.ServerActivity do
 
   alias SukhiFedi.Federation.OutboxBackfill
   alias SukhiFedi.Maintenance.Progress
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
 
   # A running run whose row has not been touched for this long is shown as
   # "may have stopped". Progress writes about once a second, so this is
@@ -138,7 +138,7 @@ defmodule SukhiFedi.ServerActivity do
         group_by: o.status,
         select: {o.status, count(o.id), min(o.inserted_at)}
       )
-      |> Repo.all()
+      |> AccountRepo.all()
       |> Map.new(fn {status, n, oldest} -> {status, {n, oldest}} end)
 
     {pending, oldest} = Map.get(rows, "pending", {0, nil})

@@ -11,10 +11,6 @@ defmodule SukhiFedi.Schema.Deco do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:slug)
 
-  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:created_by_id, to: "accounts", on_delete: :nilify, name: "decos_created_by_id_fkey")
-  hosi_ref(:topic_by_id, to: "accounts", on_delete: :nilify, name: "decos_topic_by_id_fkey")
-
   schema "decos" do
     field(:slug, :string)
     field(:name, :string)

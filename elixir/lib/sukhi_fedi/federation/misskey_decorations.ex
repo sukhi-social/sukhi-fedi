@@ -18,7 +18,7 @@ defmodule SukhiFedi.Federation.MisskeyDecorations do
   """
 
   alias SukhiFedi.Fedi.HttpFetch
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Schema.Account
   alias SukhiShared.UrlGuard
 
@@ -59,7 +59,7 @@ defmodule SukhiFedi.Federation.MisskeyDecorations do
     with true <- UrlGuard.safe?(url) || {:error, :unsafe_url},
          {:ok, %{status: 200, body: body}} when is_binary(body) <- post(url, username),
          {:ok, json} <- HttpFetch.decode_json(body),
-         {:ok, _} <- account |> Account.changeset_decorations(parse(json)) |> Repo.update() do
+         {:ok, _} <- account |> Account.changeset_decorations(parse(json)) |> AccountRepo.update() do
       :ok
     else
       {:error, reason} ->

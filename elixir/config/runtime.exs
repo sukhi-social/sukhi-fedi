@@ -294,7 +294,7 @@ case System.get_env("SUKHI_STORE") do
 
   other ->
     raise "SUKHI_STORE=#{other}: the PostgreSQL store is gone and only Datalevin is left. " <>
-            "Unset SUKHI_STORE. PostgreSQL stays for the job queues (DB_*), nothing else."
+            "Unset SUKHI_STORE. PostgreSQL (DB_*) holds accounts, the outbox and job queues."
 end
 
 if config_env() == :prod do

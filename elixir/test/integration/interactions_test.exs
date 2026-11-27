@@ -27,7 +27,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
 
       assert Repo.get_by!(Reaction, account_id: a.id, note_id: n.id, emoji: "⭐")
 
-      assert Repo.exists?(
+      assert SukhiFedi.AccountRepo.exists?(
                from e in OutboxEvent, where: e.subject == "sns.outbox.like.created"
              )
     end
@@ -42,7 +42,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
       {:ok, _} = Notes.favourite(a, n.id)
 
       assert %OutboxEvent{payload: payload} =
-               Repo.one!(from e in OutboxEvent, where: e.subject == "sns.outbox.like.created")
+               SukhiFedi.AccountRepo.one!(from e in OutboxEvent, where: e.subject == "sns.outbox.like.created")
 
       assert payload["note_author_id"] == b.id
       assert payload["account_id"] == a.id
@@ -56,7 +56,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
       {:ok, _} = Notes.favourite(a, n.id)
       {:ok, _} = Notes.favourite(a, n.id)
 
-      assert Repo.aggregate(
+      assert SukhiFedi.AccountRepo.aggregate(
                from(e in OutboxEvent,
                  where: e.subject == "sns.outbox.like.created"
                ),
@@ -77,7 +77,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
 
       refute Repo.get_by(Reaction, account_id: a.id, note_id: n.id, emoji: "⭐")
 
-      assert Repo.exists?(
+      assert SukhiFedi.AccountRepo.exists?(
                from e in OutboxEvent, where: e.subject == "sns.outbox.like.undone"
              )
     end
@@ -93,7 +93,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
 
       assert Repo.get_by!(Reaction, account_id: a.id, note_id: n.id, emoji: "🦊")
 
-      assert Repo.exists?(
+      assert SukhiFedi.AccountRepo.exists?(
                from e in OutboxEvent, where: e.subject == "sns.outbox.reaction.created"
              )
     end
@@ -106,7 +106,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
       {:ok, _} = Notes.react(a, n.id, "🦊")
       {:ok, _} = Notes.react(a, n.id, "🦊")
 
-      assert Repo.aggregate(
+      assert SukhiFedi.AccountRepo.aggregate(
                from(e in OutboxEvent, where: e.subject == "sns.outbox.reaction.created"),
                :count,
                :id
@@ -125,7 +125,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
 
       refute Repo.get_by(Reaction, account_id: a.id, note_id: n.id, emoji: "🦊")
 
-      assert Repo.exists?(
+      assert SukhiFedi.AccountRepo.exists?(
                from e in OutboxEvent, where: e.subject == "sns.outbox.reaction.undone"
              )
     end
@@ -141,7 +141,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
 
       assert Repo.get_by!(Boost, account_id: a.id, note_id: n.id)
 
-      assert Repo.exists?(
+      assert SukhiFedi.AccountRepo.exists?(
                from e in OutboxEvent, where: e.subject == "sns.outbox.announce.created"
              )
     end
@@ -156,7 +156,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
       assert {:ok, _} = Notes.bookmark(a, n.id)
       assert Repo.get_by!(Bookmark, account_id: a.id, note_id: n.id)
 
-      refute Repo.exists?(
+      refute SukhiFedi.AccountRepo.exists?(
                from e in OutboxEvent,
                  where:
                    like(e.subject, "sns.outbox.bookmark.%") and
@@ -173,7 +173,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
       assert {:ok, _} = Notes.pin(a, n.id)
       assert Repo.get_by!(PinnedNote, account_id: a.id, note_id: n.id)
 
-      assert Repo.exists?(
+      assert SukhiFedi.AccountRepo.exists?(
                from e in OutboxEvent, where: e.subject == "sns.outbox.add.created"
              )
     end
@@ -196,7 +196,7 @@ defmodule SukhiFedi.Integration.InteractionsTest do
       assert {:ok, _} = Notes.unpin(a, n.id)
       refute Repo.get_by(PinnedNote, account_id: a.id, note_id: n.id)
 
-      assert Repo.exists?(
+      assert SukhiFedi.AccountRepo.exists?(
                from e in OutboxEvent, where: e.subject == "sns.outbox.remove.created"
              )
     end
@@ -258,6 +258,6 @@ defmodule SukhiFedi.Integration.InteractionsTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end
