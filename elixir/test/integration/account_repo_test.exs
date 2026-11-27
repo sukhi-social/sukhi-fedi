@@ -3,8 +3,8 @@ defmodule SukhiFedi.Integration.AccountRepoTest do
   @moduledoc """
   `SukhiFedi.AccountRepo`: the accounts' PostgreSQL tables take the same
   schemas the Datalevin store did, and keep the guarantees the database gives
-  (unique local names, cascade on delete) — among them that an account change
-  and its outbox event are one transaction.
+  (unique local names, account and audit rows that stay) — among them that an
+  account change and its outbox event are one transaction.
 
       make test-pgrust ARGS="test/integration/account_repo_test.exs"
   """
@@ -17,7 +17,7 @@ defmodule SukhiFedi.Integration.AccountRepoTest do
   @moduletag :integration
 
   alias SukhiFedi.AccountRepo
-  alias SukhiFedi.Schema.{Account, AccountDeletion, AdminAudit, OutboxEvent, Session}
+  alias SukhiFedi.Schema.{Account, AccountDeletion, AdminAudit, OutboxEvent}
 
   # Each test starts here: a row left behind by an earlier test, in a table the
   # wipe forgot, fails the next one.
@@ -122,17 +122,11 @@ defmodule SukhiFedi.Integration.AccountRepoTest do
     assert {:error, _} = AccountRepo.insert(dup)
   end
 
-  test "deleting an account takes its sessions with it" do
+  test "an account row is never deleted" do
     a = insert!(username: "alice")
 
-    s =
-      %Session{}
-      |> change(account_id: a.id, token_hash: "t1", expires_at: ~U[2030-01-01 00:00:00Z])
-      |> AccountRepo.insert!()
-
-    assert AccountRepo.get(Session, s.id)
-    AccountRepo.delete!(a)
-    assert AccountRepo.get(Session, s.id) == nil
+    assert_raise Postgrex.Error, ~r/accounts keeps its rows/, fn -> AccountRepo.delete!(a) end
+    assert AccountRepo.get(Account, a.id)
   end
 
   test "an outbox row is born pending, and what it carries reads back" do
@@ -242,11 +236,17 @@ defmodule SukhiFedi.Integration.AccountRepoTest do
     assert %AccountDeletion{} = AccountRepo.insert!(deletion_request(a.id))
   end
 
-  test "an account with a deletion request on file is not deleted from under it" do
-    assert_all_empty!()
-    a = insert!(username: "alice")
-    AccountRepo.insert!(deletion_request(a.id))
+  test "an audit row is neither rewritten nor deleted" do
+    row =
+      %AdminAudit{}
+      |> change(action: "suspend", reason: "spam")
+      |> AccountRepo.insert!()
 
-    assert_raise Ecto.ConstraintError, fn -> AccountRepo.delete!(a) end
+    assert_raise Postgrex.Error, ~r/admin_audits keeps its rows/, fn ->
+      row |> change(reason: "other") |> AccountRepo.update!()
+    end
+
+    assert_raise Postgrex.Error, ~r/admin_audits keeps its rows/, fn -> AccountRepo.delete!(row) end
+    assert AccountRepo.get!(AdminAudit, row.id).reason == "spam"
   end
 end
