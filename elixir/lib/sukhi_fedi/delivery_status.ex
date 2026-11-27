@@ -39,6 +39,7 @@ defmodule SukhiFedi.DeliveryStatus do
 
   import Ecto.Query
 
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Repo
 
   @type state :: :delivering | :delivered | :delayed
@@ -106,7 +107,7 @@ defmodule SukhiFedi.DeliveryStatus do
             o.aggregate_id in ^Enum.map(note_ids, &to_string/1),
         select: {o.aggregate_id, fragment("?->>'ap_id'", o.payload)}
       )
-      |> Repo.all()
+      |> AccountRepo.all()
       |> Map.new(fn {aggregate_id, ap_id} -> {String.to_integer(aggregate_id), ap_id} end)
 
     activity_ids =
@@ -211,7 +212,7 @@ defmodule SukhiFedi.DeliveryStatus do
       order_by: [asc: o.id],
       select: {o.aggregate_id, o.id, o.status}
     )
-    |> Repo.all()
+    |> AccountRepo.all()
     |> Map.new(fn {aggregate_id, id, status} ->
       {String.to_integer(aggregate_id), {id, status}}
     end)

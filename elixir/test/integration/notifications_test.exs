@@ -234,9 +234,9 @@ defmodule SukhiFedi.Integration.NotificationsTest do
     end
 
     test "changing only the pace sends peers no actor Update", %{alice: alice} do
-      before = Repo.aggregate(SukhiFedi.Schema.OutboxEvent, :count)
+      before = SukhiFedi.AccountRepo.aggregate(SukhiFedi.Schema.OutboxEvent, :count)
       set_pace!(alice, 30, true)
-      assert Repo.aggregate(SukhiFedi.Schema.OutboxEvent, :count) == before
+      assert SukhiFedi.AccountRepo.aggregate(SukhiFedi.Schema.OutboxEvent, :count) == before
       assert %{hold_minutes: 30, grouping: true} = Notifications.pace(alice.id)
     end
 

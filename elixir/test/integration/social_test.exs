@@ -30,7 +30,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert follow.state == "pending"
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from e in OutboxEvent,
             where: e.subject == "sns.outbox.follow.requested" and e.aggregate_id == ^to_string(follow.id)
         )
@@ -49,7 +49,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert f1.id == f2.id
 
       n =
-        Repo.aggregate(
+        SukhiFedi.AccountRepo.aggregate(
           from(e in OutboxEvent,
             where: e.subject == "sns.outbox.follow.requested" and e.aggregate_id == ^to_string(f1.id)
           ),
@@ -82,7 +82,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert follow.state == "accepted"
 
       n =
-        Repo.aggregate(
+        SukhiFedi.AccountRepo.aggregate(
           from(e in OutboxEvent,
             where: e.subject == "sns.outbox.follow.requested" and e.aggregate_id == ^to_string(follow.id)
           ),
@@ -170,7 +170,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       refute Repo.get(Follow, follow.id)
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from e in OutboxEvent,
             where: e.subject == "sns.outbox.follow.undone" and e.aggregate_id == ^to_string(follow.id)
         )
@@ -187,7 +187,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       refute Repo.get(Follow, follow.id)
 
       n =
-        Repo.aggregate(
+        SukhiFedi.AccountRepo.aggregate(
           from(e in OutboxEvent, where: e.subject == "sns.outbox.follow.undone"),
           :count,
           :id
@@ -338,7 +338,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       assert updated.display_name == "Alice Updated"
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from e in OutboxEvent,
             where: e.subject == "sns.outbox.actor.updated" and e.aggregate_id == ^to_string(a.id)
         )

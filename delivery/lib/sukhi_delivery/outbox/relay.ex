@@ -5,12 +5,9 @@ defmodule SukhiDelivery.Outbox.Relay do
   `SukhiFedi.Outbox.enqueue_multi/6`) and hands each one to
   `SukhiDelivery.Outbox.DispatchWorker`.
 
-  The rows are in hosigraph and the jobs in PostgreSQL, so the two halves
-  (insert the job, flip the row to `published`) cannot share a transaction.
-  The hop is at-least-once: a crash between them leaves a `pending` row that
-  already has a job, and `Queue.enqueued_outbox_ids/1` lets the next batch
-  skip the insert and only flip it. Whatever still runs twice is absorbed by
-  `delivery_receipts`.
+  The rows and the jobs are in the same PostgreSQL database, so the two
+  halves of the hop (insert the job, flip the row to `published`) are one
+  transaction: both happen, or the row stays `pending`.
 
   There is no LISTEN/NOTIFY to wake on and no row lock to take (one node, one
   writer): the relay polls, every `@poll_interval_ms`.
@@ -21,7 +18,7 @@ defmodule SukhiDelivery.Outbox.Relay do
   import Ecto.Query
 
   alias SukhiDelivery.Outbox.DispatchWorker
-  alias SukhiDelivery.Repo
+  alias SukhiDelivery.QueueRepo
   alias SukhiDelivery.Schema.OutboxEvent
 
   @poll_interval_ms 2_000
@@ -52,13 +49,13 @@ defmodule SukhiDelivery.Outbox.Relay do
   end
 
   defp publish_pending do
-    Repo.transaction(fn ->
+    QueueRepo.transaction(fn ->
       from(e in OutboxEvent,
         where: e.status == "pending",
         order_by: [asc: e.id],
         limit: @batch_size
       )
-      |> Repo.all()
+      |> QueueRepo.all()
       |> dispatch()
     end)
   rescue
@@ -74,21 +71,10 @@ defmodule SukhiDelivery.Outbox.Relay do
   defp dispatch([]), do: :ok
 
   defp dispatch(events) do
-    # The job insert and the flip below are two stores, so a crash between
-    # them leaves rows `pending` that are already queued. Skip those; they
-    # only need the flip.
-    queued = MapSet.new(SukhiDelivery.Queue.enqueued_outbox_ids(Enum.map(events, & &1.id)))
-
-    events
-    |> Enum.reject(&MapSet.member?(queued, &1.id))
-    |> Enum.map(&job_for/1)
-    |> case do
-      [] -> :ok
-      jobs -> SukhiDelivery.Queue.insert_all(jobs)
-    end
+    events |> Enum.map(&job_for/1) |> SukhiDelivery.Queue.insert_all()
 
     from(e in OutboxEvent, where: e.id in ^Enum.map(events, & &1.id))
-    |> Repo.update_all(set: [status: "published", published_at: DateTime.utc_now()])
+    |> QueueRepo.update_all(set: [status: "published", published_at: DateTime.utc_now()])
 
     :ok
   end

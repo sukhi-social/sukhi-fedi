@@ -270,7 +270,7 @@ defmodule SukhiFedi.Integration.PollsTest do
       assert :ok = Polls.vote(voter.id, pid, [0])
 
       assert [%OutboxEvent{payload: payload}] =
-               Repo.all(from e in OutboxEvent, where: e.subject == "sns.outbox.vote.created")
+               SukhiFedi.AccountRepo.all(from e in OutboxEvent, where: e.subject == "sns.outbox.vote.created")
 
       assert payload["question_ap_id"] == note.ap_id
       assert payload["name"] == "Elixir"
@@ -288,7 +288,7 @@ defmodule SukhiFedi.Integration.PollsTest do
       [%Poll{id: pid}] = Repo.all(from p in Poll, where: p.note_id == ^note.id)
       assert :ok = Polls.vote(voter.id, pid, [0])
 
-      assert [] = Repo.all(from e in OutboxEvent, where: e.subject == "sns.outbox.vote.created")
+      assert [] = SukhiFedi.AccountRepo.all(from e in OutboxEvent, where: e.subject == "sns.outbox.vote.created")
     end
 
     test "stopgap: a remote poll's tally surfaces local votes the origin hasn't counted" do

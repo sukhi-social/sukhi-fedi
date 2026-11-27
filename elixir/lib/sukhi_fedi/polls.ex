@@ -271,8 +271,8 @@ defmodule SukhiFedi.Polls do
   # origin hears it — so federate one Create(Note) ballot per chosen option (the
   # Mastodon vote shape: `name` = option, `inReplyTo` = the Question). For a
   # local poll the author is us and the rows already count, so nothing to send.
-  # Enqueued in the same transaction as the vote, so the vote and its outbound
-  # event commit together (no recorded-but-never-sent gap).
+  # The event is the last step, after the vote rows; the two are in different
+  # databases (`SukhiFedi.Outbox`).
   defp maybe_enqueue_ballots(multi, %Poll{} = poll, account_id, option_ids) do
     if remote_poll?(poll) and is_binary(poll.note.ap_id) do
       titles = option_titles(option_ids)

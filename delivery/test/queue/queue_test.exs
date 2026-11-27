@@ -19,10 +19,6 @@ defmodule SukhiDelivery.QueueConfigTest do
     assert :push in queues
     assert :outbox_dispatch in queues
   end
-
-  test "with nothing to look up, nothing is asked of the database" do
-    assert Queue.enqueued_outbox_ids([]) == []
-  end
 end
 
 defmodule SukhiDelivery.QueueTest do
@@ -170,11 +166,55 @@ defmodule SukhiDelivery.QueueTest do
     assert_receive :ran, 5_000
   end
 
-  test "enqueued_outbox_ids reports rows already queued" do
-    event = %OutboxEvent{id: 41, subject: "sns.outbox.note.created", payload: %{}}
-    Queue.insert_all([Relay.job_for(event)])
+  describe "the relay" do
+    setup do
+      QueueRepo.delete_all(OutboxEvent)
+      :ok
+    end
 
-    assert Queue.enqueued_outbox_ids([40, 41, 42]) == [41]
+    defp pending_row do
+      QueueRepo.insert!(%OutboxEvent{
+        aggregate_type: "note",
+        aggregate_id: "1",
+        subject: "sns.outbox.note.created",
+        payload: %{"note_id" => 1}
+      })
+    end
+
+    test "turns a pending row into one job and marks it published, once" do
+      %{id: id} = pending_row()
+
+      for _ <- 1..2, do: Relay.handle_info(:tick, %{})
+
+      assert [%{args: %{"outbox_id" => ^id}}] = QueueRepo.all(Oban.Job)
+      assert %{status: "published", published_at: %DateTime{}} = QueueRepo.get!(OutboxEvent, id)
+    end
+
+    test "leaves no job behind when the row cannot be marked" do
+      %{id: id} = pending_row()
+
+      QueueRepo.query!("""
+      CREATE FUNCTION refuse_mark() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        RAISE EXCEPTION 'refused';
+      END
+      $$
+      """)
+
+      QueueRepo.query!(
+        "CREATE TRIGGER refuse_mark BEFORE UPDATE ON outbox FOR EACH ROW EXECUTE FUNCTION refuse_mark()"
+      )
+
+      on_exit(fn ->
+        QueueRepo.query!("DROP TRIGGER refuse_mark ON outbox")
+        QueueRepo.query!("DROP FUNCTION refuse_mark()")
+      end)
+
+      ExUnit.CaptureLog.capture_log(fn -> Relay.handle_info(:tick, %{}) end)
+
+      assert QueueRepo.all(Oban.Job) == []
+      assert %{status: "pending"} = QueueRepo.get!(OutboxEvent, id)
+    end
   end
 
   describe "a suspension hint in a response (FEP-f799)" do

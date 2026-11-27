@@ -31,7 +31,7 @@ defmodule SukhiFedi.Integration.NotesTest do
       assert note.account_id == a.id
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in OutboxEvent,
             where:
               e.subject == "sns.outbox.note.created" and e.aggregate_id == ^to_string(note.id)
@@ -167,7 +167,7 @@ defmodule SukhiFedi.Integration.NotesTest do
       assert %{unread: true} = participant(note.conversation_ap_id, bob.id)
 
       # A purely local DM has nobody to federate to.
-      refute Repo.exists?(
+      refute SukhiFedi.AccountRepo.exists?(
                from(e in OutboxEvent,
                  where:
                    e.subject == "sns.outbox.dm.created" and
@@ -187,7 +187,7 @@ defmodule SukhiFedi.Integration.NotesTest do
                })
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in OutboxEvent,
             where:
               e.subject == "sns.outbox.dm.created" and
@@ -215,7 +215,7 @@ defmodule SukhiFedi.Integration.NotesTest do
       # One Create(Note) event for the whole group — threading by
       # conversation, not one event per recipient.
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in OutboxEvent,
             where:
               e.subject == "sns.outbox.dm.created" and
@@ -323,7 +323,7 @@ defmodule SukhiFedi.Integration.NotesTest do
       assert note.quote_of_ap_id == expected
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in OutboxEvent,
             where:
               e.subject == "sns.outbox.note.created" and
@@ -359,7 +359,7 @@ defmodule SukhiFedi.Integration.NotesTest do
       refute Repo.get(Note, note.id)
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in OutboxEvent,
             where:
               e.subject == "sns.outbox.note.deleted" and e.aggregate_id == ^to_string(note.id)
@@ -872,7 +872,7 @@ defmodule SukhiFedi.Integration.NotesTest do
       assert {:ok, _} = Notes.delete_note(a, note.id)
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in OutboxEvent,
             where:
               e.subject == "sns.outbox.note.deleted" and e.aggregate_id == ^to_string(note.id)
@@ -985,7 +985,7 @@ defmodule SukhiFedi.Integration.NotesTest do
 
 
   defp outbox_event!(note) do
-    Repo.one!(
+    SukhiFedi.AccountRepo.one!(
       from(e in OutboxEvent,
         where: e.subject == "sns.outbox.note.created" and e.aggregate_id == ^to_string(note.id)
       )

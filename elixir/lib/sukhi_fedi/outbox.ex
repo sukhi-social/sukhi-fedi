@@ -8,10 +8,11 @@ defmodule SukhiFedi.Outbox do
   `SukhiDelivery.Outbox.Relay` process on the delivery node then turns
   pending rows into Oban delivery jobs.
 
-  The event is written by `enqueue/5`, through the outbox's own repo,
-  not by the repo running the transaction. Such a Multi is not one
+  The `outbox` table is in PostgreSQL (`SukhiFedi.AccountRepo`), and the
+  domain rows are in the store. A Multi over the store is therefore not one
   atomic write: a node that stops between the domain write and the event
-  leaves the row without it.
+  leaves the row without it, and a rollback does not take back an event
+  already written.
 
   ## Example
 
@@ -31,7 +32,7 @@ defmodule SukhiFedi.Outbox do
 
   import Ecto.Query, only: [from: 2]
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Schema.OutboxEvent
   alias Ecto.Multi
 
@@ -41,19 +42,19 @@ defmodule SukhiFedi.Outbox do
   """
   @spec after_id(integer(), pos_integer()) :: [OutboxEvent.t()]
   def after_id(cursor, limit) when is_integer(cursor) and is_integer(limit) do
-    Repo.all(from(o in OutboxEvent, where: o.id > ^cursor, order_by: o.id, limit: ^limit))
+    AccountRepo.all(from(o in OutboxEvent, where: o.id > ^cursor, order_by: o.id, limit: ^limit))
   end
 
   @doc "The newest outbox id, or `0` when there is none."
   @spec last_id() :: non_neg_integer()
   def last_id do
-    Repo.one(from(o in OutboxEvent, select: max(o.id))) || 0
+    AccountRepo.one(from(o in OutboxEvent, select: max(o.id))) || 0
   end
 
   @doc "How many rows are still `pending` (not yet handed to a dispatch job)."
   @spec pending_count() :: non_neg_integer()
   def pending_count do
-    Repo.one(from(e in OutboxEvent, where: e.status == "pending", select: count(e.id))) || 0
+    AccountRepo.one(from(e in OutboxEvent, where: e.status == "pending", select: count(e.id))) || 0
   end
 
   @doc """
@@ -71,7 +72,7 @@ defmodule SukhiFedi.Outbox do
       payload: payload,
       headers: headers
     })
-    |> Repo.insert()
+    |> AccountRepo.insert()
   end
 
   @doc """

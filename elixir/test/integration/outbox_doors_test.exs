@@ -45,7 +45,7 @@ defmodule SukhiFedi.Integration.OutboxDoorsTest do
     assert Outbox.pending_count() == 3
 
     from(e in OutboxEvent, where: e.id in ^[a.id, b.id])
-    |> Repo.update_all(set: [status: "published"])
+    |> SukhiFedi.AccountRepo.update_all(set: [status: "published"])
 
     assert Outbox.pending_count() == 1
     assert Outbox.last_id() == c.id

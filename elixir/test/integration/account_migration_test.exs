@@ -153,7 +153,7 @@ defmodule SukhiFedi.Integration.AccountMigrationTest do
   defp alice_uri(%Account{username: u}), do: "https://#{SukhiFedi.Config.domain!()}/users/#{u}"
 
   defp outbox_count(subject, aggregate_id) do
-    Repo.aggregate(
+    SukhiFedi.AccountRepo.aggregate(
       from(e in OutboxEvent,
         where: e.subject == ^subject and e.aggregate_id == ^to_string(aggregate_id)
       ),

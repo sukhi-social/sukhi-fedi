@@ -222,14 +222,14 @@ defmodule SukhiFedi.Integration.GroupMembershipTest do
   defp follows_of(followee_id), do: Repo.all(from f in Follow, where: f.followee_id == ^followee_id)
 
   defp event(subject, membership_id) do
-    Repo.one!(
+    SukhiFedi.AccountRepo.one!(
       from e in OutboxEvent,
         where: e.subject == ^subject and e.aggregate_id == ^to_string(membership_id)
     )
   end
 
   defp count_events(subject, membership_id) do
-    Repo.aggregate(
+    SukhiFedi.AccountRepo.aggregate(
       from(e in OutboxEvent, where: e.subject == ^subject and e.aggregate_id == ^to_string(membership_id)),
       :count,
       :id

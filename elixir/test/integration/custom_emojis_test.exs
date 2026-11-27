@@ -149,7 +149,7 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
       assert audit.admin_account_id == admin.id
       assert audit.metadata["count"] == 2
 
-      assert Repo.aggregate(
+      assert SukhiFedi.AccountRepo.aggregate(
                from(e in OutboxEvent, where: e.subject == "sns.outbox.admin.emoji_imported"),
                :count,
                :id

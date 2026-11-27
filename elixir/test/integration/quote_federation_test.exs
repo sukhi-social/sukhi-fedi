@@ -91,7 +91,7 @@ defmodule SukhiFedi.Integration.QuoteFederationTest do
       assert Repo.get(Note, note.id).quote_authorization_ap_id == stamp
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in SukhiFedi.Schema.OutboxEvent,
             where:
               e.subject == "sns.outbox.note.updated" and e.aggregate_id == ^to_string(note.id)
@@ -109,7 +109,7 @@ defmodule SukhiFedi.Integration.QuoteFederationTest do
 
       assert Repo.get(Note, note.id).quote_of_ap_id == nil
 
-      assert Repo.exists?(
+      assert SukhiFedi.AccountRepo.exists?(
                from(e in SukhiFedi.Schema.OutboxEvent,
                  where:
                    e.subject == "sns.outbox.note.updated" and

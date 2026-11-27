@@ -47,7 +47,7 @@ defmodule SukhiFedi.Integration.OAuthTest do
         })
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from e in OutboxEvent,
             where: e.subject == "sns.outbox.oauth.app_registered" and e.aggregate_id == ^to_string(app.id)
         )

@@ -3,8 +3,8 @@ defmodule SukhiFedi.Notes.Create do
   @moduledoc """
   The write path: creating notes (public/unlisted/followers statuses,
   DMs, polls, media attachment, reply/quote resolution) and deleting
-  them. Every write enqueues its outbox event in the same transaction —
-  "DB commit = event durable".
+  them. A write that federates enqueues its outbox event after the rows it
+  is about (`SukhiFedi.Outbox` says what that holds).
   """
 
   import Ecto.Query

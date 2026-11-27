@@ -135,7 +135,7 @@ defmodule SukhiFedi.DeliveryStatusTest do
   defp mark_outbox(subject, note_id, status) do
     aggregate_id = to_string(note_id)
 
-    Repo.update_all(
+    SukhiFedi.AccountRepo.update_all(
       from(o in "outbox", where: o.subject == ^subject and o.aggregate_id == ^aggregate_id),
       set: [status: status]
     )

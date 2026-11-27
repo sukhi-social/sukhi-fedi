@@ -293,7 +293,7 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
     defp last_announce do
       import Ecto.Query
 
-      SukhiFedi.Repo.one(
+      SukhiFedi.AccountRepo.one(
         from(e in SukhiFedi.Schema.OutboxEvent,
           where: e.subject == "sns.outbox.announce.created" and e.aggregate_type == "deco",
           order_by: [desc: e.id],

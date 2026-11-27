@@ -63,7 +63,7 @@ defmodule SukhiFedi.Integration.ScheduledStatusesTest do
       assert note.content == "later"
 
       ev =
-        Repo.one!(
+        SukhiFedi.AccountRepo.one!(
           from(e in OutboxEvent,
             where:
               e.subject == "sns.outbox.note.created" and e.aggregate_id == ^to_string(note.id)

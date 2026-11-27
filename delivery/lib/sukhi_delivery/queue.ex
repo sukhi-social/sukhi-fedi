@@ -9,14 +9,11 @@ defmodule SukhiDelivery.Queue do
   its own config names, so a job one node inserts for the other's queue is
   picked up there.
 
-  The business rows are in hosigraph, so the outbox row and its dispatch job
-  are in different stores and the hop between them is at-least-once:
-  `enqueued_outbox_ids/1` lets the relay skip rows already queued after a
-  crash between the two writes, and `Delivery.Worker` absorbs any remaining
-  duplicate via `delivery_receipts`.
+  The gateway's `outbox` rows are in this database too, so
+  `Outbox.Relay` queues a dispatch job and marks its row in one
+  transaction. A send that runs twice is absorbed by `Delivery.Worker`
+  via `delivery_receipts`.
   """
-
-  import Ecto.Query
 
   alias SukhiDelivery.QueueRepo
 
@@ -43,24 +40,5 @@ defmodule SukhiDelivery.Queue do
       SukhiDelivery.Queue.Migrate,
       {Oban, [name: SukhiDelivery.Oban] ++ Application.fetch_env!(:sukhi_delivery, Oban)}
     ]
-  end
-
-  @doc """
-  The subset of `outbox_ids` that already have a dispatch job (any state).
-  The job insert and the outbox flip are two stores, so a crash between them
-  leaves rows `pending` that are already queued; they only need the flip.
-  """
-  @spec enqueued_outbox_ids([integer()]) :: [integer()]
-  def enqueued_outbox_ids([]), do: []
-
-  def enqueued_outbox_ids(outbox_ids) do
-    worker = Oban.Worker.to_string(SukhiDelivery.Outbox.DispatchWorker)
-
-    from(j in Oban.Job,
-      where: j.worker == ^worker,
-      where: fragment("(? ->> 'outbox_id')::bigint = ANY(?)", j.args, type(^outbox_ids, {:array, :integer})),
-      select: fragment("(? ->> 'outbox_id')::bigint", j.args)
-    )
-    |> QueueRepo.all()
   end
 end

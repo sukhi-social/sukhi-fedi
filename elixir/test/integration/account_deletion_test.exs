@@ -110,7 +110,7 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
     assert subject =~ "閉じました"
 
     assert [_one] =
-             Repo.all(
+             SukhiFedi.AccountRepo.all(
                from(e in OutboxEvent,
                  where:
                    e.subject == "sns.outbox.actor.deleted" and e.aggregate_id == ^to_string(a.id)
