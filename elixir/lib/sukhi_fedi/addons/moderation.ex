@@ -16,7 +16,7 @@ defmodule SukhiFedi.Addons.Moderation do
   import Ecto.Query
   alias SukhiFedi.Accounts
   alias Ecto.Multi
-  alias SukhiFedi.{Outbox, Repo}
+  alias SukhiFedi.{Audit, Outbox, Repo}
   alias SukhiFedi.Schema.{Mute, Block, Report, InstanceBlock, BubbleInstance, Account, AdminAudit}
 
   # ── user-level mutes / blocks (no admin outbox) ──────────────────────────
@@ -202,17 +202,6 @@ defmodule SukhiFedi.Addons.Moderation do
 
         Multi.new()
         |> Multi.update(:report, changeset)
-        |> Multi.insert(
-          :audit,
-          fn %{report: r} ->
-            AdminAudit.changeset(%{
-              action: "report_resolved",
-              admin_account_id: resolved_by_id,
-              target_account_id: r.target_id,
-              metadata: %{report_id: r.id}
-            })
-          end
-        )
         |> Outbox.enqueue_multi(
           :outbox_event,
           "sns.outbox.admin.report_resolved",
@@ -222,6 +211,14 @@ defmodule SukhiFedi.Addons.Moderation do
             %{report_id: r.id, target_id: r.target_id, by_id: resolved_by_id}
           end
         )
+        |> Audit.add_multi(fn %{report: r} ->
+          %{
+            action: "report_resolved",
+            admin_account_id: resolved_by_id,
+            target_account_id: r.target_id,
+            metadata: %{report_id: r.id}
+          }
+        end)
         |> Repo.transaction()
         |> case do
           {:ok, %{report: r}} -> {:ok, r}
@@ -251,16 +248,6 @@ defmodule SukhiFedi.Addons.Moderation do
 
     Multi.new()
     |> Multi.insert(:block, changeset, on_conflict: :nothing, conflict_target: :domain)
-    |> Multi.insert(
-      :audit,
-      AdminAudit.changeset(%{
-        action: "instance_blocked",
-        admin_account_id: created_by_id,
-        target_domain: domain,
-        reason: reason,
-        metadata: %{severity: severity}
-      })
-    )
     |> Outbox.enqueue_multi(
       :outbox_event,
       "sns.outbox.admin.instance_blocked",
@@ -270,6 +257,15 @@ defmodule SukhiFedi.Addons.Moderation do
         %{domain: b.domain, severity: b.severity, reason: b.reason, by_id: created_by_id}
       end
     )
+    |> Audit.add_multi(fn _ ->
+      %{
+        action: "instance_blocked",
+        admin_account_id: created_by_id,
+        target_domain: domain,
+        reason: reason,
+        metadata: %{severity: severity}
+      }
+    end)
     |> Repo.transaction()
     |> case do
       {:ok, %{block: b}} -> {:ok, b}
@@ -287,14 +283,6 @@ defmodule SukhiFedi.Addons.Moderation do
       %InstanceBlock{} = block ->
         Multi.new()
         |> Multi.delete(:block, block)
-        |> Multi.insert(
-          :audit,
-          AdminAudit.changeset(%{
-            action: "instance_unblocked",
-            admin_account_id: by_id,
-            target_domain: block.domain
-          })
-        )
         |> Outbox.enqueue_multi(
           :outbox_event,
           "sns.outbox.admin.instance_unblocked",
@@ -302,6 +290,13 @@ defmodule SukhiFedi.Addons.Moderation do
           & &1.block.id,
           fn %{block: b} -> %{domain: b.domain, by_id: by_id} end
         )
+        |> Audit.add_multi(fn _ ->
+          %{
+            action: "instance_unblocked",
+            admin_account_id: by_id,
+            target_domain: block.domain
+          }
+        end)
         |> Repo.transaction()
         |> case do
           {:ok, %{block: b}} -> {:ok, %{domain: b.domain}}
@@ -407,14 +402,6 @@ defmodule SukhiFedi.Addons.Moderation do
 
     Multi.new()
     |> Multi.insert(:bubble, changeset, on_conflict: :nothing, conflict_target: :domain)
-    |> Multi.insert(
-      :audit,
-      AdminAudit.changeset(%{
-        action: "bubble_instance_added",
-        admin_account_id: created_by_id,
-        target_domain: domain
-      })
-    )
     |> Outbox.enqueue_multi(
       :outbox_event,
       "sns.outbox.admin.bubble_instance_added",
@@ -422,6 +409,13 @@ defmodule SukhiFedi.Addons.Moderation do
       & &1.bubble.id,
       fn %{bubble: b} -> %{domain: b.domain, by_id: created_by_id} end
     )
+    |> Audit.add_multi(fn _ ->
+      %{
+        action: "bubble_instance_added",
+        admin_account_id: created_by_id,
+        target_domain: domain
+      }
+    end)
     |> Repo.transaction()
     |> case do
       {:ok, %{bubble: b}} -> {:ok, b}
@@ -439,14 +433,6 @@ defmodule SukhiFedi.Addons.Moderation do
       %BubbleInstance{} = bubble ->
         Multi.new()
         |> Multi.delete(:bubble, bubble)
-        |> Multi.insert(
-          :audit,
-          AdminAudit.changeset(%{
-            action: "bubble_instance_removed",
-            admin_account_id: by_id,
-            target_domain: bubble.domain
-          })
-        )
         |> Outbox.enqueue_multi(
           :outbox_event,
           "sns.outbox.admin.bubble_instance_removed",
@@ -454,6 +440,13 @@ defmodule SukhiFedi.Addons.Moderation do
           & &1.bubble.id,
           fn %{bubble: b} -> %{domain: b.domain, by_id: by_id} end
         )
+        |> Audit.add_multi(fn _ ->
+          %{
+            action: "bubble_instance_removed",
+            admin_account_id: by_id,
+            target_domain: bubble.domain
+          }
+        end)
         |> Repo.transaction()
         |> case do
           {:ok, %{bubble: b}} -> {:ok, %{domain: b.domain}}

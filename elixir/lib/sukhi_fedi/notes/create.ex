@@ -22,11 +22,11 @@ defmodule SukhiFedi.Notes.Create do
   @title_max 120
 
   @doc """
-  Create a note and enqueue the `sns.outbox.note.created` event atomically.
+  Create a note and enqueue the `sns.outbox.note.created` event.
 
-  A single Ecto.Multi transaction does both the `notes` insert and the
-  `outbox` row. Combined with `Outbox.Relay` this delivers
-  "DB commit = event durable" semantics.
+  One Ecto.Multi does the `notes` insert and then the `outbox` row: if the
+  event cannot be written, the note is taken back. The two are not one
+  atomic write (`SukhiFedi.Outbox`).
   """
   def create_note(attrs) do
     attrs = maybe_extract_emojis(attrs)

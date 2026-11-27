@@ -113,6 +113,7 @@ defmodule SukhiFedi.AP.Instructions.Migrations do
     Multi.new()
     |> maybe_insert_follow(already?, old_follow, new_account)
     |> Multi.delete(:old_follow, old_follow)
+    |> maybe_enqueue_follow(already?, new_account)
     |> enqueue_undo(old_follow)
     |> Repo.transaction()
 
@@ -120,45 +121,44 @@ defmodule SukhiFedi.AP.Instructions.Migrations do
   end
 
   # New edge: stamped `accepted` for a local target (no round-trip),
-  # `pending` for a remote one (flips on the new server's Accept). A remote
-  # target also gets an outbound Follow event so the new server records the
-  # edge; a local one skips it — same split as `Social.request_follow/2`.
+  # `pending` for a remote one (flips on the new server's Accept).
   defp maybe_insert_follow(multi, true, _old_follow, _new_account), do: multi
 
   defp maybe_insert_follow(multi, false, %Follow{} = old_follow, %Account{} = new_account) do
-    local_target? = is_nil(new_account.domain)
-
-    multi =
-      Multi.insert(
-        multi,
-        :follow,
-        Ecto.Changeset.change(%Follow{}, %{
-          follower_uri: old_follow.follower_uri,
-          followee_id: new_account.id,
-          state: if(local_target?, do: "accepted", else: "pending")
-        })
-      )
-
-    if local_target? do
-      multi
-    else
-      Outbox.enqueue_multi(
-        multi,
-        :outbox_follow,
-        "sns.outbox.follow.requested",
-        "follow",
-        & &1.follow.id,
-        fn %{follow: f} ->
-          %{
-            follow_id: f.id,
-            follower_uri: f.follower_uri,
-            followee_id: f.followee_id,
-            followee_username: new_account.username
-          }
-        end
-      )
-    end
+    Multi.insert(
+      multi,
+      :follow,
+      Ecto.Changeset.change(%Follow{}, %{
+        follower_uri: old_follow.follower_uri,
+        followee_id: new_account.id,
+        state: if(is_nil(new_account.domain), do: "accepted", else: "pending")
+      })
+    )
   end
+
+  # A new edge to a remote target also gets an outbound Follow event, so the
+  # new server records it; a local one skips it — same split as
+  # `Social.request_follow/2`.
+  defp maybe_enqueue_follow(multi, false, %Account{domain: domain} = new_account)
+       when not is_nil(domain) do
+    Outbox.enqueue_multi(
+      multi,
+      :outbox_follow,
+      "sns.outbox.follow.requested",
+      "follow",
+      & &1.follow.id,
+      fn %{follow: f} ->
+        %{
+          follow_id: f.id,
+          follower_uri: f.follower_uri,
+          followee_id: f.followee_id,
+          followee_username: new_account.username
+        }
+      end
+    )
+  end
+
+  defp maybe_enqueue_follow(multi, _already?, _new_account), do: multi
 
   # The follow of `old` is always undone on the wire: if `old` was remote
   # the Undo(Follow) tells that server to drop the edge; a delivery to a

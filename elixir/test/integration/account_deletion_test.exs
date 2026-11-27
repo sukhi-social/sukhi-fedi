@@ -14,7 +14,7 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
   import Plug.Test
 
   alias SukhiFedi.{AccountDeletion, Accounts, LocalAccounts, Mailer}
-  alias SukhiFedi.Schema.{Account, Note, OutboxEvent, Session}
+  alias SukhiFedi.Schema.{Account, Mute, Note, OutboxEvent, Session}
 
   setup do
     Mailer.Capture.clear()
@@ -118,6 +118,17 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
              )
 
     assert AccountDeletion.pending(a) == nil
+  end
+
+  test "a stop after the closing began is made up: the next step removes what was left",
+       %{account: a} do
+    {:ok, d} = AccountDeletion.request(a, ~U[2026-10-25 12:00:00Z])
+    assert :more = AccountDeletion.finish_step(d)
+    Repo.insert!(%Mute{account_id: a.id, target_id: a.id})
+
+    assert :done = run_to_the_end(d)
+
+    assert Repo.aggregate(from(m in Mute, where: m.account_id == ^a.id), :count) == 0
   end
 
   test "a closed account is gone from lookups, and cannot sign in", %{account: a} do

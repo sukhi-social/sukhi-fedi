@@ -28,8 +28,8 @@ defmodule SukhiFedi.CustomEmojis do
 
   alias Ecto.Multi
   alias SukhiFedi.Cache.Ets, as: Cache
-  alias SukhiFedi.{Outbox, Repo}
-  alias SukhiFedi.Schema.{AdminAudit, CustomEmoji}
+  alias SukhiFedi.{Audit, Outbox, Repo}
+  alias SukhiFedi.Schema.CustomEmoji
 
   @cache :custom_emojis
   @local_key :local
@@ -251,14 +251,6 @@ defmodule SukhiFedi.CustomEmojis do
       end)
 
     multi
-    |> Multi.insert(
-      :audit,
-      AdminAudit.changeset(%{
-        action: "emoji_imported",
-        admin_account_id: admin_id,
-        metadata: %{count: length(valid)}
-      })
-    )
     |> Outbox.enqueue_multi(
       :outbox_event,
       "sns.outbox.admin.emoji_imported",
@@ -266,6 +258,9 @@ defmodule SukhiFedi.CustomEmojis do
       fn _ -> admin_id end,
       fn _ -> %{count: length(valid), by_id: admin_id} end
     )
+    |> Audit.add_multi(fn _ ->
+      %{action: "emoji_imported", admin_account_id: admin_id, metadata: %{count: length(valid)}}
+    end)
     |> Repo.transaction()
     |> case do
       {:ok, changes} -> {:ok, changes}

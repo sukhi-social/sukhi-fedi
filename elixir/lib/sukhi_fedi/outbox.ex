@@ -3,10 +3,15 @@ defmodule SukhiFedi.Outbox do
   @moduledoc """
   Transactional Outbox writer.
 
-  Use `enqueue_multi/6` inside an `Ecto.Multi` alongside the domain
-  write so that the DB commit itself makes the event durable — the
-  `SukhiDelivery.Outbox.Relay` process on the delivery node then
-  turns pending rows into Oban delivery jobs.
+  Use `enqueue_multi/6` inside an `Ecto.Multi` after the domain write:
+  if the event cannot be written, the transaction fails with it. The
+  `SukhiDelivery.Outbox.Relay` process on the delivery node then turns
+  pending rows into Oban delivery jobs.
+
+  The event is written by `enqueue/5`, through the outbox's own repo,
+  not by the repo running the transaction. Such a Multi is not one
+  atomic write: a node that stops between the domain write and the event
+  leaves the row without it.
 
   ## Example
 
@@ -70,7 +75,8 @@ defmodule SukhiFedi.Outbox do
   end
 
   @doc """
-  Append an outbox insert step to an existing `Ecto.Multi`.
+  Append an outbox insert step to an existing `Ecto.Multi`, after the
+  steps that write what the event is about.
 
   `aggregate_fn` and `payload_fn` each receive the accumulated changes
   map so they can pull values out of prior multi steps.
@@ -78,13 +84,8 @@ defmodule SukhiFedi.Outbox do
   def enqueue_multi(multi, name, subject, aggregate_type, aggregate_fn, payload_fn)
       when is_binary(subject) and is_binary(aggregate_type) and
              is_function(aggregate_fn, 1) and is_function(payload_fn, 1) do
-    Multi.insert(multi, name, fn changes ->
-      OutboxEvent.changeset(%OutboxEvent{}, %{
-        subject: subject,
-        aggregate_type: aggregate_type,
-        aggregate_id: to_string(aggregate_fn.(changes)),
-        payload: payload_fn.(changes)
-      })
+    Multi.run(multi, name, fn _repo, changes ->
+      enqueue(subject, aggregate_type, aggregate_fn.(changes), payload_fn.(changes))
     end)
   end
 end

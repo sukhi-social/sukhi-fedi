@@ -16,7 +16,8 @@ defmodule SukhiFedi.AccountDeletion do
 
   `finish_step/1` (driven by `AccountDeletion.Worker`) does the closing in
   small steps: first the account stops being usable (credentials, sessions,
-  tokens, profile gone, in one transaction), then its notes go in batches —
+  tokens, profile gone, in one transaction), then the rest of what it keeps
+  (bookmarks, mutes, drafts, …) is removed, then its notes go in batches —
   each through the same `Notes.Create.delete_note_for_cleanup/3` that
   self-cleanup uses, so every `Delete(Note)` federates — and last one
   actor `Delete`, enqueued with the "finished" mark in one transaction.
@@ -128,8 +129,11 @@ defmodule SukhiFedi.AccountDeletion do
 
   # ── steps ────────────────────────────────────────────────────────────────
 
-  # The account stops being usable *now*, in one transaction. The address is
-  # read first (the mail is sent to it afterwards) and then blanked.
+  # The account stops being usable *now*: the sign-in rows, the personal
+  # columns and the started mark are one transaction. The rows it keeps
+  # elsewhere are removed after it, and again before every later step, so a
+  # stop in between is made up. The address is read first (the mail is sent
+  # to it afterwards) and then blanked.
   defp start(%AccountDeletion{} = d, now) do
     account = Accounts.get!(d.account_id)
     email = if account.email_verified_at, do: account.email
@@ -139,29 +143,42 @@ defmodule SukhiFedi.AccountDeletion do
       blank(account.id, now)
     end)
 
+    clear_kept_rows(account.id)
+
     if is_binary(email), do: mail_done(email, account.username)
     :more
   end
 
-  defp blank(account_id, now) do
-    for {schema, field} <- [
-          {SukhiFedi.Schema.Session, :account_id},
-          {SukhiFedi.Schema.OauthAccessToken, :account_id},
-          {SukhiFedi.Schema.OauthAuthorizationCode, :account_id},
-          {SukhiFedi.Schema.PushSubscription, :account_id},
-          {SukhiFedi.Schema.WebauthnCredential, :account_id},
-          {SukhiFedi.Schema.EmailCode, :account_id},
-          {SukhiFedi.Schema.PinnedNote, :account_id},
-          {SukhiFedi.Schema.Bookmark, :account_id},
-          {SukhiFedi.Schema.Mute, :account_id},
-          {SukhiFedi.Schema.Block, :account_id},
-          {SukhiFedi.Schema.NoteDraft, :account_id},
-          {SukhiFedi.Schema.ScheduledStatus, :account_id},
-          {SukhiFedi.Schema.Marker, :account_id},
-          {SukhiFedi.Schema.Notification, :account_id}
-        ] do
-      Repo.delete_all(from(r in schema, where: field(r, ^field) == ^account_id))
+  @sign_in_rows [
+    SukhiFedi.Schema.Session,
+    SukhiFedi.Schema.OauthAccessToken,
+    SukhiFedi.Schema.OauthAuthorizationCode,
+    SukhiFedi.Schema.WebauthnCredential,
+    SukhiFedi.Schema.EmailCode
+  ]
+
+  @kept_rows [
+    SukhiFedi.Schema.PushSubscription,
+    SukhiFedi.Schema.PinnedNote,
+    SukhiFedi.Schema.Bookmark,
+    SukhiFedi.Schema.Mute,
+    SukhiFedi.Schema.Block,
+    SukhiFedi.Schema.NoteDraft,
+    SukhiFedi.Schema.ScheduledStatus,
+    SukhiFedi.Schema.Marker,
+    SukhiFedi.Schema.Notification
+  ]
+
+  defp clear_kept_rows(account_id), do: delete_rows(@kept_rows, account_id)
+
+  defp delete_rows(schemas, account_id) do
+    for schema <- schemas do
+      Repo.delete_all(from(r in schema, where: r.account_id == ^account_id))
     end
+  end
+
+  defp blank(account_id, now) do
+    delete_rows(@sign_in_rows, account_id)
 
     Repo.update_all(from(a in Account, where: a.id == ^account_id),
       set: [
@@ -189,6 +206,8 @@ defmodule SukhiFedi.AccountDeletion do
   end
 
   defp next_notes_or_finish(%AccountDeletion{} = d, now) do
+    clear_kept_rows(d.account_id)
+
     ids =
       Repo.all(
         from(n in Note,
