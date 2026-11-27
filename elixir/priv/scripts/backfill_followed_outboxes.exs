@@ -15,17 +15,17 @@
 #   bin/combined eval 'SukhiFedi.Release.run_script("backfill_followed_outboxes")'
 import Ecto.Query, only: [from: 2]
 
-alias SukhiFedi.Repo
+alias SukhiFedi.{AccountRepo, Repo}
 alias SukhiFedi.Schema.{Account, Follow}
 
-from(f in Follow,
-  join: a in Account,
-  on: a.id == f.followee_id,
-  where: f.state == "accepted" and not is_nil(a.domain) and not is_nil(a.actor_uri),
-  distinct: a.id,
+followed =
+  Repo.all(from(f in Follow, where: f.state == "accepted", distinct: true, select: f.followee_id))
+
+from(a in Account,
+  where: a.id in ^followed and not is_nil(a.domain) and not is_nil(a.actor_uri),
   select: a.actor_uri
 )
-|> Repo.all()
+|> AccountRepo.all()
 |> Enum.map(fn actor_uri ->
   SukhiFedi.Federation.OutboxBackfill.mark_pending(actor_uri)
 

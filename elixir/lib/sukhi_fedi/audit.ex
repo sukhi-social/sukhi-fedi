@@ -9,13 +9,13 @@ defmodule SukhiFedi.Audit do
   """
 
   alias Ecto.Multi
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Schema.AdminAudit
 
   @spec add_multi(Multi.t(), (map() -> map())) :: Multi.t()
   def add_multi(multi, attrs_fn) when is_function(attrs_fn, 1) do
     Multi.run(multi, :audit, fn _repo, changes ->
-      changes |> attrs_fn.() |> AdminAudit.changeset() |> Repo.insert()
+      changes |> attrs_fn.() |> AdminAudit.changeset() |> AccountRepo.insert()
     end)
   end
 end

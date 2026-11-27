@@ -25,7 +25,7 @@ defmodule SukhiFedi.JoinApplications do
   import Ecto.Query
   require Logger
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.JoinApplications.{CheckDay, Mail}
   alias SukhiFedi.Schema.JoinApplication
 
@@ -77,7 +77,7 @@ defmodule SukhiFedi.JoinApplications do
 
   defp store_and_send(changeset, claim, check) do
     with :ok <- allow_mail(Ecto.Changeset.get_field(changeset, :email)),
-         {:ok, app} <- Repo.insert(changeset),
+         {:ok, app} <- AccountRepo.insert(changeset),
          :ok <- send_receipt(app, check) do
       {:ok, %{application: app, claim: claim, check: check}}
     else
@@ -102,14 +102,14 @@ defmodule SukhiFedi.JoinApplications do
 
   defp confirm(app) do
     key = secret()
-    {:ok, confirmed} = app |> JoinApplication.confirm_changeset(hash(key)) |> Repo.update()
+    {:ok, confirmed} = app |> JoinApplication.confirm_changeset(hash(key)) |> AccountRepo.update()
 
     case Mail.edit_link(confirmed.email, confirmed.receipt, key, confirmed.lang) do
       :ok ->
         {:ok, confirmed}
 
       {:error, _} ->
-        {:ok, _} = confirmed |> JoinApplication.unconfirm_changeset() |> Repo.update()
+        {:ok, _} = confirmed |> JoinApplication.unconfirm_changeset() |> AccountRepo.update()
         {:error, :send_failed}
     end
   end
@@ -138,7 +138,7 @@ defmodule SukhiFedi.JoinApplications do
 
   defp move_and_send(changeset) do
     with :ok <- allow_mail(Ecto.Changeset.get_field(changeset, :email)),
-         {:ok, app} <- Repo.update(changeset),
+         {:ok, app} <- AccountRepo.update(changeset),
          :ok <- send_receipt(app, CheckDay.next()) do
       {:ok, app}
     else
@@ -162,7 +162,7 @@ defmodule SukhiFedi.JoinApplications do
   def edit(key, attrs) when is_map(attrs) do
     case by_edit_key(key) do
       nil -> {:error, :not_found}
-      app -> app |> JoinApplication.edit_changeset(attrs) |> Repo.update()
+      app -> app |> JoinApplication.edit_changeset(attrs) |> AccountRepo.update()
     end
   end
 
@@ -175,7 +175,7 @@ defmodule SukhiFedi.JoinApplications do
   """
   @spec list_waiting() :: [JoinApplication.t()]
   def list_waiting do
-    Repo.all(
+    AccountRepo.all(
       from(a in JoinApplication,
         where: not is_nil(a.confirmed_at) and is_nil(a.welcomed_at),
         order_by: [asc: a.created_at]
@@ -186,7 +186,7 @@ defmodule SukhiFedi.JoinApplications do
   @doc "One waiting application, by receipt number (spaces and dashes are fine)."
   @spec fetch_waiting(String.t()) :: {:ok, JoinApplication.t()} | {:error, :not_found}
   def fetch_waiting(receipt) when is_binary(receipt) do
-    case Repo.get_by(JoinApplication, receipt: String.replace(receipt, ~r/[\s-]/, "")) do
+    case AccountRepo.get_by(JoinApplication, receipt: String.replace(receipt, ~r/[\s-]/, "")) do
       %JoinApplication{confirmed_at: %DateTime{}, welcomed_at: nil} = app -> {:ok, app}
       _ -> {:error, :not_found}
     end
@@ -208,16 +208,16 @@ defmodule SukhiFedi.JoinApplications do
          {:ok, app} <- fetch_waiting(receipt) do
       key = secret()
       expires = DateTime.add(now, @entry_ttl_seconds, :second)
-      {:ok, welcomed} = app |> JoinApplication.welcome_changeset(hash(key), expires) |> Repo.update()
+      {:ok, welcomed} = app |> JoinApplication.welcome_changeset(hash(key), expires) |> AccountRepo.update()
 
       case Mail.welcome(welcomed.email, welcomed.call_name, key, note, welcomed.lang) do
         :ok ->
-          {:ok, _} = welcomed |> JoinApplication.scrub_changeset() |> Repo.update()
+          {:ok, _} = welcomed |> JoinApplication.scrub_changeset() |> AccountRepo.update()
           audit("join_welcomed", by_id, welcomed.receipt)
           {:ok, welcomed}
 
         {:error, _} ->
-          {:ok, _} = welcomed |> JoinApplication.unwelcome_changeset() |> Repo.update()
+          {:ok, _} = welcomed |> JoinApplication.unwelcome_changeset() |> AccountRepo.update()
           {:error, :send_failed}
       end
     end
@@ -235,7 +235,7 @@ defmodule SukhiFedi.JoinApplications do
          {:ok, app} <- fetch_waiting(receipt) do
       case Mail.decline(app.email, app.call_name, reason, app.lang) do
         :ok ->
-          {:ok, _} = Repo.delete(app)
+          {:ok, _} = AccountRepo.delete(app)
           audit("join_declined", by_id, app.receipt)
           :ok
 
@@ -272,7 +272,7 @@ defmodule SukhiFedi.JoinApplications do
       h = hash(key)
 
       {n, _} =
-        Repo.update_all(
+        AccountRepo.update_all(
           from(a in JoinApplication,
             where: a.entry_hash == ^h and is_nil(a.joined_at) and a.entry_expires_at > ^now
           ),
@@ -292,7 +292,7 @@ defmodule SukhiFedi.JoinApplications do
     cutoff = DateTime.add(now, -@unconfirmed_ttl_seconds, :second)
 
     {n, _} =
-      Repo.delete_all(
+      AccountRepo.delete_all(
         from(a in JoinApplication, where: is_nil(a.confirmed_at) and a.created_at < ^cutoff)
       )
 
@@ -322,7 +322,7 @@ defmodule SukhiFedi.JoinApplications do
   defp audit(action, admin_id, receipt) do
     case %{action: action, admin_account_id: admin_id, metadata: %{receipt: receipt}}
          |> SukhiFedi.Schema.AdminAudit.changeset()
-         |> Repo.insert() do
+         |> AccountRepo.insert() do
       {:ok, _} -> :ok
       {:error, reason} -> Logger.warning("join audit not written (#{action}): #{inspect(reason)}")
     end
@@ -337,7 +337,7 @@ defmodule SukhiFedi.JoinApplications do
 
   # A receipt that did not go out leaves nothing behind.
   defp discard(app) do
-    _ = Repo.delete(app)
+    _ = AccountRepo.delete(app)
     {:error, :send_failed}
   end
 
@@ -351,17 +351,17 @@ defmodule SukhiFedi.JoinApplications do
   end
 
   defp by_claim(claim) when is_binary(claim) and claim != "",
-    do: Repo.get_by(JoinApplication, claim_hash: hash(claim))
+    do: AccountRepo.get_by(JoinApplication, claim_hash: hash(claim))
 
   defp by_claim(_), do: nil
 
   defp by_edit_key(key) when is_binary(key) and key != "",
-    do: Repo.get_by(JoinApplication, edit_hash: hash(key))
+    do: AccountRepo.get_by(JoinApplication, edit_hash: hash(key))
 
   defp by_edit_key(_), do: nil
 
   defp by_entry_key(key) when is_binary(key) and key != "",
-    do: Repo.get_by(JoinApplication, entry_hash: hash(key))
+    do: AccountRepo.get_by(JoinApplication, entry_hash: hash(key))
 
   defp by_entry_key(_), do: nil
 
@@ -371,7 +371,7 @@ defmodule SukhiFedi.JoinApplications do
     <<n::32>> = :crypto.strong_rand_bytes(4)
     receipt = n |> rem(1_000_000) |> Integer.to_string() |> String.pad_leading(6, "0")
 
-    if tries > 1 and Repo.exists?(from(a in JoinApplication, where: a.receipt == ^receipt)),
+    if tries > 1 and AccountRepo.exists?(from(a in JoinApplication, where: a.receipt == ^receipt)),
       do: new_receipt(tries - 1),
       else: receipt
   end

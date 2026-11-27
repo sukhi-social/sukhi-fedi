@@ -20,7 +20,7 @@ defmodule SukhiFedi.Auth.Passkeys do
   require Logger
 
   alias SukhiFedi.Accounts
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Schema.{Account, WebauthnChallenge, WebauthnCredential}
 
   @challenge_ttl_seconds 300
@@ -106,7 +106,7 @@ defmodule SukhiFedi.Auth.Passkeys do
       |> Ecto.Changeset.unique_constraint(:credential_id,
         name: :webauthn_credentials_credential_id_index
       )
-      |> Repo.insert()
+      |> AccountRepo.insert()
       |> case do
         {:ok, cred} -> {:ok, cred}
         {:error, %Ecto.Changeset{}} -> {:error, :already_registered}
@@ -166,7 +166,7 @@ defmodule SukhiFedi.Auth.Passkeys do
   @spec list(Account.t()) :: [WebauthnCredential.t()]
   def list(%Account{id: account_id}) do
     from(c in WebauthnCredential, where: c.account_id == ^account_id, order_by: c.id)
-    |> Repo.all()
+    |> AccountRepo.all()
   end
 
   # Only the label moves. The key itself, its counter and its dates stay as
@@ -179,7 +179,7 @@ defmodule SukhiFedi.Auth.Passkeys do
         where: c.account_id == ^account_id and c.id == ^id,
         select: c
       )
-      |> Repo.update_all(set: [nickname: nickname(nickname)])
+      |> AccountRepo.update_all(set: [nickname: nickname(nickname)])
 
     case {n, rows} do
       {1, [cred]} -> {:ok, cred}
@@ -191,7 +191,7 @@ defmodule SukhiFedi.Auth.Passkeys do
   def delete(%Account{id: account_id}, id) do
     {n, _} =
       from(c in WebauthnCredential, where: c.account_id == ^account_id and c.id == ^id)
-      |> Repo.delete_all()
+      |> AccountRepo.delete_all()
 
     case n do
       1 -> :ok
@@ -210,7 +210,7 @@ defmodule SukhiFedi.Auth.Passkeys do
       |> DateTime.truncate(:second)
 
     {:ok, _} =
-      Repo.insert(%WebauthnChallenge{
+      AccountRepo.insert(%WebauthnChallenge{
         ref: ref,
         account_id: account_id,
         purpose: purpose,
@@ -227,11 +227,11 @@ defmodule SukhiFedi.Auth.Passkeys do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     # Opportunistic sweep — keeps the table at "ceremonies in flight".
-    _ = from(c in WebauthnChallenge, where: c.expires_at < ^now) |> Repo.delete_all()
+    _ = from(c in WebauthnChallenge, where: c.expires_at < ^now) |> AccountRepo.delete_all()
 
     {n, rows} =
       from(c in WebauthnChallenge, where: c.ref == ^ref and c.purpose == ^purpose, select: c)
-      |> Repo.delete_all()
+      |> AccountRepo.delete_all()
 
     case {n, rows} do
       {1, [row]} -> {:ok, row}
@@ -251,7 +251,7 @@ defmodule SukhiFedi.Auth.Passkeys do
   end
 
   defp find_credential(credential_id) when byte_size(credential_id) > 0 do
-    case Repo.get_by(WebauthnCredential, credential_id: credential_id) do
+    case AccountRepo.get_by(WebauthnCredential, credential_id: credential_id) do
       nil -> {:error, :unknown_credential}
       cred -> {:ok, cred}
     end
@@ -322,7 +322,7 @@ defmodule SukhiFedi.Auth.Passkeys do
 
     {1, _} =
       from(c in WebauthnCredential, where: c.id == ^cred.id)
-      |> Repo.update_all(set: [sign_count: sign_count, last_used_at: now])
+      |> AccountRepo.update_all(set: [sign_count: sign_count, last_used_at: now])
   end
 
   defp nickname(nil), do: nil

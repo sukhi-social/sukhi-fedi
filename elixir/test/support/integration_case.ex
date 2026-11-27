@@ -55,10 +55,11 @@ defmodule SukhiFedi.IntegrationCase do
 
     # The accounts' tables: CASCADE reaches every table that points at
     # `accounts`; the ones that point at nothing are named.
+    # Ids go on from test to test: the rate limits remember accounts by id.
     SukhiFedi.AccountRepo.query!("""
     TRUNCATE accounts, join_applications, outbox, admin_audits,
              suspension_notices, suspension_pending, suspension_evidence, suspension_cutoffs
-    RESTART IDENTITY CASCADE
+    CASCADE
     """)
   end
 
@@ -78,7 +79,7 @@ defmodule SukhiFedi.IntegrationCase do
   Writes an account row. The tests make their accounts here, so that where
   accounts are kept is said in one place.
   """
-  def insert_account!(account), do: SukhiFedi.Repo.insert!(account)
+  def insert_account!(account), do: SukhiFedi.AccountRepo.insert!(account)
 
   @doc """
   Build the URL of a mock remote actor's inbox. Useful when writing

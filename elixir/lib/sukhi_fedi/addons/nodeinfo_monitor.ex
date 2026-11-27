@@ -17,7 +17,7 @@ defmodule SukhiFedi.Addons.NodeinfoMonitor do
   import Ecto.Query
   require Logger
 
-  alias SukhiFedi.{Repo, Notes}
+  alias SukhiFedi.{AccountRepo, Repo, Notes}
   alias SukhiFedi.Schema.{Account, MonitoredInstance, NodeinfoSnapshot}
 
   @doc """
@@ -30,7 +30,7 @@ defmodule SukhiFedi.Addons.NodeinfoMonitor do
 
     if valid_domain?(cleaned) do
       Ecto.Multi.new()
-      |> Ecto.Multi.run(:account, fn repo, _ -> upsert_watcher_account(repo, cleaned) end)
+      |> Ecto.Multi.run(:account, fn _repo, _ -> upsert_watcher_account(cleaned) end)
       |> Ecto.Multi.run(:monitored_instance, fn repo, %{account: a} ->
         upsert_monitored_instance(repo, cleaned, a.id)
       end)
@@ -58,8 +58,8 @@ defmodule SukhiFedi.Addons.NodeinfoMonitor do
     end
   end
 
-  defp upsert_watcher_account(repo, domain) do
-    case repo.get_by(Account, monitored_domain: domain) do
+  defp upsert_watcher_account(domain) do
+    case AccountRepo.get_by(Account, monitored_domain: domain) do
       %Account{} = existing ->
         {:ok, existing}
 
@@ -72,7 +72,7 @@ defmodule SukhiFedi.Addons.NodeinfoMonitor do
           monitored_domain: domain
         }
         |> struct!(SukhiFedi.Keys.new_attrs())
-        |> repo.insert()
+        |> AccountRepo.insert()
     end
   end
 

@@ -31,7 +31,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
   import Ecto.Query
 
   alias Ecto.Multi
-  alias SukhiFedi.{Mailer, Repo}
+  alias SukhiFedi.{Mailer, AccountRepo}
   alias SukhiFedi.Auth.EmailChangeNotice
   alias SukhiFedi.Schema.{Account, EmailCode}
 
@@ -77,7 +77,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
       Multi.new()
       |> Multi.update(:account, changeset)
       |> Multi.delete(:code, row)
-      |> Repo.transaction()
+      |> AccountRepo.transaction()
       |> case do
         {:ok, %{account: updated}} ->
           # After the commit, best effort: a failed courtesy mail to the
@@ -137,7 +137,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
       case login_account_by_email(norm) do
         %Account{} = account ->
           with {:ok, row} <- match_code(account.id, "login", code) do
-            {:ok, _} = Repo.delete(row)
+            {:ok, _} = AccountRepo.delete(row)
             {:ok, account}
           end
 
@@ -175,7 +175,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
   def confirm_signup_code(email, code) do
     with {:ok, norm} <- normalize_or_invalid_code(email),
          {:ok, row} <- match_signup_code(norm, code) do
-      {:ok, _} = Repo.delete(row)
+      {:ok, _} = AccountRepo.delete(row)
       {:ok, Plug.Crypto.sign(secret(), @signup_proof_salt, norm)}
     end
   end
@@ -209,7 +209,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
           :ok | {:error, :invalid_code | :expired | :too_many_attempts}
   def confirm_reauth(%Account{id: id}, code) do
     with {:ok, row} <- match_code(id, "reauth", code) do
-      {:ok, _} = Repo.delete(row)
+      {:ok, _} = AccountRepo.delete(row)
       :ok
     end
   end
@@ -222,7 +222,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
         is_nil(a.domain) and not is_nil(a.email_verified_at) and
           fragment("lower(?)", a.email) == ^String.downcase(email)
     )
-    |> Repo.one()
+    |> AccountRepo.one()
   end
 
   # ── shared internals ─────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
     code = generate_code()
 
     {:ok, _} =
-      Repo.insert(
+      AccountRepo.insert(
         new_code_row(account_id, purpose, email, code),
         on_conflict: {:replace, [:email, :code_hash, :attempts, :expires_at, :created_at]},
         conflict_target: [:account_id, :purpose]
@@ -246,7 +246,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
     # The partial unique index (lower(email), purpose) covers the
     # account-less rows — same one-live-code rule, keyed by address.
     {:ok, _} =
-      Repo.insert(
+      AccountRepo.insert(
         new_code_row(nil, "signup", email, code),
         on_conflict: {:replace, [:code_hash, :attempts, :expires_at, :created_at]},
         conflict_target: {:unsafe_fragment, "(lower(email), purpose) WHERE account_id IS NULL"}
@@ -276,7 +276,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
   end
 
   defp match_code(account_id, purpose, input) do
-    check_row(Repo.get_by(EmailCode, account_id: account_id, purpose: purpose), input)
+    check_row(AccountRepo.get_by(EmailCode, account_id: account_id, purpose: purpose), input)
   end
 
   defp match_signup_code(email, input) do
@@ -285,7 +285,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
         is_nil(c.account_id) and c.purpose == "signup" and
           fragment("lower(?)", c.email) == ^email
     )
-    |> Repo.one()
+    |> AccountRepo.one()
     |> check_row(input)
   end
 
@@ -310,7 +310,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
       true ->
         _ =
           from(c in EmailCode, where: c.id == ^row.id)
-          |> Repo.update_all(inc: [attempts: 1])
+          |> AccountRepo.update_all(inc: [attempts: 1])
 
         {:error, :invalid_code}
     end
@@ -334,7 +334,7 @@ defmodule SukhiFedi.Auth.EmailAuth do
         id -> from(a in base, where: a.id != ^id)
       end
 
-    if Repo.exists?(query), do: {:error, :email_taken}, else: :ok
+    if AccountRepo.exists?(query), do: {:error, :email_taken}, else: :ok
   end
 
   defp check_rate(email, account_id) do

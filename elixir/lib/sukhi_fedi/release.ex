@@ -8,8 +8,9 @@ defmodule SukhiFedi.Release do
   The store (hosigraph) derives its schema from the Ecto schemas when it opens, so
   `migrate_all/0` has nothing to run; `Mix.Tasks.Sukhi.Migrate` routes through it.
 
-  PostgreSQL holds the job queues only; Oban's tables are created when the
-  application boots (`SukhiFedi.Queue.Migrate`), not here.
+  PostgreSQL holds the accounts' tables (`SukhiFedi.AccountRepo`) and the job
+  queues; both are brought up to date when the application boots
+  (`SukhiFedi.AccountRepo.Migrate`, `SukhiFedi.Queue.Migrate`), not here.
   """
 
   require Logger
@@ -162,6 +163,24 @@ defmodule SukhiFedi.Release do
 
   defp recv_nats_pong(_socket, _buffer, 0), do: {:error, :no_pong}
 
+  # Inside the live app (web request or rpc) the stores are up. A one-shot
+  # `eval` starts both for the length of the call.
+  defp with_stores(fun) do
+    if Process.whereis(SukhiFedi.Repo) do
+      fun.()
+    else
+      {:ok, result, _apps} =
+        Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo ->
+          {:ok, result, _apps} =
+            Ecto.Migrator.with_repo(SukhiFedi.AccountRepo, fn _repo -> fun.() end)
+
+          result
+        end)
+
+      result
+    end
+  end
+
   defp load_app do
     Application.load(@app)
   end
@@ -213,7 +232,7 @@ defmodule SukhiFedi.Release do
               SukhiFedi.Keys.new_attrs()
             )
           )
-          |> SukhiFedi.Repo.insert!()
+          |> SukhiFedi.AccountRepo.insert!()
 
           :created
 
@@ -222,16 +241,7 @@ defmodule SukhiFedi.Release do
       end
     end
 
-    if Process.whereis(SukhiFedi.Repo) do
-      # Running inside the live app (web request or rpc) — Repo is up.
-      {:ok, do_seed.()}
-    else
-      # Invoked via `eval` as a one-shot — start the Repo for this call.
-      {:ok, result, _apps} =
-        Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo -> do_seed.() end)
-
-      {:ok, result}
-    end
+    {:ok, with_stores(do_seed)}
   end
 
   @doc """
@@ -252,14 +262,7 @@ defmodule SukhiFedi.Release do
 
     do_create = fn -> SukhiFedi.LocalAccounts.create_admin(username, password, opts) end
 
-    if Process.whereis(SukhiFedi.Repo) do
-      do_create.()
-    else
-      {:ok, result, _apps} =
-        Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo -> do_create.() end)
-
-      result
-    end
+    with_stores(do_create)
   end
 
   @doc """
@@ -293,13 +296,7 @@ defmodule SukhiFedi.Release do
     source = File.read!(path)
     run = fn -> source |> Code.eval_string([args: args], file: path) |> elem(0) end
 
-    result =
-      if Process.whereis(SukhiFedi.Repo) do
-        run.()
-      else
-        {:ok, r, _apps} = Ecto.Migrator.with_repo(SukhiFedi.Repo, fn _repo -> run.() end)
-        r
-      end
+    result = with_stores(run)
 
     IO.inspect(result, label: name)
     {:ok, result}

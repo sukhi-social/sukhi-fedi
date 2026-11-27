@@ -16,7 +16,7 @@ defmodule SukhiFedi.Addons.Moderation do
   import Ecto.Query
   alias SukhiFedi.Accounts
   alias Ecto.Multi
-  alias SukhiFedi.{Audit, Outbox, Repo}
+  alias SukhiFedi.{Audit, Outbox, AccountRepo, Repo}
   alias SukhiFedi.Schema.{Mute, Block, Report, InstanceBlock, BubbleInstance, Account, AdminAudit}
 
   # ── user-level mutes / blocks (no admin outbox) ──────────────────────────
@@ -348,7 +348,7 @@ defmodule SukhiFedi.Addons.Moderation do
 
       if domains == [],
         do: [],
-        else: Repo.all(from a in Account, where: a.domain in ^domains, select: a.id)
+        else: AccountRepo.all(from a in Account, where: a.domain in ^domains, select: a.id)
     end)
   end
 
@@ -490,7 +490,7 @@ defmodule SukhiFedi.Addons.Moderation do
       nil -> base
       q -> from a in base, where: ilike(a.domain, ^("%" <> escape_like(q) <> "%"))
     end
-    |> Repo.all()
+    |> AccountRepo.all()
   end
 
   defp trimmed(s) when is_binary(s) do
@@ -552,7 +552,7 @@ defmodule SukhiFedi.Addons.Moderation do
             %{account_id: a.id, by_id: suspended_by_id, reason: reason}
           end
         )
-        |> Repo.transaction()
+        |> AccountRepo.transaction()
         |> case do
           {:ok, %{account: a}} -> {:ok, a}
           {:error, _, reason, _} -> {:error, reason}
@@ -594,7 +594,7 @@ defmodule SukhiFedi.Addons.Moderation do
           & &1.account.id,
           fn %{account: a} -> %{account_id: a.id, by_id: by_id} end
         )
-        |> Repo.transaction()
+        |> AccountRepo.transaction()
         |> case do
           {:ok, %{account: a}} -> {:ok, a}
           {:error, _, reason, _} -> {:error, reason}

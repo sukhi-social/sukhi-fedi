@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 defmodule SukhiFedi.Schema.Account do
   use Ecto.Schema
-  use Ecto.Hosi.Schema
   import Ecto.Changeset
 
   @max_fields 4
@@ -10,25 +9,6 @@ defmodule SukhiFedi.Schema.Account do
   @home_filters ~w(hide_boosts hide_sensitive only_media)
   @translate_engines ~w(libre deepl)
   @max_langs 8
-
-  # the catalog's unique indexes, kept by the store
-  hosi_unique(:actor_uri, name: "accounts_actor_uri_index", where: [not_null: [:actor_uri]])
-
-  hosi_unique(:email,
-    name: "accounts_local_email_index",
-    lower: [:email],
-    where: [null: [:domain], not_null: [:email, :email_verified_at]]
-  )
-
-  hosi_unique(:username, name: "accounts_local_username_index", where: [null: [:domain]])
-
-  hosi_unique(:monitored_domain,
-    name: "accounts_monitored_domain_index",
-    where: [not_null: [:monitored_domain]]
-  )
-
-  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:suspended_by_id, to: "accounts", on_delete: :nilify, name: "accounts_suspended_by_id_fkey")
 
   schema "accounts" do
     field(:username, :string)

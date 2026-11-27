@@ -10,7 +10,6 @@ defmodule SukhiFedi.Schema.AnnouncementDismissal do
   )
 
   # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "announcement_dismissals_account_id_fkey")
   hosi_ref(:announcement_id, to: "announcements", on_delete: :cascade, name: "announcement_dismissals_announcement_id_fkey")
 
   schema "announcement_dismissals" do

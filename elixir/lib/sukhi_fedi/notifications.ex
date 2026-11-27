@@ -43,7 +43,7 @@ defmodule SukhiFedi.Notifications do
 
   import Ecto.Query
 
-  alias SukhiFedi.{Accounts, Repo}
+  alias SukhiFedi.{Accounts, AccountRepo, Repo}
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Addons.WebPush
   alias SukhiFedi.Schema.{Account, Notification}
@@ -112,7 +112,7 @@ defmodule SukhiFedi.Notifications do
       where: a.id == ^account_id,
       select: {a.notification_hold_minutes, a.notification_grouping}
     )
-    |> Repo.one()
+    |> AccountRepo.one()
     |> case do
       {hold, grouping} -> %{hold_minutes: hold || 0, grouping: grouping == true}
       nil -> %{hold_minutes: 0, grouping: false}

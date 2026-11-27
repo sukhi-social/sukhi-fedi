@@ -464,7 +464,7 @@ defmodule SukhiFedi.Integration.SocialTest do
                %{"name" => "c", "color" => "#abc"}
              ] = updated.roles
 
-      assert Repo.get_by!(SukhiFedi.Schema.AdminAudit, action: "roles_changed", target_account_id: a.id)
+      assert SukhiFedi.AccountRepo.get_by!(SukhiFedi.Schema.AdminAudit, action: "roles_changed", target_account_id: a.id)
     end
 
     test "a remote account is not ours to badge" do

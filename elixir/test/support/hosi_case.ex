@@ -45,8 +45,11 @@ defmodule SukhiFedi.HosiCase do
     :ok
   end
 
-  @doc "A local account row."
+  @doc """
+  A local account to hang store rows on. Accounts are not in the store (it
+  only keeps their ids), so this is the struct alone.
+  """
   def account!(username \\ "ada") do
-    Repo.insert!(%Schema.Account{username: username})
+    %Schema.Account{id: System.unique_integer([:positive]), username: username}
   end
 end

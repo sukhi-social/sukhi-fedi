@@ -28,7 +28,7 @@ defmodule SukhiFedi.AccountPorter do
 
   import Ecto.Query
 
-  alias SukhiFedi.{Accounts, Repo}
+  alias SukhiFedi.{Accounts, AccountRepo, Repo}
   alias SukhiFedi.AccountPorter.FollowWorker
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Schema.{Account, Block, Follow, Mute}
@@ -237,7 +237,7 @@ defmodule SukhiFedi.AccountPorter do
           from(a in Account,
             where: is_nil(a.domain) and is_nil(a.deleted_at) and a.username in ^usernames
           )
-          |> Repo.all()
+          |> AccountRepo.all()
           |> Map.new(&{&1.username, &1})
       end
 
@@ -255,7 +255,7 @@ defmodule SukhiFedi.AccountPorter do
               not is_nil(a.domain) and is_nil(a.deleted_at) and a.username in ^names and
                 a.domain in ^hosts
           )
-          |> Repo.all()
+          |> AccountRepo.all()
           |> Map.new(&{{&1.username, String.downcase(&1.domain)}, &1})
       end
 

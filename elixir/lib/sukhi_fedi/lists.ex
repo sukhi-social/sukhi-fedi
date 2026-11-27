@@ -22,7 +22,7 @@ defmodule SukhiFedi.Lists do
 
   import Ecto.Query
 
-  alias SukhiFedi.{Accounts, Repo}
+  alias SukhiFedi.{Accounts, AccountRepo, Repo}
   alias SukhiFedi.Schema.{Account, List, Note}
 
   # ── lists CRUD ──────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ defmodule SukhiFedi.Lists do
   def add_accounts(viewer_id, id, account_ids) do
     with {:ok, %List{id: lid}} <- get(viewer_id, id) do
       ids = Enum.map(account_ids, &SukhiFedi.Coercion.parse_id/1) |> Enum.reject(&is_nil/1)
-      existing = Repo.all(from a in Account, where: a.id in ^ids, select: a.id)
+      existing = AccountRepo.all(from a in Account, where: a.id in ^ids, select: a.id)
 
       rows = Enum.map(existing, fn aid -> %{list_id: lid, account_id: aid} end)
 

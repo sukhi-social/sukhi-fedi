@@ -73,7 +73,7 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
         |> Ecto.Changeset.change(
           created_at: DateTime.add(DateTime.utc_now(), -48, :hour) |> DateTime.truncate(:second)
         )
-        |> SukhiFedi.Repo.update!()
+        |> SukhiFedi.AccountRepo.update!()
 
       {:ok, post} =
         Deco.post(author, deco.slug, %{"title" => "夜ごはんの話", "status" => "なにたべよう"})
@@ -242,7 +242,7 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
         |> Ecto.Changeset.change(
           created_at: DateTime.add(DateTime.utc_now(), -48, :hour) |> DateTime.truncate(:second)
         )
-        |> SukhiFedi.Repo.update!()
+        |> SukhiFedi.AccountRepo.update!()
 
       :ok = D.record_follow(uri_of(deco), "https://remote.test/users/a", "https://remote.test/inbox")
 
@@ -264,7 +264,7 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
         |> Ecto.Changeset.change(
           created_at: DateTime.add(DateTime.utc_now(), -48, :hour) |> DateTime.truncate(:second)
         )
-        |> SukhiFedi.Repo.update!()
+        |> SukhiFedi.AccountRepo.update!()
 
       :ok = D.record_follow(uri_of(deco), "https://remote.test/users/a", "https://remote.test/inbox")
       {:ok, post} = D.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
@@ -284,7 +284,7 @@ defmodule SukhiFedi.Integration.DecoFederationTest do
         |> Ecto.Changeset.change(
           created_at: DateTime.add(DateTime.utc_now(), -48, :hour) |> DateTime.truncate(:second)
         )
-        |> SukhiFedi.Repo.update!()
+        |> SukhiFedi.AccountRepo.update!()
 
       {:ok, _} = D.post(author, deco.slug, %{"title" => "題", "status" => "本文"})
       refute last_announce()

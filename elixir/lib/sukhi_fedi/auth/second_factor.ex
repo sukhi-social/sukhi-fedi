@@ -18,7 +18,7 @@ defmodule SukhiFedi.Auth.SecondFactor do
 
   alias SukhiFedi.Accounts
   alias SukhiFedi.Auth.TOTP
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Schema.Account
 
   @pending_salt "sukhi auth second factor"
@@ -62,7 +62,7 @@ defmodule SukhiFedi.Auth.SecondFactor do
               a.id == ^id and
                 (is_nil(a.totp_last_used_step) or a.totp_last_used_step < ^step)
           )
-          |> Repo.update_all(set: [totp_last_used_step: step])
+          |> AccountRepo.update_all(set: [totp_last_used_step: step])
 
         case n do
           1 -> :ok
@@ -94,7 +94,7 @@ defmodule SukhiFedi.Auth.SecondFactor do
     {:ok, _} =
       account
       |> Ecto.Changeset.change(totp_secret: secret, totp_last_used_step: nil)
-      |> Repo.update()
+      |> AccountRepo.update()
 
     domain = Application.get_env(:sukhi_fedi, :domain, "localhost:4000")
 
@@ -116,7 +116,7 @@ defmodule SukhiFedi.Auth.SecondFactor do
     with :ok <- verify_totp(account, code) do
       account
       |> Ecto.Changeset.change(totp_enabled_at: DateTime.utc_now() |> DateTime.truncate(:second))
-      |> Repo.update()
+      |> AccountRepo.update()
     end
   end
 
@@ -126,7 +126,7 @@ defmodule SukhiFedi.Auth.SecondFactor do
   def disable_totp(%Account{} = account) do
     account
     |> Ecto.Changeset.change(totp_secret: nil, totp_enabled_at: nil, totp_last_used_step: nil)
-    |> Repo.update()
+    |> AccountRepo.update()
   end
 
   defp secret, do: Application.fetch_env!(:sukhi_fedi, :secret_key_base)

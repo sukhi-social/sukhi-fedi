@@ -7,17 +7,13 @@
 #   bin/sukhi_fedi eval 'SukhiFedi.Release.run_script("delete_all_watcher_notes")'
 import Ecto.Query, only: [from: 2]
 
-alias SukhiFedi.{Repo, Notes}
+alias SukhiFedi.{AccountRepo, Repo, Notes}
 alias SukhiFedi.Schema.{Account, Note}
 
-Repo.all(
-  from(n in Note,
-    join: a in Account,
-    on: a.id == n.account_id,
-    where: not is_nil(a.monitored_domain),
-    select: {a.id, n.id}
-  )
-)
+watchers =
+  AccountRepo.all(from(a in Account, where: not is_nil(a.monitored_domain), select: a.id))
+
+Repo.all(from(n in Note, where: n.account_id in ^watchers, select: {n.account_id, n.id}))
 |> Enum.map(fn {account_id, note_id} ->
   Notes.delete_note(account_id, note_id) |> elem(0) |> then(&{note_id, &1})
 end)

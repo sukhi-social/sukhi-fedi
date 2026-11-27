@@ -35,7 +35,7 @@ defmodule SukhiFedi.Integration.DecoTest do
 
     account
     |> Ecto.Changeset.change(created_at: old)
-    |> SukhiFedi.Repo.update!()
+    |> SukhiFedi.AccountRepo.update!()
   end
 
   describe "板" do

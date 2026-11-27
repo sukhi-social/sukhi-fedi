@@ -12,9 +12,6 @@ defmodule SukhiFedi.Schema.FollowInvite do
   # the catalog's unique indexes, kept by the store
   hosi_unique(:code)
 
-  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "follow_invites_account_id_fkey")
-
   schema "follow_invites" do
     field(:account_id, :integer)
     field(:code, :string)

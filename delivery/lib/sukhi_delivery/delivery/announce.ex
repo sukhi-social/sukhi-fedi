@@ -24,11 +24,8 @@ defmodule SukhiDelivery.Delivery.Announce do
   `run/2` takes `:inboxes` to say otherwise.
   """
 
-  import Ecto.Query
-
   alias SukhiDelivery.Delivery.Worker
   alias SukhiDelivery.Outbox.Recipients
-  alias SukhiDelivery.Schema.Account
   alias SukhiShared.DeliverySuspension.Spread
 
   @doc """
@@ -83,8 +80,7 @@ defmodule SukhiDelivery.Delivery.Announce do
   def peers do
     own = SukhiDelivery.Config.domain!() |> String.downcase()
 
-    from(a in Account, where: is_nil(a.domain), select: a)
-    |> SukhiDelivery.Repo.all()
+    SukhiDelivery.Accounts.local()
     |> Enum.flat_map(fn account ->
       uri = Recipients.local_actor_uri(account)
       Recipients.followers_inboxes(uri) ++ Recipients.followed_inboxes(uri)

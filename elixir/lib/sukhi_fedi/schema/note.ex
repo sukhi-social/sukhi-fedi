@@ -15,9 +15,6 @@ defmodule SukhiFedi.Schema.Note do
   # written or asked, so the changeset's `validate_inclusion` is not the only gate.
   hosi_keyword(:visibility, SukhiFedi.Visibility.all())
 
-  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "notes_account_id_fkey")
-
   schema "notes" do
     field(:content, :string)
     # What the author typed, rendered. Set once at write time for local

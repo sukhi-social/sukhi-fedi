@@ -26,7 +26,7 @@ defmodule SukhiFedi.AP.Instructions.ActorUpdate do
 
   alias SukhiFedi.AP.Instructions.Extract
   alias SukhiFedi.Federation.{ActorFetcher, RemoteAccounts}
-  alias SukhiFedi.Repo
+  alias SukhiFedi.AccountRepo
   alias SukhiFedi.Schema.Account
 
   @actor_types ["Person", "Service", "Application", "Group", "Organization"]
@@ -55,6 +55,6 @@ defmodule SukhiFedi.AP.Instructions.ActorUpdate do
   def maybe_handle(_, _), do: :ok
 
   defp remote_row?(actor_uri) do
-    Repo.exists?(from(a in Account, where: a.actor_uri == ^actor_uri and not is_nil(a.domain)))
+    AccountRepo.exists?(from(a in Account, where: a.actor_uri == ^actor_uri and not is_nil(a.domain)))
   end
 end

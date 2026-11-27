@@ -28,7 +28,7 @@ defmodule SukhiFedi.AP.Instructions.Migrations do
   alias SukhiFedi.Accounts
   alias Ecto.Multi
   alias SukhiFedi.AP.Instructions.{Extract, Resolve}
-  alias SukhiFedi.{Outbox, Repo}
+  alias SukhiFedi.{Outbox, AccountRepo, Repo}
   alias SukhiFedi.Schema.{Account, Follow}
 
   @doc """
@@ -76,7 +76,7 @@ defmodule SukhiFedi.AP.Instructions.Migrations do
     {:ok, _} =
       old_account
       |> Ecto.Changeset.change(%{moved_to_uri: new_uri})
-      |> Repo.update()
+      |> AccountRepo.update()
 
     :ok
   end

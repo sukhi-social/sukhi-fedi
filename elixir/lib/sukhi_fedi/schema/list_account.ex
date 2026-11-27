@@ -16,7 +16,6 @@ defmodule SukhiFedi.Schema.ListAccount do
 
   @primary_key {:id, :id, autogenerate: true}
   # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "list_accounts_account_id_fkey")
   hosi_ref(:list_id, to: "lists", on_delete: :cascade, name: "list_accounts_list_id_fkey")
 
   schema "list_accounts" do

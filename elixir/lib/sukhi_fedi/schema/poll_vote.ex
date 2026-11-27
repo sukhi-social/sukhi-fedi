@@ -10,7 +10,6 @@ defmodule SukhiFedi.Schema.PollVote do
   )
 
   # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "poll_votes_account_id_fkey")
   hosi_ref(:option_id, to: "poll_options", on_delete: :cascade, name: "poll_votes_option_id_fkey")
   hosi_ref(:poll_id, to: "polls", on_delete: :cascade, name: "poll_votes_poll_id_fkey")
 

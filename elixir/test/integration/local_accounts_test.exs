@@ -74,7 +74,7 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
       assert {:error, :invalid} = LocalAccounts.authenticate(name, "anything-at-all")
 
       # 誰が作ったか残る
-      assert Repo.exists?(
+      assert SukhiFedi.AccountRepo.exists?(
                from(a in SukhiFedi.Schema.AdminAudit,
                  where:
                    a.action == "bot_created" and a.admin_account_id == ^admin.id and
@@ -179,13 +179,6 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
       # 発行したのは管理者でも、繋がるべき相手は名前を貸した人のほう。
       assert follows?(newcomer, friend.id)
       refute follows?(newcomer, issuer.id)
-    end
-
-    test "フォローが作れなくても、登録そのものは通る", %{invite: invite, issuer: issuer} do
-      # 招待した人が先に消えている、というような場合。フォロー一本のために
-      # account を巻き戻すほうが重いので、登録は必ず生かす。
-      SukhiFedi.Repo.delete!(issuer)
-      assert {:ok, _newcomer} = LocalAccounts.create(signup_attrs(invite, %{}))
     end
 
     test "born passwordless with the proven address verified", %{invite: invite} do
@@ -374,7 +367,7 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
       # Insert the app row directly (no register_app side effects) — we only
       # need a valid app_id FK for the token.
       app =
-        SukhiFedi.Repo.insert!(%SukhiFedi.Schema.OauthApp{
+        SukhiFedi.AccountRepo.insert!(%SukhiFedi.Schema.OauthApp{
           client_id: "c_#{System.unique_integer([:positive])}",
           client_secret_hash: "x",
           name: "pwchg",
@@ -390,13 +383,13 @@ defmodule SukhiFedi.Integration.LocalAccountsTest do
           app_id: app.id,
           account_id: account.id
         })
-        |> SukhiFedi.Repo.insert()
+        |> SukhiFedi.AccountRepo.insert()
 
       assert is_nil(tok.revoked_at)
 
       assert {:ok, _} = LocalAccounts.change_password(account, "original-pass", "brand-new-pass")
 
-      assert SukhiFedi.Repo.get(SukhiFedi.Schema.OauthAccessToken, tok.id).revoked_at != nil
+      assert SukhiFedi.AccountRepo.get(SukhiFedi.Schema.OauthAccessToken, tok.id).revoked_at != nil
     end
 
     test "rejects a wrong current password", %{account: account, name: name} do

@@ -9,7 +9,7 @@ defmodule SukhiFedi.Social do
 
   alias SukhiFedi.Accounts
   alias Ecto.Multi
-  alias SukhiFedi.{Outbox, Repo}
+  alias SukhiFedi.{Outbox, AccountRepo, Repo}
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Schema.{Account, AccountNote, Follow, GroupMembership}
 
@@ -66,10 +66,7 @@ defmodule SukhiFedi.Social do
         }
       )
 
-    # Two queries, one per side, not one `or`. On the Datalevin store an `or`
-    # with an empty side (no local followers, or no remote ones) cannot be
-    # planned, so the whole condition goes to Eval and every account row is
-    # loaded. An empty side runs no query at all.
+    # One query per side; an empty side runs none.
     accounts =
       local_accounts(local_usernames, projection) ++ remote_accounts(remote_uris, projection)
 
@@ -83,7 +80,7 @@ defmodule SukhiFedi.Social do
   defp local_accounts(usernames, projection) do
     projection
     |> where([a], is_nil(a.domain) and a.username in ^usernames)
-    |> Repo.all()
+    |> AccountRepo.all()
   end
 
   defp remote_accounts([], _projection), do: []
@@ -91,7 +88,7 @@ defmodule SukhiFedi.Social do
   defp remote_accounts(uris, projection) do
     projection
     |> where([a], a.actor_uri in ^uris)
-    |> Repo.all()
+    |> AccountRepo.all()
   end
 
   defp canonical_actor_uri(%{domain: nil, username: username}, local_prefix),
@@ -461,14 +458,14 @@ defmodule SukhiFedi.Social do
 
       blocked_domains =
         from(a in Account, where: a.id in ^target_ids and not is_nil(a.domain), select: a.domain)
-        |> Repo.all()
+        |> AccountRepo.all()
         |> Enum.uniq()
         |> Enum.filter(&Moderation.instance_blocked?/1)
         |> MapSet.new()
 
       target_domain =
         from(a in Account, where: a.id in ^target_ids, select: {a.id, a.domain})
-        |> Repo.all()
+        |> AccountRepo.all()
         |> Map.new()
 
       # The viewer's private memo about each target (local-only, never
@@ -523,7 +520,7 @@ defmodule SukhiFedi.Social do
           {:ok, AccountNote.t()} | {:error, :not_found | term()}
   def set_account_note(%Account{id: author_id}, target_id, comment)
       when is_integer(target_id) and is_binary(comment) do
-    if Repo.exists?(from(a in Account, where: a.id == ^target_id)) do
+    if AccountRepo.exists?(from(a in Account, where: a.id == ^target_id)) do
       %AccountNote{}
       |> AccountNote.changeset(%{
         author_account_id: author_id,
@@ -572,7 +569,7 @@ defmodule SukhiFedi.Social do
       where: a.id in ^target_ids,
       select: {a.id, a.username, a.actor_uri}
     )
-    |> Repo.all()
+    |> AccountRepo.all()
     |> Enum.map(fn
       {id, _u, actor_uri} when is_binary(actor_uri) -> {id, actor_uri}
       {id, username, _} -> {id, "https://#{domain}/users/#{username}"}

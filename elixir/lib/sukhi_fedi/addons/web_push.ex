@@ -18,7 +18,7 @@ defmodule SukhiFedi.Addons.WebPush do
   use SukhiFedi.Addon, id: :web_push
 
   import Ecto.Query
-  alias SukhiFedi.{Accounts, Repo}
+  alias SukhiFedi.{Accounts, AccountRepo, Repo}
   alias SukhiFedi.Schema.{Account, Notification, PushSubscription}
 
   require Logger
@@ -251,7 +251,7 @@ defmodule SukhiFedi.Addons.WebPush do
   defp from_acct(nil), do: nil
 
   defp from_acct(account_id) do
-    Repo.one(from a in Account, where: a.id == ^account_id, select: a.username)
+    AccountRepo.one(from a in Account, where: a.id == ^account_id, select: a.username)
   end
 
   # The delivery node owns outbound HTTP, so the job names a module that

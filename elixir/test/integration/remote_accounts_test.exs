@@ -11,7 +11,6 @@ defmodule SukhiFedi.Integration.RemoteAccountsTest do
   @moduletag :integration
 
   alias SukhiFedi.Federation.RemoteAccounts
-  alias SukhiFedi.Repo
   alias SukhiFedi.Schema.Account
 
   @uri "https://remote.example/users/bob"
@@ -158,6 +157,6 @@ defmodule SukhiFedi.Integration.RemoteAccountsTest do
     # nil (same as the original code's `summary: ... || ""`); the point here is
     # the handle fallback for display_name.
     assert acct.summary in [nil, ""]
-    assert Repo.get(Account, acct.id)
+    assert SukhiFedi.AccountRepo.get(Account, acct.id)
   end
 end

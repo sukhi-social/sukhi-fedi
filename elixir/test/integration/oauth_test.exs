@@ -34,7 +34,7 @@ defmodule SukhiFedi.Integration.OAuthTest do
       refute app.client_secret_hash == secret
       assert byte_size(secret) >= 32
 
-      reloaded = Repo.get!(OauthApp, app.id)
+      reloaded = SukhiFedi.AccountRepo.get!(OauthApp, app.id)
       assert reloaded.client_secret_hash == app.client_secret_hash
     end
 
@@ -136,7 +136,7 @@ defmodule SukhiFedi.Integration.OAuthTest do
         from(c in OauthAuthorizationCode,
           where: c.app_id == ^app.id
         )
-        |> Repo.update_all(set: [expires_at: ~U[2020-01-01 00:00:00Z]])
+        |> SukhiFedi.AccountRepo.update_all(set: [expires_at: ~U[2020-01-01 00:00:00Z]])
 
       assert {:error, :invalid_grant} =
                OAuth.exchange_code_for_token(%{
@@ -157,7 +157,7 @@ defmodule SukhiFedi.Integration.OAuthTest do
       assert is_binary(t.access_token)
       refute Map.get(t, :refresh_token)
 
-      tok = Repo.get_by!(OauthAccessToken, app_id: app.id)
+      tok = SukhiFedi.AccountRepo.get_by!(OauthAccessToken, app_id: app.id)
       assert tok.account_id == nil
     end
 
@@ -266,11 +266,11 @@ defmodule SukhiFedi.Integration.OAuthTest do
       assert is_integer(t.expires_in) and t.expires_in > 0
       assert {:ok, _} = OAuth.verify_bearer(t.access_token)
 
-      tok = Repo.get_by!(OauthAccessToken, app_id: app.id)
+      tok = SukhiFedi.AccountRepo.get_by!(OauthAccessToken, app_id: app.id)
       refute is_nil(tok.expires_at)
 
       past = DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.truncate(:second)
-      {:ok, _} = tok |> Ecto.Changeset.change(expires_at: past) |> Repo.update()
+      {:ok, _} = tok |> Ecto.Changeset.change(expires_at: past) |> SukhiFedi.AccountRepo.update()
 
       assert {:error, :expired} = OAuth.verify_bearer(t.access_token)
     end

@@ -16,6 +16,8 @@ defmodule SukhiFedi.PullFederation.Serve do
 
   import Ecto.Query
 
+  alias SukhiFedi.AccountRepo
+
   alias SukhiFedi.Repo
   alias SukhiShared.PullStats
 
@@ -87,7 +89,7 @@ defmodule SukhiFedi.PullFederation.Serve do
         where: is_nil(a.domain) and a.username in ^names,
         select: {a.username, a.id}
       )
-      |> Repo.all()
+      |> AccountRepo.all()
       |> Map.new()
 
     # Of those, the ones some follower on `host` has an accepted follow of.

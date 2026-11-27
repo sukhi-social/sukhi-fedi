@@ -145,7 +145,7 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
       assert %CustomEmoji{} = CustomEmojis.get_local("imp_a2")
       assert CustomEmojis.get_local("imp_no_url") == nil
 
-      audit = Repo.one(from(a in AdminAudit, where: a.action == "emoji_imported"))
+      audit = SukhiFedi.AccountRepo.one(from(a in AdminAudit, where: a.action == "emoji_imported"))
       assert audit.admin_account_id == admin.id
       assert audit.metadata["count"] == 2
 
@@ -181,13 +181,13 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
                CustomEmojis.import_many([item("imp_dry"), %{}], admin.id, dry_run: true)
 
       assert CustomEmojis.get_local("imp_dry") == nil
-      refute Repo.exists?(from(a in AdminAudit, where: a.admin_account_id == ^admin.id))
+      refute SukhiFedi.AccountRepo.exists?(from(a in AdminAudit, where: a.admin_account_id == ^admin.id))
     end
 
     test "all-invalid input writes nothing (no empty audit row)" do
       admin = admin!("imp_admin4")
       assert {:ok, %{imported: 0, failed: 2}} = CustomEmojis.import_many([%{}, 1], admin.id)
-      refute Repo.exists?(from(a in AdminAudit, where: a.admin_account_id == ^admin.id))
+      refute SukhiFedi.AccountRepo.exists?(from(a in AdminAudit, where: a.admin_account_id == ^admin.id))
     end
 
     test "empty and oversized batches are refused" do

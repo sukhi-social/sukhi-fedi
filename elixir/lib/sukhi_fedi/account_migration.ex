@@ -30,7 +30,7 @@ defmodule SukhiFedi.AccountMigration do
   alias SukhiFedi.AP.Instructions.{Migrations, Resolve}
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Federation.WebFinger
-  alias SukhiFedi.{Outbox, Repo}
+  alias SukhiFedi.{Outbox, AccountRepo}
   alias SukhiFedi.Schema.Account
 
   @max_aliases 5
@@ -105,7 +105,7 @@ defmodule SukhiFedi.AccountMigration do
       & &1.account.id,
       fn %{account: a} -> %{account_id: a.id, username: a.username} end
     )
-    |> Repo.transaction()
+    |> AccountRepo.transaction()
     |> case do
       {:ok, %{account: a}} -> {:ok, a}
       {:error, _step, reason, _} -> {:error, reason}
@@ -161,7 +161,7 @@ defmodule SukhiFedi.AccountMigration do
       & &1.account.id,
       fn %{account: a} -> %{account_id: a.id, move_id: a.id, target: target_uri} end
     )
-    |> Repo.transaction()
+    |> AccountRepo.transaction()
     |> case do
       {:ok, %{account: a}} ->
         carry_over_moderation(a, target)

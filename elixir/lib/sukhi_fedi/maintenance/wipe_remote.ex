@@ -46,7 +46,7 @@ defmodule SukhiFedi.Maintenance.WipeRemote do
   require Logger
 
   alias SukhiFedi.Maintenance.Progress
-  alias SukhiFedi.{Notes, Repo}
+  alias SukhiFedi.{Notes, AccountRepo, Repo}
   alias SukhiFedi.Schema.{Account, Note}
 
   @spec run(:dry_run | :execute, keyword()) :: map()
@@ -85,7 +85,7 @@ defmodule SukhiFedi.Maintenance.WipeRemote do
 
   defp scope(domain) when is_binary(domain) do
     # read first, then `in ^ids`: the store has no subquery in a where
-    account_ids = Repo.all(from(a in Account, where: a.domain == ^domain, select: a.id))
+    account_ids = AccountRepo.all(from(a in Account, where: a.domain == ^domain, select: a.id))
     from(n in Notes.remote_notes(Note), where: n.account_id in ^account_ids)
   end
 

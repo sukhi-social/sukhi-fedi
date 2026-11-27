@@ -122,9 +122,9 @@ defmodule SukhiFedi.Integration.JoinApplicationsTest do
       Application.put_env(:sukhi_fedi, :mailer, Keyword.put(conf, :transport, __MODULE__.Broken))
       on_exit(fn -> Application.put_env(:sukhi_fedi, :mailer, conf) end)
 
-      before = SukhiFedi.Repo.aggregate(JoinApplication, :count)
+      before = SukhiFedi.AccountRepo.aggregate(JoinApplication, :count)
       assert {:error, :send_failed} = JoinApplications.submit(attrs(email))
-      assert SukhiFedi.Repo.aggregate(JoinApplication, :count) == before
+      assert SukhiFedi.AccountRepo.aggregate(JoinApplication, :count) == before
     end
 
     test "the same address is limited to three mails in a quarter hour", %{email: email} do
@@ -162,7 +162,7 @@ defmodule SukhiFedi.Integration.JoinApplicationsTest do
       assert {:error, :send_failed} = JoinApplications.received(claim)
       Application.put_env(:sukhi_fedi, :mailer, conf)
 
-      row = SukhiFedi.Repo.get(JoinApplication, app.id)
+      row = SukhiFedi.AccountRepo.get(JoinApplication, app.id)
       assert row.confirmed_at == nil
       assert row.edit_hash == nil
 
@@ -246,12 +246,12 @@ defmodule SukhiFedi.Integration.JoinApplicationsTest do
         DateTime.add(DateTime.utc_now(), -4 * 3600, :second) |> DateTime.truncate(:second)
 
       for a <- [kept, stale],
-          do: a |> Ecto.Changeset.change(created_at: long_ago) |> SukhiFedi.Repo.update!()
+          do: a |> Ecto.Changeset.change(created_at: long_ago) |> SukhiFedi.AccountRepo.update!()
 
       assert JoinApplications.purge_unconfirmed() == 1
-      assert SukhiFedi.Repo.get(JoinApplication, stale.id) == nil
-      assert SukhiFedi.Repo.get(JoinApplication, fresh.id)
-      assert SukhiFedi.Repo.get(JoinApplication, kept.id)
+      assert SukhiFedi.AccountRepo.get(JoinApplication, stale.id) == nil
+      assert SukhiFedi.AccountRepo.get(JoinApplication, fresh.id)
+      assert SukhiFedi.AccountRepo.get(JoinApplication, kept.id)
     end
   end
 
@@ -329,7 +329,7 @@ defmodule SukhiFedi.Integration.JoinApplicationsTest do
       assert :ok = JoinApplications.entry_status(key)
 
       # Hashed at rest, and the words and the address are gone.
-      stored = SukhiFedi.Repo.get!(JoinApplication, welcomed.id)
+      stored = SukhiFedi.AccountRepo.get!(JoinApplication, welcomed.id)
       refute stored.entry_hash == key
       assert stored.welcomed_at
       assert stored.email == nil
@@ -354,7 +354,7 @@ defmodule SukhiFedi.Integration.JoinApplicationsTest do
 
       assert {:error, :send_failed} = JoinApplications.welcome(app.receipt, "ようこそ", 1)
 
-      stored = SukhiFedi.Repo.get!(JoinApplication, app.id)
+      stored = SukhiFedi.AccountRepo.get!(JoinApplication, app.id)
       assert stored.entry_hash == nil and stored.welcomed_at == nil
       assert stored.email == email and stored.hope == "夜に、ゆっくり読みたいです。"
       assert {:ok, _} = JoinApplications.fetch_waiting(app.receipt)
@@ -377,7 +377,7 @@ defmodule SukhiFedi.Integration.JoinApplicationsTest do
       assert mail.body =~ "今は、受けられる人数がいっぱいです。"
       refute mail.body =~ "/welcome/"
 
-      assert SukhiFedi.Repo.get(JoinApplication, app.id) == nil
+      assert SukhiFedi.AccountRepo.get(JoinApplication, app.id) == nil
     end
 
     test "a mail that does not go leaves it where it was", %{email: email} do
@@ -424,7 +424,7 @@ defmodule SukhiFedi.Integration.JoinApplicationsTest do
     defp audits(action, receipt) do
       import Ecto.Query
 
-      SukhiFedi.Repo.all(
+      SukhiFedi.AccountRepo.all(
         from a in SukhiFedi.Schema.AdminAudit,
           where: a.action == ^action
       )

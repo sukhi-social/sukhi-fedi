@@ -12,7 +12,7 @@ defmodule SukhiFedi.Integration.RepliesTest do
     test "lists public replies pointing at the parent, skips non-public ones" do
       alice = create_account!("alice_rep")
       parent = insert_note!(alice.id, "parent", "public", nil)
-      parent_uri = Ids.local_note_ap_id(Repo.preload(parent, :account))
+      parent_uri = Ids.local_note_ap_id(Repo.preload(parent, account: &SukhiFedi.Accounts.by_ids/1))
 
       public_reply = insert_note!(alice.id, "me too", "public", parent_uri)
       _private_reply = insert_note!(alice.id, "psst", "direct", parent_uri)
@@ -20,13 +20,13 @@ defmodule SukhiFedi.Integration.RepliesTest do
 
       uris = Replies.public_reply_uris([parent_uri])
 
-      assert uris == [Ids.local_note_ap_id(Repo.preload(public_reply, :account))]
+      assert uris == [Ids.local_note_ap_id(Repo.preload(public_reply, account: &SukhiFedi.Accounts.by_ids/1))]
     end
 
     test "empty when nothing replies to the parent" do
       alice = create_account!("alice_rep_empty")
       parent = insert_note!(alice.id, "lonely", "public", nil)
-      parent_uri = Ids.local_note_ap_id(Repo.preload(parent, :account))
+      parent_uri = Ids.local_note_ap_id(Repo.preload(parent, account: &SukhiFedi.Accounts.by_ids/1))
 
       assert Replies.public_reply_uris([parent_uri]) == []
     end

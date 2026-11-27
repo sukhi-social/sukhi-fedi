@@ -12,10 +12,6 @@ defmodule SukhiFedi.Schema.AccountNote do
     name: "account_notes_author_account_id_target_account_id_index"
   )
 
-  # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:author_account_id, to: "accounts", on_delete: :cascade, name: "account_notes_author_account_id_fkey")
-  hosi_ref(:target_account_id, to: "accounts", on_delete: :cascade, name: "account_notes_target_account_id_fkey")
-
   schema "account_notes" do
     field(:author_account_id, :integer)
     field(:target_account_id, :integer)

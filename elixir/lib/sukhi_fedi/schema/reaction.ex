@@ -12,7 +12,6 @@ defmodule SukhiFedi.Schema.Reaction do
   )
 
   # the catalog's foreign keys (ON DELETE) and write rules, kept by the adapter
-  hosi_ref(:account_id, to: "accounts", on_delete: :cascade, name: "reactions_account_id_fkey")
   hosi_ref(:note_id, to: "notes", on_delete: :cascade, name: "reactions_note_id_fkey")
 
   schema "reactions" do

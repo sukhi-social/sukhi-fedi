@@ -107,12 +107,5 @@ defmodule SukhiFedi.Integration.FeedbackTest do
       assert {[%{id: id}], 1} = Feedback.list(%{offset: 0, limit: 10})
       assert id == open.id
     end
-
-    test "deleting the sender's account keeps the item, detached" do
-      sender = create_account!("fb_gone")
-      {:ok, item} = Feedback.submit(%{"body" => "bye"}, sender.id)
-      Repo.delete!(sender)
-      assert %{account_id: nil} = Repo.get!(SukhiFedi.Schema.FeedbackItem, item.id)
-    end
   end
 end

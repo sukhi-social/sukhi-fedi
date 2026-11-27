@@ -13,7 +13,7 @@ defmodule SukhiFedi.Web.ViewerController do
   alias SukhiFedi.Accounts
   alias SukhiFedi.Addons.NodeinfoMonitor
   alias SukhiFedi.Addons.NodeinfoMonitor.NodeinfoFetcher
-  alias SukhiFedi.{Repo, Schema.Account}
+  alias SukhiFedi.{AccountRepo, Schema.Account}
 
   def home(conn, _opts) do
     domain = SukhiFedi.Config.domain!()
@@ -30,7 +30,7 @@ defmodule SukhiFedi.Web.ViewerController do
       Account
       |> where([a], not is_nil(a.monitored_domain))
       |> order_by(asc: :monitored_domain)
-      |> Repo.all()
+      |> AccountRepo.all()
       |> Enum.map(fn a ->
         %{
           username: a.username,
