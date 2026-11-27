@@ -244,7 +244,7 @@ defmodule SukhiFedi.Integration.GroupMembershipTest do
 
   defp account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp remote_group!(username, domain \\ "bonfire.test") do
@@ -256,6 +256,6 @@ defmodule SukhiFedi.Integration.GroupMembershipTest do
       actor_uri: if(domain == "bonfire.test", do: "#{@group_uri}-#{username}", else: "https://#{domain}/users/#{username}"),
       inbox_url: "https://#{domain}/inbox"
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

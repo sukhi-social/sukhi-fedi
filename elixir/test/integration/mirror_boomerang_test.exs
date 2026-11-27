@@ -182,12 +182,12 @@ defmodule SukhiFedi.Integration.MirrorBoomerangTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp remote_poll_note!(ap_id) do
     author =
-      Repo.insert!(%Account{
+      insert_account!(%Account{
         username: "rq_#{System.unique_integer([:positive])}",
         display_name: "rq",
         summary: "",

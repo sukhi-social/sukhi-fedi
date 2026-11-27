@@ -129,7 +129,7 @@ defmodule SukhiFedi.Integration.AccountMigrationTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_remote_account!(username, domain, opts \\ []) do
@@ -142,7 +142,7 @@ defmodule SukhiFedi.Integration.AccountMigrationTest do
       inbox_url: "https://#{domain}/users/#{username}/inbox",
       aliases: Keyword.get(opts, :aliases, [])
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_follow!(%Account{} = follower, followee_id, state) do

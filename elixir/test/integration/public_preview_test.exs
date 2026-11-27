@@ -50,7 +50,7 @@ defmodule SukhiFedi.Integration.PublicPreviewTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: "Alice #{username}", summary: "<p>a bio</p>"}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp insert_note!(account_id, content, visibility) do

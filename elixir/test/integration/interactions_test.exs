@@ -258,6 +258,6 @@ defmodule SukhiFedi.Integration.InteractionsTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

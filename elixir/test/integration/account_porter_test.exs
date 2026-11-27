@@ -14,7 +14,7 @@ defmodule SukhiFedi.Integration.AccountPorterTest do
   alias SukhiFedi.Schema.Account
 
   defp create_account!(username) do
-    %Account{username: username, display_name: username, summary: ""} |> Repo.insert!()
+    %Account{username: username, display_name: username, summary: ""} |> insert_account!()
   end
 
   defp create_remote_account!(username, domain) do
@@ -26,7 +26,7 @@ defmodule SukhiFedi.Integration.AccountPorterTest do
       actor_uri: "https://#{domain}/users/#{username}",
       inbox_url: "https://#{domain}/users/#{username}/inbox"
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   test "blocks round-trip: export lists them, import into another account applies them" do

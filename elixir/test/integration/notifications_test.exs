@@ -248,7 +248,7 @@ defmodule SukhiFedi.Integration.NotificationsTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_note!(account_id, content) do

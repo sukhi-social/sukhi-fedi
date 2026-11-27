@@ -30,10 +30,10 @@ defmodule SukhiFedi.Integration.PullFederationTest do
     :ok
   end
 
-  defp local!(name), do: Repo.insert!(%Account{username: name, display_name: name, summary: ""})
+  defp local!(name), do: insert_account!(%Account{username: name, display_name: name, summary: ""})
 
   defp remote!(name, domain) do
-    Repo.insert!(%Account{
+    insert_account!(%Account{
       username: name,
       display_name: name,
       summary: "",

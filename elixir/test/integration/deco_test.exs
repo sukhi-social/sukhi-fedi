@@ -1202,7 +1202,7 @@ defmodule SukhiFedi.Integration.DecoTest do
     # が本当に取りに行って、fedify(NATS)が要る ── ここで試したいのは
     # 「板に結べるか」なので、取ってくるところは外す。
     setup do
-      SukhiFedi.Repo.insert!(%SukhiFedi.Schema.Account{
+      insert_account!(%SukhiFedi.Schema.Account{
         username: "someone",
         display_name: "someone",
         summary: "",

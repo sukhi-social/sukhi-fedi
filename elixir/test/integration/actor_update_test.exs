@@ -16,7 +16,7 @@ defmodule SukhiFedi.Integration.ActorUpdateTest do
   @uri "https://remote.example/users/nuno"
 
   defp remote!(uri \\ @uri) do
-    Repo.insert!(%Account{
+    insert_account!(%Account{
       username: "nuno",
       display_name: "nuno",
       summary: "",

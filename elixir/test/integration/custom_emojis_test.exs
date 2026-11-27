@@ -116,7 +116,7 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
 
     alias SukhiFedi.Schema.{AdminAudit, OutboxEvent}
 
-    defp admin!(u), do: Repo.insert!(%Account{username: u, display_name: u, summary: ""})
+    defp admin!(u), do: insert_account!(%Account{username: u, display_name: u, summary: ""})
 
     defp item(name, extra \\ %{}),
       do: Map.merge(%{"shortcode" => name, "image_url" => "https://example.com/#{name}.png"}, extra)
@@ -219,6 +219,6 @@ defmodule SukhiFedi.Integration.CustomEmojisTest do
   # Same helper social_test.exs and conversations_test.exs each carry.
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

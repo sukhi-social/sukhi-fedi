@@ -15,7 +15,7 @@ defmodule SukhiFedi.Integration.AccountsDoorsTest do
   alias SukhiFedi.Accounts
   alias SukhiFedi.Schema.Account
 
-  defp insert!(attrs), do: Repo.insert!(struct(Account, attrs))
+  defp insert!(attrs), do: insert_account!(struct(Account, attrs))
 
   test "get/1 is the account or nil; get!/1 is the account or a raise" do
     a = insert!(username: "alice")

@@ -34,7 +34,7 @@ defmodule SukhiFedi.Integration.RepliesTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp insert_note!(account_id, content, visibility, in_reply_to_ap_id) do

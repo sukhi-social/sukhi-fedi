@@ -271,7 +271,7 @@ defmodule SukhiFedi.Integration.ConversationsTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp add_participant!(cid, account_id) do

@@ -62,7 +62,7 @@ defmodule SukhiFedi.Integration.WipeRemoteTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_remote_account!(username, domain) do
@@ -74,7 +74,7 @@ defmodule SukhiFedi.Integration.WipeRemoteTest do
       actor_uri: "https://#{domain}/users/#{username}",
       inbox_url: "https://#{domain}/users/#{username}/inbox"
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_remote_note!(%Account{id: account_id}, ap_id) do

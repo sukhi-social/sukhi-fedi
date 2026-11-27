@@ -27,7 +27,7 @@ defmodule SukhiFedi.Integration.AccountDeletionTest do
         email: "leaver@example.com",
         email_verified_at: ~U[2026-01-01 00:00:00Z]
       }
-      |> Repo.insert!()
+      |> insert_account!()
 
     %{account: account}
   end

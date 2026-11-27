@@ -8,7 +8,7 @@ defmodule SukhiFedi.Integration.FeedbackTest do
   alias SukhiFedi.Schema.Account
 
   defp create_account!(username) do
-    %Account{username: username, display_name: username, summary: ""} |> Repo.insert!()
+    %Account{username: username, display_name: username, summary: ""} |> insert_account!()
   end
 
   defp errors_on(%Ecto.Changeset{} = cs) do

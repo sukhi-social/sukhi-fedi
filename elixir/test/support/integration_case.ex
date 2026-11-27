@@ -75,6 +75,12 @@ defmodule SukhiFedi.IntegrationCase do
   end
 
   @doc """
+  Writes an account row. The tests make their accounts here, so that where
+  accounts are kept is said in one place.
+  """
+  def insert_account!(account), do: SukhiFedi.Repo.insert!(account)
+
+  @doc """
   Build the URL of a mock remote actor's inbox. Useful when writing
   delivery tests.
   """

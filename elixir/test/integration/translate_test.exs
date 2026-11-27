@@ -44,7 +44,7 @@ defmodule SukhiFedi.Integration.TranslateTest do
   end
 
   defp account!(username, attrs \\ %{}) do
-    %Account{username: username, display_name: username, summary: ""} |> struct(attrs) |> Repo.insert!()
+    %Account{username: username, display_name: username, summary: ""} |> struct(attrs) |> insert_account!()
   end
 
   defp deepl_user!(username) do

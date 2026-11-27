@@ -9,7 +9,7 @@ defmodule SukhiFedi.Integration.AdminAuditsTest do
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Schema.{Account, AdminAudit}
 
-  defp account!(u), do: Repo.insert!(%Account{username: u, display_name: u, summary: ""})
+  defp account!(u), do: insert_account!(%Account{username: u, display_name: u, summary: ""})
 
   test "an admin action writes an audit row in the same transaction" do
     admin = account!("aud_admin")

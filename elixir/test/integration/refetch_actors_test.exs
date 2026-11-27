@@ -9,10 +9,10 @@ defmodule SukhiFedi.Integration.RefetchActorsTest do
 
   describe "remote_actor_uris/0" do
     test "lists remote actor URIs and excludes local accounts" do
-      Repo.insert!(%Account{username: "local_ra", display_name: "local", summary: ""})
+      insert_account!(%Account{username: "local_ra", display_name: "local", summary: ""})
 
       remote =
-        Repo.insert!(%Account{
+        insert_account!(%Account{
           username: "remote_ra",
           display_name: "remote",
           summary: "",

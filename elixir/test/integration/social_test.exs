@@ -475,7 +475,7 @@ defmodule SukhiFedi.Integration.SocialTest do
           actor_uri: "https://far.example/users/far",
           summary: ""
         }
-        |> Repo.insert!()
+        |> insert_account!()
 
       admin = create_account!("badge_admin2")
       assert {:error, :not_found} = Accounts.set_roles(remote.id, admin.id, [%{"name" => "x"}])
@@ -533,7 +533,7 @@ defmodule SukhiFedi.Integration.SocialTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp keyed_account!(username) do
@@ -544,7 +544,7 @@ defmodule SukhiFedi.Integration.SocialTest do
       private_key_jwk: %{"kty" => "RSA", "d" => "test"},
       public_key_jwk: %{"kty" => "RSA"}
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   defp create_remote_account!(username, domain) do
@@ -556,6 +556,6 @@ defmodule SukhiFedi.Integration.SocialTest do
       actor_uri: "https://#{domain}/users/#{username}",
       inbox_url: "https://#{domain}/users/#{username}/inbox"
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

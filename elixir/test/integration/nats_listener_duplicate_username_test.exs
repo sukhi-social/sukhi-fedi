@@ -21,7 +21,7 @@ defmodule SukhiFedi.Integration.NatsListenerDuplicateUsernameTest do
       domain: domain,
       actor_uri: "https://#{domain}/users/#{username}"
     })
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   test "a status from a local author survives same-named remote accounts" do

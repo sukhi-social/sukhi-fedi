@@ -58,10 +58,10 @@ defmodule SukhiFedi.Web.MapControllerTest do
     body_before = show()
     SukhiFedi.HotCache.forget(:map)
 
-    local = Repo.insert!(%Account{username: "map_local", display_name: "l", summary: ""})
+    local = insert_account!(%Account{username: "map_local", display_name: "l", summary: ""})
 
     remote =
-      Repo.insert!(%Account{
+      insert_account!(%Account{
         username: "map_remote",
         display_name: "r",
         summary: "",
@@ -114,7 +114,7 @@ defmodule SukhiFedi.Web.MapControllerTest do
     SukhiFedi.HotCache.forget(:map)
 
     remote =
-      Repo.insert!(%Account{
+      insert_account!(%Account{
         username: "map_star",
         display_name: "s",
         summary: "",
@@ -132,7 +132,7 @@ defmodule SukhiFedi.Web.MapControllerTest do
     })
 
     # 星はリストに載せて、はじめて地図に出る
-    local = Repo.insert!(%Account{username: "map_admin", display_name: "a", summary: ""})
+    local = insert_account!(%Account{username: "map_admin", display_name: "a", summary: ""})
     {:ok, _} = SukhiFedi.MapPeers.add("starry.example", local.id)
 
     body = show()
@@ -152,7 +152,7 @@ defmodule SukhiFedi.Web.MapControllerTest do
 
     body = show()
     # キャッシュ窓の内側なので、書き込んでも答えは変わらない。
-    local = Repo.insert!(%Account{username: "map_cache", display_name: "c", summary: ""})
+    local = insert_account!(%Account{username: "map_cache", display_name: "c", summary: ""})
     Repo.insert!(%Note{account_id: local.id, content: "cached?", visibility: "public"})
     assert show() == body
   end

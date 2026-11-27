@@ -367,7 +367,7 @@ defmodule SukhiFedi.Integration.OAuthTest do
     @redirect "https://gov.example/"
 
     defp admin!(username),
-      do: Repo.insert!(%Account{username: username, display_name: username, summary: "t", is_admin: true})
+      do: insert_account!(%Account{username: username, display_name: username, summary: "t", is_admin: true})
 
     defp admin_app(owner_id) do
       OAuth.register_app(%{
@@ -417,6 +417,6 @@ defmodule SukhiFedi.Integration.OAuthTest do
       display_name: username,
       summary: "test"
     }
-    |> Repo.insert!()
+    |> insert_account!()
   end
 end

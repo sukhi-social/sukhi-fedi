@@ -322,7 +322,7 @@ defmodule SukhiFedi.Integration.PollsTest do
 
   defp create_account!(username) do
     %Account{username: username, display_name: username, summary: ""}
-    |> Repo.insert!()
+    |> insert_account!()
   end
 
   # A remote note owns an `ap_id`; that's what flips poll rendering onto the
