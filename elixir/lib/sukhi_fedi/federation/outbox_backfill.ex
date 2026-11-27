@@ -119,13 +119,10 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
   """
   @spec pending_existing() :: :ok | {:error, term()}
   def pending_existing do
-    from(a in Account,
-      join: f in Follow,
-      on: f.followee_id == a.id,
+    from(a in followed_remote(),
       where:
-        f.state == "accepted" and not is_nil(a.domain) and not is_nil(a.actor_uri) and
+        not is_nil(a.actor_uri) and
           (is_nil(a.backfill_state) or a.backfill_state in [@pending, @failed]),
-      group_by: a.id,
       select: a.actor_uri
     )
     |> Repo.all()
@@ -261,15 +258,19 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
   @doc "Follow している remote の backfill 進行状態。admin の頁が読む。"
   @spec list() :: [Account.t()]
   def list do
-    from(a in Account,
-      join: f in Follow,
-      on: f.followee_id == a.id,
-      where: f.state == "accepted" and not is_nil(a.domain),
-      group_by: a.id
-    )
+    followed_remote()
     |> Repo.all()
     # 手を打つ順に。終わったものより、まだ引けていないものを上に。
     |> Enum.sort_by(&{state_rank(&1.backfill_state), &1.username})
+  end
+
+  # Remote accounts someone here follows (accepted). The follows are read first.
+  defp followed_remote do
+    ids =
+      Repo.all(from(f in Follow, where: f.state == "accepted", select: f.followee_id))
+      |> Enum.uniq()
+
+    from(a in Account, where: a.id in ^ids and not is_nil(a.domain))
   end
 
   defp state_rank("failed"), do: 0
@@ -282,10 +283,7 @@ defmodule SukhiFedi.Federation.OutboxBackfill do
   @spec counts() :: %{atom() => non_neg_integer()}
   def counts do
     by_state =
-      from(a in Account,
-        join: f in Follow,
-        on: f.followee_id == a.id,
-        where: f.state == "accepted" and not is_nil(a.domain),
+      from(a in followed_remote(),
         group_by: a.backfill_state,
         select: {a.backfill_state, count(a.id, :distinct)}
       )

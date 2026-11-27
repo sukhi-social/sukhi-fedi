@@ -102,24 +102,13 @@ defmodule SukhiFedi.Addons.Moderation do
     )
   end
 
+  # What `list_blocks/1` and `list_mutes/1` show of an account. Public-safe only.
+  @listed_fields ~w(id username display_name summary domain actor_uri avatar_url banner_url)a
+
   @doc "Hydrated list of accounts the viewer has blocked. Public-safe fields only."
   def list_blocks(account_id) when is_integer(account_id) do
-    Repo.all(
-      from b in Block,
-        join: a in Account,
-        on: a.id == b.target_id,
-        where: b.account_id == ^account_id,
-        select: %{
-          id: a.id,
-          username: a.username,
-          display_name: a.display_name,
-          summary: a.summary,
-          domain: a.domain,
-          actor_uri: a.actor_uri,
-          avatar_url: a.avatar_url,
-          banner_url: a.banner_url
-        }
-    )
+    Repo.all(from b in Block, where: b.account_id == ^account_id, select: b.target_id)
+    |> listed()
   end
 
   @doc "Hydrated list of accounts the viewer has muted (skips expired entries)."
@@ -128,22 +117,17 @@ defmodule SukhiFedi.Addons.Moderation do
 
     Repo.all(
       from m in Mute,
-        join: a in Account,
-        on: a.id == m.target_id,
         where:
           m.account_id == ^account_id and
             (is_nil(m.expires_at) or m.expires_at > ^now),
-        select: %{
-          id: a.id,
-          username: a.username,
-          display_name: a.display_name,
-          summary: a.summary,
-          domain: a.domain,
-          actor_uri: a.actor_uri,
-          avatar_url: a.avatar_url,
-          banner_url: a.banner_url
-        }
+        select: m.target_id
     )
+    |> listed()
+  end
+
+  defp listed(ids) do
+    accounts = Accounts.map_by_ids(ids)
+    for id <- ids, a <- List.wrap(accounts[id]), do: Map.take(a, @listed_fields)
   end
 
   # ── reports ──────────────────────────────────────────────────────────────
@@ -161,7 +145,14 @@ defmodule SukhiFedi.Addons.Moderation do
   def get_report(id) do
     case coerce_id(id) && Repo.get(Report, coerce_id(id)) do
       nil -> {:error, :not_found}
-      %Report{} = report -> {:ok, Repo.preload(report, [:account, :target, :note, :resolved_by])}
+      %Report{} = report ->
+        {:ok,
+         Repo.preload(report, [
+           :note,
+           account: &Accounts.by_ids/1,
+           target: &Accounts.by_ids/1,
+           resolved_by: &Accounts.by_ids/1
+         ])}
     end
   end
 
@@ -183,7 +174,12 @@ defmodule SukhiFedi.Addons.Moderation do
       |> order_by([r], desc: r.inserted_at)
       |> offset(^offset)
       |> limit(^limit)
-      |> preload([:account, :target, :note, :resolved_by])
+      |> preload([
+        :note,
+        account: ^(&Accounts.by_ids/1),
+        target: ^(&Accounts.by_ids/1),
+        resolved_by: ^(&Accounts.by_ids/1)
+      ])
       |> Repo.all()
 
     {:ok, {reports, total}}
@@ -352,13 +348,12 @@ defmodule SukhiFedi.Addons.Moderation do
     # kept a few seconds (SukhiFedi.HotCache) — a new silence takes effect
     # within that window.
     SukhiFedi.HotCache.fetch(:silenced_author_ids, SukhiFedi.HotCache.ttl(:moderation_sets), fn ->
-      Repo.all(
-        from a in Account,
-          join: i in InstanceBlock,
-          on: i.domain == a.domain,
-          where: i.severity == "silence",
-          select: a.id
-      )
+      domains =
+        Repo.all(from i in InstanceBlock, where: i.severity == "silence", select: i.domain)
+
+      if domains == [],
+        do: [],
+        else: Repo.all(from a in Account, where: a.domain in ^domains, select: a.id)
     end)
   end
 

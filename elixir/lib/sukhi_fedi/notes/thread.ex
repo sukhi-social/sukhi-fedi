@@ -8,7 +8,7 @@ defmodule SukhiFedi.Notes.Thread do
   import Ecto.Query
 
   alias SukhiFedi.Notes.{Ids, Read}
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{Accounts, Repo}
   alias SukhiFedi.Schema.Note
 
   @max_depth 60
@@ -45,7 +45,7 @@ defmodule SukhiFedi.Notes.Thread do
 
           note ->
             if Read.visible_to?(note, viewer_id) do
-              note = Repo.preload(note, :account)
+              note = Repo.preload(note, account: &Accounts.by_ids/1)
 
               # Filter every thread node by the viewer's visibility too, so a
               # private ancestor/descendant from another user can't leak via
@@ -112,7 +112,7 @@ defmodule SukhiFedi.Notes.Thread do
   defp fetch_ancestor(ap_id) do
     try do
       case SukhiFedi.Federation.NoteFetcher.fetch_and_mirror(ap_id) do
-        {:ok, %Note{} = n} -> Repo.preload(n, [:account, :media])
+        {:ok, %Note{} = n} -> Repo.preload(n, [:media, account: &Accounts.by_ids/1])
         _ -> nil
       end
     rescue
@@ -137,7 +137,7 @@ defmodule SukhiFedi.Notes.Thread do
       from(n in Note,
         where: n.in_reply_to_ap_id in ^frontier,
         order_by: [asc: n.id],
-        preload: [:account, :media]
+        preload: [:media, account: ^(&Accounts.by_ids/1)]
       )
       |> Repo.all()
 
@@ -161,6 +161,6 @@ defmodule SukhiFedi.Notes.Thread do
         id -> from(n in Note, where: n.id == ^id)
       end
 
-    Repo.one(from(n in query, preload: [:account, :media]))
+    Repo.one(from(n in query, preload: [:media, account: ^(&Accounts.by_ids/1)]))
   end
 end

@@ -21,7 +21,7 @@ defmodule SukhiFedi.AP.Instructions.Quotes do
   alias SukhiFedi.AP.ActorJson
   alias SukhiFedi.Notes
   alias SukhiFedi.Notes.Ids
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{Accounts, Repo}
   alias SukhiFedi.Schema.{Note, QuoteAuthorization}
 
   # Delivery runs on its own BEAM node with an Oban supervisor on the
@@ -196,6 +196,6 @@ defmodule SukhiFedi.AP.Instructions.Quotes do
     "https://#{SukhiFedi.Config.domain!()}/activities/quote-auth/#{Ecto.UUID.generate()}"
   end
 
-  defp preload_account(%Note{} = note), do: Repo.preload(note, :account)
+  defp preload_account(%Note{} = note), do: Repo.preload(note, account: &Accounts.by_ids/1)
   defp preload_account(other), do: other
 end

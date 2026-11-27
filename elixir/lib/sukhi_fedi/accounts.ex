@@ -55,6 +55,32 @@ defmodule SukhiFedi.Accounts do
   @spec by_monitored_domain(String.t()) :: Account.t() | nil
   def by_monitored_domain(domain), do: Repo.get_by(Account, monitored_domain: domain)
 
+  # ── many accounts ─────────────────────────────────────────────────────────
+
+  # Other tables name accounts by id or actor URI. Read their rows first, then
+  # ask here once for the whole batch: nothing joins into `accounts`, which is
+  # moving to a database of its own. `by_ids/1` is also the preload function
+  # for every association that points at an account.
+
+  @doc "The accounts with these ids, in no particular order. An id with no row is absent."
+  @spec by_ids([integer()]) :: [Account.t()]
+  def by_ids([]), do: []
+  def by_ids(ids), do: Repo.all(from(a in Account, where: a.id in ^ids))
+
+  @doc "`by_ids/1`, keyed by id."
+  @spec map_by_ids([integer()]) :: %{integer() => Account.t()}
+  def map_by_ids(ids), do: ids |> Enum.uniq() |> by_ids() |> Map.new(&{&1.id, &1})
+
+  @doc "The accounts whose `actor_uri` is one of these, keyed by it."
+  @spec map_by_actor_uris([String.t()]) :: %{String.t() => Account.t()}
+  def map_by_actor_uris([]), do: %{}
+
+  def map_by_actor_uris(uris) do
+    from(a in Account, where: a.actor_uri in ^uris)
+    |> Repo.all()
+    |> Map.new(&{&1.actor_uri, &1})
+  end
+
   # ── reads ─────────────────────────────────────────────────────────────────
 
   def get_account_by_username(username), do: by_local_username(username)
@@ -651,7 +677,7 @@ defmodule SukhiFedi.Accounts do
       query
       |> limit(^limit)
       |> Repo.all()
-      |> Repo.preload([:account, :media, :tags])
+      |> Repo.preload([:media, :tags, account: &by_ids/1])
       |> SukhiFedi.Notes.with_refs()
 
     cond do

@@ -15,7 +15,7 @@ defmodule SukhiFedi.Timelines do
 
   import Ecto.Query
 
-  alias SukhiFedi.{HotCache, Repo}
+  alias SukhiFedi.{Accounts, HotCache, Repo}
   alias SukhiFedi.Store.Ids
   alias SukhiFedi.Lists
   alias SukhiFedi.Addons.Moderation
@@ -139,7 +139,7 @@ defmodule SukhiFedi.Timelines do
         |> apply_paging(opts)
         |> Repo.all()
       end)
-      |> Repo.preload([:account, :media, :tags])
+      |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1])
       |> SukhiFedi.Notes.with_refs(id)
     end
 
@@ -190,13 +190,11 @@ defmodule SukhiFedi.Timelines do
         from(b in Boost,
           join: n in Note,
           on: n.id == b.note_id,
-          join: ba in Account,
-          on: ba.id == b.account_id,
           where: b.id in ^ids,
           where: n.visibility in ^SukhiFedi.Visibility.public_only(),
           order_by: [desc: b.created_at],
           limit: ^limit,
-          select: %{boost_id: b.id, created_at: b.created_at, booster: ba, note: n}
+          select: %{boost_id: b.id, created_at: b.created_at, booster_id: b.account_id, note: n}
         )
         # Nobody hidden is the usual case, and `not in []` is then always true:
         # on Datalevin it still turned a ~0.3 s query into ~9 s, so leave it out.
@@ -205,10 +203,15 @@ defmodule SukhiFedi.Timelines do
         |> Repo.all()
       end)
 
+    boosters = Accounts.map_by_ids(Enum.map(rows, & &1.booster_id))
+
+    rows =
+      for row <- rows, a <- List.wrap(boosters[row.booster_id]), do: Map.put(row, :booster, a)
+
     enriched =
       rows
       |> Enum.map(& &1.note)
-      |> Repo.preload([:account, :media, :tags])
+      |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1])
       |> SukhiFedi.Notes.with_refs(viewer_id)
 
     rows
@@ -337,7 +340,7 @@ defmodule SukhiFedi.Timelines do
     |> maybe_only_media(opts[:only_media])
     |> maybe_hide_sensitive(opts[:hide_sensitive])
     |> Repo.all()
-    |> Repo.preload([:account, :media, :tags])
+    |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1])
     |> SukhiFedi.Notes.with_refs()
   end
 
@@ -380,7 +383,7 @@ defmodule SukhiFedi.Timelines do
     |> maybe_hide_sensitive(opts[:hide_sensitive])
     |> apply_paging(opts)
     |> Repo.all()
-    |> Repo.preload([:account, :media, :tags])
+    |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1])
     |> SukhiFedi.Notes.with_refs(viewer_id)
   end
 
@@ -430,7 +433,7 @@ defmodule SukhiFedi.Timelines do
     |> maybe_hide_sensitive(opts[:hide_sensitive])
     |> apply_paging(opts)
     |> Repo.all()
-    |> Repo.preload([:account, :media, :tags])
+    |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1])
     |> SukhiFedi.Notes.with_refs()
   end
 
@@ -507,10 +510,8 @@ defmodule SukhiFedi.Timelines do
 
   defp following_local_account_ids(actor_uri) do
     from(f in Follow,
-      join: a in Account,
-      on: a.id == f.followee_id,
       where: f.follower_uri == ^actor_uri and f.state == "accepted",
-      select: a.id
+      select: f.followee_id
     )
     |> Repo.all()
   end

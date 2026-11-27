@@ -15,7 +15,7 @@ defmodule SukhiFedi.Streaming do
   """
 
   alias SukhiFedi.Addons.Streaming.Registry
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{Accounts, Repo}
   alias SukhiFedi.Schema.Notification
 
   @doc """
@@ -92,7 +92,10 @@ defmodule SukhiFedi.Streaming do
   end
 
   defp render_and_push(account_id, notif) do
-    notif = Repo.preload(notif, [:from_account, note: [:account, :media, :tags]])
+    notif = Repo.preload(notif, [
+      from_account: &Accounts.by_ids/1,
+      note: [:media, :tags, account: &Accounts.by_ids/1]
+    ])
 
     case render_notification(notif) do
       {:ok, json} ->

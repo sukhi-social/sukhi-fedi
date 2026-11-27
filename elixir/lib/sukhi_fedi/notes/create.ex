@@ -52,7 +52,7 @@ defmodule SukhiFedi.Notes.Create do
     )
     |> Repo.transaction()
     |> case do
-      {:ok, %{note: note}} -> {:ok, Repo.preload(note, [:account, :media])}
+      {:ok, %{note: note}} -> {:ok, Repo.preload(note, [:media, account: &Accounts.by_ids/1])}
       {:error, :note, %Ecto.Changeset{} = cs, _} -> {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
       {:error, _step, reason, _} -> {:error, reason}
     end
@@ -226,7 +226,7 @@ defmodule SukhiFedi.Notes.Create do
           maybe_request_quote(note)
           maybe_enqueue_preview(note)
           notify_local_mentions(note)
-          {:ok, Repo.preload(note, [:account, :media]) |> Read.with_refs()}
+          {:ok, Repo.preload(note, [:media, account: &Accounts.by_ids/1]) |> Read.with_refs()}
 
         {:error, :note, %Ecto.Changeset{} = cs, _} ->
           {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}
@@ -397,7 +397,7 @@ defmodule SukhiFedi.Notes.Create do
       |> case do
         {:ok, %{dm: note}} ->
           notify_local_mentions(note)
-          {:ok, Repo.preload(note, [:account, :media]) |> Read.with_refs()}
+          {:ok, Repo.preload(note, [:media, account: &Accounts.by_ids/1]) |> Read.with_refs()}
 
         {:error, :note, %Ecto.Changeset{} = cs, _} ->
           {:error, {:validation, SukhiFedi.Changeset.errors(cs)}}

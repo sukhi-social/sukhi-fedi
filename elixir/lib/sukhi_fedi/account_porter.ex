@@ -59,8 +59,9 @@ defmodule SukhiFedi.AccountPorter do
 
         lines =
           account
-          |> targets(kind)
+          |> target_ids(kind)
           |> Repo.all()
+          |> usernames_and_domains()
           |> Enum.map(fn {username, domain} -> "#{username}@#{domain || local}" end)
           # A remote actor picks its own username; only lines `parse/1` would
           # accept leave, so a name like `=HYPERLINK(...)` never reaches a
@@ -72,35 +73,31 @@ defmodule SukhiFedi.AccountPorter do
     end
   end
 
-  defp targets(%Account{username: username}, :following) do
+  defp target_ids(%Account{username: username}, :following) do
     uri = "https://#{SukhiFedi.Config.domain!()}/users/#{username}"
 
     from(f in Follow,
-      join: a in Account,
-      on: a.id == f.followee_id,
       where: f.follower_uri == ^uri and f.state == "accepted",
-      select: {a.username, a.domain}
+      select: f.followee_id
     )
   end
 
-  defp targets(%Account{id: id}, :blocks) do
-    from(b in Block,
-      join: a in Account,
-      on: a.id == b.target_id,
-      where: b.account_id == ^id,
-      select: {a.username, a.domain}
-    )
+  defp target_ids(%Account{id: id}, :blocks) do
+    from(b in Block, where: b.account_id == ^id, select: b.target_id)
   end
 
-  defp targets(%Account{id: id}, :mutes) do
+  defp target_ids(%Account{id: id}, :mutes) do
     now = DateTime.utc_now()
 
     from(m in Mute,
-      join: a in Account,
-      on: a.id == m.target_id,
       where: m.account_id == ^id and (is_nil(m.expires_at) or m.expires_at > ^now),
-      select: {a.username, a.domain}
+      select: m.target_id
     )
+  end
+
+  defp usernames_and_domains(ids) do
+    accounts = Accounts.map_by_ids(ids)
+    for id <- ids, a <- List.wrap(accounts[id]), do: {a.username, a.domain}
   end
 
   # ── import ──────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@ defmodule SukhiDelivery.PullFederation.Fallback do
 
   import Ecto.Query
 
+  alias SukhiDelivery.Accounts
   alias SukhiDelivery.Delivery.Worker
   alias SukhiDelivery.Outbox.Recipients
   alias SukhiDelivery.PullFederation.Peers
@@ -26,15 +27,20 @@ defmodule SukhiDelivery.PullFederation.Fallback do
 
     domain = SukhiDelivery.Config.domain!()
 
-    rows =
+    entries =
       from(l in "pull_log",
-        join: a in "accounts",
-        on: a.id == l.account_id,
         where: l.id > ^through,
         order_by: l.id,
-        select: %{id: l.id, activity_id: l.activity_id, body: l.body, username: a.username}
+        select: %{id: l.id, activity_id: l.activity_id, body: l.body, account_id: l.account_id}
       )
       |> Repo.all()
+
+    usernames = Accounts.usernames(Enum.map(entries, & &1.account_id))
+
+    rows =
+      for e <- entries,
+          username <- List.wrap(usernames[e.account_id]),
+          do: Map.put(e, :username, username)
 
     jobs =
       rows

@@ -356,20 +356,28 @@ defmodule SukhiFedi.Addons.Deco.Posts do
   end
 
   defp fetch_owned(id, account_id) do
-    case Repo.one(
-           from(dn in DecoNote,
-             join: n in Note,
-             on: n.id == dn.note_id,
-             join: a in Account,
-             on: a.id == n.account_id,
-             where: dn.note_id == ^id,
-             select: {n, dn, a}
-           )
-         ) do
-      nil -> {:error, :not_found}
-      {%Note{account_id: ^account_id} = n, dn, a} -> {:ok, {n, dn, a}}
-      {%Note{}, _dn, _a} -> {:error, :forbidden}
+    row =
+      Repo.one(
+        from(dn in DecoNote,
+          join: n in Note,
+          on: n.id == dn.note_id,
+          where: dn.note_id == ^id,
+          select: {n, dn}
+        )
+      )
+
+    case with_authors(List.wrap(row)) do
+      [] -> {:error, :not_found}
+      [{%Note{account_id: ^account_id}, _dn, _a} = found] -> {:ok, found}
+      [_someone_elses] -> {:error, :forbidden}
     end
+  end
+
+  # `{note, deco_note}` の行に書き手を添える。アカウントは別の読みで、一頁ぶんを
+  # 一度に。書き手の居ない行は落とす。
+  defp with_authors(rows) do
+    authors = Accounts.map_by_ids(Enum.map(rows, fn {n, _dn} -> n.account_id end))
+    for {n, dn} <- rows, a <- List.wrap(authors[n.account_id]), do: {n, dn, a}
   end
 
   defp do_update(note, dn, account, params) do
@@ -487,12 +495,11 @@ defmodule SukhiFedi.Addons.Deco.Posts do
           from(dn in DecoNote,
             join: n in Note,
             on: n.id == dn.note_id,
-            join: a in Account,
-            on: a.id == n.account_id,
             where: dn.deco_id == ^deco_id and n.id in ^page_ids,
-            select: {n, dn, a}
+            select: {n, dn}
           )
           |> Repo.all()
+          |> with_authors()
           |> Map.new(fn {n, dn, a} -> {n.id, {n, dn, a}} end)
         end
 
@@ -538,12 +545,10 @@ defmodule SukhiFedi.Addons.Deco.Posts do
         from(dn in DecoNote,
           join: n in Note,
           on: n.id == dn.note_id,
-          join: a in Account,
-          on: a.id == n.account_id,
           where: dn.deco_id == ^deco_id and n.visibility == "public",
           order_by: [desc: n.id],
           limit: ^limit,
-          select: {n, dn, a}
+          select: {n, dn}
         )
 
       q = with_tag(q, opts[:tag])
@@ -560,6 +565,7 @@ defmodule SukhiFedi.Addons.Deco.Posts do
       views =
         q
         |> Repo.all()
+        |> with_authors()
         |> Enum.map(fn {n, dn, a} -> post_view(n, dn, a) end)
 
       {:ok,
@@ -653,33 +659,31 @@ defmodule SukhiFedi.Addons.Deco.Posts do
   def get_post(note_id, viewer_id \\ nil) do
     id = to_int(note_id)
 
-    case Repo.one(
-           from(dn in DecoNote,
-             join: n in Note,
-             on: n.id == dn.note_id,
-             join: a in Account,
-             on: a.id == n.account_id,
-             join: d in Deco,
-             on: d.id == dn.deco_id,
-             where: dn.note_id == ^id,
-             select: {n, dn, a, d.slug}
-           )
-         ) do
-      nil ->
-        {:error, :not_found}
+    with {note, dn, slug} <-
+           Repo.one(
+             from(dn in DecoNote,
+               join: n in Note,
+               on: n.id == dn.note_id,
+               join: d in Deco,
+               on: d.id == dn.deco_id,
+               where: dn.note_id == ^id,
+               select: {n, dn, d.slug}
+             )
+           ),
+         %Account{} = author <- Accounts.get(note.account_id) do
+      # 本体と返信をひとつの列にしてから乗せる ── リアクションの
+      # 問い合わせが、この頁ぜんぶで一回で済む。
+      [post | replies] =
+        [post_view(note, dn, author) | replies_of(note, dn.deco_id)]
+        |> with_reactions(viewer_id)
+        |> with_tags()
+        |> with_folded()
 
-      {note, dn, author, slug} ->
-        # 本体と返信をひとつの列にしてから乗せる ── リアクションの
-        # 問い合わせが、この頁ぜんぶで一回で済む。
-        [post | replies] =
-          [post_view(note, dn, author) | replies_of(note, dn.deco_id)]
-          |> with_reactions(viewer_id)
-          |> with_tags()
-          |> with_folded()
-
-        # 住所は `/d/<slug>/p/<id>`。id だけで来た人(`/posts/<id>`)が
-        # 本当の住所へ行けるように、板の名前を添える。
-        {:ok, Map.merge(post, %{deco_slug: slug, replies: replies})}
+      # 住所は `/d/<slug>/p/<id>`。id だけで来た人(`/posts/<id>`)が
+      # 本当の住所へ行けるように、板の名前を添える。
+      {:ok, Map.merge(post, %{deco_slug: slug, replies: replies})}
+    else
+      nil -> {:error, :not_found}
     end
   end
 
@@ -715,13 +719,12 @@ defmodule SukhiFedi.Addons.Deco.Posts do
         from(n in Note,
           left_join: dn in DecoNote,
           on: dn.note_id == n.id,
-          join: a in Account,
-          on: a.id == n.account_id,
           where: n.in_reply_to_ap_id == ^ap_id and n.visibility == "public",
           order_by: [asc: n.id],
-          select: {n, dn, a}
+          select: {n, dn}
         )
         |> Repo.all()
+        |> with_authors()
         |> Enum.map(fn {n, dn, a} -> post_view(n, dn, a, deco_id) end)
     end
   end

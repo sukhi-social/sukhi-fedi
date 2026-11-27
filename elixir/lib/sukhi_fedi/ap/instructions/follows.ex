@@ -147,14 +147,16 @@ defmodule SukhiFedi.AP.Instructions.Follows do
   caller renders minimally from `follower_uri`).
   """
   def list_requests(followee_id) when is_integer(followee_id) do
-    from(r in FollowRequest,
-      left_join: a in Account,
-      on: a.actor_uri == r.follower_uri,
-      where: r.followee_id == ^followee_id,
-      order_by: [desc: r.created_at],
-      select: %{request_id: r.id, follower_uri: r.follower_uri, account: a}
-    )
-    |> Repo.all()
+    requests =
+      from(r in FollowRequest,
+        where: r.followee_id == ^followee_id,
+        order_by: [desc: r.created_at],
+        select: %{request_id: r.id, follower_uri: r.follower_uri}
+      )
+      |> Repo.all()
+
+    accounts = Accounts.map_by_actor_uris(Enum.map(requests, & &1.follower_uri))
+    Enum.map(requests, &Map.put(&1, :account, accounts[&1.follower_uri]))
   end
 
   @doc """

@@ -11,7 +11,7 @@ defmodule SukhiFedi.Notes.Interactions do
 
   alias Ecto.Multi
   alias SukhiFedi.Notes.{Ids, Read}
-  alias SukhiFedi.{Outbox, Repo}
+  alias SukhiFedi.{Accounts, Outbox, Repo}
   alias SukhiFedi.Schema.{Account, Bookmark, Boost, Note, PinnedNote, Reaction}
 
   @favourite_emoji "⭐"
@@ -476,7 +476,7 @@ defmodule SukhiFedi.Notes.Interactions do
       select: n
     )
     |> Repo.all()
-    |> Repo.preload([:account, :media, :tags])
+    |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1])
     |> Read.with_refs()
   end
 
@@ -497,14 +497,14 @@ defmodule SukhiFedi.Notes.Interactions do
       select: n
     )
     |> Repo.all()
-    |> Repo.preload([:account, :media, :tags])
+    |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1])
     |> Read.with_refs()
   end
 
   # The status the caller renders comes straight from `fun`, so it needs
   # the same associations a timeline row has. Without `:account` the API
   # view falls back to "unknown @unknown" for the author.
-  defp hydrate(note), do: note |> Repo.preload([:account, :media, :tags]) |> Read.with_refs()
+  defp hydrate(note), do: note |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1]) |> Read.with_refs()
 
   defp with_loaded_note(note_id, fun) do
     case Ids.parse_int(note_id) do

@@ -43,7 +43,7 @@ defmodule SukhiFedi.Notifications do
 
   import Ecto.Query
 
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{Accounts, Repo}
   alias SukhiFedi.Addons.Moderation
   alias SukhiFedi.Addons.WebPush
   alias SukhiFedi.Schema.{Account, Notification}
@@ -179,7 +179,10 @@ defmodule SukhiFedi.Notifications do
     |> order_by([n], desc: n.id)
     |> limit(^clamp(opts[:limit] || @default_limit))
     |> Repo.all()
-    |> Repo.preload([:from_account, note: [:account, :media, :tags]])
+    |> Repo.preload([
+      from_account: &Accounts.by_ids/1,
+      note: [:media, :tags, account: &Accounts.by_ids/1]
+    ])
     |> group(pace.grouping)
   end
 
@@ -227,7 +230,10 @@ defmodule SukhiFedi.Notifications do
       |> Repo.one()
       |> case do
         nil -> nil
-        n -> Repo.preload(n, [:from_account, note: [:account, :media, :tags]])
+        n -> Repo.preload(n, [
+      from_account: &Accounts.by_ids/1,
+      note: [:media, :tags, account: &Accounts.by_ids/1]
+    ])
       end
     end
   end

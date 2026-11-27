@@ -20,8 +20,8 @@ defmodule SukhiFedi.Conversations do
   import Ecto.Query
 
   alias SukhiFedi.Notes.Read
-  alias SukhiFedi.Repo
-  alias SukhiFedi.Schema.{Account, ConversationParticipant, Note}
+  alias SukhiFedi.{Accounts, Repo}
+  alias SukhiFedi.Schema.{ConversationParticipant, Note}
 
   @default_limit 20
   @max_limit 40
@@ -83,7 +83,7 @@ defmodule SukhiFedi.Conversations do
           |> order_by([n], desc: n.id)
           |> limit(^limit)
           |> Repo.all()
-          |> Repo.preload([:account, :media, :tags])
+          |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1])
           |> Read.with_refs(viewer_id)
 
         {:ok, notes}
@@ -211,7 +211,7 @@ defmodule SukhiFedi.Conversations do
     |> order_by([n], desc: n.id)
     |> limit(^limit)
     |> Repo.all()
-    |> Repo.preload([:account, :media, :tags])
+    |> Repo.preload([:media, :tags, account: &Accounts.by_ids/1])
     # `last_status` は Mastodon の契約では完全な Status。`with_refs/2` を
     # 通さないと in_reply_to_id / 引用 / 投票が落ちたまま互換クライアントへ
     # 出ていく(単体の GET /api/v1/statuses/:id は通しているので、同じ note が
@@ -228,36 +228,22 @@ defmodule SukhiFedi.Conversations do
     |> Repo.one()
     |> case do
       nil -> nil
-      note -> Repo.preload(note, [:account, :media, :tags])
+      note -> Repo.preload(note, [:media, :tags, account: &Accounts.by_ids/1])
     end
   end
 
-  defp other_participants(convo_ids, viewer_id) do
-    rows =
-      Repo.all(
-        from cp in ConversationParticipant,
-          join: a in Account,
-          on: a.id == cp.account_id,
-          where: cp.conversation_ap_id in ^convo_ids and cp.account_id != ^viewer_id,
-          select: %{
-            cid: cp.conversation_ap_id,
-            account: %{
-              id: a.id,
-              username: a.username,
-              display_name: a.display_name,
-              summary: a.summary,
-              domain: a.domain,
-              actor_uri: a.actor_uri,
-              avatar_url: a.avatar_url,
-              banner_url: a.banner_url,
-              avatar_decorations: a.avatar_decorations,
-              is_admin: a.is_admin,
-              roles: a.roles
-            }
-          }
-      )
+  # What a conversation shows of each participant.
+  @participant_fields ~w(id username display_name summary domain actor_uri avatar_url
+                         banner_url avatar_decorations is_admin roles)a
 
-    Enum.group_by(rows, & &1.cid, & &1.account)
+  defp other_participants(convo_ids, viewer_id) do
+    Repo.all(
+      from cp in ConversationParticipant,
+        where: cp.conversation_ap_id in ^convo_ids and cp.account_id != ^viewer_id,
+        select: %{cid: cp.conversation_ap_id, account_id: cp.account_id}
+    )
+    |> with_participant_accounts()
+    |> Enum.group_by(fn {row, _} -> row.cid end, fn {_, a} -> participant(a) end)
   end
 
   # Every participant of one conversation, with account info and a
@@ -265,30 +251,21 @@ defmodule SukhiFedi.Conversations do
   defp participants_with_accounts(conversation_ap_id) do
     Repo.all(
       from cp in ConversationParticipant,
-        join: a in Account,
-        on: a.id == cp.account_id,
         where: cp.conversation_ap_id == ^conversation_ap_id,
-        select: %{
-          id: cp.id,
-          account_id: cp.account_id,
-          unread: cp.unread,
-          local?: is_nil(a.domain),
-          account: %{
-            id: a.id,
-            username: a.username,
-            display_name: a.display_name,
-            summary: a.summary,
-            domain: a.domain,
-            actor_uri: a.actor_uri,
-            avatar_url: a.avatar_url,
-            banner_url: a.banner_url,
-            avatar_decorations: a.avatar_decorations,
-            is_admin: a.is_admin,
-            roles: a.roles
-          }
-        }
+        select: %{id: cp.id, account_id: cp.account_id, unread: cp.unread}
     )
+    |> with_participant_accounts()
+    |> Enum.map(fn {row, a} ->
+      Map.merge(row, %{local?: is_nil(a.domain), account: participant(a)})
+    end)
   end
+
+  defp with_participant_accounts(rows) do
+    accounts = Accounts.map_by_ids(Enum.map(rows, & &1.account_id))
+    for row <- rows, a <- List.wrap(accounts[row.account_id]), do: {row, a}
+  end
+
+  defp participant(account), do: Map.take(account, @participant_fields)
 
   defp maybe_max_id(q, nil), do: q
   defp maybe_max_id(q, v), do: where(q, [n], n.id < ^to_int(v))

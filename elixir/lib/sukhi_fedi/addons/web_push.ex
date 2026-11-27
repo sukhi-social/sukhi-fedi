@@ -18,7 +18,7 @@ defmodule SukhiFedi.Addons.WebPush do
   use SukhiFedi.Addon, id: :web_push
 
   import Ecto.Query
-  alias SukhiFedi.Repo
+  alias SukhiFedi.{Accounts, Repo}
   alias SukhiFedi.Schema.{Account, Notification, PushSubscription}
 
   require Logger
@@ -161,23 +161,28 @@ defmodule SukhiFedi.Addons.WebPush do
   defp do_notify(notif) do
     now = DateTime.utc_now()
 
-    # One query, not one per subscription: the subscriptions and the
-    # recipient's quiet-state come back together.
+    # Two reads however many subscriptions there are: the subscriptions, then
+    # the recipient's quiet-state if there is anyone to tell.
     rows =
       Repo.all(
         from p in PushSubscription,
-          join: a in Account,
-          on: a.id == p.account_id,
           where: p.account_id == ^notif.account_id,
           select: %{
             id: p.id,
             endpoint: p.endpoint,
             p256dh_key: p.p256dh_key,
             auth_key: p.auth_key,
-            alerts: p.alerts,
-            quiet_until: a.quiet_until
+            alerts: p.alerts
           }
       )
+
+    rows =
+      with [_ | _] <- rows,
+           %Account{quiet_until: until} <- Accounts.get(notif.account_id) do
+        Enum.map(rows, &Map.put(&1, :quiet_until, until))
+      else
+        _ -> []
+      end
 
     payload = payload_for(notif)
 
