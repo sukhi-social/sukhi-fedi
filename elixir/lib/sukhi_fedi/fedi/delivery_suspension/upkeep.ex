@@ -97,6 +97,9 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Upkeep do
   end
 
   defp load do
-    with {:ok, notices} <- Store.all_notices(), do: Cache.replace(notices)
+    with {:ok, notices} <- Store.all_notices(),
+         {:ok, ignored} <- Store.ignored() do
+      Cache.replace(notices, ignore: Map.keys(ignored))
+    end
   end
 end

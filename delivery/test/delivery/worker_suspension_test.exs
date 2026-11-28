@@ -147,6 +147,71 @@ defmodule SukhiDelivery.Delivery.WorkerSuspensionTest do
     assert_receive {:held, %{count: 1, seconds: ^seconds}, %{host: "rest.example"}}
   end
 
+  describe "what a controller may make us keep, and what an admin chose to ignore" do
+    defp job(n), do: %{"activity_id" => "act-#{n}", "raw_json" => note()}
+    defp hold_job(n, inbox \\ @inbox), do: Worker.suspension_hold(job(n), inbox, @now, @policy)
+
+    defp listen(event) do
+      {:ok, _} = Application.ensure_all_started(:telemetry)
+      id = "worker-suspension-#{System.unique_integer([:positive])}"
+      me = self()
+
+      :telemetry.attach(
+        id,
+        [:sukhi_delivery, :suspension, event],
+        fn _e, measure, meta, _ -> send(me, {event, measure, meta}) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(id) end)
+    end
+
+    test "past the controller's budget, a delivery goes out instead of being held" do
+      listen(:over_budget)
+      policy = %{@policy | max_held_per_controller: 2}
+      Cache.put(notice())
+
+      run = fn n -> Worker.suspension_hold(job(n), @inbox, @now, policy) end
+
+      assert {:snooze, _} = run.(1)
+      assert {:snooze, _} = run.(2)
+      # asking again for one already held does not take another place
+      assert {:snooze, _} = run.(1)
+      assert :go = run.(3)
+
+      assert_receive {:over_budget, %{count: 1},
+                      %{host: "rest.example", controller: "https://rest.example/users/ops"}}
+
+      assert %{"https://rest.example/users/ops" => 2} = Cache.held_counts()
+    end
+
+    test "a delivery that goes out gives its place back, and is counted as resumed" do
+      listen(:resumed)
+      Cache.put(notice())
+
+      assert {:snooze, _} = hold_job(1)
+      assert %{"https://rest.example/users/ops" => 1} = Cache.held_counts()
+
+      finish = DateTime.add(@now, 3600, :second)
+      assert :go = Worker.suspension_hold(job(1), @inbox, finish, @policy)
+      assert %{} == Cache.held_counts()
+      assert_receive {:resumed, %{count: 1}, %{host: "rest.example"}}
+
+      # one that was never held is not "resumed"
+      assert :go = Worker.suspension_hold(job(2), @inbox, finish, @policy)
+      refute_receive {:resumed, _, _}
+    end
+
+    test "an ignored notice holds nothing, and what it held is let go" do
+      mine = notice()
+      Cache.replace([mine])
+      assert {:snooze, _} = hold_job(1)
+
+      Cache.replace([mine], ignore: [mine.id])
+      assert :go = hold_job(1)
+    end
+  end
+
   @doc false
   def forward(_event, measure, meta, parent), do: send(parent, {:held, measure, meta})
 end

@@ -30,7 +30,14 @@ defmodule SukhiShared.DeliverySuspension.Policy do
             # Undos held for a Create we have not seen yet (per actor / in all)
             max_notices_per_controller: 32,
             max_pending_per_actor: 16,
-            max_pending_total: 4096
+            max_pending_total: 4096,
+            # …and what one controller may ask of us in a single notice: how
+            # high a `revision` may climb, how far ahead a `startTime` may
+            # lie, and how many deliveries its notices may hold back at once
+            # (past that, deliveries go out as if there were no notice)
+            max_revision: 1_000,
+            max_lead: 7 * 86_400,
+            max_held_per_controller: 100_000
 
   @type t :: %__MODULE__{
           notice_max_bytes: pos_integer(),
@@ -45,7 +52,10 @@ defmodule SukhiShared.DeliverySuspension.Policy do
           per_target_concurrency: pos_integer(),
           max_notices_per_controller: pos_integer(),
           max_pending_per_actor: pos_integer(),
-          max_pending_total: pos_integer()
+          max_pending_total: pos_integer(),
+          max_revision: pos_integer(),
+          max_lead: non_neg_integer(),
+          max_held_per_controller: pos_integer()
         }
 
   @spec default() :: t()

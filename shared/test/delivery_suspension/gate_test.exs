@@ -154,6 +154,22 @@ defmodule SukhiShared.DeliverySuspension.GateTest do
     end
   end
 
+  describe "resting/4" do
+    test "the notice that ends last is the one that governs" do
+      a = notice(end_time: at(2))
+      b = notice(id: "https://social.example/suspensions/2", end_time: at(4))
+
+      assert {end_at, ^b} = Gate.resting(@inbox, at(1, 30), [a, b], @policy)
+      assert end_at == at(4)
+    end
+
+    test "nil when nothing is in effect, or the URL is not one" do
+      assert Gate.resting(@inbox, at(3), [notice()], @policy) == nil
+      assert Gate.resting("nope", at(2), [notice()], @policy) == nil
+      assert Gate.resting(nil, at(2), [notice()], @policy) == nil
+    end
+  end
+
   describe "exempt?/1: what suspension never holds back" do
     @notice_object %{
       "type" => "DeliverySuspension",

@@ -31,7 +31,7 @@
 3. activity の `id`・お知らせの `id`・`announcement` が controller の origin のもの
 4. 形(`Notice.parse/2`)
 5. 制御の確認(**始める・延ばす**ときだけ。取り消しや短くする更新では再確認しない)
-6. 新しさ(未来すぎない、年齢上限、controller の cutoff)
+6. 新しさ(未来すぎない、年齢上限、controller の cutoff)と、先の予定の上限(後述「上限」)
 7. 既知のものとの比較(不変項目、最高の revision、同じ revision で中身が違えば不正、同じ中身は何もしない)
 8. 書いてから返す
 
@@ -50,7 +50,7 @@
 - 共有 inbox と個別 inbox は、休みを避けるために入れ替えません。宛てられた先に出します。
 - 宛先の記録は ETS(`SukhiShared.DeliverySuspension.Cache`)の写しを引きます。**写しは正本ではありません**。gateway が store に書いたあとに写しへ入れ、起動時に `Upkeep` が store から組み直します。再起動しても、同じ宛先が同じ時刻まで休みます。取り消しは写しから消えます。
 - **同じ VM のとき(combined)だけ働きます。** 写しの表は gateway が持つので、gateway と delivery が別の VM のとき、delivery には表が無く、何も休みません(迷ったら配送)。
-- 休ませた件数は telemetry `[:sukhi_delivery, :suspension, :held]`。
+- 休ませた件数は telemetry `[:sukhi_delivery, :suspension, :held]`。休みから戻って送った件数は `[:sukhi_delivery, :suspension, :resumed]`。
 
 ## 制御の確認(段4)
 
@@ -159,6 +159,37 @@ bin/sukhi_delivery rpc 'SukhiDelivery.Release.announce_suspension("/srv/sukhi/he
 
 **まだ**: 実機で通すこと(配る仕事・nginx とも、テストの相手では確かめた)。
 
+## 上限と管理(段6)
+
+**1つの controller が、こちらに頼めることには上限があります**(`Policy`)。越えたものは受けず、理由を telemetry の `detail` に残します。
+
+| 上限 | 既定 | 越えたときの `detail` |
+| --- | --- | --- |
+| お知らせの数(1 controller あたり) | 32 | `too_many_notices` |
+| `revision` の大きさ | 1000 | `revision_too_high` |
+| 開始が先すぎる(`startTime` が now からこの秒数より先) | 7日 | `start_too_far` |
+| 休ませて持つ配送の数(1 controller あたり) | 100000 | 受けるが、越えた分は休ませず送る。telemetry `[:sukhi_delivery, :suspension, :over_budget]` |
+
+休ませる数の上限は、迷ったら配送、の側に倒します。`Cache.reserve/3` が、休ませる最初の1回だけ数え(配送ごとに `{activity_id, inbox_url}`)、送るときに `release/1` で返します。数は概算で、組み直し(1時間ごと)のたびに0から数え直します。長く持たせる側(controller)が、こちらの待ち行列を無限に抱えさせられないための歯止めです。
+
+**管理者は、ある休みを「ここでは無視する」と選べます**(`SukhiFedi.Fedi.DeliverySuspension.Admin.ignore/2`)。相手の記録は書き換えません。`suspension_ignores` に notice の `id` を足し、写し(`Cache`)から外します。すぐ普通に配送されます。
+
+- 無視は `id` 単位です。同じお知らせの後の revision も無視のまま。相手が新しい休みを出せば新しい `id` で、あらためて判断されます。
+- 「無視をやめる」と、そのお知らせがまだ続いているぶんだけ、また休みになります。
+- 選んだことは、管理の記録(`admin_audits` の `suspension_ignored` / `suspension_unignored`)に残り、telemetry `[:sukhi_fedi, :delivery_suspension, :ignored]`(`action`)が出ます。
+- notice を忘れるとき(`Store.sweep/2`)に、その無視の行も消します。
+
+telemetry のまとめ:
+
+| 出来事 | イベント |
+| --- | --- |
+| 受理・拒否(理由つき)・取り消し | `[:sukhi_fedi, :delivery_suspension, :received]`(`status`、`detail`) |
+| 制御の取得の失敗(種類つき) | `[:sukhi_fedi, :delivery_suspension, :recheck]`、`:hint` |
+| 休ませた | `[:sukhi_delivery, :suspension, :held]` |
+| 休みから戻って送った | `[:sukhi_delivery, :suspension, :resumed]` |
+| 上限で休ませずに送った | `[:sukhi_delivery, :suspension, :over_budget]` |
+| 管理者が無視した・やめた | `[:sukhi_fedi, :delivery_suspension, :ignored]` |
+
 ## 記録するもの(PostgreSQL)
 
 | 中身 | 表 | 行の中身 |
@@ -167,6 +198,7 @@ bin/sukhi_delivery rpc 'SukhiDelivery.Release.announce_suspension("/srv/sukhi/he
 | pending cancellations | `suspension_pending` | 先に届いた Undo。`(actor, create_id)` で一意 |
 | control evidence | `suspension_evidence` | 制御を最後に確認できた時刻・最後の試行・その結果(`Control` が書く)。`(kind, target, controller)` で一意 |
 | controller cutoffs | `suspension_cutoffs` | 「この時刻より前は受けない」線(`not_before`)。前にだけ進む |
+| ignores | `suspension_ignores` | 管理者が「ここでは無視する」と選んだ notice の `id` と時刻 |
 
 時刻は、エポックからのマイクロ秒の整数です。
 
@@ -184,7 +216,8 @@ bin/sukhi_delivery rpc 'SukhiDelivery.Release.announce_suspension("/srv/sukhi/he
 | 4 の後半 | 配送の応答の Link ヘッダーから通知を取りにいく(ヒント) | merge 済み(#186) |
 | 5 の前半 | 告げる側の芯(`Publisher`・`mix sukhi.suspension.prepare`) | merge 済み(#188) |
 | 5 の中 | 眠っている間の制御の文書・配る仕事(`Announce`・`Spread`) | merge 済み(#190) |
-| 5 の後半 | nginx で静的に返す道・休み中の 503 に `Link`(`sukhi-maintenance notice`) | この変更 |
-| 6 | 管理画面と telemetry | 後 |
+| 5 の後半 | nginx で静的に返す道・休み中の 503 に `Link`(`sukhi-maintenance notice`) | merge 済み(#191) |
+| 6 の前半 | 上限(revision・先の予定・持つ配送の数)・無視の選び・telemetry | この変更 |
+| 6 の後半 | 管理画面(web-gov)・一覧・`summary` と `url` の扱い | 後 |
 
 初版の範囲は段0〜3(段4で実際に休むようになりました)。宛先ごとの同時数、容量上限の記録、`Retry-After` は後回しです。

@@ -41,19 +41,35 @@ defmodule SukhiShared.DeliverySuspension.Gate do
   may have been cancelled in the meantime.
   """
   @spec resume_at(String.t(), DateTime.t(), [Notice.t()], Policy.t()) :: DateTime.t() | nil
-  def resume_at(delivery_url, %DateTime{} = now, notices, %Policy{} = policy)
+  def resume_at(delivery_url, now, notices, policy) do
+    case resting(delivery_url, now, notices, policy) do
+      {resume_at, _notice} -> resume_at
+      nil -> nil
+    end
+  end
+
+  @doc """
+  `resume_at/4` together with the notice that sets it (the one that ends
+  last), or `nil`. The delivery worker needs the notice to know whose budget
+  a held delivery counts against.
+  """
+  @spec resting(String.t(), DateTime.t(), [Notice.t()], Policy.t()) ::
+          {DateTime.t(), Notice.t()} | nil
+  def resting(delivery_url, %DateTime{} = now, notices, %Policy{} = policy)
       when is_binary(delivery_url) and is_list(notices) do
     case Origin.of_delivery_url(delivery_url) do
       {:ok, origin} ->
         notices
         |> Enum.filter(&in_effect?(&1, delivery_url, origin, now, policy))
-        |> Enum.map(&effective_end(&1, policy))
-        |> Enum.max(DateTime, fn -> nil end)
+        |> Enum.map(&{effective_end(&1, policy), &1})
+        |> Enum.max_by(fn {end_at, _} -> DateTime.to_unix(end_at, :microsecond) end, fn -> nil end)
 
       :error ->
         nil
     end
   end
+
+  def resting(_delivery_url, _now, _notices, _policy), do: nil
 
   @doc false
   @spec in_effect?(Notice.t(), String.t(), String.t(), DateTime.t(), Policy.t()) :: boolean()

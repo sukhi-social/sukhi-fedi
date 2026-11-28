@@ -24,6 +24,9 @@ defmodule SukhiShared.DeliverySuspension.CacheTest do
   end
 
   test "with no table, nothing is held (the delivery node outside the gateway's VM)" do
+    assert :ok = Cache.reserve("https://social.example/users/ops", :a, 1)
+    refute Cache.release(:a)
+    assert %{} == Cache.held_counts()
     assert [] = Cache.candidates("https://other.example/inbox")
     assert [] = Cache.all()
     assert :ok = Cache.put(notice([]))
@@ -88,6 +91,49 @@ defmodule SukhiShared.DeliverySuspension.CacheTest do
       ])
 
       assert [%Notice{id: "https://social.example/suspensions/a"}] = Cache.all()
+    end
+
+    test "an ignored notice is not kept, and a later revision of it stays ignored" do
+      mine = notice(id: "https://social.example/suspensions/mine")
+      other = notice(id: "https://social.example/suspensions/other")
+
+      Cache.replace([mine, other], ignore: [mine.id])
+      assert [^other] = Cache.all()
+      assert [mine.id] == Cache.ignored()
+
+      Cache.put(%{mine | revision: 2})
+      assert [^other] = Cache.all()
+
+      # a rebuild without `ignore:` keeps what was ignored; with `ignore: []` it lets go
+      Cache.replace([mine, other])
+      assert [^other] = Cache.all()
+      Cache.replace([mine, other], ignore: [])
+      assert 2 = length(Cache.all())
+    end
+
+    test "reserve/3 counts a delivery once, refuses past the limit, and release/1 gives it back" do
+      c = "https://social.example/users/ops"
+
+      assert :ok = Cache.reserve(c, :a, 2)
+      assert :ok = Cache.reserve(c, :a, 2)
+      assert %{^c => 1} = Cache.held_counts()
+      assert :ok = Cache.reserve(c, :b, 2)
+      assert :full = Cache.reserve(c, :c, 2)
+      assert %{^c => 2} = Cache.held_counts()
+
+      # another controller has its own budget
+      assert :ok = Cache.reserve("https://other.example/users/x", :d, 2)
+
+      assert Cache.release(:a)
+      refute Cache.release(:a)
+      assert :ok = Cache.reserve(c, :c, 2)
+    end
+
+    test "replace/2 starts the held counts again" do
+      Cache.reserve("https://social.example/users/ops", :a, 5)
+      Cache.replace([])
+      assert %{} == Cache.held_counts()
+      refute Cache.release(:a)
     end
   end
 end

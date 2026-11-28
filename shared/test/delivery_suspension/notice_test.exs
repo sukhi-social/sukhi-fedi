@@ -213,4 +213,33 @@ defmodule SukhiShared.DeliverySuspension.NoticeTest do
       assert Notice.same_immutable?(old, new)
     end
   end
+
+  describe "within_limits/3" do
+    @now ~U[2026-11-06T00:30:00Z]
+
+    defp parsed(overrides) do
+      {:ok, notice} = Notice.parse(doc(overrides))
+      notice
+    end
+
+    test "an ordinary notice is within the limits" do
+      assert :ok = Notice.within_limits(parsed(%{}), @now, Policy.default())
+    end
+
+    test "a revision past the cap is refused" do
+      policy = Policy.default()
+      over = parsed(%{"revision" => policy.max_revision + 1})
+      assert {:error, :revision_too_high} = Notice.within_limits(over, @now, policy)
+      assert :ok = Notice.within_limits(parsed(%{"revision" => policy.max_revision}), @now, policy)
+    end
+
+    test "a start further ahead than allowed is refused" do
+      policy = Policy.default()
+      far = DateTime.add(@now, policy.max_lead + 60, :second) |> DateTime.to_iso8601()
+      far_end = DateTime.add(@now, policy.max_lead + 3600, :second) |> DateTime.to_iso8601()
+
+      assert {:error, :start_too_far} =
+               Notice.within_limits(parsed(%{"startTime" => far, "endTime" => far_end}), @now, policy)
+    end
+  end
 end

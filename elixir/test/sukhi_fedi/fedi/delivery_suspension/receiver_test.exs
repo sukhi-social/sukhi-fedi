@@ -246,6 +246,24 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.ReceiverTest do
       assert {:error, :too_many_notices} =
                recv(create(second, "https://a.example/activities/c2"), policy: policy)
     end
+
+    test "a revision past the cap is refused, and the one at the cap is taken" do
+      policy = %Policy{max_revision: 5}
+      assert {:error, :revision_too_high} = recv(create(notice(%{"revision" => 6})), policy: policy)
+      assert {:ok, :accepted} = recv(create(notice(%{"revision" => 5})), policy: policy)
+    end
+
+    test "a start further ahead than allowed is refused" do
+      policy = %Policy{max_lead: 3600}
+
+      far =
+        notice(%{"startTime" => iso(ahead(2 * 3600)), "endTime" => iso(ahead(3 * 3600))})
+
+      assert {:error, :start_too_far} = recv(create(far), policy: policy)
+
+      near = notice(%{"startTime" => iso(ahead(1800)), "endTime" => iso(ahead(3 * 3600))})
+      assert {:ok, :accepted} = recv(create(near), policy: policy)
+    end
   end
 
   describe "revisions" do

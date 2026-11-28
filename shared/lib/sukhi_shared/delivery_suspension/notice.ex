@@ -143,6 +143,30 @@ defmodule SukhiShared.DeliverySuspension.Notice do
   def parse(_document, _policy), do: {:error, :not_an_object}
 
   @doc """
+  What one controller may ask of us in a single notice (spec §13): a
+  `revision` no higher than `max_revision`, and a `startTime` no further
+  ahead than `max_lead` from `now`. A notice that has no `startTime` starts
+  when we take it, so it is always within the lead.
+
+  The reason goes to telemetry, like the form's.
+  """
+  @spec within_limits(t(), DateTime.t(), Policy.t()) ::
+          :ok | {:error, :revision_too_high | :start_too_far}
+  def within_limits(%__MODULE__{} = notice, %DateTime{} = now, %Policy{} = policy) do
+    cond do
+      notice.revision > policy.max_revision ->
+        {:error, :revision_too_high}
+
+      match?(%DateTime{}, notice.start_time) and
+          DateTime.compare(notice.start_time, DateTime.add(now, policy.max_lead, :second)) == :gt ->
+        {:error, :start_too_far}
+
+      true ->
+        :ok
+    end
+  end
+
+  @doc """
   Levels of nesting in a decoded term: a flat object is 1, an object in an
   object 2. (The byte scan in `HttpFetch` bounds a body before decoding; this
   measures a map already decoded, so the notice's own limit — 8, smaller than

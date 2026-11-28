@@ -124,6 +124,7 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Receiver do
          {:ok, notice} <- parse(object, ctx),
          :ok <- same_controller(notice, actor),
          :ok <- notice_fresh(notice, ctx),
+         :ok <- Notice.within_limits(notice, ctx.now, ctx.policy),
          :ok <- ahead_of_cutoff(notice) do
       notice = %{notice | proof_expires_at: proof_expires}
       decide(notice, activity["id"], object, ctx)
