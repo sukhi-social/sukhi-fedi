@@ -179,6 +179,13 @@ bin/sukhi_delivery rpc 'SukhiDelivery.Release.announce_suspension("/srv/sukhi/he
 - 選んだことは、管理の記録(`admin_audits` の `suspension_ignored` / `suspension_unignored`)に残り、telemetry `[:sukhi_fedi, :delivery_suspension, :ignored]`(`action`)が出ます。
 - notice を忘れるとき(`Store.sweep/2`)に、その無視の行も消します。
 
+**管理画面**(web-gov の「配送のお休み」、`#/suspensions`)は、頼まれているお休みを一覧にします。
+
+- 見えるもの: 頼んだ人(controller)・対象・版(revision)・実効終了・制御をいつ確かめたか(失敗なら種類)・いまその人のために待たせている配送の数・無視しているか。
+- 選べるもの: 「ここでは無視する」/「無視をやめる」。相手の記録は変わりません。
+- 口は `GET /api/admin/delivery_suspensions`(`admin:read`)と `POST …/ignore`・`POST …/unignore`(`admin:write`、本文 `{id}`。`id` は URL なのでパスに入れません)。どれも管理者のアカウントだけ。
+- 相手が書いた文字は、ほかのリモート投稿と同じに扱います。`summary` は `SukhiFedi.HTML.sanitize/1`(清める場所は1つ)を通した HTML で、画面ではそのまま出します。`url` は `https` のものだけ文字として渡し、**こちらからは取りに行きません**(管理者がリンクを押したときに、ブラウザが開くだけ)。
+
 telemetry のまとめ:
 
 | 出来事 | イベント |
@@ -217,7 +224,7 @@ telemetry のまとめ:
 | 5 の前半 | 告げる側の芯(`Publisher`・`mix sukhi.suspension.prepare`) | merge 済み(#188) |
 | 5 の中 | 眠っている間の制御の文書・配る仕事(`Announce`・`Spread`) | merge 済み(#190) |
 | 5 の後半 | nginx で静的に返す道・休み中の 503 に `Link`(`sukhi-maintenance notice`) | merge 済み(#191) |
-| 6 の前半 | 上限(revision・先の予定・持つ配送の数)・無視の選び・telemetry | この変更 |
-| 6 の後半 | 管理画面(web-gov)・一覧・`summary` と `url` の扱い | 後 |
+| 6 の前半 | 上限(revision・先の予定・持つ配送の数)・無視の選び・telemetry | PR #204 |
+| 6 の後半 | 管理画面(web-gov)・一覧・`summary` と `url` の扱い | この変更 |
 
 初版の範囲は段0〜3(段4で実際に休むようになりました)。宛先ごとの同時数、容量上限の記録、`Retry-After` は後回しです。

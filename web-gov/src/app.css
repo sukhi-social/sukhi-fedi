@@ -65,3 +65,7 @@ textarea { inline-size: 100%; min-block-size: 5.5rem; }
 .words dd { margin: 0; white-space: pre-wrap; }
 .note { background: var(--amber-soft); color: var(--ink); border-radius: var(--radius); padding: .6rem .9rem; font-size: .875rem; }
 details > summary { cursor: pointer; color: var(--moss-strong); }
+.meta-list { display: grid; gap: .1rem; margin: 0; }
+.meta-list > div { display: flex; gap: .6rem; flex-wrap: wrap; }
+.meta-list dt { min-inline-size: 7rem; }
+.meta-list dd { margin: 0; overflow-wrap: anywhere; }
