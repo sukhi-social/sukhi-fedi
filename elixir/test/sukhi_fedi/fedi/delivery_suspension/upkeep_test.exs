@@ -4,9 +4,11 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.UpkeepTest do
   # rebuilt from the store on start, trimmed by the sweep. Real PostgreSQL.
   use SukhiFedi.IntegrationCase, async: false
 
+  import Ecto.Query, only: [from: 2]
+
   @moduletag :integration
 
-  alias SukhiFedi.Fedi.DeliverySuspension.{Receiver, Upkeep}
+  alias SukhiFedi.Fedi.DeliverySuspension.{Admin, Receiver, Store, Upkeep}
   alias SukhiShared.DeliverySuspension.{Cache, Gate, Policy}
 
   @alice "https://a.example/users/alice"
@@ -95,5 +97,72 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.UpkeepTest do
     later = DateTime.add(@now, 15 * 86_400, :second)
     assert %{notices: 1} = Upkeep.sweep(later)
     assert [] = Cache.all()
+  end
+
+  describe "an admin ignores a rest" do
+    @id "https://a.example/suspensions/1"
+
+    test "deliveries go out at once; the peer's record is untouched; un-ignoring brings it back" do
+      start_supervised!(Upkeep)
+      assert {:ok, :accepted} = recv(activity("Create", notice(), "https://a.example/a/c1"))
+      assert %DateTime{} = resume_at()
+      {:ok, record, _} = Store.get_notice(@id)
+
+      assert :ok = Admin.ignore(@id)
+      assert nil == resume_at()
+      assert [@id] = Cache.ignored()
+      assert {:ok, ^record, _} = Store.get_notice(@id)
+
+      assert :ok = Admin.unignore(@id)
+      assert %DateTime{} = resume_at()
+      assert {:ok, ^record, _} = Store.get_notice(@id)
+    end
+
+    test "a later revision stays ignored, and the choice survives a restart" do
+      start_supervised!(Upkeep)
+      assert {:ok, :accepted} = recv(activity("Create", notice(), "https://a.example/a/c1"))
+      assert :ok = Admin.ignore(@id)
+
+      assert {:ok, :accepted} =
+               recv(activity("Update", notice(%{"revision" => 2}), "https://a.example/a/u1"))
+
+      assert nil == resume_at()
+
+      stop_supervised!(Cache)
+      start_supervised!(Cache)
+      assert :ok = Upkeep.reload()
+      assert nil == resume_at()
+      assert [@id] = Cache.ignored()
+    end
+
+    test "a notice we do not have is not found" do
+      start_supervised!(Upkeep)
+      assert {:error, :not_found} = Admin.ignore("https://a.example/suspensions/none")
+      assert {:error, :not_found} = Admin.unignore(nil)
+    end
+
+    test "the choice is written to the admin audit trail" do
+      start_supervised!(Upkeep)
+      assert {:ok, :accepted} = recv(activity("Create", notice(), "https://a.example/a/c1"))
+      assert :ok = Admin.ignore(@id)
+
+      assert [%{action: "suspension_ignored", target_domain: "b.example"}] =
+               SukhiFedi.AccountRepo.all(
+                 from(a in SukhiFedi.Schema.AdminAudit,
+                   where: like(a.action, "suspension_%"),
+                   select: %{action: a.action, target_domain: a.target_domain}
+                 )
+               )
+    end
+
+    test "forgetting the notice forgets the ignore" do
+      start_supervised!(Upkeep)
+      assert {:ok, :accepted} = recv(activity("Create", notice(), "https://a.example/a/c1"))
+      assert :ok = Admin.ignore(@id)
+
+      Upkeep.sweep(DateTime.add(@now, 15 * 86_400, :second))
+      assert {:ok, %{} = ignored} = Store.ignored()
+      assert ignored == %{}
+    end
   end
 end

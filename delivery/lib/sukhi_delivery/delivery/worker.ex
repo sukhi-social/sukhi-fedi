@@ -50,6 +50,8 @@ defmodule SukhiDelivery.Delivery.Worker do
     activity_id = args["activity_id"]
 
     if already_delivered?(activity_id, inbox_url) do
+      # Delivered some other way while it was held: give its place back.
+      Cache.release({activity_id, inbox_url})
       :ok
     else
       case suspension_hold(args, inbox_url, DateTime.utc_now()) do
@@ -83,33 +85,68 @@ defmodule SukhiDelivery.Delivery.Worker do
   @spec suspension_hold(map(), term(), DateTime.t(), Policy.t()) ::
           :go | {:snooze, pos_integer()}
   def suspension_hold(args, inbox_url, now, policy \\ Policy.default()) do
+    case decide(args, inbox_url, now, policy) do
+      {:snooze, _seconds} = held -> held
+      :go -> settle(args, inbox_url)
+    end
+  end
+
+  defp decide(args, inbox_url, now, policy) do
     case Cache.candidates(inbox_url) do
       [] ->
         :go
 
       notices ->
-        hold(Gate.resume_at(inbox_url, now, notices, policy), args, inbox_url, now, policy)
+        case Gate.resting(inbox_url, now, notices, policy) do
+          nil -> :go
+          {resume, notice} -> hold(resume, notice, args, inbox_url, now, policy)
+        end
     end
   end
 
-  defp hold(nil, _args, _inbox_url, _now, _policy), do: :go
+  # A delivery that goes out gives back the place it held, if it held one
+  # (and that, a delivery coming back from a rest, is what "resumed" counts).
+  defp settle(args, inbox_url) do
+    if Cache.release({args["activity_id"], inbox_url}) do
+      :telemetry.execute([:sukhi_delivery, :suspension, :resumed], %{count: 1}, %{
+        host: host(inbox_url)
+      })
+    end
 
-  defp hold(%DateTime{} = resume, args, inbox_url, now, policy) do
-    if Gate.exempt?(activity_json(args)) do
-      :go
-    else
-      wait = div(max(DateTime.diff(resume, now, :millisecond), 0) + 999, 1000)
-      seconds = max(wait, 1) + :rand.uniform(policy.resume_jitter + 1) - 1
+    :go
+  end
 
-      :telemetry.execute(
-        [:sukhi_delivery, :suspension, :held],
-        %{count: 1, seconds: seconds},
-        %{host: URI.parse(inbox_url).host}
-      )
+  defp hold(%DateTime{} = resume, notice, args, inbox_url, now, policy) do
+    cond do
+      Gate.exempt?(activity_json(args)) ->
+        :go
 
-      {:snooze, seconds}
+      # A controller may not make us keep more than its share: when in doubt,
+      # deliver. The place is counted the first time (the key is the delivery).
+      Cache.reserve(notice.controller, {args["activity_id"], inbox_url}, policy.max_held_per_controller) ==
+          :full ->
+        :telemetry.execute([:sukhi_delivery, :suspension, :over_budget], %{count: 1}, %{
+          host: host(inbox_url),
+          controller: notice.controller
+        })
+
+        :go
+
+      true ->
+        wait = div(max(DateTime.diff(resume, now, :millisecond), 0) + 999, 1000)
+        seconds = max(wait, 1) + :rand.uniform(policy.resume_jitter + 1) - 1
+
+        :telemetry.execute(
+          [:sukhi_delivery, :suspension, :held],
+          %{count: 1, seconds: seconds},
+          %{host: host(inbox_url)}
+        )
+
+        {:snooze, seconds}
     end
   end
+
+  defp host(inbox_url), do: URI.parse(inbox_url).host
 
   # The activity as JSON, when the job carries it (every job the gateway
   # enqueues does). One we cannot read is not exempt; the delivery itself

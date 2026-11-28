@@ -3,8 +3,8 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
   @moduledoc """
   What FEP-f799 remembers, in PostgreSQL (`SukhiFedi.AccountRepo`; the tables
   are `suspension_notices`, `suspension_pending`, `suspension_evidence` and
-  `suspension_cutoffs`, in `priv/account_repo/migrations`). Four kinds of row,
-  no references:
+  `suspension_cutoffs`, in `priv/account_repo/migrations`; and
+  `suspension_ignores`, below). Four kinds of row, no references:
 
     * **notices** — one per notice `id`. A cancelled row is kept as the
       mark that ends it: a later, higher `revision` does not bring it back.
@@ -17,6 +17,10 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
       from this controller". Forgetting a notice (`sweep/2`) advances it by
       as much, so loosening the age limit later cannot revive a cancelled
       notice we no longer remember.
+
+  A fifth table, `suspension_ignores`, holds the notice ids an admin chose to
+  ignore on this server: our own choice, kept beside the notices and never
+  written into them.
 
   Reads never lock. A caller that reads and then writes does both inside
   `exclusive/1` (one holder at a time on this node), and never nests it;
@@ -112,6 +116,36 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
         on_conflict: {:replace, replace}
       )
     end)
+  end
+
+  # ── ignored by an admin ──────────────────────────────────────────────────
+
+  @doc "Ignore the notice `id` here (its record is left as the peer wrote it). Idempotent."
+  @spec ignore(String.t(), DateTime.t()) :: :ok | {:error, term()}
+  def ignore(id, %DateTime{} = at) when is_binary(id) do
+    write(fn ->
+      AccountRepo.insert_all("suspension_ignores", [%{notice_id: id, ignored_at: micros(at)}],
+        conflict_target: :notice_id,
+        on_conflict: :nothing
+      )
+    end)
+  end
+
+  @doc "Stop ignoring the notice `id`."
+  @spec unignore(String.t()) :: :ok | {:error, term()}
+  def unignore(id) when is_binary(id) do
+    write(fn -> AccountRepo.delete_all(from(i in "suspension_ignores", where: i.notice_id == ^id)) end)
+  end
+
+  @doc "The ids of the notices ignored here, with when."
+  @spec ignored() :: {:ok, %{String.t() => DateTime.t()}} | {:error, term()}
+  def ignored do
+    case guard(fn ->
+           AccountRepo.all(from(i in "suspension_ignores", select: {i.notice_id, i.ignored_at}))
+         end) do
+      {:error, _} = error -> error
+      rows -> {:ok, Map.new(rows, fn {id, at} -> {id, from_micros(at)} end)}
+    end
   end
 
   # ── pending cancellations ────────────────────────────────────────────────
@@ -294,6 +328,8 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
 
     ids = for {id, _c, _p} <- old, do: id
     _ = write(fn -> AccountRepo.delete_all(from(n in "suspension_notices", where: n.id in ^ids)) end)
+    # An ignore with no notice behind it has nothing left to ignore.
+    _ = write(fn -> AccountRepo.delete_all(from(i in "suspension_ignores", where: i.notice_id in ^ids)) end)
 
     at = micros(now)
     expired = from(p in "suspension_pending", where: p.expires_at <= ^at)

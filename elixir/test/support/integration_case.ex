@@ -58,7 +58,8 @@ defmodule SukhiFedi.IntegrationCase do
     # Ids go on from test to test: the rate limits remember accounts by id.
     SukhiFedi.AccountRepo.query!("""
     TRUNCATE accounts, join_applications, outbox, admin_audits,
-             suspension_notices, suspension_pending, suspension_evidence, suspension_cutoffs
+             suspension_notices, suspension_pending, suspension_evidence, suspension_cutoffs,
+             suspension_ignores
     CASCADE
     """)
   end
