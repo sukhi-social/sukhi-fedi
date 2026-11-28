@@ -1,0 +1,212 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>gov.sukhi.social(案)</title>
+<meta name="lab:desc" content="管理画面を web-gov(gov.sukhi.social)に分ける案。だれでも入れる窓口(ここではこうします・見ている人・受け入れる基準)が最初の頁。管理者のトークンを持っているときだけ、申し込みを読んで迎える道具が足される。デザインは web-next とは別。">
+<meta name="lab:scenes" content="token=トークンあり(申し込みの一覧);reading=申し込みを読む;welcomed=迎えた">
+<meta name="lab:nav" content="none">
+<script src="/_lab/mock.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #f7f4ec; --card: #fffdf8; --ink: #2f3a32; --muted: #66726a; --line: #ddd8c8; --line-strong: #c5bfa9;
+    --moss: #3f6b4f; --moss-soft: #e3eddf; --moss-strong: #2c5139; --on-moss: #fff;
+    --amber: #a8641a; --amber-soft: #fbead0; --focus: #2c5139;
+    --radius: 10px; --measure: 42rem;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme=light]) { color-scheme: dark; --paper: #1b211d; --card: #232b25; --ink: #e8ece6; --muted: #a2afa5; --line: #34403a; --line-strong: #48564d; --moss: #8cc29d; --moss-soft: #2b3a2f; --moss-strong: #a9d7b8; --on-moss: #14211a; --amber: #e0a560; --amber-soft: #3a2d1b; --focus: #a9d7b8; } }
+  :root[data-theme=dark] { color-scheme: dark; --paper: #1b211d; --card: #232b25; --ink: #e8ece6; --muted: #a2afa5; --line: #34403a; --line-strong: #48564d; --moss: #8cc29d; --moss-soft: #2b3a2f; --moss-strong: #a9d7b8; --on-moss: #14211a; --amber: #e0a560; --amber-soft: #3a2d1b; --focus: #a9d7b8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.85 "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Noto Sans JP", system-ui, sans-serif; letter-spacing: .02em; }
+  a { color: var(--moss-strong); text-underline-offset: .2em; }
+  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+  h1, h2, h3 { line-height: 1.5; margin: 0; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.2rem; } h3 { font-size: 1rem; }
+  p { margin: 0; }
+  .muted { color: var(--muted); }
+  .small { font-size: .8125rem; }
+
+  /* 窓口の枠: 上の帯と、中身。トークンがあるときだけ、横に道具の棚が付く。 */
+  .bar { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; border-bottom: 1px solid var(--line); background: var(--card); }
+  .bar .name { font-weight: 700; color: var(--moss-strong); text-decoration: none; }
+  .bar .name small { font-weight: 400; color: var(--muted); margin-inline-start: .4rem; }
+  .bar .who { margin-inline-start: auto; font-size: .8125rem; color: var(--muted); }
+  .bar .back { font-size: .8125rem; }
+  .frame { display: grid; gap: 1.5rem; max-width: 62rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  @media (min-width: 52rem) { html[data-s~=token] .frame, html[data-s~=reading] .frame, html[data-s~=welcomed] .frame { grid-template-columns: 11rem 1fr; } }
+  .shelf { display: none; align-content: start; gap: .25rem; }
+  html[data-s~=token] .shelf, html[data-s~=reading] .shelf, html[data-s~=welcomed] .shelf { display: grid; }
+  .shelf a { display: flex; justify-content: space-between; gap: .5rem; padding: .35rem .7rem; border-radius: 8px; text-decoration: none; color: var(--ink); }
+  .shelf a[aria-current=page] { background: var(--moss-soft); color: var(--moss-strong); font-weight: 700; }
+  .shelf .count { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .shelf .label { font-size: .75rem; color: var(--muted); padding: .6rem .7rem .15rem; }
+  .main { display: grid; gap: 2rem; max-width: var(--measure); align-content: start; }
+  .main > section { gap: .8rem; }
+  .main > section:not([class*=only-]) { display: grid; }
+
+  .hero { display: grid; gap: .6rem; padding: 1.2rem 0 .4rem; }
+  .hero .lead { font-size: 1.0625rem; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem; display: grid; gap: .6rem; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; counter-reset: s; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 1.8rem 1fr; gap: .7rem; align-items: start; }
+  .steps li::before { content: counter(s); inline-size: 1.8rem; block-size: 1.8rem; border-radius: 50%; background: var(--moss-soft); color: var(--moss-strong); display: grid; place-items: center; font-size: .875rem; font-weight: 700; }
+  .days { display: flex; gap: .35rem; flex-wrap: wrap; }
+  .day { inline-size: 2.2rem; block-size: 2.2rem; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line-strong); font-size: .875rem; color: var(--muted); }
+  .day[data-on] { background: var(--moss); border-color: var(--moss); color: var(--on-moss); font-weight: 700; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; padding: .5rem 1.2rem; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink); text-decoration: none; font: inherit; cursor: pointer; }
+  .btn.primary { background: var(--moss); border-color: var(--moss); color: var(--on-moss); font-weight: 700; }
+  .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+  .tag { font-size: .75rem; padding: 0 .55rem; border-radius: 999px; background: var(--moss-soft); color: var(--moss-strong); }
+  .tag.wait { background: var(--amber-soft); color: var(--amber); }
+
+  /* 窓口の下の、トークンの口。人の名前や中身は、ここには出さない。 */
+  .gate { border-top: 1px dashed var(--line-strong); padding-top: 1rem; display: grid; gap: .5rem; }
+  html[data-s~=token] .gate, html[data-s~=reading] .gate, html[data-s~=welcomed] .gate { display: none; }
+  .gate input { font: inherit; padding: .45rem .7rem; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--card); color: var(--ink); inline-size: min(100%, 24rem); }
+
+  /* 申し込みの一覧と、読む頁 */
+  .only-admin, .only-list, .only-read, .only-done { display: none; }
+  html[data-s~=token] .only-admin, html[data-s~=reading] .only-admin, html[data-s~=welcomed] .only-admin { display: grid; }
+  html[data-s~=token] .only-list { display: grid; }
+  html[data-s~=reading] .only-read { display: grid; }
+  html[data-s~=welcomed] .only-done { display: grid; }
+  html[data-s~=reading] .public, html[data-s~=welcomed] .public { display: none; }
+  .apps { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+  .app { display: grid; gap: .15rem; padding: .7rem .9rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); text-decoration: none; color: var(--ink); }
+  .app b { font-weight: 700; }
+  .app .snip { color: var(--muted); font-size: .875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app .meta { font-size: .75rem; color: var(--muted); display: flex; gap: .6rem; }
+  .words { display: grid; gap: .9rem; }
+  .words dt { font-size: .8125rem; color: var(--muted); }
+  .words dd { margin: 0; white-space: pre-wrap; }
+  .mail { border-left: 3px solid var(--moss); padding: .4rem 0 .4rem .9rem; display: grid; gap: .5rem; font-size: .9375rem; }
+  textarea { font: inherit; inline-size: 100%; min-block-size: 5.5rem; padding: .55rem .7rem; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--card); color: var(--ink); }
+  .note { background: var(--amber-soft); color: var(--ink); border-radius: var(--radius); padding: .6rem .9rem; font-size: .875rem; }
+  details > summary { cursor: pointer; color: var(--moss-strong); }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="name" href="/">gov<small>sukhi.social の窓口</small></a>
+  <span class="who only-admin">くろ として、ひらいています</span>
+</header>
+
+<div class="frame">
+  <nav class="shelf only-admin" aria-label="道具">
+    <span class="label">迎える</span>
+    <a href="/applications" aria-current="page">申し込み <span class="count">3</span></a>
+    <a href="/days">大丈夫な曜日</a>
+    <span class="label">受ける</span>
+    <a href="/reports">通報 <span class="count">1</span></a>
+    <span class="label">残す</span>
+    <a href="/history">これまで</a>
+  </nav>
+
+  <main class="main">
+    <!-- ① だれでも見る窓口 -->
+    <div class="public main" style="max-width:none">
+      <section class="hero">
+        <h1>ここの窓口です</h1>
+        <p class="lead">sukhi を見ている人たちと、困ったときの、ここでのやりかたを、書いてあります。入らなくても、読めます。</p>
+      </section>
+
+      <section id="mine">
+        <h2>いま、見ている人</h2>
+        <div class="card">
+          <p><b>くろ</b> が、申し込みと通報を見ています。</p>
+          <p class="small muted">確認する日(管理する人が「この日は大丈夫」と決めた曜日):</p>
+          <div class="days" role="img" aria-label="月曜日と木曜日">
+            <span class="day" data-on>月</span><span class="day">火</span><span class="day">水</span><span class="day" data-on>木</span><span class="day">金</span><span class="day">土</span><span class="day">日</span>
+          </div>
+          <p class="small muted">返事は、一週間以内に。目安は三日以内です。お休みのときは、お休み中の日と、いつ確認できるかを、ここに書きます。</p>
+        </div>
+      </section>
+
+      <section id="how">
+        <h2>困ったことがあったときの、ここでのやりかた</h2>
+        <ol class="steps">
+          <li><div><b>まず、くろ に知らせてください。</b><p class="small muted">通報は「くろ さんに知らせます」と出ます。中身を読めるのは、通報した人と、受け取る人だけです。</p></div></li>
+          <li><div><b>居心地がわるいときは、ミュートか、ブロックを。</b><p class="small muted">それぞれ別のボタンです。通報しなくても、使えます。</p></div></li>
+          <li><div><b>決めるのは、くろ です。寄り添うのは、別の人かもしれません。</b><p class="small muted">話を聞く人と、判断する人は、分けておきます。</p></div></li>
+          <li><div><b>傷つけた側にも、静かな時間を。</b><p class="small muted">追い詰めません。ここでは、こうします、を先に伝えます。</p></div></li>
+        </ol>
+      </section>
+
+      <section id="welcome">
+        <h2>受け入れる基準</h2>
+        <div class="card">
+          <p>「断る基準」ではなく、「受け入れる基準」を書きます。</p>
+          <p>ゆっくり時間をかけて待てる人、ここで静かに過ごせる人を、望んでいます。気になっただけ、でも大丈夫です。</p>
+          <p class="small muted">誘われた人も、同じ申し込みを通ります。身内ノリを防ぐためです。</p>
+        </div>
+        <div class="row"><a class="btn primary" href="/join">申し込む</a><a class="btn" href="/terms">規約を読む</a></div>
+      </section>
+
+      <section class="gate" id="gate">
+        <h3 class="small muted">管理のトークンをお持ちの方</h3>
+        <p class="small muted">この頁は、だれでも見られます。トークンを入れると、迎える・受ける道具が、ここに足されます。</p>
+        <div class="row"><input type="password" aria-label="管理のトークン" placeholder="トークン" autocomplete="off" /><a class="btn" href="/?s=token">ひらく</a></div>
+      </section>
+    </div>
+
+    <!-- ② 申し込みの一覧(トークンあり) -->
+    <section class="only-list">
+      <h1>申し込み</h1>
+      <p class="muted">待っている 3 件。次に確認するのは、<b>木曜日(3日後)</b> と、書いてあります。</p>
+      <ul class="apps">
+        <li><a class="app" href="/applications/482913"><span class="row"><b>ゆき</b><span class="tag wait">待っています</span></span><span class="snip">夜に、ひとりで本を読んでいる人の話を、ゆっくり読みたいです。</span><span class="meta"><span>受付番号 482 913</span><span>きのう</span></span></a></li>
+        <li><a class="app" href="/applications/771204"><span class="row"><b>(書いていません)</b><span class="tag wait">待っています</span></span><span class="snip">気になっただけです。</span><span class="meta"><span>受付番号 771 204</span><span>2日前</span></span></a></li>
+        <li><a class="app" href="/applications/105538"><span class="row"><b>みお</b><span class="tag wait">待っています</span></span><span class="snip">友だちの「ちゃ」さんが、ここの話をしていました。</span><span class="meta"><span>受付番号 105 538</span><span>2日前</span></span></a></li>
+      </ul>
+      <p class="small muted">「はい」を押していない申し込みは、ここには出ません(3時間で消えます)。</p>
+    </section>
+
+    <!-- ③ 一件を読む -->
+    <section class="only-read">
+      <p class="small"><a href="/applications">← 申し込み</a></p>
+      <h1>ゆき さん</h1>
+      <p class="small muted">受付番号 482 913 · きのう · 返事は、木曜日までに</p>
+      <dl class="words card">
+        <div><dt>1. なんて呼んだらいいですか？</dt><dd>ゆき</dd></div>
+        <div><dt>2. どこで、sukhi のことを知りましたか？</dt><dd>友だちが、ここの話をしていました。</dd></div>
+        <div><dt>3. ここで、どんなふうに過ごせたらいいなと思いますか？</dt><dd>夜に、ひとりで本を読んでいる人の話を、ゆっくり読みたいです。</dd></div>
+      </dl>
+      <p class="note">メールアドレスは、ここには出しません。迎えるときだけ、送る先として使います。</p>
+      <h2>返事</h2>
+      <div class="card">
+        <p class="small muted">迎えるときは、14日のあいだ、一回きりの入り口がメールで届きます。切れたら、もういちど申し込んでもらいます(特別扱いは、しません)。</p>
+        <label class="small muted" for="note">心に残ったことを、ひとこと(そのままメールに入ります)</label>
+        <textarea id="note">ゆきさん、夜の読書の話、すてきでした。お待ちしています。</textarea>
+        <details>
+          <summary>メールを、見る</summary>
+          <div class="mail"><p>ゆき さん</p><p>申し込み、ありがとうございました。くろ です。お迎えします。</p><p>ひとこと: ゆきさん、夜の読書の話、すてきでした。お待ちしています。</p><p>こちらから、14日のあいだ、一回だけ入れます:<br /><span class="muted">https://sukhi.social/welcome/…</span></p><p class="small muted">このメールには、返信できます。困ったことがあれば、そのまま書いてください。</p></div>
+        </details>
+        <div class="row"><a class="btn primary" href="/?s=welcomed">迎える</a><a class="btn" href="/?s=token">あとで読む</a></div>
+      </div>
+      <details>
+        <summary>今回は、お迎えしない(案)</summary>
+        <div class="card" style="margin-top:.6rem">
+          <p class="small muted">理由は、短く、やさしく。「基準」のことばで書きます。返事は一週間以内に、メールで送ります。ここは、まだ決まっていません。</p>
+          <textarea aria-label="お迎えしない理由"></textarea>
+          <div class="row"><a class="btn" href="/?s=token">返事を送る</a></div>
+        </div>
+      </details>
+    </section>
+
+    <!-- ④ 迎えた -->
+    <section class="only-done">
+      <h1>迎えのメールを送りました</h1>
+      <p class="muted">ゆき さんに、14日のあいだ使える入り口を送りました。ここに残るのは、日にちと「迎えた」だけです。</p>
+      <div class="card">
+        <div class="row"><span class="tag">迎えた</span><span class="small muted">受付番号 482 913</span></div>
+        <p class="small muted">入り口の期限: 14日後(2026-11-21 まで)。登録されないまま切れたら、もういちど申し込んでもらいます。</p>
+      </div>
+      <p><a class="btn primary" href="/?s=token">申し込みへ もどる</a></p>
+    </section>
+  </main>
+</div>
+</body>
+</html>
