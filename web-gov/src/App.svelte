@@ -6,6 +6,7 @@
   import Public from './Public.svelte';
   import List from './List.svelte';
   import Read from './Read.svelte';
+  import Suspensions from './Suspensions.svelte';
 
   let hash = $state(location.hash);
   let auth = $state(token.get());
@@ -54,14 +55,18 @@
   {#if auth}
     <nav class="shelf" aria-label="道具">
       <span class="label">迎える</span>
-      <a href="#/applications" aria-current={route.name === 'public' ? undefined : 'page'}>
+      <a href="#/applications" aria-current={route.name === 'list' || route.name === 'read' ? 'page' : undefined}>
         申し込み {#if count !== null}<span class="count">{count}</span>{/if}
       </a>
+      <span class="label">守る</span>
+      <a href="#/suspensions" aria-current={route.name === 'suspensions' ? 'page' : undefined}>配送のお休み</a>
     </nav>
   {/if}
   <main class="main">
     {#if route.name === 'public' || !inTools}
       <Public {auth} {notice} onlogin={login} />
+    {:else if route.name === 'suspensions'}
+      <Suspensions onexpired={() => close('ログインが、切れました。もう一度、ひらいてください。')} />
     {:else if route.name === 'list'}
       <List oncount={(n) => (count = n)} onexpired={() => close('ログインが、切れました。もう一度、ひらいてください。')} />
     {:else}

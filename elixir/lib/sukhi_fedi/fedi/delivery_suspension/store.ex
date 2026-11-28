@@ -238,6 +238,27 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Store do
     end
   end
 
+  @doc """
+  Every control-evidence row, for a screen that shows many notices at once
+  (one read, not one per notice): `%{{kind, target, controller} => evidence}`.
+  """
+  @spec all_evidence() :: %{{atom(), String.t(), String.t()} => evidence()}
+  def all_evidence do
+    query =
+      from(e in "suspension_evidence",
+        select: {e.kind, e.target, e.controller, e.verified_at, e.attempted_at, e.failure}
+      )
+
+    for {kind, target, controller, verified_at, attempted_at, failure} <- rows(query), into: %{} do
+      {{String.to_existing_atom(kind), target, controller},
+       %{
+         verified_at: from_micros(verified_at),
+         attempted_at: from_micros(attempted_at),
+         failure: failure(failure)
+       }}
+    end
+  end
+
   @doc "Record an attempt: `verified_at` only moves when `attrs` has one."
   @spec put_evidence(atom(), String.t(), String.t(), map()) :: :ok | {:error, term()}
   def put_evidence(kind, target, controller, attrs) when is_atom(kind) do

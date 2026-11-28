@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { afterEach, expect, test, vi } from 'vitest';
-import { ago, parse, receiptText } from '../src/format.js';
-import { ApiError, applications, sayError } from '../src/api.js';
+import { ago, evidenceText, parse, receiptText, until } from '../src/format.js';
+import { ApiError, applications, sayError, suspensions } from '../src/api.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -80,4 +80,38 @@ test('login: 正しい戻りは verifier だけで引き換え(secret なし)、
   expect(body.client_secret).toBeUndefined();
   expect(store['gov.token'] ?? Object.values(store).includes('T')).toBeTruthy();
   expect(await finish('', f)).toBe(null);
+});
+
+test('お休みの頁: hash から。あと何か・確かめの言い方', () => {
+  expect(parse('#/suspensions')).toEqual({ name: 'suspensions' });
+  const now = new Date('2026-11-28T09:00:00Z');
+  expect(until('2026-11-28T09:30:00Z', now)).toBe('あと30分');
+  expect(until('2026-11-28T12:10:00Z', now)).toBe('あと3時間');
+  expect(until('2026-11-30T12:00:00Z', now)).toBe('あと2日');
+  expect(until('2026-11-28T08:59:00Z', now)).toBe('終わっています');
+  expect(until(null, now)).toBe('');
+  expect(evidenceText(null)).toBe('まだ確かめていません');
+  expect(evidenceText({ failure: 'unlinked' })).toMatch(/つながりが見つかりません/);
+  expect(evidenceText({ failure: null, verified_at: '2026-11-28T09:00:00Z' })).toMatch(/^確かめました/);
+});
+
+test('無視する・やめるは、id を本文で(URL なのでパスに入れない)', async () => {
+  const f = vi.fn(async () => new Response(JSON.stringify({ ignored: true }), { status: 200 }));
+  vi.stubGlobal('fetch', f);
+  vi.stubGlobal('sessionStorage', { getItem: () => 'tok', setItem() {}, removeItem() {} });
+  await suspensions.ignore('https://rest.example/suspensions/1');
+  let [url, init] = f.mock.calls[0];
+  expect(url).toBe('/api/admin/delivery_suspensions/ignore');
+  expect(init.method).toBe('POST');
+  expect(init.headers.authorization).toBe('Bearer tok');
+  expect(JSON.parse(init.body)).toEqual({ id: 'https://rest.example/suspensions/1' });
+  await suspensions.unignore('n');
+  [url] = f.mock.calls[1];
+  expect(url).toBe('/api/admin/delivery_suspensions/unignore');
+});
+
+test('お休みがもう無いときは、そっと言う', async () => {
+  vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: 'suspension_not_found' }), { status: 404 }));
+  const e = await suspensions.list().catch((x) => x);
+  expect(sayError(e)).toMatch(/記録にありません/);
 });

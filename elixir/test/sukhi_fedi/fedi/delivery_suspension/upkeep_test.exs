@@ -155,6 +155,50 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.UpkeepTest do
                )
     end
 
+    test "list/2: what the screen reads — in effect first, ignored marked, remote text made safe" do
+      start_supervised!(Upkeep)
+
+      summary = ~S|<p>maintenance</p><script>alert(1)</script><a href="javascript:alert(1)">x</a>|
+
+      assert {:ok, :accepted} =
+               recv(
+                 activity(
+                   "Create",
+                   notice(%{"summary" => summary, "url" => "http://plain.example/status"}),
+                   "https://a.example/a/c1"
+                 )
+               )
+
+      assert {:ok, [row]} = Admin.list(@now)
+      assert row.id == @id
+      assert row.in_effect
+      refute row.ignored
+      assert row.effective_end == DateTime.add(@now, 3600, :second)
+      assert row.controller == @alice
+      refute row.summary =~ "<script"
+      refute row.summary =~ "javascript:"
+      # only an https address is passed on, and nothing here fetches it
+      assert row.url == nil
+
+      assert :ok = Admin.ignore(@id)
+      assert {:ok, [%{ignored: true, in_effect: false, ignored_at: %DateTime{}}]} = Admin.list(@now)
+    end
+
+    test "list/2: an https url is kept as text" do
+      start_supervised!(Upkeep)
+
+      assert {:ok, :accepted} =
+               recv(
+                 activity(
+                   "Create",
+                   notice(%{"url" => "https://a.example/status"}),
+                   "https://a.example/a/c1"
+                 )
+               )
+
+      assert {:ok, [%{url: "https://a.example/status"}]} = Admin.list(@now)
+    end
+
     test "forgetting the notice forgets the ignore" do
       start_supervised!(Upkeep)
       assert {:ok, :accepted} = recv(activity("Create", notice(), "https://a.example/a/c1"))

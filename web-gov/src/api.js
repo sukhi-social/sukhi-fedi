@@ -65,6 +65,15 @@ export const applications = {
   decline: (receipt, reason) => admin('POST', `/${id(receipt)}/decline`, { reason })
 };
 
+// 他のサーバーからの「配送のお休み」(FEP-f799)。id は URL なので、パスではなく本文で渡す。
+const resting = (method, path, body) => call(method, `/api/admin/delivery_suspensions${path}`, { body, auth: token.get() });
+
+export const suspensions = {
+  list: () => resting('GET', ''),
+  ignore: (noticeId) => resting('POST', '/ignore', { id: noticeId }),
+  unignore: (noticeId) => resting('POST', '/unignore', { id: noticeId })
+};
+
 // 失敗を、そっと言える一文に。
 export function sayError(e) {
   if (!(e instanceof ApiError)) return 'うまくいきませんでした。';
@@ -77,10 +86,12 @@ export function sayError(e) {
       return 'メールが出ませんでした。申し込みはそのままです。もう一度ためせます。';
     case 'validation_failed':
       return '長すぎるようです。500 字までに、してください。';
+    case 'suspension_not_found':
+      return 'このお休みは、もう記録にありません(期限が過ぎて、忘れられたようです)。';
     case 'admin_required':
       return 'このトークンの人は、管理する人ではありません。';
     case 'insufficient_scope':
-      return 'このトークンには、迎える・見送る力がありません(admin:read と admin:write が要ります)。';
+      return 'このトークンには、この操作の力がありません(admin:read と admin:write が要ります)。';
     case 'rate_limited':
       return 'すこし多いようです。待ってから、もう一度。';
   }

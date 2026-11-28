@@ -15,11 +15,121 @@ defmodule SukhiFedi.Fedi.DeliverySuspension.Admin do
   Each choice is written to the admin audit trail (`suspension_ignored` /
   `suspension_unignored`) and announced to telemetry
   (`[:sukhi_fedi, :delivery_suspension, :ignored]`).
+
+  `list/1` is what the admin screen reads: one row per notice, as plain data.
+  What a peer wrote in it is treated like any other remote text: `summary` goes
+  through `SukhiFedi.HTML.sanitize/1` (the one scrubber), and `url` is passed
+  on only if it is an `https` address, as text. **Nothing here fetches a `url`**.
   """
 
   alias SukhiFedi.AccountRepo
-  alias SukhiFedi.Fedi.DeliverySuspension.{Store, Upkeep}
+  alias SukhiFedi.Fedi.DeliverySuspension.{Control, Store, Upkeep}
   alias SukhiFedi.Schema.AdminAudit
+  alias SukhiShared.DeliverySuspension.{Cache, Gate, Notice, Policy}
+
+  @type row :: %{
+          id: String.t(),
+          controller: String.t(),
+          target_kind: :inbox | :origin,
+          target: String.t(),
+          revision: non_neg_integer(),
+          status: :active | :cancelled,
+          published: DateTime.t(),
+          effective_start: DateTime.t() | nil,
+          effective_end: DateTime.t() | nil,
+          in_effect: boolean(),
+          ignored: boolean(),
+          ignored_at: DateTime.t() | nil,
+          summary: String.t() | nil,
+          url: String.t() | nil,
+          evidence: map() | nil,
+          held: non_neg_integer()
+        }
+
+  @doc """
+  Every notice we hold, newest rest first: those in effect, then the others by
+  how late they end. `held` is how many deliveries the notice's controller
+  has held back right now (what the delivery worker counted; zero when the
+  delivery side is not in this VM).
+  """
+  @spec list(DateTime.t(), Policy.t()) :: {:ok, [row()]} | {:error, term()}
+  def list(now \\ DateTime.utc_now(), policy \\ Policy.default()) do
+    with {:ok, notices} <- Store.all_notices(),
+         {:ok, ignored} <- Store.ignored() do
+      evidence = Store.all_evidence()
+      held = Cache.held_counts()
+
+      rows =
+        notices
+        |> Enum.map(&row(&1, now, policy, ignored, evidence, held))
+        |> Enum.sort_by(&{not &1.in_effect, -sort_key(&1.effective_end)})
+
+      {:ok, rows}
+    end
+  end
+
+  defp row(%Notice{} = n, now, policy, ignored, evidence, held) do
+    finish = if n.effective_start, do: Gate.effective_end(n, policy)
+    ignored_at = Map.get(ignored, n.id)
+
+    %{
+      id: n.id,
+      controller: n.controller,
+      target_kind: n.target_kind,
+      target: n.target,
+      revision: n.revision,
+      status: n.status,
+      published: n.published,
+      effective_start: n.effective_start,
+      effective_end: finish,
+      in_effect: ignored_at == nil and in_effect?(n, finish, now),
+      ignored: ignored_at != nil,
+      ignored_at: ignored_at,
+      summary: safe_summary(n.summary),
+      url: https_only(n.url),
+      evidence: latest_evidence(n, evidence),
+      held: Map.get(held, n.controller, 0)
+    }
+  end
+
+  defp in_effect?(%Notice{status: :active, accepted_at: %DateTime{}, effective_start: %DateTime{} = start}, finish, now),
+    do: DateTime.compare(start, now) != :gt and DateTime.compare(now, finish) == :lt
+
+  defp in_effect?(_notice, _finish, _now), do: false
+
+  defp sort_key(nil), do: 0
+  defp sort_key(%DateTime{} = at), do: DateTime.to_unix(at)
+
+  # The most recent attempt among the kinds this target is checked as.
+  defp latest_evidence(%Notice{} = n, evidence) do
+    n
+    |> Control.kinds()
+    |> Enum.map(&Map.get(evidence, {&1, n.target, n.controller}))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.max_by(&sort_key(&1.attempted_at), fn -> nil end)
+  end
+
+  # Remote text, like any other: through the one scrubber. If it cannot run,
+  # the text is escaped, never passed through raw.
+  defp safe_summary(nil), do: nil
+
+  defp safe_summary(text) when is_binary(text) do
+    case SukhiFedi.HTML.sanitize(text) do
+      html when is_binary(html) -> html
+      _ -> SukhiFedi.HTML.escape(text)
+    end
+  rescue
+    _ -> SukhiFedi.HTML.escape(text)
+  end
+
+  defp https_only(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{scheme: "https", host: host} when is_binary(host) and host != "" -> url
+      _ -> nil
+    end
+  end
+
+  defp https_only(_), do: nil
 
   @doc "Ignore the notice `id` (the admin is `admin_id`, for the audit trail)."
   @spec ignore(String.t(), integer() | nil) :: :ok | {:error, :not_found | term()}
